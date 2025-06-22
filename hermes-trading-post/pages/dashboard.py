@@ -1,55 +1,34 @@
 """
-Bitcoin WebSocket Dashboard with GPU-Accelerated Charts
-High-performance real-time trading visualization using ModernGL
+Bitcoin WebSocket Dashboard with High-Performance Chart Acceleration
+Automatically selects best rendering method: GPU (0.1-0.5ms) or CPU-optimized (10-50ms)
 """
 import dash
 from dash import html, dcc, Input, Output, State, callback
 import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import websocket
 import json
 import threading
 from typing import Any, Optional, Union
 
-# Import GPU chart components
+# Import our chart acceleration system
+from components.chart_acceleration.dashboard_integration import (
+    AcceleratedChartComponent,
+    create_bitcoin_chart,
+    create_multi_symbol_charts,
+    get_system_performance_summary
+)
+
+# Check system capabilities on startup
 try:
-    from components.dash_gpu_chart import create_gpu_chart, create_multi_chart_dashboard
-    GPU_AVAILABLE = True
-    print("GPU charts available - using ModernGL acceleration")
-except ImportError as e:
-    GPU_AVAILABLE = False
-    print(f"GPU charts not available: {e}")
-    print("Falling back to standard Plotly charts")
-    # Define dummy classes to prevent errors
-    class DummyChart:
-        """Dummy chart class for fallback when GPU not available"""
-        def __init__(self, *args, **kwargs):
-            pass
-        def get_layout(self):
-            return html.Div("GPU charts not available")
-        def register_callbacks(self, app):
-            pass
-        def update_candle(self, candle_data):
-            """Dummy method to match GPU chart interface"""
-            pass
-    
-    class DummyDashboard:
-        """Dummy dashboard class for fallback when GPU not available"""
-        def __init__(self, *args, **kwargs):
-            pass
-        def add_chart(self, *args, **kwargs):
-            pass
-        def get_layout(self):
-            return html.Div("GPU dashboard not available")
-        def register_callbacks(self, app):
-            pass
-    
-    def create_gpu_chart(*args, **kwargs) -> Any:  # type: ignore
-        return DummyChart(*args, **kwargs)
-    
-    def create_multi_chart_dashboard(*args, **kwargs) -> Any:  # type: ignore
-        return DummyDashboard(*args, **kwargs)
+    from components.chart_acceleration import get_system_capabilities
+    capabilities = get_system_capabilities()
+    print(f"🚀 Chart Acceleration Ready: {capabilities}")
+    print(f"   Performance Tier: {capabilities.performance_tier}")
+    print(f"   Expected Latency: {capabilities.estimated_chart_latency_ms:.2f}ms")
+except Exception as e:
+    print(f"⚠️  Chart acceleration initialization warning: {e}")
+    capabilities = None
 
 # Disable verbose debug prints to reduce terminal spam
 def print(*args, **kwargs):
@@ -214,41 +193,18 @@ def start_websocket(set_error=None):
 # Start WebSocket when module loads
 start_websocket()
 
-# Initialize GPU charts if available
-gpu_chart = None
-gpu_dashboard = None
+# Initialize accelerated chart
+bitcoin_chart = create_bitcoin_chart(chart_id="btc-chart", width=800, height=600)
 
-if GPU_AVAILABLE:
-    try:
-        # Create GPU-accelerated chart for Bitcoin
-        gpu_chart = create_gpu_chart("btc-gpu-chart", "BTC-USD", width=800, height=600)
-        
-        # Create multi-chart dashboard for future expansion
-        gpu_dashboard = create_multi_chart_dashboard("bitcoin-gpu-dashboard")
-        gpu_dashboard.add_chart("btc-main", "BTC-USD", width=800, height=600)
-        
-        print("GPU charts initialized successfully")
-    except Exception as e:
-        print(f"Failed to initialize GPU charts: {e}")
-        GPU_AVAILABLE = False
+# Get system performance info
+perf_summary = get_system_performance_summary()
+print(f"📊 Chart Performance Summary:")
+print(f"   Tier: {perf_summary['performance_tier']}")
+print(f"   Hardware Accelerated: {'Yes' if perf_summary['hardware_accelerated'] else 'No'}")
+print(f"   Optimization Score: {perf_summary['optimization_score']}/100")
 
-# Initialize GPU charts if available
-gpu_chart = None
-gpu_dashboard = None
-
-if GPU_AVAILABLE:
-    try:
-        # Create GPU-accelerated chart for Bitcoin
-        gpu_chart = create_gpu_chart("btc-gpu-chart", "BTC-USD", width=800, height=600)
-        
-        # Create multi-chart dashboard for future expansion
-        gpu_dashboard = create_multi_chart_dashboard("bitcoin-gpu-dashboard")
-        gpu_dashboard.add_chart("btc-main", "BTC-USD", width=800, height=600)
-        
-        print("GPU charts initialized successfully")
-    except Exception as e:
-        print(f"Failed to initialize GPU charts: {e}")
-        GPU_AVAILABLE = False
+# Register chart callbacks
+bitcoin_chart.get_callbacks()
 
 # Dashboard layout
 layout = dbc.Container([
@@ -275,7 +231,7 @@ layout = dbc.Container([
             ], className='float-start')
         ]),
         dbc.CardBody([
-            gpu_chart.get_layout() if GPU_AVAILABLE and gpu_chart else html.Div("GPU chart not available", style={"color": "red"})
+            bitcoin_chart.get_layout()
         ]),
         dbc.CardFooter(
             dbc.ButtonGroup([
@@ -421,167 +377,24 @@ def update_live_price(n):
     return "Connecting...", default_class
 
 # High-frequency real-time price streaming
+# Update accelerated chart with WebSocket data
 @callback(
-    Output('bitcoin-chart', 'extendData'),
+    Output('btc-chart-data-store', 'data'),
     Input('candle-update', 'n_intervals'),
     prevent_initial_call=True
 )
-def stream_price_data(n):
-    global current_price
+def update_accelerated_chart(n):
+    global current_price, current_candle
     
-    if current_price <= 0:
-        return {}
-    
-    # Extend the real-time price line with new data point
-    extend_data = {
-        'x': [[datetime.utcnow()]],
-        'y': [[current_price]]
-    }
-    
-    return [extend_data, [0], 100]  # Add to trace 0, keep last 100 points
-
-# Update chart (optimized for high-frequency trading)
-@callback(
-    Output('bitcoin-chart', 'figure'),
-    [Input('selected-timeframe', 'data'),
-     Input('selected-range', 'data'),
-     Input('chart-update', 'n_intervals')],
-    prevent_initial_call=False
-)
-def update_chart(selected_timeframe_seconds, selected_range, chart_n):
-    global current_price, candle_data, current_candle
-    
-    ctx = dash.callback_context
-    
-    # Create figure
-    fig = go.Figure()
-    
-    # Get historical candles from REST API data
-    historical_candles = candle_data.get(60, [])  # Always use 1m candles from REST API
-    
-    # For 1m timeframe, show historical candles + current forming candle + real-time price line
-    if selected_timeframe_seconds == 60:
-        
-        # Add real-time price line first (trace 0) - this will be extended by extendData
-        if current_price > 0:
-            # Initialize with current price point
-            fig.add_trace(go.Scatter(
-                x=[datetime.utcnow()],
-                y=[current_price],
-                mode='lines',
-                line=dict(color='#FFD700', width=2),  # Gold color for price line
-                name='Live Price',
-                showlegend=False,
-                hovertemplate='<b>Live Price: $%{y:,.2f}</b><br>%{x}<extra></extra>'
-            ))
-        
-        # Combine historical candles with current forming candle
-        all_candles_for_display = []
-        
-        # Add historical REST candles
-        if historical_candles:
-            all_candles_for_display.extend(historical_candles)
-        
-        # Add or replace current forming WebSocket candle
-        if current_candle is not None:
-            # Check if current candle overlaps with the last historical candle
-            if (all_candles_for_display and 
-                all_candles_for_display[-1]['time'] == current_candle['time']):
-                # Replace the last historical candle with the live forming one
-                all_candles_for_display[-1] = current_candle
-            else:
-                # Add as new candle
-                all_candles_for_display.append(current_candle)
-
-        # Deduplicate overlapping candles by timestamp, keeping the most recent data
-        deduped_candles = []
-        for c in all_candles_for_display:
-            if deduped_candles and c['time'] == deduped_candles[-1]['time']:
-                deduped_candles[-1] = c
-            else:
-                deduped_candles.append(c)
-        all_candles_for_display = deduped_candles
-
-        # Plot candlesticks (trace 1)
-        if all_candles_for_display:
-            fig.add_trace(go.Candlestick(
-                x=[c['time'] for c in all_candles_for_display],
-                open=[c['open'] for c in all_candles_for_display],
-                high=[c['high'] for c in all_candles_for_display],
-                low=[c['low'] for c in all_candles_for_display],
-                close=[c['close'] for c in all_candles_for_display],
-                increasing_line_color='#26a69a', decreasing_line_color='#ef5350',
-                increasing_fillcolor='#26a69a', decreasing_fillcolor='#ef5350',
-                line=dict(width=1), showlegend=False, name='BTC-USD',
-                hovertemplate='<b>%{x}</b><br>Open: $%{open:,.2f}<br>High: $%{high:,.2f}<br>Low: $%{low:,.2f}<br>Close: $%{close:,.2f}<extra></extra>'
-            ))
-        
-        if all_candles_for_display:
-            # Set axis range to show all candles with some padding
-            all_candles_for_display.sort(key=lambda x: x['time'])
-            first_candle_time = all_candles_for_display[0]['time']
-            last_candle_time = all_candles_for_display[-1]['time']
-            
-            # Add minimal padding to ensure all candles are visible
-            start_time = first_candle_time - timedelta(minutes=2)
-            end_time = last_candle_time + timedelta(minutes=5)
-            
-            fig.update_xaxes(
-                range=[start_time, end_time],
-                type='date',
-                autorange=False,
-                fixedrange=False
-            )
-        else:
-            # No historical data
-            annotation_color = '#26a69a' if current_candle and current_candle['close'] >= current_candle['open'] else '#ef5350'
-            fig.add_annotation(
-                text=f"Loading historical candles...<br>Live Price: ${current_price:,.2f}" if current_price > 0 else "Connecting...",
-                xref="paper", yref="paper", x=0.5, y=0.5,
-                showarrow=False, font=dict(size=16, color=annotation_color)
-            )
-        
-    else:
-        # For other timeframes, show message
-        annotation_color = '#26a69a' if current_candle and current_candle['close'] >= current_candle['open'] else '#ef5350'
-        fig.add_annotation(
-            text=f"Live candle updates only available for 1m timeframe<br>Live Price: ${current_price:,.2f}" if current_price > 0 else "Live updates only for 1m timeframe",
-            xref="paper", yref="paper", x=0.5, y=0.5,
-            showarrow=False, font=dict(size=16, color=annotation_color)
-        )
-    
-    # Layout with performance optimizations
-    timeframe_labels = {60: '1m', 300: '5m', 900: '15m', 3600: '1h', 21600: '6h', 86400: '1d'}
-    timeframe_label = timeframe_labels.get(selected_timeframe_seconds, '1m')
-    
-    fig.update_layout(
-        title=f"Bitcoin Live Chart ({timeframe_label}) - {selected_range} range - High-Frequency Updates",
-        xaxis_title="Time", 
-        yaxis_title="Price (USD)", 
-        height=600,
-        template="plotly_dark", 
-        xaxis_rangeslider_visible=False, 
-        showlegend=False,
-        margin=dict(l=50, r=150, t=50, b=50),
-        # Performance optimizations
-        dragmode='pan',
-        uirevision='constant'  # Preserve zoom/pan state
-    )
-    
-    # Add current price line and annotation
+    # Update chart with latest price
     if current_price > 0:
-        live_color = '#26a69a' if current_candle and current_candle['close'] >= current_candle['open'] else '#ef5350'
-        
-        fig.add_hline(y=current_price, line_dash="dot", line_color=live_color)
-        fig.add_annotation(
-            xref="paper", x=1, xanchor="left", xshift=10,
-            yref="y", y=current_price,
-            text=f"${current_price:,.2f}",
-            showarrow=False,
-            font=dict(color=live_color, size=14, family="Arial Black")
-        )
-
-    return fig
+        bitcoin_chart.update_price(current_price)
+    
+    # Update current candle if available
+    if current_candle:
+        bitcoin_chart.update_current_candle(current_candle)
+    
+    return {'updated': True}  # Trigger chart refresh
 
 # Update error message display
 @callback(

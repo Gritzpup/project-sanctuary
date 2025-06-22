@@ -44,7 +44,7 @@ class SystemCapabilities:
         self.has_pygame = False
         
         # Performance estimates
-        self.estimated_chart_latency_ms = 390.0  # Current baseline
+        self.estimated_chart_latency_ms = 390.0  # Previous Plotly baseline
         self.max_estimated_fps = 5
         self.performance_tier = "standard"
         
@@ -230,7 +230,7 @@ class AccelerationDetector:
     def _estimate_performance(self):
         """Estimate chart rendering performance based on detected capabilities"""
         
-        # Base latency (current Plotly)
+        # Base latency (previous Plotly baseline)
         base_latency = 390.0
         
         # Performance multipliers

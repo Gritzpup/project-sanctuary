@@ -1,6 +1,6 @@
 """
-Alpaca Trader - Dash Application
-Main entry point for the Plotly Dash application with sidebar navigation
+Hermes Trading Post - High-Performance Trading Dashboard
+Main entry point for the GPU-accelerated Dash application with sidebar navigation
 """
 
 import dash
@@ -43,8 +43,8 @@ SIDEBAR_STYLE = {
     "width": "16rem",
     "padding": "1rem",
     "background": "var(--bg-secondary)",
-    "border-right": "2px solid var(--border-color)",
-    "z-index": 1050,
+    "borderRight": "2px solid var(--border-color)",
+    "zIndex": 1050,
     "transition": "all 0.3s ease"
 }
 
@@ -56,22 +56,22 @@ SIDEBAR_COLLAPSED_STYLE = {
     "width": "4rem",  # Thin sidebar for icons only
     "padding": "0.5rem",
     "background": "var(--bg-secondary)",
-    "border-right": "2px solid var(--border-color)",
-    "z-index": 1050,
+    "borderRight": "2px solid var(--border-color)",
+    "zIndex": 1050,
     "transition": "all 0.3s ease",
     "overflow": "hidden"  # Hide text when collapsed
 }
 
 CONTENT_STYLE = {
-    "margin-left": "18rem",
-    "margin-right": "2rem",
+    "marginLeft": "18rem",
+    "marginRight": "2rem",
     "padding": "2rem 1rem",
     "transition": "all 0.3s ease"
 }
 
 CONTENT_EXPANDED_STYLE = {
-    "margin-left": "5rem",  # Leave space for thin sidebar
-    "margin-right": "2rem", 
+    "marginLeft": "5rem",  # Leave space for thin sidebar
+    "marginRight": "2rem", 
     "padding": "2rem 1rem",
     "transition": "all 0.3s ease"
 }

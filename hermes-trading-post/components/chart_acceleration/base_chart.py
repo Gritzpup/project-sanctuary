@@ -161,20 +161,11 @@ class ChartFactory:
             except Exception as e:
                 logger.warning(f"LinuxGPUChart failed for {symbol}: {e}")
                 
-        # Try CPU-optimized rendering for medium performance
-        if capabilities.cpu_threads >= 4 and target_fps >= 10:
-            try:
-                from .cpu_optimized_chart import CPUOptimizedChart
-                logger.info(f"Using CPUOptimizedChart for {symbol}")
-                return CPUOptimizedChart(symbol, width, height)
-            except Exception as e:
-                logger.warning(f"CPUOptimizedChart failed for {symbol}: {e}")
-                
-        # Fallback to standard Plotly (always available)
+        # Try CPU-optimized rendering for medium performance (now the fallback)
         try:
-            from .standard_plotly_chart import StandardPlotlyChart
-            logger.info(f"Using StandardPlotlyChart for {symbol} (fallback)")
-            return StandardPlotlyChart(symbol, width, height)
+            from .cpu_optimized_chart import CPUOptimizedChart
+            logger.info(f"Using CPUOptimizedChart for {symbol}")
+            return CPUOptimizedChart(symbol, width, height)
         except Exception as e:
             logger.error(f"All chart implementations failed for {symbol}: {e}")
             raise RuntimeError(f"Cannot create chart for {symbol}: No working implementation found")
@@ -211,17 +202,6 @@ class ChartFactory:
             cpu_caps.max_fps = 30
             cpu_caps.memory_efficient = True
             implementations.append(("CPU Optimized (NumPy + Threading)", cpu_caps))
-        except ImportError:
-            pass
-            
-        # Standard Plotly (always available)
-        try:
-            from .standard_plotly_chart import StandardPlotlyChart
-            standard_caps = ChartCapabilities()
-            standard_caps.supports_real_time = True
-            standard_caps.max_fps = 5
-            standard_caps.memory_efficient = True
-            implementations.append(("Standard Plotly", standard_caps))
         except ImportError:
             pass
         

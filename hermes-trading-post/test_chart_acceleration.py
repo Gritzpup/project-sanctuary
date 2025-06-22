@@ -213,7 +213,7 @@ def test_dependency_installation():
         'PIL': 'Pillow (Image processing)',
         'cupy': 'CuPy (CUDA acceleration)',
         'dash': 'Dash (Web framework)',
-        'plotly': 'Plotly (Chart fallback)',
+        # 'plotly': 'Plotly (Not used directly)',
         'psutil': 'PSUtil (System monitoring)'
     }
     
@@ -243,10 +243,10 @@ def performance_summary(test_results: Dict, capabilities):
         print("❌ No test results available")
         return
         
-    # Current baseline (Plotly)
+    # Previous baseline (when using Plotly)
     baseline_ms = 390.0
     
-    print(f"📊 Current Baseline (Plotly): {baseline_ms}ms")
+    print(f"📊 Previous Baseline (Plotly): {baseline_ms}ms")
     print()
     
     for test_name, results in test_results.items():
@@ -277,7 +277,7 @@ def performance_summary(test_results: Dict, capabilities):
             print("   ⚡ MEDIUM PERFORMANCE: Multi-core CPU available")
             print("   📈 Expected: 10-50ms rendering (8-39x improvement)")
         else:
-            print("   📊 STANDARD PERFORMANCE: Using Plotly fallback")
+            print("   📊 STANDARD PERFORMANCE: Using CPU optimized renderer")
             print("   💡 Consider: Upgrading hardware for better performance")
             
         # Linux-specific recommendations
