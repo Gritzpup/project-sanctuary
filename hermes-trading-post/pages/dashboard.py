@@ -12,11 +12,11 @@ import threading
 from typing import Any, Optional, Union
 
 # Import our chart acceleration system
-from components.chart_acceleration.dashboard_integration import (
+from components.chart_acceleration.dashboard_integration_fixed import (
     AcceleratedChartComponent,
     create_bitcoin_chart,
-    create_multi_symbol_charts,
-    get_system_performance_summary
+    get_system_performance_summary,
+    register_chart_callbacks
 )
 
 # Check system capabilities on startup
@@ -30,9 +30,9 @@ except Exception as e:
     print(f"⚠️  Chart acceleration initialization warning: {e}")
     capabilities = None
 
-# Disable verbose debug prints to reduce terminal spam
-def print(*args, **kwargs):
-    pass
+# Enable debug prints for troubleshooting
+import builtins
+print = builtins.print
 
 # Register this as the main page (safe import without app)
 try:
@@ -42,9 +42,13 @@ except Exception:
 
 # WebSocket data storage
 current_price = 0
+previous_price = 0  # Track previous price for color changes
 ws_connection = None
 current_candle = None  # Current forming candle
 candle_data = {}  # Store candles by timeframe: {timeframe_seconds: [candles...]}
+
+# Initialize accelerated chart early so it's available for websocket functions
+bitcoin_chart = create_bitcoin_chart(chart_id="btc-chart", width=1400, height=600)
 
 def fetch_historical_candles():
     """Fetch initial historical candles via REST API to bootstrap the dashboard"""
@@ -86,10 +90,10 @@ def fetch_historical_candles():
             if len(candle_data[60]) > 60:
                 candle_data[60] = candle_data[60][-60:]
             print(f"[CANDLE FETCH] Stored {len(candle_data[60])} historical candles, from {candle_data[60][0]['time'] if candle_data[60] else 'N/A'} to {candle_data[60][-1]['time'] if candle_data[60] else 'N/A'}")
-            # --- PUSH HISTORICAL CANDLES TO GPU CHART ---
-            if GPU_AVAILABLE and gpu_chart:
+            # --- PUSH HISTORICAL CANDLES TO CHART ---
+            if bitcoin_chart:
                 for candle in candle_data[60]:
-                    gpu_chart.update_candle(candle)  # type: ignore
+                    bitcoin_chart.update_chart_data(candle)
             return True, None
         else:
             error_msg = f"[CANDLE FETCH] Failed to fetch historical candles: HTTP {response.status_code} - {response.text}"
@@ -115,12 +119,14 @@ def start_websocket(set_error=None):
             set_error(error_msg)
     # WebSocket message handler
     def on_message(ws, message):
-        global current_price, current_candle, candle_data
+        global current_price, previous_price, current_candle, candle_data
         try:
             data = json.loads(message)
             # Handle ticker data for live price
             if data.get('type') == 'ticker' and data.get('product_id') == 'BTC-USD':
                 price = float(data.get('price', 0))
+                if current_price > 0:
+                    previous_price = current_price
                 current_price = price
                 print(f"Updated price: ${price:,.2f}")
                 now_min = datetime.utcnow().replace(second=0, microsecond=0)
@@ -133,9 +139,9 @@ def start_websocket(set_error=None):
                         if len(candle_data[60]) > 60:
                             candle_data[60] = candle_data[60][-60:]
                             print(f"Trimmed to last 60 historical candles")
-                        # --- PUSH COMPLETED CANDLE TO GPU CHART ---
-                        if GPU_AVAILABLE and gpu_chart:
-                            gpu_chart.update_candle(current_candle)  # type: ignore
+                        # --- PUSH COMPLETED CANDLE TO CHART ---
+                        if bitcoin_chart:
+                            bitcoin_chart.update_chart_data(current_candle)
                     current_candle = {
                         'time': now_min,
                         'open': price,
@@ -193,9 +199,6 @@ def start_websocket(set_error=None):
 # Start WebSocket when module loads
 start_websocket()
 
-# Initialize accelerated chart
-bitcoin_chart = create_bitcoin_chart(chart_id="btc-chart", width=800, height=600)
-
 # Get system performance info
 perf_summary = get_system_performance_summary()
 print(f"📊 Chart Performance Summary:")
@@ -204,7 +207,7 @@ print(f"   Hardware Accelerated: {'Yes' if perf_summary['hardware_accelerated'] 
 print(f"   Optimization Score: {perf_summary['optimization_score']}/100")
 
 # Register chart callbacks
-bitcoin_chart.get_callbacks()
+register_chart_callbacks('btc-chart', bitcoin_chart)
 
 # Dashboard layout
 layout = dbc.Container([
@@ -248,9 +251,9 @@ layout = dbc.Container([
     dcc.Store(id='selected-timeframe', data=60),
     dcc.Store(id='selected-range', data='1H'),
     dcc.Store(id='recommended-timeframe', data=60),
-    dcc.Interval(id="price-update", interval=50, n_intervals=0),
-    dcc.Interval(id="chart-update", interval=3000, n_intervals=0),
-    dcc.Interval(id="candle-update", interval=50, n_intervals=0),
+    dcc.Interval(id="price-update", interval=100, n_intervals=0),
+    dcc.Interval(id="chart-update", interval=200, n_intervals=0),  # Update chart 5 times per second
+    dcc.Interval(id="candle-update", interval=100, n_intervals=0),
 ], fluid=True, className="p-4")
 
 # Handle timeframe button clicks
@@ -362,15 +365,20 @@ def update_range(n6m, n3m, n1m, n5d, n1d, n4h, n1h):
     Input('price-update', 'n_intervals')
 )
 def update_live_price(n):
-    global current_price, current_candle
+    global current_price, previous_price
     # Default parent classes: margin and fallback text color
     default_class = "ms-3 text-muted"
     if current_price > 0:
-        # Choose CSS class based on current forming candle direction
-        if current_candle and current_candle['close'] >= current_candle['open']:
-            color_class = "price-bullish"  # green for bullish
+        # Choose CSS class based on actual price movement
+        if previous_price > 0:
+            if current_price > previous_price:
+                color_class = "price-bullish"  # green for price up
+            elif current_price < previous_price:
+                color_class = "price-bearish"  # red for price down
+            else:
+                color_class = "text-muted"  # gray for no change
         else:
-            color_class = "price-bearish"  # red for bearish
+            color_class = "text-muted"  # gray when no previous price
         # Update both displayed text and className of the span
         return f"${current_price:,.2f}", f"ms-3 {color_class}"
     # If not connected yet
@@ -406,15 +414,5 @@ def display_error_message(error_data):
         return error_data
     return ""
 
-@callback(
-    Output('candle-fetch-error', 'data'),
-    Input('price-update', 'n_intervals'),
-    prevent_initial_call=True
-)
-def init_websocket(n):
-    error_msg = None
-    def set_error(msg):
-        nonlocal error_msg
-        error_msg = msg
-    start_websocket(set_error)
-    return error_msg
+# WebSocket is already started when module loads (line 194)
+# This callback was causing multiple connection attempts - removed

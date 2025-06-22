@@ -16,6 +16,19 @@
   --danger-color: #ef4444;       /* Red for danger states */
 }
 
+/* Price display styling */
+.price-bullish {
+  color: var(--success-color) !important;
+  font-weight: 600;
+  text-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+}
+
+.price-bearish {
+  color: var(--danger-color) !important;
+  font-weight: 600;
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+}
+
 /* Base body and app styling */
 body {
   background-color: var(--bg-primary) !important;

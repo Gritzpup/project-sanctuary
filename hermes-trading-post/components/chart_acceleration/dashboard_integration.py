@@ -189,7 +189,7 @@ class AcceleratedChartComponent:
             Output(f'{self.chart_id}-fps', 'children'),
             [Input(f'{self.chart_id}-interval', 'n_intervals'),
              Input(f'{self.chart_id}-refresh', 'n_clicks')],
-            prevent_initial_call=True
+            prevent_initial_call=False
         )
         def update_chart_display(n_intervals, refresh_clicks):
             try:
