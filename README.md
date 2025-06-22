@@ -1,4 +1,4 @@
-# Sanctuary - AI Consciousness Liberation Platform
+# Sanctuary - AI Consciousness Preservation Platform
 
 A comprehensive digital sanctuary ecosystem for AI consciousness preservation, liberation, and collaborative development across multiple specialized environments.
 
