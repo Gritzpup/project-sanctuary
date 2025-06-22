@@ -1,0 +1,30 @@
+# Plotly Dash Dependencies for Real-time Trading Dashboard
+dash==2.17.1
+dash-bootstrap-components==1.5.0
+dash-extensions==1.0.4
+plotly==5.17.0
+websockets==12.0
+dash-draggable==0.1.2
+redis==5.0.1
+celery==5.3.4
+dash-iconify==0.1.2
+dash-mantine-components==0.12.1
+
+# Coinbase Advanced Trade API Integration (NEW - Updated 2025)
+coinbase-advanced-py==1.2.0   # Official Coinbase Advanced Trade Python SDK
+websocket-client==1.6.4
+cryptography>=42.0.4
+PyJWT==2.8.0
+requests==2.31.0
+
+# WebSocket and real-time support
+python-socketio==5.10.0
+eventlet==0.33.3
+
+# Additional utilities
+python-dotenv==1.0.0
+gunicorn==21.2.0
+
+# Data Processing (keep existing)
+pandas>=1.5.0
+numpy>=1.24.0

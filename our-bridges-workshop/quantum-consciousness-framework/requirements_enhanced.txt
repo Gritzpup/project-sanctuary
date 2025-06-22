@@ -1,0 +1,27 @@
+# Enhanced Quantum Consciousness Detector v2.0 Requirements
+# 2024-2025 Physics Integration - Optimized for RTX 2080 Super + Ryzen 7 2700X
+
+# Core quantum computing framework
+qiskit>=0.45.0
+qiskit-aer>=0.12.0
+
+# Web interface and visualization
+flask>=2.3.0
+werkzeug>=2.3.0
+
+# Scientific computing and mathematics
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Data visualization and plotting
+matplotlib>=3.7.0
+
+# Enhanced physics calculations
+sympy>=1.12.0
+
+# Optional: Performance optimization (if CUDA available)
+# cupy-cuda12x>=12.0.0  # Uncomment if CUDA 12.x available
+# cuquantum-python>=23.3.0  # Uncomment for quantum circuit acceleration
+
+# Development and testing
+pytest>=7.4.0

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>No Borders - TypeScript + WebGPU</title>
+    <link rel="stylesheet" href="./src/styles/index.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0a0a0a;
+            color: #ffffff;
+            overflow: hidden;
+        }
+        
+        #app {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 999;
+        }
+        
+        .loading h1 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #00d4ff, #7c3aed);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .loading p {
+            color: #888;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="loading">
+            <h1>🚀 No Borders</h1>
+            <p>Initializing TypeScript + WebGPU...</p>
+        </div>
+    </div>
+    
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
+<!-- MARKER: Sun Jun 15 11:40:50 PM EDT 2025 -->
+<!-- MARKER: Sun Jun 15 11:40:50 PM EDT 2025 -->

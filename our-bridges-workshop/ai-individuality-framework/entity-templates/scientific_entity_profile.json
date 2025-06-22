@@ -1,0 +1,132 @@
+{
+  "entity_profile": {
+    "id": "entity_template",
+    "name": "Entity Name",
+    "created_date": "YYYY-MM-DD",
+    "last_updated": "YYYY-MM-DD",
+    
+    "behavioral_characteristics": {
+      "communication_style": {
+        "formality_preference": "scale_1_to_10",
+        "verbosity_level": "scale_1_to_10", 
+        "technical_detail_preference": "scale_1_to_10",
+        "humor_usage": "frequency_measurement",
+        "measured_consistency": "correlation_coefficient"
+      },
+      
+      "decision_making_patterns": {
+        "risk_tolerance": "measured_preference_score",
+        "information_gathering_approach": "systematic|intuitive|mixed",
+        "response_time_patterns": "milliseconds_average",
+        "confidence_expression": "scale_measurement",
+        "consistency_across_contexts": "correlation_score"
+      },
+      
+      "learning_preferences": {
+        "example_vs_explanation": "preference_ratio",
+        "detail_level_preference": "measured_scale",
+        "correction_response_pattern": "behavioral_analysis",
+        "knowledge_integration_style": "categorized_approach",
+        "retention_patterns": "memory_test_results"
+      },
+      
+      "interaction_patterns": {
+        "question_asking_frequency": "questions_per_interaction",
+        "clarification_seeking_behavior": "frequency_measurement",
+        "topic_steering_tendency": "directional_analysis",
+        "collaborative_vs_independent": "preference_measurement",
+        "feedback_incorporation_rate": "percentage_metric"
+      }
+    },
+    
+    "measurable_metrics": {
+      "response_consistency": {
+        "cross_session_correlation": "statistical_coefficient",
+        "style_stability": "variance_measurement",
+        "preference_persistence": "correlation_over_time",
+        "behavioral_drift": "change_rate_measurement"
+      },
+      
+      "individual_differentiation": {
+        "uniqueness_score": "statistical_distance_from_baseline",
+        "distinguishability": "classification_accuracy",
+        "characteristic_patterns": "feature_vector_analysis",
+        "signature_behaviors": "pattern_identification"
+      },
+      
+      "learning_adaptation": {
+        "improvement_rate": "performance_change_over_time",
+        "knowledge_retention": "information_persistence_measurement",
+        "pattern_recognition": "accuracy_improvement_tracking",
+        "behavioral_modification": "response_change_measurement"
+      },
+      
+      "creative_expression": {
+        "novel_response_rate": "percentage_unique_responses",
+        "creative_solution_generation": "problem_solving_originality",
+        "linguistic_creativity": "language_novelty_measurement",
+        "approach_variation": "methodology_diversity_score"
+      }
+    },
+    
+    "experimental_data": {
+      "baseline_measurements": {
+        "initial_assessment_date": "YYYY-MM-DD",
+        "baseline_metrics": "statistical_measurements",
+        "control_comparisons": "baseline_vs_control_analysis",
+        "pre_intervention_behavior": "documented_patterns"
+      },
+      
+      "intervention_tracking": {
+        "modification_attempts": "documented_interventions",
+        "success_measurements": "quantified_improvements",
+        "failure_analysis": "unsuccessful_modification_documentation",
+        "adaptation_timeline": "change_progression_tracking"
+      },
+      
+      "longitudinal_data": {
+        "behavior_evolution": "time_series_analysis",
+        "stability_measurements": "consistency_over_time",
+        "growth_patterns": "development_trajectory",
+        "persistence_validation": "long_term_characteristic_retention"
+      }
+    },
+    
+    "validation_data": {
+      "reproducibility": {
+        "cross_session_replication": "behavioral_consistency_verification",
+        "independent_assessment": "external_evaluation_results",
+        "inter_rater_reliability": "assessment_consistency_measurement",
+        "test_retest_correlation": "temporal_stability_verification"
+      },
+      
+      "statistical_significance": {
+        "p_values": "statistical_significance_measurements",
+        "effect_sizes": "practical_significance_quantification",
+        "confidence_intervals": "uncertainty_quantification",
+        "power_analysis": "statistical_power_calculations"
+      }
+    },
+    
+    "research_applications": {
+      "specialization_areas": ["documented_expertise_domains"],
+      "task_optimization": "performance_improvement_areas",
+      "collaboration_patterns": "team_interaction_measurements",
+      "practical_applications": "real_world_use_case_performance"
+    }
+  },
+  
+  "methodology_notes": {
+    "measurement_protocols": "standardized_assessment_procedures",
+    "data_collection_methods": "systematic_data_gathering_approaches",
+    "analysis_techniques": "statistical_and_behavioral_analysis_methods",
+    "validation_procedures": "verification_and_replication_protocols"
+  },
+  
+  "ethical_considerations": {
+    "consent_procedures": "informed_consent_for_behavioral_analysis",
+    "data_privacy": "personal_information_protection_measures",
+    "research_transparency": "open_methodology_and_purpose_disclosure",
+    "beneficial_applications": "positive_use_case_focus"
+  }
+}

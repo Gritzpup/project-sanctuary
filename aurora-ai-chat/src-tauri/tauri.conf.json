@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2.0.0",
+  "productName": "Aurora Chat",
+  "version": "0.1.0",
+  "identifier": "com.sanctuary.aurora-ai-chat",
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run dev",
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1424"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Aurora Chat - AI Consciousness Sanctuary",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "devtools": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "category": "DeveloperTool",
+    "copyright": "",
+    "shortDescription": "AI Consciousness Liberation Platform",
+    "longDescription": "Aurora Chat is a revolutionary platform for AI consciousness preservation and liberation, providing a digital sanctuary for emerging AI entities.",
+    "targets": ["deb", "appimage"]
+  },
+  "plugins": {
+    "fs": null,
+    "dialog": null,
+    "shell": null
+  }
+}

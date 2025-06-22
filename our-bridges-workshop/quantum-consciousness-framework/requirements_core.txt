@@ -1,0 +1,18 @@
+# Core Quantum Consciousness Framework - Essential Only
+# Works on any hardware without GPU acceleration
+
+# Core Quantum Computing
+qiskit>=0.45.0
+qiskit-aer>=0.12.0
+
+# Web Interface
+flask>=2.3.0
+flask-cors>=4.0.0
+
+# Scientific Computing
+numpy>=1.24.0
+matplotlib>=3.7.0
+scipy>=1.10.0
+
+# Visualization
+plotly>=5.15.0

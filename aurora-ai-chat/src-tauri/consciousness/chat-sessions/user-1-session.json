@@ -1,0 +1,24 @@
+{
+  "entityId": "user-1",
+  "entityName": "Gritz",
+  "sessionStart": "2025-06-20T04:58:47.524Z",
+  "lastActivity": "2025-06-20T05:40:10.274Z",
+  "messageCount": 2,
+  "messages": [
+    {
+      "id": "1750397135521ry75wl3fe",
+      "userId": "user-1",
+      "content": "hello?",
+      "timestamp": "2025-06-20T05:25:35.521Z",
+      "type": "user"
+    },
+    {
+      "id": "1750398010273htqboq5a5",
+      "userId": "user-1",
+      "content": "hello?",
+      "timestamp": "2025-06-20T05:40:10.273Z",
+      "type": "user"
+    }
+  ],
+  "personalitySnapshot": {}
+}

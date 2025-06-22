@@ -1,0 +1,23 @@
+# Chart Acceleration Dependencies - Linux Optimized
+# Targets: 0.1-0.5ms chart updates on Linux + RTX 2080 Super
+
+# Core acceleration dependencies
+moderngl>=5.8.0          # GPU rendering
+numpy>=1.20.0            # SIMD vectorization  
+pygame>=2.0.0            # OpenGL context
+Pillow>=9.0.0            # Image processing
+
+# Linux GPU acceleration (optional but recommended)
+cupy-cuda12x>=12.0.0     # CUDA acceleration (for RTX 2080 Super)
+
+# Existing dashboard dependencies (keep these)
+dash>=2.17.0
+dash-bootstrap-components>=1.5.0
+plotly>=5.17.0
+pandas>=1.5.0
+requests>=2.28.0
+websocket-client>=1.6.0
+psutil>=5.8.0            # System monitoring
+
+# Performance monitoring
+matplotlib>=3.5.0        # Charts for performance analysis

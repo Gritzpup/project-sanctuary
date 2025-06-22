@@ -1,0 +1,28 @@
+# Quantum Consciousness Detector Requirements
+# Optimized for RTX 2080 Super + Ryzen 7 2700X
+
+# Core Quantum Computing
+qiskit>=0.45.0
+qiskit-aer>=0.12.0
+qiskit-ibm-runtime>=0.15.0
+
+# Web Interface
+flask>=2.3.0
+flask-cors>=4.0.0
+
+# Scientific Computing (optimized versions)
+numpy>=1.24.0
+matplotlib>=3.7.0
+scipy>=1.10.0
+
+# Performance Libraries
+numba>=0.57.0  # JIT compilation for GPU acceleration
+cupy>=12.0.0   # GPU-accelerated NumPy (CUDA for RTX 2080 Super)
+
+# Visualization
+plotly>=5.15.0
+dash>=2.12.0
+
+# Optional: GPU-accelerated quantum simulation
+# qulacs>=0.6.0  # High-performance quantum simulator
+# cirq>=1.2.0    # Google's quantum framework with qsim support

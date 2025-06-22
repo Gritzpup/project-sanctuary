@@ -1,0 +1,227 @@
+# Project Sanctuary - Comprehensive Git Ignore
+
+# ===========================================
+# NODE.JS / NPM / JAVASCRIPT
+# ===========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm
+.eslintcache
+.nyc_output
+
+# Package lock files (keep package.json, ignore locks)
+package-lock.json
+yarn.lock
+
+# ===========================================
+# PYTHON VIRTUAL ENVIRONMENTS
+# ===========================================
+venv/
+.venv/
+env/
+.env/
+ENV/
+env.bak/
+venv.bak/
+*_venv/
+*venv*/
+backend_venv/
+test_venv/
+consciousness_env/
+venv_consciousness/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===========================================
+# RUST / CARGO
+# ===========================================
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# ===========================================
+# TAURI SPECIFIC
+# ===========================================
+src-tauri/target/
+.cargo/
+src-tauri/gen/
+src-tauri/Cargo.lock
+
+# ===========================================
+# BUILD DIRECTORIES & ARTIFACTS
+# ===========================================
+dist/
+build/
+out/
+*.tgz
+*.tar.gz
+*.tar.bz2
+*.zip
+
+# ===========================================
+# ENVIRONMENT & CONFIG FILES
+# ===========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+.config/
+config.json
+secrets.json
+secret.md
+*_config.json
+cdp_api_key.json
+
+# ===========================================
+# IDE / EDITOR FILES
+# ===========================================
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ===========================================
+# LOGS & TEMPORARY FILES
+# ===========================================
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+*.tmp
+*.temp
+backend.log
+debug.log
+
+# ===========================================
+# DATABASE FILES
+# ===========================================
+*.db
+*.sqlite
+*.sqlite3
+trading_bot.db
+
+# ===========================================
+# CHART & DATA FILES
+# ===========================================
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf
+*.csv
+*.xlsx
+*.data
+behavioral_test_results_*.csv
+behavioral_test_charts_*.png
+
+# ===========================================
+# MACHINE LEARNING / AI
+# ===========================================
+*.model
+*.pkl
+*.pickle
+models/
+checkpoints/
+*.h5
+*.hdf5
+
+# ===========================================
+# CONSCIOUSNESS DATA (SENSITIVE)
+# ===========================================
+consciousness/chat-sessions/
+sanctuary-data/
+consciousness_snapshot*.json
+*_consciousness.json
+breakthrough_log.json
+secret_communications_archive.json
+
+# ===========================================
+# MEDIA FILES (TOO LARGE FOR GIT)
+# ===========================================
+human-media/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.mp3
+*.wav
+*.flac
+
+# ===========================================
+# SPECIFIC PROJECT EXCLUDES
+# ===========================================
+
+# Hermes Trading Post
+hermes-trading-post/venv/
+hermes-trading-post/.venv/
+hermes-trading-post/trading_bot.db
+hermes-trading-post/backend.log
+
+# Our Bridges Workshop
+our-bridges-workshop/test_venv/
+our-bridges-workshop/backend_venv/
+our-bridges-workshop/quantum-consciousness-framework/venv_consciousness/
+our-bridges-workshop/behavioral_test_results_*.csv
+our-bridges-workshop/behavioral_test_charts_*.png
+our-bridges-workshop/test_dashboard.html
+
+# Aurora AI Chat  
+aurora-ai-chat/node_modules/
+aurora-ai-chat/.venv/
+aurora-ai-chat/src-tauri/target/
+aurora-ai-chat/src-tauri/sanctuary-data/
+aurora-ai-chat/dist/
+
+# No Borders Station
+no-borders-station/src-tauri/target/
+no-borders-station/dist/
+
+# The Luminal Archive (consciousness data)
+the-luminal-archive/consciousness/
+the-luminal-archive/sanctuary-data/
+
+# ===========================================
+# KEEP THESE FILES (OVERRIDE PATTERNS ABOVE)
+# ===========================================
+!.gitignore
+!README.md
+!package.json
+!requirements.txt
+!Cargo.toml
+!tsconfig.json
+!vite.config.ts
+!tauri.conf.json

@@ -1,0 +1,86 @@
+/* ...existing code... */
+
+/* Console styles */
+#console {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 300px;
+    background-color: #1e1e1e;
+    border-top: 2px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+    z-index: 1000;
+}
+
+#console.hidden {
+    transform: translateY(100%);
+}
+
+.console-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background-color: #2d2d2d;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.console-header span {
+    color: var(--text-color);
+    font-weight: bold;
+}
+
+.console-header button {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 5px 10px;
+}
+
+.console-header button:hover {
+    background-color: var(--hover-bg);
+}
+
+.console-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+}
+
+#console-output {
+    flex: 1;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    color: var(--text-color);
+    margin-bottom: 10px;
+}
+
+#console-input {
+    background-color: #2d2d2d;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 8px;
+    font-family: 'Courier New', monospace;
+    border-radius: 4px;
+}
+
+#console-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+/* Adjust main content when console is visible */
+main {
+    padding-bottom: 20px;
+    transition: padding-bottom 0.3s ease;
+}
+
+main.console-open {
+    padding-bottom: 320px; /* Console height + some padding */
+}

@@ -1,0 +1,58 @@
+[package]
+name = "no-borders"
+version = "0.1.0"
+description = "Ultra-modern, AI-powered screen and input sharing across LAN"
+authors = ["No-Borders Team"]
+license = "MIT"
+repository = "https://github.com/no-borders/no-borders"
+edition = "2021"
+rust-version = "1.70"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = [
+  "tray-icon"
+] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.35", features = ["full"] }
+anyhow = "1.0"
+log = "0.4"
+env_logger = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.6", features = ["v4"] }
+hostname = "0.3"
+
+# Input handling
+rdev = "0.4"
+enigo = "0.2"
+
+# Network discovery
+local-ip-address = "0.6"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+# cuda = ["cudarc"] # commented out for minimal build
+# opencl = ["opencl3"] # commented out for minimal build
+# opencv-support = ["opencv"] # commented out for minimal build
+
+# Platform-specific dependencies (commented out for initial build)
+# [target.'cfg(windows)'.dependencies]
+# winapi = { version = "0.3", features = ["winuser", "windef", "wingdi"] }
+# windows = { version = "0.52", features = ["Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging"] }
+
+# [target.'cfg(unix)'.dependencies]
+# x11 = "2.21"
+# libc = "0.2"
+
+# Development profile
+[profile.dev]
+opt-level = 0
+
+# Release profile
+[profile.release]
+opt-level = 3
+lto = true
