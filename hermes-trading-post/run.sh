@@ -16,7 +16,7 @@ else
     python3 -m venv venv
     source venv/bin/activate
     echo "📦 Installing dependencies..."
-    pip install -r requirements_dash.txt
+    pip install -r requirements.txt
 fi
 
 # Run the app

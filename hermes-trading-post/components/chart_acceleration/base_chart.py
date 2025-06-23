@@ -152,12 +152,18 @@ class ChartFactory:
         logger.info(f"Creating chart for {symbol}: {capabilities}")
         
         # Try Linux GPU acceleration first (highest performance)
-        if (capabilities.is_linux and capabilities.has_nvidia_gpu and 
-            capabilities.has_moderngl and prefer_hardware and target_fps >= 30):
+        if capabilities.is_linux and capabilities.has_nvidia_gpu and prefer_hardware:
             try:
                 from .linux_gpu_chart import LinuxGPUChart
-                logger.info(f"Using LinuxGPUChart for {symbol} (target: {capabilities.estimated_chart_latency_ms:.2f}ms)")
-                return LinuxGPUChart(symbol, width, height)
+                from .threaded_gpu_renderer import ThreadedGPURenderer
+                
+                logger.info(f"Using ThreadedGPURenderer with LinuxGPUChart for {symbol} (target: {capabilities.estimated_chart_latency_ms:.2f}ms)")
+                
+                # Create threaded GPU renderer for thread-safe multi-threaded operation
+                renderer = ThreadedGPURenderer(LinuxGPUChart, symbol, width, height)
+                renderer.start()
+                
+                return renderer
             except Exception as e:
                 logger.warning(f"LinuxGPUChart failed for {symbol}: {e}")
                 

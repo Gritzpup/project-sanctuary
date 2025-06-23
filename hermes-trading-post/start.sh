@@ -13,17 +13,15 @@ if ! python3 -c "import dash" 2>/dev/null; then
     echo "   (Using --break-system-packages since this is a dedicated machine)"
     
     # Install with --break-system-packages flag for Ubuntu 24.04
-    pip3 install --break-system-packages -r requirements_dash.txt
-    
-    # Try to install performance dependencies
-    echo "🚀 Installing performance dependencies..."
-    pip3 install --break-system-packages psutil aiohttp || true
+    pip3 install --break-system-packages -r requirements.txt
 fi
 
-# Run the app directly
+# Run the app directly in production mode
 echo ""
 echo "🎯 Starting Dash application on http://localhost:8050"
 echo "   Press Ctrl+C to stop"
 echo ""
 
+# Set production mode (no debug, no auto-reload)
+export DASH_DEBUG=False
 python3 dash_app.py

@@ -8,14 +8,21 @@ from dash import Dash, html, dcc, Input, Output, State, callback
 import dash_bootstrap_components as dbc
 from config.coinbase_config import coinbase_config
 import logging
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Disable werkzeug request logging to reduce spam
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
+
+# Check for debug mode from environment variable
+DEBUG_MODE = os.environ.get('DASH_DEBUG', 'False').lower() == 'true'
+
 print("🚀 Starting Alpaca Trader Dash App...")
 print(f"📊 Dashboard: http://localhost:8050")
-print(f"🔧 Debug mode: True")
+print(f"🔧 Debug mode: {DEBUG_MODE}")
 
 # Initialize Dash app with Bootstrap theme and multi-page support
 app = Dash(
@@ -238,4 +245,13 @@ app.clientside_callback(
 )
 
 if __name__ == "__main__":
-    app.run_server(debug=True, host='0.0.0.0', port=8050)
+    # Run in single-threaded mode to avoid OpenGL thread safety issues
+    # pygame/OpenGL contexts don't work well with Flask's multi-threading
+    app.run_server(
+        debug=DEBUG_MODE, 
+        host='0.0.0.0', 
+        port=8050, 
+        use_reloader=DEBUG_MODE, 
+        threaded=False,  # Single-threaded to avoid OpenGL crashes
+        processes=1      # Single process
+    )

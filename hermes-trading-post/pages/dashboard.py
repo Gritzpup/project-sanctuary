@@ -5,10 +5,11 @@ Automatically selects best rendering method: GPU (0.1-0.5ms) or CPU-optimized (1
 import dash
 from dash import html, dcc, Input, Output, State, callback
 import dash_bootstrap_components as dbc
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import websocket
 import json
 import threading
+import time
 from typing import Any, Optional, Union
 
 # Import our chart acceleration system
@@ -48,15 +49,17 @@ current_candle = None  # Current forming candle
 candle_data = {}  # Store candles by timeframe: {timeframe_seconds: [candles...]}
 
 # Initialize accelerated chart early so it's available for websocket functions
+# Set to 60fps for real-time price updates
 bitcoin_chart = create_bitcoin_chart(chart_id="btc-chart", width=1400, height=600)
+bitcoin_chart.target_fps = 60  # Target 60fps for smooth realtime updates
 
 def fetch_historical_candles():
     """Fetch initial historical candles via REST API to bootstrap the dashboard"""
     global candle_data
     try:
         import requests
-        from datetime import datetime, timedelta
-        end_time = datetime.utcnow().replace(second=0, microsecond=0)
+        from datetime import datetime, timedelta, timezone
+        end_time = datetime.now(timezone.utc).replace(second=0, microsecond=0)
         start_time = end_time - timedelta(minutes=60)
         start_iso = start_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
         end_iso = end_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
@@ -78,7 +81,7 @@ def fetch_historical_candles():
             for candle_raw in candles_raw:
                 timestamp, low, high, open_price, close, volume = candle_raw
                 candle_obj = {
-                    'time': datetime.utcfromtimestamp(timestamp),
+                    'time': datetime.fromtimestamp(timestamp, timezone.utc),
                     'open': float(open_price),
                     'high': float(high),
                     'low': float(low),
@@ -128,8 +131,8 @@ def start_websocket(set_error=None):
                 if current_price > 0:
                     previous_price = current_price
                 current_price = price
-                print(f"Updated price: ${price:,.2f}")
-                now_min = datetime.utcnow().replace(second=0, microsecond=0)
+                # print(f"Updated price: ${price:,.2f}")
+                now_min = datetime.now(timezone.utc).replace(second=0, microsecond=0)
                 if current_candle is None or current_candle['time'] != now_min:
                     if current_candle is not None:
                         if 60 not in candle_data:
@@ -155,6 +158,18 @@ def start_websocket(set_error=None):
                     current_candle['high'] = max(current_candle['high'], price)
                     current_candle['low'] = min(current_candle['low'], price)
                     current_candle['close'] = price
+                    # Update current candle in real-time on every price tick
+                    if bitcoin_chart:
+                        try:
+                            bitcoin_chart.update_current_candle(current_candle)
+                        except Exception as e:
+                            print(f"Error updating current candle: {e}")
+                # Update real-time price line on every tick
+                if bitcoin_chart:
+                    try:
+                        bitcoin_chart.update_price(price)
+                    except Exception as e:
+                        print(f"Error updating price: {e}")
         except Exception as e:
             print(f"WebSocket message error: {e}")
     def on_open(ws):
@@ -196,8 +211,8 @@ def start_websocket(set_error=None):
         print(f"Failed to start WebSocket: {e}")
         return False
 
-# Start WebSocket when module loads
-start_websocket()
+# WebSocket will be started by callback after page loads
+# start_websocket() - moved to page load callback
 
 # Get system performance info
 perf_summary = get_system_performance_summary()
@@ -212,6 +227,7 @@ register_chart_callbacks('btc-chart', bitcoin_chart)
 # Dashboard layout
 layout = dbc.Container([
     dcc.Store(id='candle-fetch-error', data=None),
+    dcc.Store(id='websocket-started', data=False),
     dbc.Row([
         dbc.Col([
             html.H1([
@@ -251,10 +267,30 @@ layout = dbc.Container([
     dcc.Store(id='selected-timeframe', data=60),
     dcc.Store(id='selected-range', data='1H'),
     dcc.Store(id='recommended-timeframe', data=60),
-    dcc.Interval(id="price-update", interval=100, n_intervals=0),
-    dcc.Interval(id="chart-update", interval=200, n_intervals=0),  # Update chart 5 times per second
-    dcc.Interval(id="candle-update", interval=100, n_intervals=0),
+    dcc.Interval(id="price-update", interval=50, n_intervals=0),  # 20fps for price updates
+    dcc.Interval(id="chart-update", interval=17, n_intervals=0),  # ~60fps for chart updates
+    dcc.Interval(id="candle-update", interval=100, n_intervals=0),  # 10fps for candle updates
 ], fluid=True, className="p-4")
+
+# Hidden div to track page load
+@callback(
+    Output('websocket-started', 'data', allow_duplicate=True),
+    Input('price-update', 'n_intervals'),
+    State('websocket-started', 'data'),
+    prevent_initial_call='initial_duplicate'
+)
+def ensure_websocket_started(n_intervals, ws_started):
+    """Start WebSocket after page loads (wait a few ticks for chart to initialize)"""
+    if ws_started or n_intervals is None:
+        return ws_started
+    
+    # Wait 5 intervals (250ms) to ensure chart is fully initialized
+    if n_intervals == 5:
+        print("[DASH] Starting WebSocket after chart initialization...")
+        success = start_websocket()
+        return success
+    
+    return ws_started
 
 # Handle timeframe button clicks
 @callback(
@@ -344,14 +380,25 @@ def update_range(n6m, n3m, n1m, n5d, n1d, n4h, n1h):
     # Special case for 1H range - recommend 1m timeframe
     if button_id == 'range-1h':
         recommended_timeframe = 60  # 1m timeframe
+        bitcoin_chart.set_max_visible_candles(60)  # 60 1-minute candles
     
     # Special case for 4H range - recommend 5m
     elif button_id == 'range-4h':
         recommended_timeframe = 300  # 5m timeframe
+        bitcoin_chart.set_max_visible_candles(48)  # 48 5-minute candles
         
     # Special case for 1D range - recommend 15m
     elif button_id == 'range-1d':
         recommended_timeframe = 900  # 15m timeframe
+        bitcoin_chart.set_max_visible_candles(96)  # 96 15-minute candles
+        
+    # Special case for 5D range
+    elif button_id == 'range-5d':
+        bitcoin_chart.set_max_visible_candles(120)  # Adjust as needed
+        
+    # Special case for 1M range
+    elif button_id == 'range-1m':
+        bitcoin_chart.set_max_visible_candles(200)  # Adjust as needed
     
     return (
         selected_range, 
@@ -414,5 +461,7 @@ def display_error_message(error_data):
         return error_data
     return ""
 
-# WebSocket is already started when module loads (line 194)
+# WebSocket is already started when module loads
 # This callback was causing multiple connection attempts - removed
+
+# Chart callbacks are registered via register_chart_callbacks function

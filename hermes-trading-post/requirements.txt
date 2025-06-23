@@ -1,0 +1,43 @@
+# Hermes Trading Post - Consolidated Requirements
+# High-Performance Trading Dashboard with GPU Acceleration
+
+# Core Dash Dependencies
+dash==2.17.1
+dash-bootstrap-components==1.5.0
+dash-extensions==1.0.4
+dash-iconify==0.1.2
+dash-mantine-components==0.12.1
+dash-draggable==0.1.2
+
+# GPU Chart Acceleration
+moderngl>=5.8.0          # GPU rendering
+pygame>=2.0.0            # OpenGL context
+Pillow>=9.0.0            # Image compression
+
+# Data Processing
+numpy>=1.24.0
+pandas>=1.5.0
+
+# Coinbase Integration
+coinbase-advanced-py==1.2.0   # Official Coinbase SDK
+websocket-client==1.6.4
+websockets==12.0
+cryptography>=42.0.4
+PyJWT==2.8.0
+requests==2.31.0
+
+# Real-time Support
+python-socketio==5.10.0
+eventlet==0.33.3
+aiohttp>=3.8.0
+
+# System Monitoring
+psutil>=5.8.0
+
+# Utilities
+python-dotenv==1.0.0
+gunicorn==21.2.0
+
+# Optional Performance Dependencies (install separately if needed)
+# cupy-cuda12x>=12.0.0     # CUDA acceleration for NVIDIA GPUs
+# matplotlib>=3.5.0        # Performance analysis charts

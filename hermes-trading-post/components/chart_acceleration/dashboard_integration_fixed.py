@@ -56,7 +56,8 @@ class AcceleratedChartComponent:
                     # Chart with initial content
                     html.Div(
                         id=f'{self.chart_id}-chart',
-                        children=initial_chart
+                        children=initial_chart,
+                        style={'height': f'{self.height}px'}
                     )
                 ],
                 style={
@@ -65,7 +66,8 @@ class AcceleratedChartComponent:
                     'padding': '0',  # Remove padding for full width
                     'background-color': '#1a1a1a',
                     'margin-bottom': '10px',
-                    'overflow': 'hidden'  # Prevent overflow
+                    'overflow': 'hidden',  # Prevent overflow
+                    'min-height': f'{self.height}px'
                 }
             ),
             
@@ -175,20 +177,32 @@ class AcceleratedChartComponent:
         
     def update_chart_data(self, candle_data: Dict[str, Any]):
         """Update chart with new candle data"""
-        self.chart.add_candle(candle_data)
-        
+        if hasattr(self.chart, 'update_data'):
+            self.chart.update_data(candle_data)
+        elif hasattr(self.chart, 'add_candle'):
+            self.chart.add_candle(candle_data)
+
     def update_current_candle(self, candle_data: Dict[str, Any]):
         """Update currently forming candle"""
-        self.chart.update_current_candle(candle_data)
+        if hasattr(self.chart, 'update_data'):
+            self.chart.update_data(candle_data)
+        elif hasattr(self.chart, 'update_current_candle'):
+            self.chart.update_current_candle(candle_data)
         
     def update_price(self, price: float):
         """Update current price"""
         self.chart.update_price(price)
+        
+    def set_max_visible_candles(self, max_candles: int):
+        """Update the maximum number of visible candles"""
+        if hasattr(self.chart, 'set_max_visible_candles'):
+            self.chart.set_max_visible_candles(max_candles)
 
 
 def create_bitcoin_chart(chart_id: str = "btc-chart", width: int = 800, height: int = 600) -> AcceleratedChartComponent:
     """Create accelerated Bitcoin chart component"""
-    return AcceleratedChartComponent(chart_id, "BTC-USD", width, height, target_fps=20)
+    # Set to 60fps for real-time websocket price updates
+    return AcceleratedChartComponent(chart_id, "BTC-USD", width, height, target_fps=60)
 
 
 def get_system_performance_summary() -> Dict[str, Any]:
