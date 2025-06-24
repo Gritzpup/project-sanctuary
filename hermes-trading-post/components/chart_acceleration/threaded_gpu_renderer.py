@@ -12,12 +12,14 @@ from dataclasses import dataclass
 from enum import Enum
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)  # Set logger to WARNING level
 
 class RenderCommand(Enum):
     """Commands for the GPU rendering thread"""
     RENDER = "render"
     UPDATE_DATA = "update_data"
     UPDATE_PRICE = "update_price"
+    UPDATE_CURRENT_CANDLE = "update_current_candle"
     SHUTDOWN = "shutdown"
     GET_STATS = "get_stats"
 
@@ -42,11 +44,12 @@ class ThreadedGPURenderer:
         self.width = width
         self.height = height
         
-        # Thread-safe communication
-        self.render_queue = queue.Queue(maxsize=100)
+        # Thread-safe communication - increased queue size for batch updates
+        self.render_queue = queue.Queue(maxsize=1000)
         self.gpu_thread = None
         self.chart_instance = None
         self.running = False
+        self.initialization_error = None
         
         # Performance tracking
         self.render_count = 0
@@ -82,6 +85,14 @@ class ThreadedGPURenderer:
         init_event.wait(timeout=5.0)
         
         logger.info(f"GPU rendering thread started for {self.symbol}")
+        
+        # Wait a bit for initialization
+        time.sleep(0.5)
+        
+        # Check for initialization errors
+        if self.initialization_error:
+            logger.error(f"GPU thread initialization failed: {self.initialization_error}")
+            raise RuntimeError(f"GPU initialization failed: {self.initialization_error}")
         
         # Trigger initial render
         self.render_queue.put(RenderRequest(command=RenderCommand.RENDER))
@@ -144,6 +155,7 @@ class ThreadedGPURenderer:
                         
                     elif request.command == RenderCommand.RENDER:
                         # Perform GPU rendering
+                        logger.debug(f"[THREADED GPU] Processing RENDER command (render #{self.render_count + 1})")
                         start_time = time.perf_counter()
                         
                         try:
@@ -171,16 +183,21 @@ class ThreadedGPURenderer:
                     elif request.command == RenderCommand.UPDATE_DATA:
                         # Update chart data
                         if request.data:
-                            # Check if this is a current candle update or new candle
-                            if hasattr(self.chart_instance, 'update_current_candle'):
-                                self.chart_instance.update_current_candle(request.data)
-                            else:
-                                self.chart_instance.add_candle(request.data)
+                            # Always use add_candle for now to ensure data is added
+                            self.chart_instance.add_candle(request.data)
+                            # Don't auto-render here - let the interval callback handle rendering
                             
                     elif request.command == RenderCommand.UPDATE_PRICE:
                         # Update current price
                         if request.data and 'price' in request.data:
+                            logger.info(f"[THREADED GPU] Processing UPDATE_PRICE command: ${request.data['price']:,.2f}")
                             self.chart_instance.update_price(request.data['price'])
+                            
+                    elif request.command == RenderCommand.UPDATE_CURRENT_CANDLE:
+                        # Update currently forming candle
+                        if request.data:
+                            logger.info(f"[THREADED GPU] Processing UPDATE_CURRENT_CANDLE command")
+                            self.chart_instance.update_current_candle(request.data)
                             
                     elif request.command == RenderCommand.GET_STATS:
                         # Return performance stats
@@ -202,7 +219,9 @@ class ThreadedGPURenderer:
                     logger.error(f"Error in GPU thread loop: {e}")
                     
         except Exception as e:
-            logger.error(f"Fatal error in GPU thread: {e}")
+            logger.error(f"Fatal error in GPU thread: {e}", exc_info=True)
+            # Set a flag to indicate initialization failure
+            self.initialization_error = str(e)
         finally:
             # Cleanup
             if self.chart_instance and hasattr(self.chart_instance, 'cleanup'):
@@ -231,6 +250,7 @@ class ThreadedGPURenderer:
                 command=RenderCommand.RENDER,
                 callback=callback
             ))
+            logger.debug("[THREADED GPU] Queued RENDER command")
         except queue.Full:
             logger.warning("Render queue full, skipping frame")
             
@@ -275,8 +295,16 @@ class ThreadedGPURenderer:
         self.update_data(candle_data)
     
     def update_current_candle(self, candle_data: Dict[str, Any]):
-        """Update current candle (same as update_data for now)"""
-        self.update_data(candle_data)
+        """Update currently forming candle (thread-safe)"""
+        logger.info(f"[THREADED GPU] update_current_candle called with data: {candle_data}")
+        try:
+            self.render_queue.put_nowait(RenderRequest(
+                command=RenderCommand.UPDATE_CURRENT_CANDLE,
+                data=candle_data
+            ))
+            logger.info(f"[THREADED GPU] UPDATE_CURRENT_CANDLE command queued successfully")
+        except queue.Full:
+            logger.warning("Update queue full, dropping current candle update")
             
     def update_price(self, price: float):
         """Update current price (thread-safe)"""
@@ -312,55 +340,84 @@ class ThreadedGPURenderer:
     def get_dash_component(self):
         """Get Dash component with latest render"""
         # This can be called from any thread safely
-        render_data = self.render_async()
+        logger.debug(f"[THREADED GPU] get_dash_component called, render_count={self.render_count}")
+        try:
+            render_data = self.render_async()
+        except Exception as e:
+            logger.error(f"[THREADED GPU] Error in render_async: {e}")
+            render_data = None
         
         if render_data:
-            # Convert render data to Dash component
-            # This part runs in the request thread, not GPU thread
-            import base64
-            from dash import html
-            
-            if isinstance(render_data, bytes):
-                img_base64 = base64.b64encode(render_data).decode()
-                return html.Img(
-                    src=f"data:image/webp;base64,{img_base64}",
-                    style={'width': '100%', 'height': '100%', 'display': 'block', 'object-fit': 'contain'}
-                )
+            try:
+                # Convert render data to Dash component
+                # This part runs in the request thread, not GPU thread
+                import base64
+                from dash import html
+                
+                if isinstance(render_data, bytes):
+                    logger.debug(f"[THREADED GPU] Creating Img component from {len(render_data)} bytes")
+                    img_base64 = base64.b64encode(render_data).decode()
+                    return html.Img(
+                        src=f"data:image/webp;base64,{img_base64}",
+                        style={'width': '100%', 'height': '100%', 'display': 'block', 'objectFit': 'contain'}
+                    )
+            except Exception as e:
+                logger.error(f"[THREADED GPU] Error creating Dash component: {e}")
                 
         # Fallback
-        from dash import html
-        return html.Div(
-            "Chart loading...",
-            style={
-                'width': f'{self.width}px',
-                'height': f'{self.height}px',
-                'display': 'flex',
-                'align-items': 'center',
-                'justify-content': 'center',
-                'background': '#1a1a1a',
-                'color': '#666'
-            }
-        )
+        logger.debug("[THREADED GPU] Using fallback Div component")
+        try:
+            from dash import html
+            return html.Div(
+                "Chart loading...",
+                style={
+                    'width': f'{self.width}px',
+                    'height': f'{self.height}px',
+                    'display': 'flex',
+                    'align-items': 'center',
+                    'justify-content': 'center',
+                    'background': '#1a1a1a',
+                    'color': '#666'
+                }
+            )
+        except Exception as e:
+            logger.error(f"[THREADED GPU] Error creating fallback component: {e}")
+            return None
     
     def stop(self):
         """Stop the GPU rendering thread gracefully"""
-        if self.running:
-            logger.info(f"Stopping GPU thread for {self.symbol}")
-            self.running = False
+        if not self.running:
+            return
             
-            # Send shutdown command to thread
-            try:
-                self.render_queue.put(RenderRequest(
-                    command=RenderCommand.SHUTDOWN
-                ), timeout=0.1)
-            except:
-                pass
-                
-            # Wait for thread to finish
-            if self.gpu_thread and self.gpu_thread.is_alive():
-                self.gpu_thread.join(timeout=2.0)
-                if self.gpu_thread.is_alive():
-                    logger.warning(f"GPU thread for {self.symbol} did not stop gracefully")
+        logger.info(f"Stopping GPU thread for {self.symbol}")
+        self.running = False
+        
+        # Send shutdown command to thread
+        try:
+            shutdown_event = threading.Event()
+            self.render_queue.put(RenderRequest(
+                command=RenderCommand.SHUTDOWN,
+                event=shutdown_event
+            ), timeout=0.5)
+            
+            # Wait for shutdown to be acknowledged
+            if not shutdown_event.wait(timeout=1.0):
+                logger.warning("GPU thread did not acknowledge shutdown")
+        except Exception as e:
+            logger.warning(f"Error sending shutdown command: {e}")
+            
+        # Clear the queue to unblock the thread
+        try:
+            while not self.render_queue.empty():
+                self.render_queue.get_nowait()
+        except:
+            pass
+            
+        # Wait for thread to finish
+        if self.gpu_thread and self.gpu_thread.is_alive():
+            self.gpu_thread.join(timeout=2.0)
+            if self.gpu_thread.is_alive():
+                logger.error(f"GPU thread for {self.symbol} did not stop gracefully - may cause issues")
                     
     def cleanup(self):
         """Clean up resources"""

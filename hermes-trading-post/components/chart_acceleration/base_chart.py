@@ -93,6 +93,10 @@ class BaseChart(ABC):
         """Clean up resources - override in subclasses if needed"""
         self.candles.clear()
         self.price_history.clear()
+        
+    def set_price_tag_value(self, price: float) -> None:
+        """Efficiently update only the price value in the tag, without redrawing the whole tag/line (override in subclass if supported)"""
+        pass
 
 
 class ChartCapabilities:

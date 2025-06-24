@@ -11,6 +11,7 @@ import json
 import threading
 import time
 from typing import Any, Optional, Union
+import redis
 
 # Import our chart acceleration system
 from components.chart_acceleration.dashboard_integration_fixed import (
@@ -41,17 +42,84 @@ try:
 except Exception:
     pass
 
+# --- Redis client for real-time candle sharing ---
+redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
+def get_latest_candle():
+    try:
+        data = redis_client.get('latest_candle')
+        if data:
+            import json
+            from datetime import datetime
+            candle = json.loads(data)
+            # Convert 'time' from ISO string to datetime object if needed
+            if candle and 'time' in candle and isinstance(candle['time'], str):
+                try:
+                    candle['time'] = datetime.fromisoformat(candle['time'])
+                except Exception as e:
+                    print(f"[REDIS] Error parsing candle time: {e}")
+                    candle['time'] = None
+            return candle
+    except Exception as e:
+        print(f"[REDIS] Error reading latest candle: {e}")
+        return None
+
+# --- WebSocket data storage ---
+# Only one WebSocket feed should be active for live price/candle data.
+# Reduce console logs to only essential info and errors.
+
 # WebSocket data storage
 current_price = 0
 previous_price = 0  # Track previous price for color changes
+initial_price_set = False  # Track if we've set the initial price
 ws_connection = None
 current_candle = None  # Current forming candle
 candle_data = {}  # Store candles by timeframe: {timeframe_seconds: [candles...]}
 
+# WebSocket reconnection state
+ws_reconnect_attempts = 0
+ws_max_reconnect_attempts = 10
+ws_reconnect_delay = 1.0  # Start with 1 second delay
+ws_is_reconnecting = False
+ws_connection_lock = threading.Lock()
+
 # Initialize accelerated chart early so it's available for websocket functions
 # Set to 60fps for real-time price updates
-bitcoin_chart = create_bitcoin_chart(chart_id="btc-chart", width=1400, height=600)
-bitcoin_chart.target_fps = 60  # Target 60fps for smooth realtime updates
+bitcoin_chart = None
+
+def get_bitcoin_chart():
+    """Get or create the bitcoin chart singleton"""
+    global bitcoin_chart
+    if bitcoin_chart is None:
+        print("[CHART SINGLETON] Creating new AcceleratedChartComponent instance")
+        bitcoin_chart = create_bitcoin_chart(chart_id="btc-chart", width=1400, height=600)
+        bitcoin_chart.target_fps = 60  # Target 60fps for smooth realtime updates
+    else:
+        print("[CHART SINGLETON] Returning existing AcceleratedChartComponent instance")
+    return bitcoin_chart
+
+# Health check for chart process
+import threading
+
+def chart_health_check():
+    chart = get_bitcoin_chart()
+    try:
+        # If the chart process has an 'is_alive' or similar, check it
+        if hasattr(chart.chart, 'is_alive'):
+            if not chart.chart.is_alive():
+                print("[CHART HEALTH] Chart process not alive, restarting...")
+                # Re-create the chart instance
+                global bitcoin_chart
+                bitcoin_chart = None
+                get_bitcoin_chart()
+        # Optionally, add more checks here
+    except Exception as e:
+        print(f"[CHART HEALTH] Error during health check: {e}")
+    # Schedule next check
+    threading.Timer(10.0, chart_health_check).start()  # Check every 10 seconds
+
+# Start health check on module load
+chart_health_check()
 
 def fetch_historical_candles():
     """Fetch initial historical candles via REST API to bootstrap the dashboard"""
@@ -61,6 +129,7 @@ def fetch_historical_candles():
         from datetime import datetime, timedelta, timezone
         end_time = datetime.now(timezone.utc).replace(second=0, microsecond=0)
         start_time = end_time - timedelta(minutes=60)
+        start_time = start_time.astimezone(timezone.utc)  # Ensure UTC timezone
         start_iso = start_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
         end_iso = end_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
         print(f"[CANDLE FETCH] Requesting candles from {start_time} UTC to {end_time} UTC (local: {datetime.now()})")
@@ -94,9 +163,19 @@ def fetch_historical_candles():
                 candle_data[60] = candle_data[60][-60:]
             print(f"[CANDLE FETCH] Stored {len(candle_data[60])} historical candles, from {candle_data[60][0]['time'] if candle_data[60] else 'N/A'} to {candle_data[60][-1]['time'] if candle_data[60] else 'N/A'}")
             # --- PUSH HISTORICAL CANDLES TO CHART ---
-            if bitcoin_chart:
-                for candle in candle_data[60]:
-                    bitcoin_chart.update_chart_data(candle)
+            chart = get_bitcoin_chart()
+            if chart:
+                print(f"[CANDLE FETCH] Pushing {len(candle_data[60])} historical candles to chart")
+                # Add a small delay between candles to avoid overwhelming the queue
+                for i, candle in enumerate(candle_data[60]):
+                    chart.add_candle(candle)
+                    if i % 10 == 0:  # Small delay every 10 candles
+                        time.sleep(0.01)
+                print(f"[CANDLE FETCH] Historical candles pushed to chart")
+                # Trigger an initial render after loading historical data
+                if hasattr(chart, 'chart') and hasattr(chart.chart, 'render_sync'):
+                    print("[CANDLE FETCH] Triggering initial render...")
+                    chart.chart.render_sync(timeout=2.0)  # Increased timeout for rendering
             return True, None
         else:
             error_msg = f"[CANDLE FETCH] Failed to fetch historical candles: HTTP {response.status_code} - {response.text}"
@@ -107,12 +186,54 @@ def fetch_historical_candles():
         print(error_msg)
         return False, error_msg
 
+def reconnect_websocket():
+    """Attempt to reconnect WebSocket with exponential backoff"""
+    global ws_reconnect_attempts, ws_reconnect_delay, ws_is_reconnecting, ws_connection
+    
+    with ws_connection_lock:
+        # Check if already reconnecting
+        if ws_is_reconnecting:
+            print("[WEBSOCKET] Already attempting to reconnect, skipping...")
+            return
+        
+        # Check if max attempts reached
+        if ws_reconnect_attempts >= ws_max_reconnect_attempts:
+            print(f"[WEBSOCKET] Max reconnection attempts ({ws_max_reconnect_attempts}) reached. Giving up.")
+            return
+        
+        ws_is_reconnecting = True
+    
+    # Clean up existing connection
+    if ws_connection:
+        try:
+            ws_connection.close()
+        except:
+            pass
+        ws_connection = None
+    
+    # Calculate delay with exponential backoff
+    delay = min(ws_reconnect_delay * (2 ** ws_reconnect_attempts), 30.0)  # Cap at 30 seconds
+    ws_reconnect_attempts += 1
+    
+    print(f"[WEBSOCKET] Reconnection attempt {ws_reconnect_attempts}/{ws_max_reconnect_attempts} in {delay:.1f} seconds...")
+    
+    # Schedule reconnection
+    def delayed_reconnect():
+        time.sleep(delay)
+        with ws_connection_lock:
+            ws_is_reconnecting = False
+        print(f"[WEBSOCKET] Attempting reconnection (attempt {ws_reconnect_attempts})...")
+        start_websocket()
+    
+    reconnect_thread = threading.Thread(target=delayed_reconnect, daemon=True)
+    reconnect_thread.start()
+
 def start_websocket(set_error=None):
-    """Start WebSocket connection to Coinbase"""
-    global ws_connection, current_price
-    # Prevent multiple connections
+    """Start WebSocket connection to Coinbase (single instance only)"""
+    global ws_connection, current_price, ws_reconnect_attempts, ws_reconnect_delay
     if ws_connection is not None and hasattr(ws_connection, 'sock') and ws_connection.sock and ws_connection.sock.connected:
-        print("[DASH] WebSocket already running, not starting another.")
+        # Only log once if already running
+        print("[DASH] WebSocket already running.")
         return
     print("[DASH] Fetching historical candles to bootstrap dashboard...")
     ok, error_msg = fetch_historical_candles()
@@ -122,7 +243,7 @@ def start_websocket(set_error=None):
             set_error(error_msg)
     # WebSocket message handler
     def on_message(ws, message):
-        global current_price, previous_price, current_candle, candle_data
+        global current_price, previous_price, current_candle, candle_data, initial_price_set
         try:
             data = json.loads(message)
             # Handle ticker data for live price
@@ -131,6 +252,15 @@ def start_websocket(set_error=None):
                 if current_price > 0:
                     previous_price = current_price
                 current_price = price
+                
+                # Ensure chart gets initial price immediately
+                if not initial_price_set and price > 0:
+                    initial_price_set = True
+                    chart = get_bitcoin_chart()
+                    if chart:
+                        chart.update_price(price)
+                        if hasattr(chart.chart, 'render_sync'):
+                            chart.chart.render_sync(timeout=1.0)  # Increased timeout for initial price
                 # print(f"Updated price: ${price:,.2f}")
                 now_min = datetime.now(timezone.utc).replace(second=0, microsecond=0)
                 if current_candle is None or current_candle['time'] != now_min:
@@ -143,8 +273,9 @@ def start_websocket(set_error=None):
                             candle_data[60] = candle_data[60][-60:]
                             print(f"Trimmed to last 60 historical candles")
                         # --- PUSH COMPLETED CANDLE TO CHART ---
-                        if bitcoin_chart:
-                            bitcoin_chart.update_chart_data(current_candle)
+                        chart = get_bitcoin_chart()
+                        if chart:
+                            chart.add_candle(current_candle)
                     current_candle = {
                         'time': now_min,
                         'open': price,
@@ -159,36 +290,62 @@ def start_websocket(set_error=None):
                     current_candle['low'] = min(current_candle['low'], price)
                     current_candle['close'] = price
                     # Update current candle in real-time on every price tick
-                    if bitcoin_chart:
+                    chart = get_bitcoin_chart()
+                    if chart:
                         try:
-                            bitcoin_chart.update_current_candle(current_candle)
+                            chart.update_current_candle(current_candle)
+                            # Force a render after candle update
+                            if hasattr(chart.chart, 'render_async'):
+                                chart.chart.render_async()
                         except Exception as e:
                             print(f"Error updating current candle: {e}")
+                # --- Write current candle to Redis for real-time UI updates ---
+                try:
+                    # Serialize datetime to ISO string for Redis
+                    candle_for_redis = dict(current_candle)
+                    if isinstance(candle_for_redis['time'], datetime):
+                        candle_for_redis['time'] = candle_for_redis['time'].isoformat()
+                    redis_client.set('latest_candle', json.dumps(candle_for_redis))
+                except Exception as e:
+                    print(f"[REDIS] Error writing current candle: {e}")
                 # Update real-time price line on every tick
-                if bitcoin_chart:
+                chart = get_bitcoin_chart()
+                if chart:
                     try:
-                        bitcoin_chart.update_price(price)
+                        if hasattr(chart.chart, 'set_price_tag_value'):
+                            chart.chart.set_price_tag_value(price)
+                        else:
+                            chart.update_price(price)
+                        # Only call render_sync if structure changes (not every price update)
                     except Exception as e:
                         print(f"Error updating price: {e}")
         except Exception as e:
             print(f"WebSocket message error: {e}")
     def on_open(ws):
-        print("WebSocket connected")
+        global ws_reconnect_attempts, ws_reconnect_delay
+        print("[WEBSOCKET] Connected.")
+        
+        # Reset reconnection state on successful connection
+        ws_reconnect_attempts = 0
+        ws_reconnect_delay = 1.0
+        
         # Subscribe to Bitcoin ticker only (we get historical data from REST API)
         subscribe_msg = {
             "type": "subscribe",
             "product_ids": ["BTC-USD"],
             "channels": ["ticker"]
         }
-        print("Subscribing to WebSocket ticker for live price updates")
         ws.send(json.dumps(subscribe_msg))
-        print("WebSocket subscription message sent")
     
     def on_error(ws, error):
         print(f"WebSocket error: {error}")
+        # Trigger reconnection on error
+        reconnect_websocket()
     
     def on_close(ws, close_status_code, close_msg):
-        print("WebSocket closed")
+        print(f"WebSocket closed: {close_status_code}, {close_msg}")
+        # Trigger reconnection on close
+        reconnect_websocket()
 
     try:
         ws_connection = websocket.WebSocketApp(
@@ -201,18 +358,28 @@ def start_websocket(set_error=None):
         
         # Run WebSocket in background thread
         def run_ws():
-            if ws_connection is not None:
-                ws_connection.run_forever()
+            global ws_connection
+            try:
+                if ws_connection is not None:
+                    ws_connection.run_forever()
+            except Exception as e:
+                print(f"[WEBSOCKET] Error in WebSocket thread: {e}")
+                # Trigger reconnection on thread error
+                reconnect_websocket()
         
-        ws_thread = threading.Thread(target=run_ws, daemon=True)
+        ws_thread = threading.Thread(target=run_ws, daemon=True, name="WebSocket-Thread")
         ws_thread.start()
+        print(f"[WEBSOCKET] WebSocket thread started.")
         return True
     except Exception as e:
-        print(f"Failed to start WebSocket: {e}")
+        print(f"[WEBSOCKET] Failed to start WebSocket: {e}")
+        # Attempt reconnection on startup failure
+        reconnect_websocket()
         return False
 
-# WebSocket will be started by callback after page loads
-# start_websocket() - moved to page load callback
+# Start WebSocket immediately when dashboard loads
+print("[DASH] Starting WebSocket on module load...")
+start_websocket()
 
 # Get system performance info
 perf_summary = get_system_performance_summary()
@@ -222,7 +389,16 @@ print(f"   Hardware Accelerated: {'Yes' if perf_summary['hardware_accelerated'] 
 print(f"   Optimization Score: {perf_summary['optimization_score']}/100")
 
 # Register chart callbacks
-register_chart_callbacks('btc-chart', bitcoin_chart)
+_chart_callbacks_registered = False
+def register_callbacks():
+    """Register callbacks for the chart (only once)"""
+    global _chart_callbacks_registered
+    if _chart_callbacks_registered:
+        print("[DASHBOARD] Chart callbacks already registered, skipping.")
+        return
+    chart = get_bitcoin_chart()
+    register_chart_callbacks('btc-chart', chart)
+    _chart_callbacks_registered = True
 
 # Dashboard layout
 layout = dbc.Container([
@@ -250,7 +426,7 @@ layout = dbc.Container([
             ], className='float-start')
         ]),
         dbc.CardBody([
-            bitcoin_chart.get_layout()
+            get_bitcoin_chart().get_layout()
         ]),
         dbc.CardFooter(
             dbc.ButtonGroup([
@@ -267,30 +443,24 @@ layout = dbc.Container([
     dcc.Store(id='selected-timeframe', data=60),
     dcc.Store(id='selected-range', data='1H'),
     dcc.Store(id='recommended-timeframe', data=60),
-    dcc.Interval(id="price-update", interval=50, n_intervals=0),  # 20fps for price updates
-    dcc.Interval(id="chart-update", interval=17, n_intervals=0),  # ~60fps for chart updates
-    dcc.Interval(id="candle-update", interval=100, n_intervals=0),  # 10fps for candle updates
+    dcc.Store(id='btc-chart-data-store', data=None),
+    dcc.Interval(id="price-update", interval=250, n_intervals=0),  # 4fps for price updates
+    dcc.Interval(id="chart-update", interval=250, n_intervals=0),  # 4fps for chart updates
+    dcc.Interval(id="candle-update", interval=1000, n_intervals=0),  # 1fps for candle updates
 ], fluid=True, className="p-4")
 
-# Hidden div to track page load
+# Remove any duplicate price label from the layout (e.g., at the bottom or outside the chart)
+
+# Add/repair live price update callback for the header
 @callback(
-    Output('websocket-started', 'data', allow_duplicate=True),
-    Input('price-update', 'n_intervals'),
-    State('websocket-started', 'data'),
-    prevent_initial_call='initial_duplicate'
+    Output('live-price', 'children'),
+    Input('price-update', 'n_intervals')
 )
-def ensure_websocket_started(n_intervals, ws_started):
-    """Start WebSocket after page loads (wait a few ticks for chart to initialize)"""
-    if ws_started or n_intervals is None:
-        return ws_started
-    
-    # Wait 5 intervals (250ms) to ensure chart is fully initialized
-    if n_intervals == 5:
-        print("[DASH] Starting WebSocket after chart initialization...")
-        success = start_websocket()
-        return success
-    
-    return ws_started
+def update_live_price(n):
+    # Removed debug print for performance
+    if current_price > 0:
+        return f"Live BTC-USD Price: ${current_price:,.2f}"
+    return "Live BTC-USD Price: --"
 
 # Handle timeframe button clicks
 @callback(
@@ -406,50 +576,25 @@ def update_range(n6m, n3m, n1m, n5d, n1d, n4h, n1h):
         recommended_timeframe
     )
 
-# Update live price display
-@callback(
-    [Output('live-price', 'children'), Output('live-price', 'className')],
-    Input('price-update', 'n_intervals')
-)
-def update_live_price(n):
-    global current_price, previous_price
-    # Default parent classes: margin and fallback text color
-    default_class = "ms-3 text-muted"
-    if current_price > 0:
-        # Choose CSS class based on actual price movement
-        if previous_price > 0:
-            if current_price > previous_price:
-                color_class = "price-bullish"  # green for price up
-            elif current_price < previous_price:
-                color_class = "price-bearish"  # red for price down
-            else:
-                color_class = "text-muted"  # gray for no change
-        else:
-            color_class = "text-muted"  # gray when no previous price
-        # Update both displayed text and className of the span
-        return f"${current_price:,.2f}", f"ms-3 {color_class}"
-    # If not connected yet
-    return "Connecting...", default_class
-
-# High-frequency real-time price streaming
-# Update accelerated chart with WebSocket data
+# Restore the callback to update btc-chart-data-store
 @callback(
     Output('btc-chart-data-store', 'data'),
     Input('candle-update', 'n_intervals'),
-    prevent_initial_call=True
+    prevent_initial_call=False
 )
 def update_accelerated_chart(n):
-    global current_price, current_candle
-    
-    # Update chart with latest price
+    chart = get_bitcoin_chart()
+    latest_candle = get_latest_candle()
+    # Removed debug print for performance
+    if latest_candle:
+        chart.update_current_candle(latest_candle)
     if current_price > 0:
-        bitcoin_chart.update_price(current_price)
-    
-    # Update current candle if available
-    if current_candle:
-        bitcoin_chart.update_current_candle(current_candle)
-    
-    return {'updated': True}  # Trigger chart refresh
+        if hasattr(chart.chart, 'set_price_tag_value'):
+            chart.chart.set_price_tag_value(current_price)
+        else:
+            chart.update_price(current_price)
+    # Only call render_sync if structure changes (not every price update)
+    return {'updated': True, 'timestamp': time.time(), 'price': current_price}
 
 # Update error message display
 @callback(
@@ -465,3 +610,11 @@ def display_error_message(error_data):
 # This callback was causing multiple connection attempts - removed
 
 # Chart callbacks are registered via register_chart_callbacks function
+try:
+    register_callbacks()
+    print("[DASHBOARD] Chart callbacks registered successfully")
+except Exception as e:
+    print(f"[DASHBOARD] Error registering callbacks: {e}")
+
+# Ensure all Redis candle serialization is safe (datetime to ISO string)
+# (Already handled in on_message, but double-check any other Redis publish/set for candles)

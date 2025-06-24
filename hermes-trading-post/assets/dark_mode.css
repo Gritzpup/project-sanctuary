@@ -16,6 +16,10 @@
   --danger-color: #ef4444;       /* Red for danger states */
 }
 
+.price-up { color: #00ff99 !important; }
+.price-down { color: #ff4d4d !important; }
+.price-neutral { color: #cccccc !important; }
+
 /* Price display styling */
 .price-bullish {
   color: var(--success-color) !important;

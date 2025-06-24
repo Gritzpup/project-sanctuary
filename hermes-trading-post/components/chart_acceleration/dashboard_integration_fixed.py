@@ -62,16 +62,16 @@ class AcceleratedChartComponent:
                 ],
                 style={
                     'border': '1px solid #444',
-                    'border-radius': '8px',
+                    'borderRadius': '8px',
                     'padding': '0',  # Remove padding for full width
-                    'background-color': '#1a1a1a',
-                    'margin-bottom': '10px',
+                    'backgroundColor': '#1a1a1a',
+                    'marginBottom': '10px',
                     'overflow': 'hidden',  # Prevent overflow
-                    'min-height': f'{self.height}px'
+                    'minHeight': f'{self.height}px'
                 }
             ),
             
-            # Performance info panel
+            # Performance info panel (no price label here)
             dbc.Collapse([
                 dbc.Card([
                     dbc.CardBody([
@@ -117,7 +117,7 @@ class AcceleratedChartComponent:
                     color="primary", 
                     size="sm",
                     outline=True,
-                    style={'margin-left': '10px'}
+                    style={'marginLeft': '10px'}
                 )
             ], className="d-flex justify-content-end mb-2"),
             
@@ -181,13 +181,25 @@ class AcceleratedChartComponent:
             self.chart.update_data(candle_data)
         elif hasattr(self.chart, 'add_candle'):
             self.chart.add_candle(candle_data)
+    
+    def add_candle(self, candle_data: Dict[str, Any]):
+        """Add a completed candle to the chart"""
+        if hasattr(self.chart, 'add_candle'):
+            self.chart.add_candle(candle_data)
+        else:
+            self.update_chart_data(candle_data)
 
     def update_current_candle(self, candle_data: Dict[str, Any]):
         """Update currently forming candle"""
-        if hasattr(self.chart, 'update_data'):
-            self.chart.update_data(candle_data)
-        elif hasattr(self.chart, 'update_current_candle'):
+        logger.info(f"[ACCELERATED CHART] update_current_candle called with: {candle_data}")
+        if hasattr(self.chart, 'update_current_candle'):
+            logger.info(f"[ACCELERATED CHART] Forwarding to chart.update_current_candle")
             self.chart.update_current_candle(candle_data)
+        elif hasattr(self.chart, 'update_data'):
+            logger.info(f"[ACCELERATED CHART] Falling back to chart.update_data")
+            self.chart.update_data(candle_data)
+        else:
+            logger.error(f"[ACCELERATED CHART] Chart has no update method!")
         
     def update_price(self, price: float):
         """Update current price"""
@@ -241,6 +253,8 @@ def get_system_performance_summary() -> Dict[str, Any]:
 def register_chart_callbacks(chart_id: str, chart_component: AcceleratedChartComponent):
     """Register callbacks for a chart component"""
     
+    logger.info(f"[CHART INTEGRATION] Registering callbacks for chart {chart_id}")
+    
     # Performance panel toggle
     @callback(
         Output(f'{chart_id}-performance-collapse', 'is_open'),
@@ -253,6 +267,10 @@ def register_chart_callbacks(chart_id: str, chart_component: AcceleratedChartCom
         return False
         
     # Chart refresh
+    logger.info(f"[CHART INTEGRATION] Registering update_chart_display callback for {chart_id}")
+    logger.info(f"  Input IDs: {chart_id}-interval, {chart_id}-refresh, {chart_id}-data-store")
+    logger.info(f"  Output IDs: {chart_id}-chart, {chart_id}-fps")
+    
     @callback(
         Output(f'{chart_id}-chart', 'children'),
         Output(f'{chart_id}-fps', 'children'),
@@ -263,10 +281,26 @@ def register_chart_callbacks(chart_id: str, chart_component: AcceleratedChartCom
     )
     def update_chart_display(n_intervals, refresh_clicks, data_store):
         try:
+            # Log every 10 intervals (more frequently for debugging)
+            if n_intervals and n_intervals % 10 == 0:
+                logger.info(f"[CHART CALLBACK] update_chart_display called: n_intervals={n_intervals}")
+            
+            # Force a render before getting the component
+            if hasattr(chart_component.chart, 'render_sync'):
+                # Use a short timeout to avoid blocking
+                chart_component.chart.render_sync(timeout=0.05)
+            
             # Render chart
             start_time = time.perf_counter()
             chart_component_element = chart_component.chart.get_dash_component()
             render_time = (time.perf_counter() - start_time) * 1000
+            
+            # Debug log the component type
+            if n_intervals and n_intervals % 30 == 0:
+                logger.info(f"[CHART CALLBACK] Component type: {type(chart_component_element)}")
+                if hasattr(chart_component_element, 'props') and 'src' in chart_component_element.props:
+                    src_len = len(chart_component_element.props['src'])
+                    logger.info(f"[CHART CALLBACK] Image src length: {src_len}")
             
             # Update performance metrics
             stats = chart_component.chart.get_performance_stats()
@@ -284,8 +318,8 @@ def register_chart_callbacks(chart_id: str, chart_component: AcceleratedChartCom
             ], style={
                 'text-align': 'center',
                 'padding': '50px',
-                'background-color': '#2a2a2a',
-                'border-radius': '4px'
+                'backgroundColor': '#2a2a2a',
+                'borderRadius': '4px'
             })
             
             return error_component, "Error"

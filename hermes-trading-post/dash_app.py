@@ -9,9 +9,13 @@ import dash_bootstrap_components as dbc
 from config.coinbase_config import coinbase_config
 import logging
 import os
+import threading
+import queue
+import redis
+import json
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Disable werkzeug request logging to reduce spam
@@ -82,6 +86,25 @@ CONTENT_EXPANDED_STYLE = {
     "padding": "2rem 1rem",
     "transition": "all 0.3s ease"
 }
+
+# Redis client for real-time price and candle sharing
+redis_client = redis.Redis(host='localhost', port=6379, db=0)
+
+def get_latest_price():
+    try:
+        data = redis_client.get('latest_price')
+        if data:
+            return json.loads(data).get('price')
+    except Exception:
+        return None
+
+def get_latest_candle():
+    try:
+        data = redis_client.get('latest_candle')
+        if data:
+            return json.loads(data)
+    except Exception:
+        return None
 
 # Define the modern collapsible sidebar navigation
 sidebar = html.Div([
@@ -171,10 +194,37 @@ app.layout = html.Div([
         children=[dash.page_container],
         style=CONTENT_STYLE
     ),
-      # Store for sidebar state and theme (with localStorage persistence)
+    #html.H2(id="live-price", style={"marginTop": "2rem"}),  # Removed to avoid duplicate ID
+    dcc.Interval(id="interval-component", interval=1000, n_intervals=0),
     dcc.Store(id="sidebar-collapsed", data=False),
-    dcc.Store(id="theme-store", data="dark", storage_type="local")  # Persist theme in localStorage
+    dcc.Store(id="theme-store", data="dark", storage_type="local"),
+    dcc.Store(id="live-candle-store"),  # Store for live candle
 ], id="app-container")
+
+# Track last price for up/down color
+last_displayed_price = {"price": None}
+
+#@app.callback(
+#    [Output("live-price", "children"), Output("live-price", "className"), Output("live-candle-store", "data")],
+#    Input("interval-component", "n_intervals")
+#)
+#def update_live_price_and_candle(n):
+#    price = get_latest_price()
+#    candle = get_latest_candle()
+#    last_price = getattr(update_live_price_and_candle, "last_price", None)
+#    if price is not None:
+#        if last_price is not None:
+#            if price > last_price:
+#                class_name = "price-up"
+#            elif price < last_price:
+#                class_name = "price-down"
+#            else:
+#                class_name = "price-neutral"
+#        else:
+#            class_name = "price-neutral"
+#        update_live_price_and_candle.last_price = price
+#        return f"Live BTC-USD Price: ${price:.2f}", class_name, candle
+#    return "Waiting for price...", "price-neutral", candle
 
 # Callback for sidebar toggle functionality
 @app.callback(
@@ -247,11 +297,20 @@ app.clientside_callback(
 if __name__ == "__main__":
     # Run in single-threaded mode to avoid OpenGL thread safety issues
     # pygame/OpenGL contexts don't work well with Flask's multi-threading
-    app.run_server(
-        debug=DEBUG_MODE, 
-        host='0.0.0.0', 
-        port=8050, 
-        use_reloader=DEBUG_MODE, 
-        threaded=False,  # Single-threaded to avoid OpenGL crashes
-        processes=1      # Single process
-    )
+    try:
+        app.run_server(
+            debug=DEBUG_MODE, 
+            host='0.0.0.0', 
+            port=8050, 
+            use_reloader=DEBUG_MODE, 
+            threaded=False,  # Single-threaded to avoid OpenGL crashes
+            processes=1      # Single process
+        )
+    except OSError as e:
+        if "Address already in use" in str(e):
+            print("\n❌ ERROR: Port 8050 is already in use!")
+            print("   Please stop the existing process or use a different port.")
+            import sys
+            sys.exit(1)
+        else:
+            raise

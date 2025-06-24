@@ -120,6 +120,10 @@ class CPUOptimizedChart(BaseChart):
         cutoff_time = current_time - 60
         self.price_history = [(t, p) for t, p in self.price_history if t > cutoff_time]
         
+        # Debug log
+        if len(self.price_history) % 10 == 0:
+            logger.info(f"[CPU CHART] Price updated to ${price:,.2f}, history: {len(self.price_history)} points")
+        
     def _update_bounds(self):
         """Update chart coordinate bounds"""
         if not self.candles:
@@ -399,6 +403,11 @@ class CPUOptimizedChart(BaseChart):
         
         start_time = time.perf_counter()
         
+        # Debug log every 10th render
+        self.frame_count += 1
+        if self.frame_count % 10 == 0:
+            logger.info(f"[CPU CHART] Render #{self.frame_count} - price: ${self.current_price:,.2f}, candles: {len(self.candles)}")
+        
         # Clear background
         self.image_buffer.fill(0)
         self.image_buffer[:, :] = self.colors['background']
@@ -462,6 +471,7 @@ class CPUOptimizedChart(BaseChart):
         """Return Dash component for displaying this chart"""
         
         from dash import html
+        import uuid
         
         # Render chart
         image_bytes = self.render()
@@ -469,7 +479,9 @@ class CPUOptimizedChart(BaseChart):
         # Convert to base64 for HTML display
         image_b64 = base64.b64encode(image_bytes).decode('utf-8')
         
+        # Add unique key to force Dash to update
         return html.Img(
+            id={'type': 'chart-image', 'index': str(uuid.uuid4())},
             src=f"data:image/webp;base64,{image_b64}",
             style={
                 'width': '100%',  # Responsive width

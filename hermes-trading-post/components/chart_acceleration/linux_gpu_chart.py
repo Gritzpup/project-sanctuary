@@ -12,6 +12,8 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 from ..chart_acceleration.base_chart import BaseChart
 import logging
+import redis
+import json
 
 # Conditional imports for performance features
 try:
@@ -27,6 +29,12 @@ except ImportError:
     HAS_PYGAME = False
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
+
+# Global lock for OpenGL context initialization
+_opengl_init_lock = threading.Lock()
+_pygame_initialized = False
+_pygame_display_created = False
 
 class LinuxGPUChart(BaseChart):
     """
@@ -103,28 +111,33 @@ class LinuxGPUChart(BaseChart):
     def _init_opengl_context(self):
         """Initialize OpenGL context with Linux optimizations"""
         
+        global _pygame_initialized, _pygame_display_created
+        
         if HAS_PYGAME:
             try:
-                # Initialize pygame with Linux-optimized settings
-                # Check if pygame is already initialized to avoid multiple inits
-                if not pygame.get_init():
-                    pygame.init()
-                    logger.info("Pygame initialized for GPU chart")
-                else:
-                    logger.debug("Pygame already initialized")
+                with _opengl_init_lock:
+                    # Initialize pygame with Linux-optimized settings
+                    # Check if pygame is already initialized to avoid multiple inits
+                    if not _pygame_initialized and not pygame.get_init():
+                        pygame.init()
+                        _pygame_initialized = True
+                        logger.info("Pygame initialized for GPU chart")
+                    else:
+                        logger.debug("Pygame already initialized")
+                    
+                    # Request hardware acceleration and double buffering
+                    # Only create display if one doesn't exist
+                    if not _pygame_display_created and pygame.display.get_surface() is None:
+                        pygame.display.set_mode(
+                            (self.width, self.height),
+                            pygame.OPENGL | pygame.DOUBLEBUF | pygame.HIDDEN
+                        )
+                        _pygame_display_created = True
+                        logger.info("Created pygame display")
+                    else:
+                        logger.debug("Pygame display already exists")
                 
-                # Request hardware acceleration and double buffering
-                # Only create display if one doesn't exist
-                if pygame.display.get_surface() is None:
-                    pygame.display.set_mode(
-                        (self.width, self.height),
-                        pygame.OPENGL | pygame.DOUBLEBUF | pygame.HIDDEN
-                    )
-                    logger.info("Created pygame display")
-                else:
-                    logger.debug("Pygame display already exists")
-                
-                # Create ModernGL context
+                # Create ModernGL context (this can be done per instance)
                 self.ctx = moderngl.create_context()
                 
                 # Enable GPU optimizations
@@ -228,6 +241,11 @@ class LinuxGPUChart(BaseChart):
             'price_line_neutral': np.array([0.63, 0.63, 0.63], dtype=np.float32)  # Gray
         }
         
+        # Reserve space for timeline at bottom
+        self.timeline_height = 30  # pixels reserved for timeline
+        # Reserve space for price label on right
+        self.price_label_width = 90  # pixels reserved for price label
+        
     def _init_buffers(self):
         """Initialize GPU vertex buffers with optimal sizing"""
         
@@ -262,7 +280,7 @@ class LinuxGPUChart(BaseChart):
         self._update_bounds()
         
     def update_current_candle(self, candle_data: Dict[str, Any]) -> None:
-        """Update currently forming candle - always keep it at the rightmost position"""
+        """Update currently forming candle - always keep it at the rightmost position. Data should come from dashboard websocket only."""
         
         if self.candles and len(self.candles) > 0:
             # Check if same timestamp
@@ -280,9 +298,11 @@ class LinuxGPUChart(BaseChart):
         self._update_bounds()
             
     def update_price(self, price: float) -> None:
-        """Update current price for real-time line"""
+        """Update current price for real-time line. Data should come from dashboard websocket only."""
         
+        self.prev_price = self.current_price if self.current_price > 0 else price
         self.current_price = price
+        logger.debug(f"LinuxGPUChart: Updated price to ${price:.2f}")
         current_time = time.time()
         
         # Add to price history
@@ -291,6 +311,58 @@ class LinuxGPUChart(BaseChart):
         # Keep only recent price history (last 60 seconds)
         cutoff_time = current_time - 60
         self.price_history = [(t, p) for t, p in self.price_history if t > cutoff_time]
+        
+        # --- Redis publish for Dash UI ---
+        try:
+            redis_client = redis.Redis(host='localhost', port=6379, db=0)
+            redis_client.set('latest_price', json.dumps({'price': price}))
+        except Exception as e:
+            logger.warning(f"Redis publish error: {e}")
+        
+    def update_current_candle(self, candle_data: Dict[str, Any]) -> None:
+        """Update the currently forming candle from WebSocket data and publish to Redis for Dash UI"""
+        logger.debug(f"LinuxGPUChart: Updating current candle: {candle_data}")
+        
+        if not candle_data:
+            return
+            
+        # Find if we have a candle for the current minute
+        candle_time = candle_data.get('time')
+        if not candle_time:
+            return
+            
+        # Check if this is a new candle or update to existing
+        if self.candles:
+            last_candle = self.candles[-1]
+            last_time = last_candle.get('time')
+            
+            # If times match, update the last candle
+            if last_time and last_time == candle_time:
+                self.candles[-1] = candle_data
+                logger.debug(f"Updated existing candle at {candle_time}")
+            else:
+                # This is a new candle
+                self.add_candle(candle_data)
+                logger.debug(f"Added new current candle at {candle_time}")
+        else:
+            # No candles yet, add this one
+            self.add_candle(candle_data)
+            logger.debug(f"Added first current candle at {candle_time}")
+        
+        # --- Redis publish for Dash UI ---
+        try:
+            import redis, json
+            redis_client = redis.Redis(host='localhost', port=6379, db=0)
+            # Ensure 'time' is an ISO string for Redis serialization
+            candle_for_redis = dict(candle_data)
+            if isinstance(candle_for_redis.get('time'), datetime):
+                candle_for_redis['time'] = candle_for_redis['time'].isoformat()
+            redis_client.set('latest_candle', json.dumps(candle_for_redis))
+        except Exception as e:
+            logger.warning(f"Redis publish error (candle): {e}")
+        
+        # Update bounds to include new candle data
+        self._update_bounds()
         
     def _update_bounds(self):
         """Update chart coordinate bounds"""
@@ -375,6 +447,10 @@ class LinuxGPUChart(BaseChart):
         candle_width = 0.8
         vertex_idx = 0
         
+        # Check if last candle is the current forming candle
+        from datetime import datetime, timezone
+        current_minute = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+        
         for i in range(n_candles):
             candle = gpu_candles[i]
             
@@ -386,7 +462,19 @@ class LinuxGPUChart(BaseChart):
             
             # Color determination
             is_bullish = c >= o
-            color = cp.array([0.15, 0.65, 0.6] if is_bullish else [0.94, 0.33, 0.31])
+            
+            # Check if this is the current forming candle
+            is_current = (i == n_candles - 1 and 
+                         self.candles[i].get('time') == current_minute)
+            
+            if is_current:
+                # Make current candle more vibrant/distinct
+                if is_bullish:
+                    color = cp.array([0.2, 0.9, 0.8])  # Brighter cyan for current bullish
+                else:
+                    color = cp.array([1.0, 0.4, 0.4])  # Brighter red for current bearish
+            else:
+                color = cp.array([0.15, 0.65, 0.6] if is_bullish else [0.94, 0.33, 0.31])
             
             # Candlestick body
             body_top = max(o, c)
@@ -449,7 +537,8 @@ class LinuxGPUChart(BaseChart):
             
         vertices = []
         colors = []
-            
+        n_candles = len(self.candles)
+        
         for i, candle in enumerate(self.candles):
             # Use candle index directly for proper projection
             x = float(i)
@@ -460,7 +549,16 @@ class LinuxGPUChart(BaseChart):
             c = candle.get('close', 0)
             
             is_bullish = c >= o
-            color = self.colors['bullish'] if is_bullish else self.colors['bearish']
+            # Always treat the last candle as the live candle
+            is_current = (i == n_candles - 1)
+            if is_current:
+                # Make current candle more vibrant/distinct
+                if is_bullish:
+                    color = [0.2, 0.9, 0.8]  # Brighter cyan for current bullish
+                else:
+                    color = [1.0, 0.4, 0.4]  # Brighter red for current bearish
+            else:
+                color = self.colors['bullish'] if is_bullish else self.colors['bearish']
             
             # Simplified body rectangle
             body_top = max(o, c)
@@ -511,6 +609,29 @@ class LinuxGPUChart(BaseChart):
                     fragment_shader=timeline_fragment_shader
                 )
             
+            # Draw horizontal axis line at bottom
+            axis_vertices = np.array([
+                0, self.price_min,
+                len(self.candles), self.price_min
+            ], dtype=np.float32)
+            
+            axis_buffer = self.ctx.buffer(axis_vertices.tobytes())
+            axis_vao = self.ctx.vertex_array(
+                self.timeline_program,
+                [(axis_buffer, '2f', 'position')]
+            )
+            
+            # Set axis color (brighter than grid)
+            self.timeline_program['color'] = (0.3, 0.3, 0.3)
+            self.timeline_program['projection'] = self._create_projection_matrix().T.flatten()
+            
+            # Draw axis line
+            self.ctx.line_width = 2.0
+            axis_vao.render(mode=moderngl.LINES)
+            
+            axis_buffer.release()
+            axis_vao.release()
+            
             # Draw grid lines and ticks
             n_ticks = min(8, len(self.candles))
             if n_ticks < 2:
@@ -537,7 +658,6 @@ class LinuxGPUChart(BaseChart):
                 
                 # Set grid color (very subtle)
                 self.timeline_program['color'] = (0.15, 0.15, 0.15)
-                self.timeline_program['projection'] = self._create_projection_matrix().T.flatten()
                 
                 # Draw grid lines
                 self.ctx.line_width = 1.0
@@ -545,6 +665,61 @@ class LinuxGPUChart(BaseChart):
                 
                 grid_buffer.release()
                 grid_vao.release()
+            
+            # Draw time labels using pygame
+            import pygame
+            from pygame import freetype
+            surface = pygame.display.get_surface()
+            if surface is None:
+                return
+            
+            # Mark that we need text overlay
+            self._text_overlay_needed = True
+            
+            # Draw timeline background bar
+            pygame.draw.rect(surface, (20, 20, 20), 
+                           (0, self.height - self.timeline_height, self.width, self.timeline_height))
+            
+            # Draw timeline border
+            pygame.draw.line(surface, (60, 60, 60), 
+                           (0, self.height - self.timeline_height), 
+                           (self.width, self.height - self.timeline_height), 1)
+                
+            font = freetype.SysFont('Arial', 12)
+            
+            # Calculate visible range
+            visible_candles = min(len(self.candles), self.max_visible_candles)
+            start_idx = max(0, len(self.candles) - visible_candles)
+            
+            # Draw time labels for visible candles
+            visible_n_ticks = min(8, visible_candles)
+            if visible_n_ticks >= 2:
+                visible_step = visible_candles / (visible_n_ticks - 1)
+                
+                for i in range(visible_n_ticks):
+                    # Calculate position within visible range
+                    visible_pos = int(i * visible_step)
+                    actual_idx = start_idx + visible_pos
+                    
+                    if actual_idx < len(self.candles):
+                        candle = self.candles[actual_idx]
+                        if 'time' in candle:
+                            # Map to pixel position
+                            x_pixel = int((visible_pos / visible_candles) * self.width)
+                            y_pixel = self.height - 15  # 15 pixels from bottom
+                            
+                            # Format time as HH:MM
+                            time_str = candle['time'].strftime('%H:%M')
+                            
+                            # Center the text
+                            text_rect = font.get_rect(time_str)
+                            x_pixel -= text_rect.width // 2
+                            
+                            # Ensure label stays within bounds
+                            x_pixel = max(5, min(x_pixel, self.width - text_rect.width - 5))
+                            
+                            # Draw time label
+                            font.render_to(surface, (x_pixel, y_pixel), time_str, (200, 200, 200))
                 
         except Exception as e:
             logger.debug(f"Timeline rendering error: {e}")
@@ -552,32 +727,135 @@ class LinuxGPUChart(BaseChart):
     def _draw_price_label(self):
         """Draw price label at the end of the price line"""
         if not self.candles or self.current_price <= 0:
+            logger.warning(f"Skipping price label: candles={len(self.candles) if self.candles else 0}, price={self.current_price}")
             return
+        
+        logger.info(f"Drawing price label at ${self.current_price:.2f}")
         try:
             import pygame
             from pygame import freetype
+            
+            # Mark that we need text overlay first
+            self._text_overlay_needed = True
+            
+            # Get the existing pygame surface
             surface = pygame.display.get_surface()
             if surface is None:
+                logger.warning("No pygame surface for price label")
                 return
+                
             font = freetype.SysFont('Arial', 14, bold=True)
+            
             # Map price to y pixel
             price_range = self.price_max - self.price_min
             if price_range == 0:
                 return
-            y = int(self.height - ((self.current_price - self.price_min) / price_range) * self.height)
+                
+            # Adjust y coordinate to account for timeline
+            y = int((self.height - self.timeline_height) - ((self.current_price - self.price_min) / price_range) * (self.height - self.timeline_height))
+            
             label = f"${self.current_price:,.2f}"
-            # Draw background rectangle
-            pygame.draw.rect(surface, (30,30,30), (self.width-90, y-12, 85, 22), border_radius=6)
-            # Draw price text
-            font.render_to(surface, (self.width-85, y-8), label, (255,255,0))
+            
+            # Determine color based on price movement
+            if hasattr(self, 'prev_price') and self.prev_price is not None:
+                if self.current_price > self.prev_price:
+                    bg_color = (0, 100, 80)  # Teal background
+                    text_color = (200, 255, 200)  # Light green text
+                elif self.current_price < self.prev_price:
+                    bg_color = (100, 20, 20)  # Red background
+                    text_color = (255, 200, 200)  # Light red text
+                else:
+                    bg_color = (50, 50, 50)  # Gray background
+                    text_color = (220, 220, 220)  # Light gray text
+            else:
+                bg_color = (50, 50, 50)
+                text_color = (220, 220, 220)
+                
+            # Draw background rectangle with border
+            rect_x = self.width - self.price_label_width + 5
+            rect_y = y - 12
+            rect_width = self.price_label_width - 10
+            rect_height = 24
+            
+            pygame.draw.rect(surface, bg_color, (rect_x, rect_y, rect_width, rect_height), border_radius=4)
+            pygame.draw.rect(surface, text_color, (rect_x, rect_y, rect_width, rect_height), width=1, border_radius=4)
+            
+            # Draw price text centered
+            text_rect = font.get_rect(label)
+            text_x = rect_x + (rect_width - text_rect.width) // 2
+            text_y = rect_y + (rect_height - text_rect.height) // 2
+            font.render_to(surface, (text_x, text_y), label, text_color)
+            
+            # Mark that we need text overlay
+            self._text_overlay_needed = True
+            
         except Exception as e:
-            pass
+            logger.debug(f"Price label rendering error: {e}")
+
+    def set_price_tag_value(self, price: float) -> None:
+        """Efficiently update only the price value in the tag, erasing the old label before drawing the new one for real-time updates."""
+        try:
+            import pygame
+            from pygame import freetype
+            self.current_price = price
+            surface = pygame.display.get_surface()
+            if surface is None:
+                return
+            font = freetype.SysFont('Arial', 14, bold=True)
+            price_range = self.price_max - self.price_min
+            if price_range == 0:
+                return
+            y = int((self.height - self.timeline_height) - ((self.current_price - self.price_min) / price_range) * (self.height - self.timeline_height))
+            label = f"${self.current_price:,.2f}"
+            # Determine color based on price movement
+            if hasattr(self, 'prev_price') and self.prev_price is not None:
+                if self.current_price > self.prev_price:
+                    bg_color = (0, 100, 80)
+                    text_color = (200, 255, 200)
+                elif self.current_price < self.prev_price:
+                    bg_color = (100, 20, 20)
+                    text_color = (255, 200, 200)
+                else:
+                    bg_color = (50, 50, 50)
+                    text_color = (220, 220, 220)
+            else:
+                bg_color = (50, 50, 50)
+                text_color = (220, 220, 220)
+            rect_x = self.width - self.price_label_width + 5
+            rect_y = y - 12
+            rect_width = self.price_label_width - 10
+            rect_height = 24
+            # Erase the old label area by drawing a background rectangle (same as chart background)
+            chart_bg = (26, 26, 26)  # RGB for dark background
+            pygame.draw.rect(surface, chart_bg, (rect_x, rect_y, rect_width, rect_height), border_radius=4)
+            # Draw new label background and border
+            pygame.draw.rect(surface, bg_color, (rect_x, rect_y, rect_width, rect_height), border_radius=4)
+            pygame.draw.rect(surface, text_color, (rect_x, rect_y, rect_width, rect_height), width=1, border_radius=4)
+            text_rect = font.get_rect(label)
+            text_x = rect_x + (rect_width - text_rect.width) // 2
+            text_y = rect_y + (rect_height - text_rect.height) // 2
+            font.render_to(surface, (text_x, text_y), label, text_color)
+            self._text_overlay_needed = True
+        except Exception as e:
+            logger.debug(f"Efficient price tag update error: {e}")
 
     def render(self) -> Any:
         """Ultra-fast chart rendering with Linux optimizations"""
         
         try:
             start_time = time.perf_counter()
+            
+            # Debug log every frame: print all candles
+            # print("[GPU CHART DEBUG] Candles to render:")
+            # for i, candle in enumerate(self.candles):
+            #     print(f"  Candle {i}: {candle}")
+            
+            # Debug log every 100 frames
+            # if self.frame_count % 100 == 0:
+            #     print(f"[GPU CHART RENDER] Frame {self.frame_count}: current_price=${self.current_price:.2f}, candles={len(self.candles)}")
+            
+            # Reset text overlay flag
+            self._text_overlay_needed = False
             
             # Check if context is still valid
             if not self._context_initialized or not hasattr(self, 'ctx'):
@@ -591,9 +869,12 @@ class LinuxGPUChart(BaseChart):
             self.ctx.clear(*self.colors['background'])
             
             if not self.candles:
+                logger.debug(f"LinuxGPUChart: No candles to render")
                 render_time = (time.perf_counter() - start_time) * 1000
                 self.render_times.append(render_time)
                 return self._get_frame_bytes()
+            
+            logger.debug(f"LinuxGPUChart: Rendering {len(self.candles)} candles, price range: {self.price_min:.2f} - {self.price_max:.2f}")
                 
             # Generate vertices (CUDA accelerated if available)
             vertices, colors = self._generate_vertices_cuda()
@@ -654,11 +935,12 @@ class LinuxGPUChart(BaseChart):
                     logger.warning(f"Invalid vertex count for triangles: {vertex_count}")
                     
             # Draw price line if we have a current price
+            logger.info(f"About to draw price line. Current price: ${self.current_price:.2f}")
             if self.current_price > 0:
                 try:
                     self._draw_price_line()
                 except Exception as e:
-                    logger.warning(f"Failed to draw price line: {e}")
+                    logger.error(f"Failed to draw price line: {e}", exc_info=True)
             # Draw x-axis/timeline
             self._draw_x_axis()
             # Draw price label
@@ -691,16 +973,25 @@ class LinuxGPUChart(BaseChart):
                 return img_bytes.getvalue()
         
     def _create_projection_matrix(self) -> np.ndarray:
-        """Create optimized projection matrix"""
+        """Create optimized projection matrix with timeline space and price label margin"""
         
         if not self.candles:
             return np.eye(4, dtype=np.float32)
             
         # Orthographic projection for 2D chart
-        left = 0
+        # Always show the most recent candles (auto-scroll)
+        visible_candles = min(len(self.candles), self.max_visible_candles)
+        left = max(0, len(self.candles) - visible_candles)
         right = len(self.candles)
-        bottom = self.price_min
-        top = self.price_max
+        
+        # Adjust vertical space to account for timeline
+        chart_height_ratio = (self.height - self.timeline_height) / self.height
+        price_padding = (self.price_max - self.price_min) * 0.1 * chart_height_ratio
+        bottom = self.price_min - price_padding
+        top = self.price_max + price_padding
+        
+        # Adjust horizontal space to account for price label on right
+        chart_width_ratio = (self.width - self.price_label_width) / self.width
         
         # Avoid division by zero
         if (right - left) == 0:
@@ -708,8 +999,12 @@ class LinuxGPUChart(BaseChart):
         if (top - bottom) == 0:
             top = bottom + 1
             
+        # Scale the horizontal projection to fit within chart area (excluding price label)
+        horizontal_scale = 2.0 / (right - left) * chart_width_ratio
+        horizontal_offset = -(right + left) / (right - left) - (1.0 - chart_width_ratio)
+            
         matrix = np.array([
-            [2.0 / (right - left), 0, 0, -(right + left) / (right - left)],
+            [horizontal_scale, 0, 0, horizontal_offset],
             [0, 2.0 / (top - bottom), 0, -(top + bottom) / (top - bottom)],
             [0, 0, -1, 0],
             [0, 0, 0, 1]
@@ -720,8 +1015,7 @@ class LinuxGPUChart(BaseChart):
     def _draw_price_line(self):
         """Draw the current price line with dynamic color using GPU"""
         
-        if not self.candles or self.current_price <= 0:
-            return
+        logger.info(f"Drawing price line at ${self.current_price:.2f}, price range: {self.price_min:.2f}-{self.price_max:.2f}")
             
         try:
             # Create price line shader if not exists
@@ -768,6 +1062,9 @@ class LinuxGPUChart(BaseChart):
                 [len(self.candles) + 1, y]
             ], dtype=np.float32).flatten()
             
+            logger.info(f"Price line vertices: x=[{-1}, {len(self.candles) + 1}], y={y}")
+            logger.info(f"Price line color: {color}")
+            
             # Create buffer and VAO
             line_buffer = self.ctx.buffer(line_vertices.tobytes())
             line_vao = self.ctx.vertex_array(
@@ -777,11 +1074,15 @@ class LinuxGPUChart(BaseChart):
             
             # Set uniforms
             self.price_line_program['color'] = color
-            self.price_line_program['projection'] = self._create_projection_matrix().T.flatten()
+            projection = self._create_projection_matrix()
+            self.price_line_program['projection'] = projection.T.flatten()
             
-            # Draw the line
-            self.ctx.line_width = 2.0
+            logger.info(f"Projection matrix:\n{projection}")
+            
+            # Draw the line with increased thickness
+            self.ctx.line_width = 3.0
             line_vao.render(mode=moderngl.LINES)
+            logger.info("Price line rendered successfully")
             
             # Cleanup
             line_buffer.release()
@@ -791,7 +1092,7 @@ class LinuxGPUChart(BaseChart):
             logger.debug(f"Price line rendering error: {e}")
         
     def _get_frame_bytes(self) -> bytes:
-        """Get rendered frame as compressed bytes"""
+        """Get rendered frame as compressed bytes with pygame overlay"""
         
         # Read pixels from framebuffer
         pixels = self.framebuffer.read(components=3)
@@ -799,10 +1100,30 @@ class LinuxGPUChart(BaseChart):
         # Convert to PIL Image for compression
         from PIL import Image
         import io
+        import pygame
         
         # Create image from OpenGL pixels (flip vertically)
         img = Image.frombytes('RGB', (self.width, self.height), pixels)
         img = img.transpose(Image.FLIP_TOP_BOTTOM)
+        
+        # Get pygame surface if any text was drawn
+        surface = pygame.display.get_surface()
+        if surface and hasattr(self, '_text_overlay_needed') and self._text_overlay_needed:
+            # Convert pygame surface to PIL Image
+            pygame_string = pygame.image.tostring(surface, 'RGB')
+            pygame_img = Image.frombytes('RGB', (self.width, self.height), pygame_string)
+            
+            # Composite the timeline area from pygame onto the OpenGL image
+            # Only copy the bottom portion where timeline is drawn
+            timeline_area = pygame_img.crop((0, self.height - self.timeline_height, 
+                                            self.width, self.height))
+            img.paste(timeline_area, (0, self.height - self.timeline_height))
+            
+            # Composite the price label area from pygame onto the OpenGL image
+            # Only copy the right portion where price label is drawn
+            price_label_area = pygame_img.crop((self.width - self.price_label_width, 0, 
+                                               self.width, self.height - self.timeline_height))
+            img.paste(price_label_area, (self.width - self.price_label_width, 0))
         
         # Compress to WebP for smaller size and faster transfer
         img_bytes = io.BytesIO()
@@ -833,9 +1154,11 @@ class LinuxGPUChart(BaseChart):
             return html.Img(
                 src=f"data:image/webp;base64,{image_b64}",
                 style={
-                    'width': f'{self.width}px',
-                    'height': f'{self.height}px',
-                    'border': '1px solid #444',
+                    'width': '100%',
+                    'height': 'auto',
+                    'display': 'block',
+                    'margin': '0',
+                    'border': 'none',
                     'border-radius': '4px'
                 }
             )
@@ -845,7 +1168,7 @@ class LinuxGPUChart(BaseChart):
             return html.Div(
                 f"GPU Chart Error: {str(e)}",
                 style={
-                    'width': f'{self.width}px',
+                    'width': '100%',
                     'height': f'{self.height}px',
                     'border': '1px solid #ff4444',
                     'border-radius': '4px',
