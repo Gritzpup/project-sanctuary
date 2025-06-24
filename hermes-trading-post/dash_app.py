@@ -15,16 +15,20 @@ import redis
 import json
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Disable werkzeug request logging to reduce spam
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
+# Set specific module logging levels to reduce verbosity
+logging.getLogger('components.chart_acceleration').setLevel(logging.WARNING)
+logging.getLogger('pages.dashboard').setLevel(logging.INFO)
+
 # Check for debug mode from environment variable
 DEBUG_MODE = os.environ.get('DASH_DEBUG', 'False').lower() == 'true'
 
-print("🚀 Starting Alpaca Trader Dash App...")
+logger.info("🚀 Starting Alpaca Trader Dash App...")
 print(f"📊 Dashboard: http://localhost:8050")
 print(f"🔧 Debug mode: {DEBUG_MODE}")
 

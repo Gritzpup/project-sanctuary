@@ -97,7 +97,7 @@ class CPUOptimizedChart(BaseChart):
                     new_minute = candle_data['time'].replace(second=0, microsecond=0)
                     if last_minute == new_minute:
                         # Replace the existing candle instead of adding duplicate
-                        logger.info(f"[CPU CHART] Replacing candle at {new_minute} instead of duplicating")
+                        logger.debug(f"[CPU CHART] Replacing candle at {new_minute} instead of duplicating")
                         self.candles[-1] = candle_data
                         self._update_bounds()
                         return
@@ -148,9 +148,9 @@ class CPUOptimizedChart(BaseChart):
         cutoff_time = current_time - 60
         self.price_history = [(t, p) for t, p in self.price_history if t > cutoff_time]
         
-        # Debug log
-        if len(self.price_history) % 10 == 0:
-            logger.info(f"[CPU CHART] Price updated to ${price:,.2f}, history: {len(self.price_history)} points")
+        # Debug log (only occasionally)
+        if len(self.price_history) % 100 == 0:
+            logger.debug(f"[CPU CHART] Price updated to ${price:,.2f}, history: {len(self.price_history)} points")
         
     def _update_bounds(self):
         """Update chart coordinate bounds"""
@@ -332,6 +332,10 @@ class CPUOptimizedChart(BaseChart):
         # Draw horizontal line separating chart from time axis
         self.image_buffer[self.chart_height, :self.chart_width] = self.colors['grid']
         
+        # Fill time axis area with slightly lighter background
+        time_axis_bg = np.array([35, 35, 35], dtype=np.uint8)  # Slightly lighter than main background
+        self.image_buffer[self.chart_height+1:, :self.chart_width] = time_axis_bg
+        
         # Calculate how many time labels to show (max 5-6 to avoid crowding)
         num_labels = min(6, len(visible_candles))
         if num_labels < 2:
@@ -349,6 +353,9 @@ class CPUOptimizedChart(BaseChart):
             time_str = time_obj.strftime('%H:%M')
             x_pos = int((idx / len(visible_candles)) * self.chart_width)
             self.time_labels.append((x_pos, time_str))
+        
+        # Log occasionally
+        # logger.debug(f"[CPU CHART] Created {len(self.time_labels)} time labels")
             
     def _finalize_image(self):
         """Convert numpy array to PIL image and add text overlays"""
@@ -418,13 +425,16 @@ class CPUOptimizedChart(BaseChart):
         )
         
         # Draw time axis labels
-        if hasattr(self, 'time_labels'):
+        if hasattr(self, 'time_labels') and self.time_labels:
             for x_pos, time_str in self.time_labels:
                 # Center the text
                 bbox = draw.textbbox((0, 0), time_str, font=self.small_font)
                 text_width = bbox[2] - bbox[0]
                 x = x_pos - text_width // 2
                 y = self.chart_height + 8
+                
+                # Ensure x is within bounds
+                x = max(0, min(x, self.width - text_width))
                 
                 draw.text(
                     (x, y),
@@ -442,8 +452,8 @@ class CPUOptimizedChart(BaseChart):
         
         # Debug log every 10th render
         self.frame_count += 1
-        if self.frame_count % 10 == 0:
-            logger.info(f"[CPU CHART] Render #{self.frame_count} - price: ${self.current_price:,.2f}, candles: {len(self.candles)}")
+        if self.frame_count % 100 == 0:
+            logger.debug(f"[CPU CHART] Render #{self.frame_count} - price: ${self.current_price:,.2f}, candles: {len(self.candles)}")
         
         # Clear background - ensure complete reset
         self.image_buffer[:] = 0  # Reset all pixels to black first
@@ -456,6 +466,9 @@ class CPUOptimizedChart(BaseChart):
             
         # Limit to visible candles (most recent)
         visible_candles = self.candles[-self.max_visible_candles:] if len(self.candles) > self.max_visible_candles else self.candles
+        
+        if self.frame_count % 200 == 0:
+            logger.debug(f"[CPU CHART] Rendering with {len(visible_candles)} visible candles (total: {len(self.candles)})")
         
         # Convert candle data to numpy array for vectorized operations
         candle_array = np.zeros((len(visible_candles), 4), dtype=np.float32)
@@ -548,4 +561,4 @@ class CPUOptimizedChart(BaseChart):
         self.thread_pool.shutdown(wait=True)
         super().cleanup()
         
-        logger.info(f"CPUOptimizedChart cleaned up for {self.symbol}")
+        logger.debug(f"CPUOptimizedChart cleaned up for {self.symbol}")

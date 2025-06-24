@@ -191,12 +191,12 @@ class AcceleratedChartComponent:
 
     def update_current_candle(self, candle_data: Dict[str, Any]):
         """Update currently forming candle"""
-        logger.info(f"[ACCELERATED CHART] update_current_candle called with: {candle_data}")
+        logger.debug(f"[ACCELERATED CHART] update_current_candle called with: {candle_data}")
         if hasattr(self.chart, 'update_current_candle'):
-            logger.info(f"[ACCELERATED CHART] Forwarding to chart.update_current_candle")
+            logger.debug(f"[ACCELERATED CHART] Forwarding to chart.update_current_candle")
             self.chart.update_current_candle(candle_data)
         elif hasattr(self.chart, 'update_data'):
-            logger.info(f"[ACCELERATED CHART] Falling back to chart.update_data")
+            logger.debug(f"[ACCELERATED CHART] Falling back to chart.update_data")
             self.chart.update_data(candle_data)
         else:
             logger.error(f"[ACCELERATED CHART] Chart has no update method!")
@@ -281,12 +281,12 @@ def register_chart_callbacks(chart_id: str, chart_component: AcceleratedChartCom
     )
     def update_chart_display(n_intervals, refresh_clicks, data_store):
         try:
-            # Log every 10 intervals (more frequently for debugging)
-            if n_intervals and n_intervals % 10 == 0:
-                logger.info(f"[CHART CALLBACK] update_chart_display called: n_intervals={n_intervals}")
+            # Log every 100 intervals to reduce spam
+            if n_intervals and n_intervals % 100 == 0:
+                logger.debug(f"[CHART CALLBACK] update_chart_display called: n_intervals={n_intervals}")
             
-            # Always log when data_store changes
-            if data_store:
+            # Log data store changes only occasionally to reduce spam
+            if data_store and n_intervals and n_intervals % 50 == 0:
                 logger.info(f"[CHART CALLBACK] Data store update detected: timestamp={data_store.get('timestamp', 'no timestamp')}, price=${data_store.get('price', 0):,.2f}")
             
             # Skip if no real change (same timestamp)
@@ -306,19 +306,20 @@ def register_chart_callbacks(chart_id: str, chart_component: AcceleratedChartCom
             chart_component_element = chart_component.chart.get_dash_component()
             render_time = (time.perf_counter() - start_time) * 1000
             
-            # Debug log the component type
-            if n_intervals and n_intervals % 30 == 0:
-                logger.info(f"[CHART CALLBACK] Component type: {type(chart_component_element)}")
+            # Debug log the component type only occasionally
+            if n_intervals and n_intervals % 200 == 0:
+                logger.debug(f"[CHART CALLBACK] Component type: {type(chart_component_element)}")
                 if hasattr(chart_component_element, 'props') and 'src' in chart_component_element.props:
                     src_len = len(chart_component_element.props['src'])
-                    logger.info(f"[CHART CALLBACK] Image src length: {src_len}")
+                    logger.debug(f"[CHART CALLBACK] Image src length: {src_len}")
             
             # Update performance metrics
             stats = chart_component.chart.get_performance_stats()
             fps_text = f"{stats.get('fps', 0):.1f} FPS ({render_time:.1f}ms)"
             
-            # Always log the render to ensure it's happening
-            logger.info(f"[CHART CALLBACK] Rendered new chart image, FPS: {fps_text}")
+            # Log renders only rarely
+            if n_intervals and n_intervals % 500 == 0:
+                logger.info(f"[CHART CALLBACK] Rendered new chart image, FPS: {fps_text}")
             
             return chart_component_element, fps_text
             

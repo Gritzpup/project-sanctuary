@@ -12,6 +12,10 @@ import threading
 import time
 from typing import Any, Optional, Union
 import redis
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Import our chart acceleration system
 from components.chart_acceleration.dashboard_integration_fixed import (
@@ -25,9 +29,7 @@ from components.chart_acceleration.dashboard_integration_fixed import (
 try:
     from components.chart_acceleration import get_system_capabilities
     capabilities = get_system_capabilities()
-    print(f"🚀 Chart Acceleration Ready: {capabilities}")
-    print(f"   Performance Tier: {capabilities.performance_tier}")
-    print(f"   Expected Latency: {capabilities.estimated_chart_latency_ms:.2f}ms")
+    print(f"🚀 Chart Acceleration Ready - Performance Tier: {capabilities.performance_tier}, Expected Latency: {capabilities.estimated_chart_latency_ms:.2f}ms")
 except Exception as e:
     print(f"⚠️  Chart acceleration initialization warning: {e}")
     capabilities = None
@@ -57,11 +59,11 @@ def get_latest_candle():
                 try:
                     candle['time'] = datetime.fromisoformat(candle['time'])
                 except Exception as e:
-                    print(f"[REDIS] Error parsing candle time: {e}")
+                    logger.debug(f"[REDIS] Error parsing candle time: {e}")
                     candle['time'] = None
             return candle
     except Exception as e:
-        print(f"[REDIS] Error reading latest candle: {e}")
+        logger.error(f"[REDIS] Error reading latest candle: {e}")
         return None
 
 # --- WebSocket data storage ---
@@ -91,11 +93,11 @@ def get_bitcoin_chart():
     """Get or create the bitcoin chart singleton"""
     global bitcoin_chart
     if bitcoin_chart is None:
-        print("[CHART SINGLETON] Creating new AcceleratedChartComponent instance")
+        logger.debug("[CHART SINGLETON] Creating new AcceleratedChartComponent instance")
         bitcoin_chart = create_bitcoin_chart(chart_id="btc-chart", width=1400, height=600)
         bitcoin_chart.target_fps = 60  # Target 60fps for smooth realtime updates
     else:
-        print("[CHART SINGLETON] Returning existing AcceleratedChartComponent instance")
+        logger.debug("[CHART SINGLETON] Returning existing AcceleratedChartComponent instance")
     return bitcoin_chart
 
 # Health check for chart process
@@ -107,14 +109,14 @@ def chart_health_check():
         # If the chart process has an 'is_alive' or similar, check it
         if hasattr(chart.chart, 'is_alive'):
             if not chart.chart.is_alive():
-                print("[CHART HEALTH] Chart process not alive, restarting...")
+                logger.warning("[CHART HEALTH] Chart process not alive, restarting...")
                 # Re-create the chart instance
                 global bitcoin_chart
                 bitcoin_chart = None
                 get_bitcoin_chart()
         # Optionally, add more checks here
     except Exception as e:
-        print(f"[CHART HEALTH] Error during health check: {e}")
+        logger.error(f"[CHART HEALTH] Error during health check: {e}")
     # Schedule next check
     threading.Timer(10.0, chart_health_check).start()  # Check every 10 seconds
 
@@ -132,19 +134,19 @@ def fetch_historical_candles():
         start_time = start_time.astimezone(timezone.utc)  # Ensure UTC timezone
         start_iso = start_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
         end_iso = end_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-        print(f"[CANDLE FETCH] Requesting candles from {start_time} UTC to {end_time} UTC (local: {datetime.now()})")
+        logger.debug(f"[CANDLE FETCH] Requesting candles from {start_time} UTC to {end_time} UTC")
         url = f"https://api.exchange.coinbase.com/products/BTC-USD/candles"
         params = {
             'start': start_iso,
             'end': end_iso,
             'granularity': 60
         }
-        print(f"[CANDLE FETCH] Fetching historical candles from {start_time} to {end_time}")
+        logger.info(f"[CANDLE FETCH] Fetching historical candles")
         response = requests.get(url, params=params)
-        print(f"[CANDLE FETCH] HTTP status: {response.status_code}")
+        logger.debug(f"[CANDLE FETCH] HTTP status: {response.status_code}")
         if response.status_code == 200:
             candles_raw = response.json()
-            print(f"[CANDLE FETCH] Received {len(candles_raw)} historical candles from REST API")
+            logger.info(f"[CANDLE FETCH] Received {len(candles_raw)} historical candles")
             if 60 not in candle_data:
                 candle_data[60] = []
             for candle_raw in candles_raw:
@@ -161,29 +163,29 @@ def fetch_historical_candles():
             candle_data[60].sort(key=lambda x: x['time'])
             if len(candle_data[60]) > 60:
                 candle_data[60] = candle_data[60][-60:]
-            print(f"[CANDLE FETCH] Stored {len(candle_data[60])} historical candles, from {candle_data[60][0]['time'] if candle_data[60] else 'N/A'} to {candle_data[60][-1]['time'] if candle_data[60] else 'N/A'}")
+            logger.debug(f"[CANDLE FETCH] Stored {len(candle_data[60])} historical candles")
             # --- PUSH HISTORICAL CANDLES TO CHART ---
             chart = get_bitcoin_chart()
             if chart:
-                print(f"[CANDLE FETCH] Pushing {len(candle_data[60])} historical candles to chart")
+                logger.debug(f"[CANDLE FETCH] Pushing {len(candle_data[60])} historical candles to chart")
                 # Add a small delay between candles to avoid overwhelming the queue
                 for i, candle in enumerate(candle_data[60]):
                     chart.add_candle(candle)
                     if i % 10 == 0:  # Small delay every 10 candles
                         time.sleep(0.01)
-                print(f"[CANDLE FETCH] Historical candles pushed to chart")
+                logger.debug(f"[CANDLE FETCH] Historical candles pushed to chart")
                 # Trigger an initial render after loading historical data
                 if hasattr(chart, 'chart') and hasattr(chart.chart, 'render_sync'):
-                    print("[CANDLE FETCH] Triggering initial render...")
+                    logger.debug("[CANDLE FETCH] Triggering initial render...")
                     chart.chart.render_sync(timeout=2.0)  # Increased timeout for rendering
             return True, None
         else:
             error_msg = f"[CANDLE FETCH] Failed to fetch historical candles: HTTP {response.status_code} - {response.text}"
-            print(error_msg)
+            logger.error(error_msg)
             return False, error_msg
     except Exception as e:
         error_msg = f"[CANDLE FETCH] Error fetching historical candles: {e}"
-        print(error_msg)
+        logger.error(error_msg)
         return False, error_msg
 
 def reconnect_websocket():
@@ -193,12 +195,12 @@ def reconnect_websocket():
     with ws_connection_lock:
         # Check if already reconnecting
         if ws_is_reconnecting:
-            print("[WEBSOCKET] Already attempting to reconnect, skipping...")
+            logger.debug("[WEBSOCKET] Already attempting to reconnect, skipping...")
             return
         
         # Check if max attempts reached
         if ws_reconnect_attempts >= ws_max_reconnect_attempts:
-            print(f"[WEBSOCKET] Max reconnection attempts ({ws_max_reconnect_attempts}) reached. Giving up.")
+            logger.warning(f"[WEBSOCKET] Max reconnection attempts ({ws_max_reconnect_attempts}) reached. Giving up.")
             return
         
         ws_is_reconnecting = True
@@ -215,14 +217,14 @@ def reconnect_websocket():
     delay = min(ws_reconnect_delay * (2 ** ws_reconnect_attempts), 30.0)  # Cap at 30 seconds
     ws_reconnect_attempts += 1
     
-    print(f"[WEBSOCKET] Reconnection attempt {ws_reconnect_attempts}/{ws_max_reconnect_attempts} in {delay:.1f} seconds...")
+    logger.info(f"[WEBSOCKET] Reconnection attempt {ws_reconnect_attempts}/{ws_max_reconnect_attempts} in {delay:.1f} seconds...")
     
     # Schedule reconnection
     def delayed_reconnect():
         time.sleep(delay)
         with ws_connection_lock:
             ws_is_reconnecting = False
-        print(f"[WEBSOCKET] Attempting reconnection (attempt {ws_reconnect_attempts})...")
+        logger.info(f"[WEBSOCKET] Attempting reconnection (attempt {ws_reconnect_attempts})...")
         start_websocket()
     
     reconnect_thread = threading.Thread(target=delayed_reconnect, daemon=True)
@@ -233,12 +235,12 @@ def start_websocket(set_error=None):
     global ws_connection, current_price, ws_reconnect_attempts, ws_reconnect_delay
     if ws_connection is not None and hasattr(ws_connection, 'sock') and ws_connection.sock and ws_connection.sock.connected:
         # Only log once if already running
-        print("[DASH] WebSocket already running.")
+        logger.debug("[DASH] WebSocket already running.")
         return
-    print("[DASH] Fetching historical candles to bootstrap dashboard...")
+    logger.info("[DASH] Fetching historical candles to bootstrap dashboard...")
     ok, error_msg = fetch_historical_candles()
     if not ok:
-        print(f"[DASH] Candle fetch failed: {error_msg}")
+        logger.error(f"[DASH] Candle fetch failed: {error_msg}")
         if set_error:
             set_error(error_msg)
     # WebSocket message handler
@@ -268,10 +270,10 @@ def start_websocket(set_error=None):
                         if 60 not in candle_data:
                             candle_data[60] = []
                         candle_data[60].append(current_candle)
-                        print(f"Completed candle saved: {current_candle['time']} - O:{current_candle['open']} H:{current_candle['high']} L:{current_candle['low']} C:{current_candle['close']}")
+                        logger.debug(f"Completed candle saved: {current_candle['time']} - O:{current_candle['open']} H:{current_candle['high']} L:{current_candle['low']} C:{current_candle['close']}")
                         if len(candle_data[60]) > 60:
                             candle_data[60] = candle_data[60][-60:]
-                            print(f"Trimmed to last 60 historical candles")
+                            logger.debug(f"Trimmed to last 60 historical candles")
                         # --- PUSH COMPLETED CANDLE TO CHART ---
                         chart = get_bitcoin_chart()
                         if chart:
@@ -284,7 +286,7 @@ def start_websocket(set_error=None):
                         'close': price,
                         'volume': 0
                     }
-                    print(f"Started new candle at {now_min}: ${price}")
+                    logger.debug(f"Started new candle at {now_min}: ${price}")
                 else:
                     current_candle['high'] = max(current_candle['high'], price)
                     current_candle['low'] = min(current_candle['low'], price)
@@ -298,7 +300,7 @@ def start_websocket(set_error=None):
                             if hasattr(chart.chart, 'render_async'):
                                 chart.chart.render_async()
                         except Exception as e:
-                            print(f"Error updating current candle: {e}")
+                            logger.error(f"Error updating current candle: {e}")
                 # --- Write current candle to Redis for real-time UI updates ---
                 try:
                     # Serialize datetime to ISO string for Redis
@@ -320,7 +322,7 @@ def start_websocket(set_error=None):
                     except Exception as e:
                         print(f"Error updating price: {e}")
         except Exception as e:
-            print(f"WebSocket message error: {e}")
+            logger.error(f"WebSocket message error: {e}")
     def on_open(ws):
         global ws_reconnect_attempts, ws_reconnect_delay
         print("[WEBSOCKET] Connected.")
@@ -338,12 +340,12 @@ def start_websocket(set_error=None):
         ws.send(json.dumps(subscribe_msg))
     
     def on_error(ws, error):
-        print(f"WebSocket error: {error}")
+        logger.error(f"WebSocket error: {error}")
         # Trigger reconnection on error
         reconnect_websocket()
     
     def on_close(ws, close_status_code, close_msg):
-        print(f"WebSocket closed: {close_status_code}, {close_msg}")
+        logger.info(f"WebSocket closed: {close_status_code}, {close_msg}")
         # Trigger reconnection on close
         reconnect_websocket()
 
@@ -363,22 +365,22 @@ def start_websocket(set_error=None):
                 if ws_connection is not None:
                     ws_connection.run_forever()
             except Exception as e:
-                print(f"[WEBSOCKET] Error in WebSocket thread: {e}")
+                logger.error(f"[WEBSOCKET] Error in WebSocket thread: {e}")
                 # Trigger reconnection on thread error
                 reconnect_websocket()
         
         ws_thread = threading.Thread(target=run_ws, daemon=True, name="WebSocket-Thread")
         ws_thread.start()
-        print(f"[WEBSOCKET] WebSocket thread started.")
+        logger.info(f"[WEBSOCKET] WebSocket thread started.")
         return True
     except Exception as e:
-        print(f"[WEBSOCKET] Failed to start WebSocket: {e}")
+        logger.error(f"[WEBSOCKET] Failed to start WebSocket: {e}")
         # Attempt reconnection on startup failure
         reconnect_websocket()
         return False
 
 # Start WebSocket immediately when dashboard loads
-print("[DASH] Starting WebSocket on module load...")
+logger.info("[DASH] Starting WebSocket on module load...")
 start_websocket()
 
 # Get system performance info
@@ -446,7 +448,7 @@ layout = dbc.Container([
     dcc.Store(id='btc-chart-data-store', data=None),
     dcc.Interval(id="price-update", interval=250, n_intervals=0),  # 4fps for price updates
     dcc.Interval(id="chart-update", interval=250, n_intervals=0),  # 4fps for chart updates
-    dcc.Interval(id="candle-update", interval=1000, n_intervals=0),  # 1fps for candle updates
+    dcc.Interval(id="candle-update", interval=500, n_intervals=0),  # 1fps for candle updates
 ], fluid=True, className="p-4")
 
 # Remove any duplicate price label from the layout (e.g., at the bottom or outside the chart)
