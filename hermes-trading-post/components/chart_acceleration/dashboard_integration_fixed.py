@@ -2,7 +2,7 @@
 Dashboard Integration for Chart Acceleration - Fixed Version
 Properly registers callbacks with Dash
 """
-from dash import html, dcc, Input, Output, callback
+from dash import html, dcc, Input, Output, callback, no_update
 import dash_bootstrap_components as dbc
 import time
 import base64
@@ -124,10 +124,10 @@ class AcceleratedChartComponent:
             # Hidden data store for chart updates
             dcc.Store(id=f'{self.chart_id}-data-store'),
             
-            # Update interval
+            # Update interval (minimum 100ms to avoid browser throttling)
             dcc.Interval(
                 id=f'{self.chart_id}-interval',
-                interval=1000 // self.target_fps,  # Convert FPS to milliseconds
+                interval=max(100, 1000 // self.target_fps),  # Min 100ms (10fps max)
                 n_intervals=0
             )
         ])
@@ -285,10 +285,21 @@ def register_chart_callbacks(chart_id: str, chart_component: AcceleratedChartCom
             if n_intervals and n_intervals % 10 == 0:
                 logger.info(f"[CHART CALLBACK] update_chart_display called: n_intervals={n_intervals}")
             
-            # Force a render before getting the component
-            if hasattr(chart_component.chart, 'render_sync'):
-                # Use a short timeout to avoid blocking
-                chart_component.chart.render_sync(timeout=0.05)
+            # Always log when data_store changes
+            if data_store:
+                logger.info(f"[CHART CALLBACK] Data store update detected: timestamp={data_store.get('timestamp', 'no timestamp')}, price=${data_store.get('price', 0):,.2f}")
+            
+            # Skip if no real change (same timestamp)
+            last_timestamp = getattr(update_chart_display, '_last_timestamp', None)
+            current_timestamp = data_store.get('timestamp') if data_store else None
+            
+            if current_timestamp and current_timestamp == last_timestamp:
+                logger.debug("[CHART CALLBACK] Skipping update - same timestamp")
+                return no_update
+            
+            # Store timestamp
+            if current_timestamp:
+                update_chart_display._last_timestamp = current_timestamp
             
             # Render chart
             start_time = time.perf_counter()
@@ -306,10 +317,13 @@ def register_chart_callbacks(chart_id: str, chart_component: AcceleratedChartCom
             stats = chart_component.chart.get_performance_stats()
             fps_text = f"{stats.get('fps', 0):.1f} FPS ({render_time:.1f}ms)"
             
+            # Always log the render to ensure it's happening
+            logger.info(f"[CHART CALLBACK] Rendered new chart image, FPS: {fps_text}")
+            
             return chart_component_element, fps_text
             
         except Exception as e:
-            logger.error(f"Chart update failed: {e}")
+            logger.error(f"Chart update failed: {e}", exc_info=True)
             
             # Fallback display
             error_component = html.Div([

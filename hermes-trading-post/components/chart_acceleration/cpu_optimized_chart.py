@@ -87,6 +87,21 @@ class CPUOptimizedChart(BaseChart):
         
     def add_candle(self, candle_data: Dict[str, Any]) -> None:
         """Add a new completed candle"""
+        # Check if we already have a candle at this time (prevent duplicates)
+        if self.candles and 'time' in candle_data:
+            last_candle = self.candles[-1]
+            if 'time' in last_candle:
+                # Compare times at minute level
+                if hasattr(last_candle['time'], 'replace') and hasattr(candle_data['time'], 'replace'):
+                    last_minute = last_candle['time'].replace(second=0, microsecond=0)
+                    new_minute = candle_data['time'].replace(second=0, microsecond=0)
+                    if last_minute == new_minute:
+                        # Replace the existing candle instead of adding duplicate
+                        logger.info(f"[CPU CHART] Replacing candle at {new_minute} instead of duplicating")
+                        self.candles[-1] = candle_data
+                        self._update_bounds()
+                        return
+        
         self.candles.append(candle_data)
         
         # Keep only recent candles
@@ -99,13 +114,26 @@ class CPUOptimizedChart(BaseChart):
         """Update currently forming candle"""
         if self.candles and len(self.candles) > 0:
             last_candle = self.candles[-1]
-            if ('time' in last_candle and 'time' in candle_data and 
-                last_candle['time'] == candle_data['time']):
-                self.candles[-1] = candle_data
-            else:
-                self.add_candle(candle_data)
-        else:
-            self.add_candle(candle_data)
+            if ('time' in last_candle and 'time' in candle_data):
+                # Check if times are within the same minute (handle minor time differences)
+                last_time = last_candle['time']
+                new_time = candle_data['time']
+                
+                # If both are datetime objects, compare by minute
+                if hasattr(last_time, 'replace') and hasattr(new_time, 'replace'):
+                    last_minute = last_time.replace(second=0, microsecond=0)
+                    new_minute = new_time.replace(second=0, microsecond=0)
+                    if last_minute == new_minute:
+                        # Update the existing candle
+                        self.candles[-1] = candle_data
+                        return
+                elif last_time == new_time:
+                    # Exact match
+                    self.candles[-1] = candle_data
+                    return
+                    
+        # Only add as new candle if it's truly a different time period
+        self.add_candle(candle_data)
             
     def update_price(self, price: float) -> None:
         """Update current price for real-time line"""
@@ -380,6 +408,15 @@ class CPUOptimizedChart(BaseChart):
                     font=self.font
                 )
         
+        # Draw timestamp for debugging (top-left corner)
+        timestamp_text = f"Updated: {datetime.now().strftime('%H:%M:%S.%f')[:-3]}"
+        draw.text(
+            (10, 10),
+            timestamp_text,
+            font=self.small_font,
+            fill=(128, 128, 128)
+        )
+        
         # Draw time axis labels
         if hasattr(self, 'time_labels'):
             for x_pos, time_str in self.time_labels:
@@ -408,9 +445,9 @@ class CPUOptimizedChart(BaseChart):
         if self.frame_count % 10 == 0:
             logger.info(f"[CPU CHART] Render #{self.frame_count} - price: ${self.current_price:,.2f}, candles: {len(self.candles)}")
         
-        # Clear background
-        self.image_buffer.fill(0)
-        self.image_buffer[:, :] = self.colors['background']
+        # Clear background - ensure complete reset
+        self.image_buffer[:] = 0  # Reset all pixels to black first
+        self.image_buffer[:, :] = self.colors['background']  # Then set background color
         
         if not self.candles:
             render_time = (time.perf_counter() - start_time) * 1000
@@ -471,7 +508,6 @@ class CPUOptimizedChart(BaseChart):
         """Return Dash component for displaying this chart"""
         
         from dash import html
-        import uuid
         
         # Render chart
         image_bytes = self.render()
@@ -479,9 +515,8 @@ class CPUOptimizedChart(BaseChart):
         # Convert to base64 for HTML display
         image_b64 = base64.b64encode(image_bytes).decode('utf-8')
         
-        # Add unique key to force Dash to update
+        # Return img without unique ID - let Dash handle updates properly
         return html.Img(
-            id={'type': 'chart-image', 'index': str(uuid.uuid4())},
             src=f"data:image/webp;base64,{image_b64}",
             style={
                 'width': '100%',  # Responsive width

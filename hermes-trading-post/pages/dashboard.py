@@ -583,18 +583,26 @@ def update_range(n6m, n3m, n1m, n5d, n1d, n4h, n1h):
     prevent_initial_call=False
 )
 def update_accelerated_chart(n):
+    global current_price, current_candle
+    
     chart = get_bitcoin_chart()
-    latest_candle = get_latest_candle()
-    # Removed debug print for performance
-    if latest_candle:
-        chart.update_current_candle(latest_candle)
+    
+    # Update current candle if available
+    if current_candle:
+        chart.update_current_candle(current_candle)
+    
+    # Update price
     if current_price > 0:
-        if hasattr(chart.chart, 'set_price_tag_value'):
-            chart.chart.set_price_tag_value(current_price)
-        else:
-            chart.update_price(current_price)
-    # Only call render_sync if structure changes (not every price update)
-    return {'updated': True, 'timestamp': time.time(), 'price': current_price}
+        chart.update_price(current_price)
+    
+    # Force update with timestamp to ensure Dash detects the change
+    return {
+        'updated': True, 
+        'timestamp': time.time(), 
+        'price': current_price,
+        'n_intervals': n,
+        'has_candle': current_candle is not None
+    }
 
 # Update error message display
 @callback(
