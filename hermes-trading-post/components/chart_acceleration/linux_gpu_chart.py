@@ -20,12 +20,14 @@ try:
     import cupy as cp
     HAS_CUPY = True
 except ImportError:
+    cp = None
     HAS_CUPY = False
-    
+
 try:
     import pygame
     HAS_PYGAME = True
 except ImportError:
+    pygame = None
     HAS_PYGAME = False
 
 logger = logging.getLogger(__name__)
@@ -110,23 +112,16 @@ class LinuxGPUChart(BaseChart):
             
     def _init_opengl_context(self):
         """Initialize OpenGL context with Linux optimizations"""
-        
         global _pygame_initialized, _pygame_display_created
-        
-        if HAS_PYGAME:
+        if HAS_PYGAME and pygame is not None:
             try:
                 with _opengl_init_lock:
-                    # Initialize pygame with Linux-optimized settings
-                    # Check if pygame is already initialized to avoid multiple inits
                     if not _pygame_initialized and not pygame.get_init():
                         pygame.init()
                         _pygame_initialized = True
                         logger.info("Pygame initialized for GPU chart")
                     else:
                         logger.debug("Pygame already initialized")
-                    
-                    # Request hardware acceleration and double buffering
-                    # Only create display if one doesn't exist
                     if not _pygame_display_created and pygame.display.get_surface() is None:
                         pygame.display.set_mode(
                             (self.width, self.height),
@@ -136,21 +131,13 @@ class LinuxGPUChart(BaseChart):
                         logger.info("Created pygame display")
                     else:
                         logger.debug("Pygame display already exists")
-                
-                # Create ModernGL context (this can be done per instance)
                 self.ctx = moderngl.create_context()
-                
-                # Enable GPU optimizations
                 self.ctx.enable(moderngl.BLEND)
                 self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
-                
-                # Log OpenGL info
                 logger.info(f"OpenGL context initialized: {self.ctx.info}")
                 logger.info(f"OpenGL version: {self.ctx.info.get('GL_VERSION', 'Unknown')}")
                 logger.info(f"GPU Renderer: {self.ctx.info.get('GL_RENDERER', 'Unknown')}")
-                
                 self._context_initialized = True
-                
             except Exception as e:
                 logger.error(f"Failed to initialize OpenGL context: {e}")
                 raise RuntimeError(f"OpenGL initialization failed: {e}")
@@ -159,29 +146,16 @@ class LinuxGPUChart(BaseChart):
             
     def _init_cuda(self):
         """Initialize CUDA acceleration if available"""
-        
-        if HAS_CUPY:
+        if HAS_CUPY and cp is not None:
             try:
-                # Create CUDA context
                 self.cuda_device = cp.cuda.Device(0)
                 self.cuda_context = self.cuda_device.use()
-                
-                # Pre-allocate GPU memory pools for zero-allocation rendering
-                # Pool for chart textures (16 slots for multi-frame buffering)
                 self.chart_texture_pool = cp.zeros((16, self.height, self.width, 4), dtype=cp.uint8)
-                
-                # Pool for OHLC data (50k candles should be enough)
                 self.ohlc_gpu_buffer = cp.zeros((50000, 4), dtype=cp.float32)
-                
-                # Pool for computed vertices
                 self.vertex_gpu_buffer = cp.zeros((200000, 2), dtype=cp.float32)
-                
-                # Current pool indices
                 self.current_texture_idx = 0
-                
                 self.has_cuda = True
                 logger.info("CUDA acceleration enabled with pre-allocated memory pools")
-                
             except Exception as e:
                 logger.warning(f"CUDA initialization failed: {e}")
                 self.has_cuda = False
@@ -268,7 +242,7 @@ class LinuxGPUChart(BaseChart):
         )
         
     def _get_last_visible_candle_info(self):
-        """Return (index, candle, x_pixel) for the last visible candle."""
+        """Return (index, candle, x_pixel) for the last visible candle. If only one candle, x_pixel=0."""
         visible_candles = min(len(self.candles), self.max_visible_candles)
         if len(self.candles) > self.max_visible_candles:
             first_visible_idx = len(self.candles) - self.max_visible_candles
@@ -279,7 +253,11 @@ class LinuxGPUChart(BaseChart):
         if last_visible_idx < 0:
             return None, None, None
         candle = self.candles[last_visible_idx]
-        x_pixel = int(self.width * (last_visible_idx - first_visible_idx) / max(1, visible_candles - 1))
+        # Fix: If only one candle, x_pixel should be 0 (not NaN or inf)
+        if visible_candles <= 1:
+            x_pixel = 0
+        else:
+            x_pixel = int(self.width * (last_visible_idx - first_visible_idx) / max(1, visible_candles - 1))
         return last_visible_idx, candle, x_pixel
 
     def add_candle(self, candle_data: Dict[str, Any]) -> None:
@@ -301,46 +279,6 @@ class LinuxGPUChart(BaseChart):
             self.candles = self.candles[-max_to_keep:]
         self._update_bounds()
 
-    def update_current_candle(self, candle_data: Dict[str, Any]) -> None:
-        """Update currently forming candle - always keep it at the rightmost position. Data should come from dashboard websocket only."""
-        
-        if self.candles and len(self.candles) > 0:
-            # Check if same timestamp
-            last_candle = self.candles[-1]
-            if ('time' in last_candle and 'time' in candle_data and 
-                last_candle['time'] == candle_data['time']):
-                # Update the forming candle in-place
-                self.candles[-1] = candle_data
-            else:
-                # New candle started - add it and auto-scroll
-                self.add_candle(candle_data)
-        else:
-            self.add_candle(candle_data)
-        
-        self._update_bounds()
-            
-    def update_price(self, price: float) -> None:
-        """Update current price for real-time line. Data should come from dashboard websocket only."""
-        
-        self.prev_price = self.current_price if self.current_price > 0 else price
-        self.current_price = price
-        logger.debug(f"LinuxGPUChart: Updated price to ${price:.2f}")
-        current_time = time.time()
-        
-        # Add to price history
-        self.price_history.append((current_time, price))
-        
-        # Keep only recent price history (last 60 seconds)
-        cutoff_time = current_time - 60
-        self.price_history = [(t, p) for t, p in self.price_history if t > cutoff_time]
-        
-        # --- Redis publish for Dash UI ---
-        try:
-            redis_client = redis.Redis(host='localhost', port=6379, db=0)
-            redis_client.set('latest_price', json.dumps({'price': price}))
-        except Exception as e:
-            logger.warning(f"Redis publish error: {e}")
-        
     def update_current_candle(self, candle_data: Dict[str, Any]) -> None:
         """Update the currently forming candle from WebSocket data and publish to Redis for Dash UI"""
         logger.debug(f"LinuxGPUChart: Updating current candle: {candle_data}")
@@ -386,6 +324,12 @@ class LinuxGPUChart(BaseChart):
         # Update bounds to include new candle data
         self._update_bounds()
         
+        # --- Always trigger a render after updating the current candle ---
+        try:
+            self.render()
+        except Exception as e:
+            logger.warning(f"Render after update_current_candle failed: {e}")
+
     def _update_bounds(self):
         """Update chart coordinate bounds"""
         
@@ -412,12 +356,9 @@ class LinuxGPUChart(BaseChart):
             
     def _generate_vertices_cuda(self) -> tuple:
         """Generate vertices using CUDA acceleration"""
-        
-        if not self.has_cuda or not self.candles:
+        if not self.has_cuda or not self.candles or cp is None:
             return self._generate_vertices_cpu()
-            
         start_time = time.perf_counter()
-        
         try:
             with self.cuda_context:
                 # Convert candle data to GPU arrays
@@ -436,13 +377,17 @@ class LinuxGPUChart(BaseChart):
                     
                 # Upload to GPU
                 gpu_candles = cp.asarray(candle_array)
-                
                 # GPU-accelerated vertex generation
                 vertices, colors = self._cuda_generate_candlestick_geometry(gpu_candles)
-                
-                # Download results
-                vertices_cpu = cp.asnumpy(vertices).flatten()
-                colors_cpu = cp.asnumpy(colors).flatten()
+                # Defensive: ensure NumPy arrays
+                if hasattr(vertices, 'get'):
+                    vertices_cpu = vertices.get().flatten()
+                else:
+                    vertices_cpu = np.array(vertices).flatten()
+                if hasattr(colors, 'get'):
+                    colors_cpu = colors.get().flatten()
+                else:
+                    colors_cpu = np.array(colors).flatten()
                 
                 logger.debug(f"Generated {len(vertices_cpu)//2} vertices ({len(vertices_cpu)} floats)")
                 
@@ -452,12 +397,14 @@ class LinuxGPUChart(BaseChart):
                 return vertices_cpu.astype(np.float32), colors_cpu.astype(np.float32)
                 
         except Exception as e:
-            logger.warning(f"CUDA vertex generation failed: {e}")
+            import traceback
+            logger.warning(f"CUDA vertex generation failed: {e}\n{traceback.format_exc()}")
             return self._generate_vertices_cpu()
             
     def _cuda_generate_candlestick_geometry(self, gpu_candles):
         """CUDA kernel for parallel candlestick geometry generation"""
-        
+        if cp is None:
+            raise RuntimeError("CuPy is not available")
         n_candles = gpu_candles.shape[0]
         
         # Pre-allocate result arrays
@@ -480,7 +427,7 @@ class LinuxGPUChart(BaseChart):
             x = float(i)
             
             # Price coordinates
-            o, h, l, c = candle[0], candle[1], candle[2], candle[3]
+            o, h, l, c = float(candle[0]), float(candle[1]), float(candle[2]), float(candle[3])
             
             # Color determination
             is_bullish = c >= o
@@ -492,11 +439,11 @@ class LinuxGPUChart(BaseChart):
             if is_current:
                 # Make current candle more vibrant/distinct
                 if is_bullish:
-                    color = cp.array([0.2, 0.9, 0.8])  # Brighter cyan for current bullish
+                    color = cp.array(list([0.2, 0.9, 0.8]), dtype=cp.float32)  # Brighter cyan for current bullish
                 else:
-                    color = cp.array([1.0, 0.4, 0.4])  # Brighter red for current bearish
+                    color = cp.array(list([1.0, 0.4, 0.4]), dtype=cp.float32)  # Brighter red for current bearish
             else:
-                color = cp.array([0.15, 0.65, 0.6] if is_bullish else [0.94, 0.33, 0.31])
+                color = cp.array(list([0.15, 0.65, 0.6]) if is_bullish else list([0.94, 0.33, 0.31]), dtype=cp.float32)
             
             # Candlestick body
             body_top = max(o, c)
@@ -505,13 +452,13 @@ class LinuxGPUChart(BaseChart):
             
             # Body rectangle (2 triangles = 6 vertices)
             body_verts = cp.array([
-                [x - half_width, body_bottom],
-                [x + half_width, body_bottom], 
-                [x + half_width, body_top],
-                [x - half_width, body_bottom],
-                [x + half_width, body_top],
-                [x - half_width, body_top]
-            ])
+                list([x - half_width, body_bottom]),
+                list([x + half_width, body_bottom]), 
+                list([x + half_width, body_top]),
+                list([x - half_width, body_bottom]),
+                list([x + half_width, body_top]),
+                list([x - half_width, body_top])
+            ], dtype=cp.float32)
             
             vertices[vertex_idx:vertex_idx+6] = body_verts
             colors[vertex_idx:vertex_idx+6] = cp.tile(color, (6, 1))
@@ -523,13 +470,13 @@ class LinuxGPUChart(BaseChart):
             # Upper wick
             if h > body_top:
                 wick_verts = cp.array([
-                    [x - thin_width, body_top],
-                    [x + thin_width, body_top],
-                    [x + thin_width, h],
-                    [x - thin_width, body_top],
-                    [x + thin_width, h],
-                    [x - thin_width, h]
-                ])
+                    list([x - thin_width, body_top]),
+                    list([x + thin_width, body_top]),
+                    list([x + thin_width, h]),
+                    list([x - thin_width, body_top]),
+                    list([x + thin_width, h]),
+                    list([x - thin_width, h])
+                ], dtype=cp.float32)
                 vertices[vertex_idx:vertex_idx+6] = wick_verts
                 colors[vertex_idx:vertex_idx+6] = cp.tile(color, (6, 1))
                 vertex_idx += 6
@@ -537,19 +484,19 @@ class LinuxGPUChart(BaseChart):
             # Lower wick  
             if l < body_bottom:
                 wick_verts = cp.array([
-                    [x - thin_width, l],
-                    [x + thin_width, l],
-                    [x + thin_width, body_bottom],
-                    [x - thin_width, l],
-                    [x + thin_width, body_bottom],
-                    [x - thin_width, body_bottom]
-                ])
+                    list([x - thin_width, l]),
+                    list([x + thin_width, l]),
+                    list([x + thin_width, body_bottom]),
+                    list([x - thin_width, l]),
+                    list([x + thin_width, body_bottom]),
+                    list([x - thin_width, body_bottom])
+                ], dtype=cp.float32)
                 vertices[vertex_idx:vertex_idx+6] = wick_verts
                 colors[vertex_idx:vertex_idx+6] = cp.tile(color, (6, 1))
                 vertex_idx += 6
                 
-        # Return only used vertices
-        return vertices[:vertex_idx], colors[:vertex_idx]
+        # Return only used vertices as NumPy arrays
+        return vertices[:vertex_idx].get(), colors[:vertex_idx].get()
         
     def _generate_vertices_cpu(self) -> tuple:
         """Fallback CPU vertex generation"""
@@ -866,80 +813,56 @@ class LinuxGPUChart(BaseChart):
         
     def render(self) -> Any:
         """Ultra-fast chart rendering with Linux optimizations"""
-        
         try:
             start_time = time.perf_counter()
-            
-            # Debug log every frame: print all candles
-            # print("[GPU CHART DEBUG] Candles to render:")
-            # for i, candle in enumerate(self.candles):
-            #     print(f"  Candle {i}: {candle}")
-            
-            # Debug log every 100 frames
-            # if self.frame_count % 100 == 0:
-            #     print(f"[GPU CHART RENDER] Frame {self.frame_count}: current_price=${self.current_price:.2f}, candles={len(self.candles)}")
-            
-            # Reset text overlay flag
             self._text_overlay_needed = False
-            
-            # Check if context is still valid
             if not self._context_initialized or not hasattr(self, 'ctx'):
                 logger.error("OpenGL context lost during render")
                 raise RuntimeError("OpenGL context not available")
-            
-            # Render to framebuffer for off-screen rendering
             self.framebuffer.use()
-            
-            # Clear with dark background
             self.ctx.clear(*self.colors['background'])
-            
+            # --- Always draw overlays if we have a price, even if no candles yet ---
+            overlays_drawn = False
+            # --- Patch: If current_price is zero but we have candles, use last candle's close ---
+            if self.current_price == 0 and self.candles:
+                last_candle = self.candles[-1]
+                self.current_price = last_candle.get('close', 0) or last_candle.get('open', 0) or 0
             if not self.candles:
                 logger.debug(f"LinuxGPUChart: No candles to render")
+                if self.current_price > 0:
+                    # Draw overlays at default position if no candles yet
+                    self.price_min = self.current_price * 0.995
+                    self.price_max = self.current_price * 1.005
+                    self._draw_x_axis()
+                    self._draw_price_line()
+                    self._draw_price_label()
+                    overlays_drawn = True
                 render_time = (time.perf_counter() - start_time) * 1000
                 self.render_times.append(render_time)
                 return self._get_frame_bytes()
-            
             logger.debug(f"LinuxGPUChart: Rendering {len(self.candles)} candles, price range: {self.price_min:.2f} - {self.price_max:.2f}")
-                
-            # Generate vertices (CUDA accelerated if available)
             vertices, colors = self._generate_vertices_cuda()
-            
-            # Debug vertex generation occasionally (disabled to reduce spam)
-            # if self.frame_count % 100 == 0:
-            #     self.debug_candle_info()
-            #     logger.debug(f"Generated {len(vertices)//2} vertices for rendering")
-            
             if len(vertices) > 0:
-                # Ensure vertex data is valid
                 if len(vertices) % 2 != 0:
                     logger.error(f"Invalid vertex data length: {len(vertices)}")
                     return self._get_frame_bytes()
-                    
-                # Check buffer sizes
                 vertex_bytes = vertices.tobytes()
                 color_bytes = colors.tobytes()
-                
                 buffers_recreated = False
-                
                 if len(vertex_bytes) > self.vertex_buffer.size:
                     logger.warning(f"Vertex buffer overflow: {len(vertex_bytes)} > {self.vertex_buffer.size}")
-                    # Recreate buffer with larger size
                     self.vertex_buffer.release()
                     self.vertex_buffer = self.ctx.buffer(vertex_bytes)
                     buffers_recreated = True
                 else:
                     self.vertex_buffer.write(vertex_bytes)
-                    
                 if len(color_bytes) > self.color_buffer.size:
                     logger.warning(f"Color buffer overflow: {len(color_bytes)} > {self.color_buffer.size}")
-                    # Recreate buffer with larger size
                     self.color_buffer.release()
                     self.color_buffer = self.ctx.buffer(color_bytes)
                     buffers_recreated = True
                 else:
                     self.color_buffer.write(color_bytes)
-                
-                # Recreate VAO if buffers were recreated
                 if buffers_recreated:
                     self.vao.release()
                     self.vao = self.ctx.vertex_array(
@@ -947,48 +870,33 @@ class LinuxGPUChart(BaseChart):
                         [(self.vertex_buffer, '2f', 'position'),
                          (self.color_buffer, '3f', 'color')]
                     )
-                
-                # Set projection matrix
                 projection = self._create_projection_matrix()
                 self.candlestick_program['projection'] = projection.T.flatten()
-                
-                # Render triangles
                 vertex_count = len(vertices) // 2
-                if vertex_count > 0 and vertex_count % 3 == 0:  # Ensure valid triangle count
+                if vertex_count > 0 and vertex_count % 3 == 0:
                     self.vao.render(vertices=vertex_count)
                 else:
                     logger.warning(f"Invalid vertex count for triangles: {vertex_count}")
-                    
-            # Draw price line if we have a current price
-            logger.info(f"About to draw price line. Current price: ${self.current_price:.2f}")
+            # --- Always draw overlays if we have a price ---
             if self.current_price > 0:
                 try:
                     self._draw_price_line()
                 except Exception as e:
                     logger.error(f"Failed to draw price line: {e}", exc_info=True)
-            # Draw x-axis/timeline
             self._draw_x_axis()
-            # Draw price label
             self._draw_price_label()
-            # Performance tracking
             render_time = (time.perf_counter() - start_time) * 1000
             self.render_times.append(render_time)
-            
-            # Keep only recent render times
             if len(self.render_times) > 100:
                 self.render_times = self.render_times[-100:]
-                
             self.update_performance_metrics()
             return self._get_frame_bytes()
-            
         except Exception as e:
             logger.error(f"GPU chart render failed: {e}", exc_info=True)
-            # Return empty frame on error
             try:
                 self.ctx.clear(0.1, 0.1, 0.1)
                 return self._get_frame_bytes()
             except:
-                # Return a placeholder image if everything fails
                 from PIL import Image
                 import io
                 img = Image.new('RGB', (self.width, self.height), color=(26, 26, 26))
@@ -1037,73 +945,8 @@ class LinuxGPUChart(BaseChart):
         
         return matrix
         
-    def _draw_price_line(self):
-        """Draw the current price line across the full visible chart width at the last visible candle's y position."""
-        logger.info(f"Drawing price line at ${self.current_price:.2f}, price range: {self.price_min:.2f}-{self.price_max:.2f}")
-        try:
-            if not hasattr(self, 'price_line_program'):
-                price_line_vertex_shader = '''
-                #version 330
-                in vec2 position;
-                uniform mat4 projection;
-                void main() {
-                    gl_Position = projection * vec4(position, 0.0, 1.0);
-                }
-                '''
-                price_line_fragment_shader = '''
-                #version 330
-                out vec4 fragColor;
-                uniform vec3 color;
-                void main() {
-                    fragColor = vec4(color, 1.0);
-                }
-                '''
-                self.price_line_program = self.ctx.program(
-                    vertex_shader=price_line_vertex_shader,
-                    fragment_shader=price_line_fragment_shader
-                )
-            if self.prev_price is None:
-                self.prev_price = self.current_price
-            if self.current_price > self.prev_price:
-                color = self.colors['price_line_bullish']
-            elif self.current_price < self.prev_price:
-                color = self.colors['price_line_bearish']
-            else:
-                color = self.colors['price_line_neutral']
-            self.prev_price = self.current_price
-            # Draw price line from first to last visible candle
-            visible_candles = min(len(self.candles), self.max_visible_candles)
-            if len(self.candles) > self.max_visible_candles:
-                first_visible_idx = len(self.candles) - self.max_visible_candles
-                last_visible_idx = len(self.candles) - 1
-            else:
-                first_visible_idx = 0
-                last_visible_idx = len(self.candles) - 1
-            x_start = 0
-            x_end = last_visible_idx - first_visible_idx
-            y = self.current_price
-            line_vertices = np.array([
-                [x_start, y],
-                [x_end, y]
-            ], dtype=np.float32).flatten()
-            line_buffer = self.ctx.buffer(line_vertices.tobytes())
-            line_vao = self.ctx.vertex_array(
-                self.price_line_program,
-                [(line_buffer, '2f', 'position')]
-            )
-            self.price_line_program['color'] = color
-            projection = self._create_projection_matrix()
-            self.price_line_program['projection'] = projection.T.flatten()
-            self.ctx.line_width = 3.0
-            line_vao.render(mode=moderngl.LINES)
-            line_buffer.release()
-            line_vao.release()
-        except Exception as e:
-            logger.debug(f"Price line rendering error: {e}")
-        
     def _get_frame_bytes(self) -> bytes:
         """Get rendered frame as compressed bytes with pygame overlay"""
-        
         # Read pixels from framebuffer
         pixels = self.framebuffer.read(components=3)
         
@@ -1114,7 +957,16 @@ class LinuxGPUChart(BaseChart):
         
         # Create image from OpenGL pixels (flip vertically)
         img = Image.frombytes('RGB', (self.width, self.height), pixels)
-        img = img.transpose(Image.FLIP_TOP_BOTTOM)
+        # Robust Pillow flip for all versions
+        try:
+            img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        except AttributeError:
+            # Only call if attribute exists and is not None
+            flip_const = getattr(Image, 'FLIP_TOP_BOTTOM', None)
+            if flip_const is not None:
+                img = img.transpose(flip_const)
+            else:
+                logger.warning('Pillow: FLIP_TOP_BOTTOM not available, skipping vertical flip.')
         
         # Get pygame surface if any text was drawn
         surface = pygame.display.get_surface()
@@ -1236,9 +1088,8 @@ class LinuxGPUChart(BaseChart):
             
         # Don't quit pygame entirely - just clean up our surface
         # pygame.quit() would shut down the entire app
-        if HAS_PYGAME and pygame.get_init():
+        if HAS_PYGAME and pygame is not None and pygame.get_init():
             try:
-                # Just release the display, don't quit pygame
                 if pygame.display.get_surface() is not None:
                     pygame.display.quit()
                     logger.debug("Released pygame display")
@@ -1265,3 +1116,40 @@ class LinuxGPUChart(BaseChart):
             logger.info(f"Last candle time: {self.candles[-1].get('time', 'N/A')}")
             logger.info(f"Price range: {self.price_min:.2f} - {self.price_max:.2f}")
         logger.info(f"===========================")
+        
+    def update_price(self, price: float) -> None:
+        """Update current price for real-time line. Required by BaseChart."""
+        self.prev_price = self.current_price if getattr(self, 'current_price', 0) > 0 else price
+        self.current_price = price
+        logger.debug(f"LinuxGPUChart: Updated price to ${price:.2f}")
+        current_time = time.time()
+        # Add to price history
+        if hasattr(self, 'price_history'):
+            self.price_history.append((current_time, price))
+            # Keep only recent price history (last 60 seconds)
+            cutoff_time = current_time - 60
+            self.price_history = [(t, p) for t, p in self.price_history if t > cutoff_time]
+        # Redis publish for Dash UI
+        try:
+            redis_client = redis.Redis(host='localhost', port=6379, db=0)
+            redis_client.set('latest_price', json.dumps({'price': price}))
+        except Exception as e:
+            logger.warning(f"Redis publish error: {e}")
+        # --- If there are no candles, synthesize a forming candle and trigger a render ---
+        if not self.candles and price > 0:
+            now = datetime.utcnow().replace(second=0, microsecond=0)
+            forming_candle = {
+                'time': now,
+                'open': price,
+                'high': price,
+                'low': price,
+                'close': price,
+                'volume': 0
+            }
+            self.candles.append(forming_candle)
+            self._update_bounds()
+        # Always trigger a render after price update
+        try:
+            self.render()
+        except Exception as e:
+            logger.warning(f"Render after update_price failed: {e}")

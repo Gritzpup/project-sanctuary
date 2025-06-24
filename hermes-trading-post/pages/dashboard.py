@@ -51,6 +51,17 @@ def get_latest_candle():
     try:
         data = redis_client.get('latest_candle')
         if data:
+            # Defensive: ensure data is a string and not a coroutine/awaitable
+            if not isinstance(data, str):
+                # If it's awaitable, skip or log error
+                if hasattr(data, '__await__'):
+                    logger.error("[REDIS] Received awaitable from redis_client.get, skipping.")
+                    return None
+                # If it's bytes, decode
+                if isinstance(data, bytes):
+                    data = data.decode('utf-8')
+                else:
+                    data = str(data)
             import json
             from datetime import datetime
             candle = json.loads(data)
@@ -72,7 +83,7 @@ def get_latest_candle():
 
 # WebSocket data storage
 current_price = 0
-previous_price = 0  # Track previous price for color changes
+previous_price = 0  # Track previous price
 initial_price_set = False  # Track if we've set the initial price
 ws_connection = None
 current_candle = None  # Current forming candle
@@ -107,13 +118,15 @@ def chart_health_check():
     chart = get_bitcoin_chart()
     try:
         # If the chart process has an 'is_alive' or similar, check it
-        if hasattr(chart.chart, 'is_alive'):
-            if not chart.chart.is_alive():
-                logger.warning("[CHART HEALTH] Chart process not alive, restarting...")
-                # Re-create the chart instance
-                global bitcoin_chart
-                bitcoin_chart = None
-                get_bitcoin_chart()
+        if hasattr(chart, 'chart') and hasattr(chart.chart, 'is_alive'):
+            is_alive = getattr(chart.chart, 'is_alive', None)
+            if callable(is_alive):
+                if not is_alive():
+                    logger.warning("[CHART HEALTH] Chart process not alive, restarting...")
+                    # Re-create the chart instance
+                    global bitcoin_chart
+                    bitcoin_chart = None
+                    get_bitcoin_chart()
         # Optionally, add more checks here
     except Exception as e:
         logger.error(f"[CHART HEALTH] Error during health check: {e}")
@@ -175,9 +188,13 @@ def fetch_historical_candles():
                         time.sleep(0.01)
                 logger.debug(f"[CANDLE FETCH] Historical candles pushed to chart")
                 # Trigger an initial render after loading historical data
-                if hasattr(chart, 'chart') and hasattr(chart.chart, 'render_sync'):
-                    logger.debug("[CANDLE FETCH] Triggering initial render...")
-                    chart.chart.render_sync(timeout=2.0)  # Increased timeout for rendering
+                chart_obj = getattr(chart, 'chart', None)
+                if chart_obj is not None:
+                    render_sync = getattr(chart_obj, 'render_sync', None)
+                    if callable(render_sync):
+                        render_sync(timeout=2.0)  # Increased timeout for rendering
+                    else:
+                        logger.debug("[CHART] render_sync not available on chart.chart")
             return True, None
         else:
             error_msg = f"[CANDLE FETCH] Failed to fetch historical candles: HTTP {response.status_code} - {response.text}"
@@ -261,8 +278,13 @@ def start_websocket(set_error=None):
                     chart = get_bitcoin_chart()
                     if chart:
                         chart.update_price(price)
-                        if hasattr(chart.chart, 'render_sync'):
-                            chart.chart.render_sync(timeout=1.0)  # Increased timeout for initial price
+                        chart_obj = getattr(chart, 'chart', None)
+                        if chart_obj is not None:
+                            render_sync = getattr(chart_obj, 'render_sync', None)
+                            if callable(render_sync):
+                                render_sync(timeout=1.0)  # Increased timeout for initial price
+                            else:
+                                logger.debug("[CHART] render_sync not available on chart.chart")
                 # print(f"Updated price: ${price:,.2f}")
                 now_min = datetime.now(timezone.utc).replace(second=0, microsecond=0)
                 if current_candle is None or current_candle['time'] != now_min:
@@ -298,7 +320,11 @@ def start_websocket(set_error=None):
                             chart.update_current_candle(current_candle)
                             # Force a render after candle update
                             if hasattr(chart.chart, 'render_async'):
-                                chart.chart.render_async()
+                                render_async = getattr(chart.chart, 'render_async', None)
+                                if callable(render_async):
+                                    render_async()
+                                else:
+                                    logger.debug("[CHART] render_async not available on chart.chart")
                         except Exception as e:
                             logger.error(f"Error updating current candle: {e}")
                 # --- Write current candle to Redis for real-time UI updates ---
@@ -549,28 +575,32 @@ def update_range(n6m, n3m, n1m, n5d, n1d, n4h, n1h):
     # Recommended timeframe based on range
     recommended_timeframe = None  # Default: don't change the timeframe
     
+    # Defensive: Only call set_max_visible_candles if bitcoin_chart is not None
+    chart = bitcoin_chart if bitcoin_chart is not None else get_bitcoin_chart()
+    
     # Special case for 1H range - recommend 1m timeframe
     if button_id == 'range-1h':
         recommended_timeframe = 60  # 1m timeframe
-        bitcoin_chart.set_max_visible_candles(60)  # 60 1-minute candles
-    
+        if chart is not None and hasattr(chart, 'set_max_visible_candles'):
+            chart.set_max_visible_candles(60)  # 60 1-minute candles
     # Special case for 4H range - recommend 5m
     elif button_id == 'range-4h':
         recommended_timeframe = 300  # 5m timeframe
-        bitcoin_chart.set_max_visible_candles(48)  # 48 5-minute candles
-        
+        if chart is not None and hasattr(chart, 'set_max_visible_candles'):
+            chart.set_max_visible_candles(48)  # 48 5-minute candles
     # Special case for 1D range - recommend 15m
     elif button_id == 'range-1d':
         recommended_timeframe = 900  # 15m timeframe
-        bitcoin_chart.set_max_visible_candles(96)  # 96 15-minute candles
-        
+        if chart is not None and hasattr(chart, 'set_max_visible_candles'):
+            chart.set_max_visible_candles(96)  # 96 15-minute candles
     # Special case for 5D range
     elif button_id == 'range-5d':
-        bitcoin_chart.set_max_visible_candles(120)  # Adjust as needed
-        
+        if chart is not None and hasattr(chart, 'set_max_visible_candles'):
+            chart.set_max_visible_candles(120)  # Adjust as needed
     # Special case for 1M range
     elif button_id == 'range-1m':
-        bitcoin_chart.set_max_visible_candles(200)  # Adjust as needed
+        if chart is not None and hasattr(chart, 'set_max_visible_candles'):
+            chart.set_max_visible_candles(200)  # Adjust as needed
     
     return (
         selected_range, 
@@ -586,21 +616,18 @@ def update_range(n6m, n3m, n1m, n5d, n1d, n4h, n1h):
 )
 def update_accelerated_chart(n):
     global current_price, current_candle
-    
     chart = get_bitcoin_chart()
-    
-    # Update current candle if available
+    # Always update current candle and price, even if not a new minute
     if current_candle:
-        chart.update_current_candle(current_candle)
-    
-    # Update price
+        if hasattr(chart, 'update_current_candle'):
+            chart.update_current_candle(current_candle)
     if current_price > 0:
-        chart.update_price(current_price)
-    
-    # Force update with timestamp to ensure Dash detects the change
+        if hasattr(chart, 'update_price'):
+            chart.update_price(current_price)
+    # Always force update with a new timestamp to trigger chart re-render
     return {
-        'updated': True, 
-        'timestamp': time.time(), 
+        'updated': True,
+        'timestamp': time.time(),
         'price': current_price,
         'n_intervals': n,
         'has_candle': current_candle is not None
