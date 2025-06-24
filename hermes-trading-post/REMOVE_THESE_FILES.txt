@@ -1,0 +1,8 @@
+components/chart_acceleration/cpu_optimized_chart.py
+components/chart_acceleration/base_chart.py
+components/chart_acceleration/threaded_gpu_renderer.py
+components/chart_acceleration/dashboard_integration_fixed.py
+components/chart_acceleration/acceleration_detector.py
+components/chart_acceleration/__init__.py
+
+# These files are now obsolete or not needed for GPU-only operation. Please review and remove them if you are sure you do not need CPU fallback or legacy code.

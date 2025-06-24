@@ -267,18 +267,40 @@ class LinuxGPUChart(BaseChart):
             color_attachments=[self.ctx.texture((self.width, self.height), 4)]
         )
         
+    def _get_last_visible_candle_info(self):
+        """Return (index, candle, x_pixel) for the last visible candle."""
+        visible_candles = min(len(self.candles), self.max_visible_candles)
+        if len(self.candles) > self.max_visible_candles:
+            first_visible_idx = len(self.candles) - self.max_visible_candles
+            last_visible_idx = len(self.candles) - 1
+        else:
+            first_visible_idx = 0
+            last_visible_idx = len(self.candles) - 1
+        if last_visible_idx < 0:
+            return None, None, None
+        candle = self.candles[last_visible_idx]
+        x_pixel = int(self.width * (last_visible_idx - first_visible_idx) / max(1, visible_candles - 1))
+        return last_visible_idx, candle, x_pixel
+
     def add_candle(self, candle_data: Dict[str, Any]) -> None:
-        """Add a new completed candle"""
-        
+        """Add a new completed candle, preventing duplicates at the same timestamp."""
+        # Prevent duplicate candles with the same timestamp
+        if self.candles and 'time' in candle_data and 'time' in self.candles[-1]:
+            if candle_data['time'] == self.candles[-1]['time']:
+                logger.debug(f"Duplicate candle for {candle_data['time']} ignored.")
+                return
+        # Also check previous candle to avoid rollover duplicates
+        if len(self.candles) > 1 and 'time' in candle_data and 'time' in self.candles[-2]:
+            if candle_data['time'] == self.candles[-2]['time']:
+                logger.debug(f"Duplicate candle for {candle_data['time']} ignored (prev).")
+                return
         self.candles.append(candle_data)
-        
         # Keep only recent candles for performance and visibility
         max_to_keep = min(self.max_candles, self.max_visible_candles)
         if len(self.candles) > max_to_keep:
             self.candles = self.candles[-max_to_keep:]
-            
         self._update_bounds()
-        
+
     def update_current_candle(self, candle_data: Dict[str, Any]) -> None:
         """Update currently forming candle - always keep it at the rightmost position. Data should come from dashboard websocket only."""
         
@@ -725,89 +747,29 @@ class LinuxGPUChart(BaseChart):
             logger.debug(f"Timeline rendering error: {e}")
 
     def _draw_price_label(self):
-        """Draw price label at the end of the price line"""
+        """Draw price label at the end of the last visible candle, not at the far right. Clear the entire price label margin to prevent ghosting."""
         if not self.candles or self.current_price <= 0:
             logger.warning(f"Skipping price label: candles={len(self.candles) if self.candles else 0}, price={self.current_price}")
             return
-        
         logger.info(f"Drawing price label at ${self.current_price:.2f}")
         try:
             import pygame
             from pygame import freetype
-            
-            # Mark that we need text overlay first
             self._text_overlay_needed = True
-            
-            # Get the existing pygame surface
             surface = pygame.display.get_surface()
             if surface is None:
                 logger.warning("No pygame surface for price label")
                 return
-                
-            font = freetype.SysFont('Arial', 14, bold=True)
-            
-            # Map price to y pixel
-            price_range = self.price_max - self.price_min
-            if price_range == 0:
-                return
-                
-            # Adjust y coordinate to account for timeline
-            y = int((self.height - self.timeline_height) - ((self.current_price - self.price_min) / price_range) * (self.height - self.timeline_height))
-            
-            label = f"${self.current_price:,.2f}"
-            
-            # Determine color based on price movement
-            if hasattr(self, 'prev_price') and self.prev_price is not None:
-                if self.current_price > self.prev_price:
-                    bg_color = (0, 100, 80)  # Teal background
-                    text_color = (200, 255, 200)  # Light green text
-                elif self.current_price < self.prev_price:
-                    bg_color = (100, 20, 20)  # Red background
-                    text_color = (255, 200, 200)  # Light red text
-                else:
-                    bg_color = (50, 50, 50)  # Gray background
-                    text_color = (220, 220, 220)  # Light gray text
-            else:
-                bg_color = (50, 50, 50)
-                text_color = (220, 220, 220)
-                
-            # Draw background rectangle with border
-            rect_x = self.width - self.price_label_width + 5
-            rect_y = y - 12
-            rect_width = self.price_label_width - 10
-            rect_height = 24
-            
-            pygame.draw.rect(surface, bg_color, (rect_x, rect_y, rect_width, rect_height), border_radius=4)
-            pygame.draw.rect(surface, text_color, (rect_x, rect_y, rect_width, rect_height), width=1, border_radius=4)
-            
-            # Draw price text centered
-            text_rect = font.get_rect(label)
-            text_x = rect_x + (rect_width - text_rect.width) // 2
-            text_y = rect_y + (rect_height - text_rect.height) // 2
-            font.render_to(surface, (text_x, text_y), label, text_color)
-            
-            # Mark that we need text overlay
-            self._text_overlay_needed = True
-            
-        except Exception as e:
-            logger.debug(f"Price label rendering error: {e}")
-
-    def set_price_tag_value(self, price: float) -> None:
-        """Efficiently update only the price value in the tag, erasing the old label before drawing the new one for real-time updates."""
-        try:
-            import pygame
-            from pygame import freetype
-            self.current_price = price
-            surface = pygame.display.get_surface()
-            if surface is None:
-                return
             font = freetype.SysFont('Arial', 14, bold=True)
             price_range = self.price_max - self.price_min
             if price_range == 0:
                 return
+            # Use helper for last visible candle
+            last_visible_idx, _, x_pixel = self._get_last_visible_candle_info()
+            if x_pixel is None:
+                return
             y = int((self.height - self.timeline_height) - ((self.current_price - self.price_min) / price_range) * (self.height - self.timeline_height))
             label = f"${self.current_price:,.2f}"
-            # Determine color based on price movement
             if hasattr(self, 'prev_price') and self.prev_price is not None:
                 if self.current_price > self.prev_price:
                     bg_color = (0, 100, 80)
@@ -821,13 +783,13 @@ class LinuxGPUChart(BaseChart):
             else:
                 bg_color = (50, 50, 50)
                 text_color = (220, 220, 220)
-            rect_x = self.width - self.price_label_width + 5
-            rect_y = y - 12
             rect_width = self.price_label_width - 10
             rect_height = 24
-            # Erase the old label area by drawing a background rectangle (same as chart background)
-            chart_bg = (26, 26, 26)  # RGB for dark background
-            pygame.draw.rect(surface, chart_bg, (rect_x, rect_y, rect_width, rect_height), border_radius=4)
+            rect_x = min(self.width - rect_width - 5, max(0, x_pixel - rect_width // 2))
+            rect_y = y - 12
+            chart_bg = (26, 26, 26)
+            # Clear the entire price label margin to prevent ghosting
+            pygame.draw.rect(surface, chart_bg, (self.width - self.price_label_width, 0, self.price_label_width, self.height - self.timeline_height))
             # Draw new label background and border
             pygame.draw.rect(surface, bg_color, (rect_x, rect_y, rect_width, rect_height), border_radius=4)
             pygame.draw.rect(surface, text_color, (rect_x, rect_y, rect_width, rect_height), width=1, border_radius=4)
@@ -835,10 +797,73 @@ class LinuxGPUChart(BaseChart):
             text_x = rect_x + (rect_width - text_rect.width) // 2
             text_y = rect_y + (rect_height - text_rect.height) // 2
             font.render_to(surface, (text_x, text_y), label, text_color)
-            self._text_overlay_needed = True
         except Exception as e:
-            logger.debug(f"Efficient price tag update error: {e}")
+            logger.debug(f"Price label rendering error: {e}")
 
+    def _draw_price_line(self):
+        """Draw the current price line across the full visible chart width at the last visible candle's y position."""
+        logger.info(f"Drawing price line at ${self.current_price:.2f}, price range: {self.price_min:.2f}-{self.price_max:.2f}")
+        try:
+            if not hasattr(self, 'price_line_program'):
+                price_line_vertex_shader = '''
+                #version 330
+                in vec2 position;
+                uniform mat4 projection;
+                void main() {
+                    gl_Position = projection * vec4(position, 0.0, 1.0);
+                }
+                '''
+                price_line_fragment_shader = '''
+                #version 330
+                out vec4 fragColor;
+                uniform vec3 color;
+                void main() {
+                    fragColor = vec4(color, 1.0);
+                }
+                '''
+                self.price_line_program = self.ctx.program(
+                    vertex_shader=price_line_vertex_shader,
+                    fragment_shader=price_line_fragment_shader
+                )
+            if self.prev_price is None:
+                self.prev_price = self.current_price
+            if self.current_price > self.prev_price:
+                color = self.colors['price_line_bullish']
+            elif self.current_price < self.prev_price:
+                color = self.colors['price_line_bearish']
+            else:
+                color = self.colors['price_line_neutral']
+            self.prev_price = self.current_price
+            # Draw price line from first to last visible candle
+            visible_candles = min(len(self.candles), self.max_visible_candles)
+            if len(self.candles) > self.max_visible_candles:
+                first_visible_idx = len(self.candles) - self.max_visible_candles
+                last_visible_idx = len(self.candles) - 1
+            else:
+                first_visible_idx = 0
+                last_visible_idx = len(self.candles) - 1
+            x_start = 0
+            x_end = last_visible_idx - first_visible_idx
+            y = self.current_price
+            line_vertices = np.array([
+                [x_start, y],
+                [x_end, y]
+            ], dtype=np.float32).flatten()
+            line_buffer = self.ctx.buffer(line_vertices.tobytes())
+            line_vao = self.ctx.vertex_array(
+                self.price_line_program,
+                [(line_buffer, '2f', 'position')]
+            )
+            self.price_line_program['color'] = color
+            projection = self._create_projection_matrix()
+            self.price_line_program['projection'] = projection.T.flatten()
+            self.ctx.line_width = 3.0
+            line_vao.render(mode=moderngl.LINES)
+            line_buffer.release()
+            line_vao.release()
+        except Exception as e:
+            logger.debug(f"Price line rendering error: {e}")
+        
     def render(self) -> Any:
         """Ultra-fast chart rendering with Linux optimizations"""
         
@@ -1013,12 +1038,9 @@ class LinuxGPUChart(BaseChart):
         return matrix
         
     def _draw_price_line(self):
-        """Draw the current price line with dynamic color using GPU"""
-        
+        """Draw the current price line across the full visible chart width at the last visible candle's y position."""
         logger.info(f"Drawing price line at ${self.current_price:.2f}, price range: {self.price_min:.2f}-{self.price_max:.2f}")
-            
         try:
-            # Create price line shader if not exists
             if not hasattr(self, 'price_line_program'):
                 price_line_vertex_shader = '''
                 #version 330
@@ -1040,54 +1062,42 @@ class LinuxGPUChart(BaseChart):
                     vertex_shader=price_line_vertex_shader,
                     fragment_shader=price_line_fragment_shader
                 )
-            
-            # Determine price line color based on trend
             if self.prev_price is None:
                 self.prev_price = self.current_price
-                
             if self.current_price > self.prev_price:
                 color = self.colors['price_line_bullish']
             elif self.current_price < self.prev_price:
                 color = self.colors['price_line_bearish']
             else:
                 color = self.colors['price_line_neutral']
-                
-            # Update previous price
             self.prev_price = self.current_price
-            
-            # Create line vertices - extend slightly beyond chart bounds for clean edges
+            # Draw price line from first to last visible candle
+            visible_candles = min(len(self.candles), self.max_visible_candles)
+            if len(self.candles) > self.max_visible_candles:
+                first_visible_idx = len(self.candles) - self.max_visible_candles
+                last_visible_idx = len(self.candles) - 1
+            else:
+                first_visible_idx = 0
+                last_visible_idx = len(self.candles) - 1
+            x_start = 0
+            x_end = last_visible_idx - first_visible_idx
             y = self.current_price
             line_vertices = np.array([
-                [-1, y],
-                [len(self.candles) + 1, y]
+                [x_start, y],
+                [x_end, y]
             ], dtype=np.float32).flatten()
-            
-            logger.info(f"Price line vertices: x=[{-1}, {len(self.candles) + 1}], y={y}")
-            logger.info(f"Price line color: {color}")
-            
-            # Create buffer and VAO
             line_buffer = self.ctx.buffer(line_vertices.tobytes())
             line_vao = self.ctx.vertex_array(
                 self.price_line_program,
                 [(line_buffer, '2f', 'position')]
             )
-            
-            # Set uniforms
             self.price_line_program['color'] = color
             projection = self._create_projection_matrix()
             self.price_line_program['projection'] = projection.T.flatten()
-            
-            logger.info(f"Projection matrix:\n{projection}")
-            
-            # Draw the line with increased thickness
             self.ctx.line_width = 3.0
             line_vao.render(mode=moderngl.LINES)
-            logger.info("Price line rendered successfully")
-            
-            # Cleanup
             line_buffer.release()
             line_vao.release()
-            
         except Exception as e:
             logger.debug(f"Price line rendering error: {e}")
         
