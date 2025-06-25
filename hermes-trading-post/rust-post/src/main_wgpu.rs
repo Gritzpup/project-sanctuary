@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
+    window::{WindowBuilder, Window},
     keyboard::{KeyCode, PhysicalKey},
 };
 use wgpu::util::DeviceExt;
@@ -1000,10 +1000,10 @@ struct CameraController {
 impl CameraController {
     fn new(aspect: f32) -> Self {
         Self {
-            eye: Point3::new(8.0, 25.0, 120.0),
+            eye: Point3::new(0.0, 30.0, 80.0), // Better starting position for trading chart view
             target: Point3::new(0.0, 0.0, 0.0),
             up: Vector3::unit_y(),
-            fov: 45.0,
+            fov: 60.0, // Wider field of view for better chart visibility
             aspect,
             znear: 0.1,
             zfar: 400.0,
@@ -1567,7 +1567,6 @@ impl<'a> State<'a> {
             }
             
             draw_ranges.push((all_indices.len() as u32, indices.len() as u32));
-            vtx_offset += vertices.len() as u16;
             all_vertices.extend(vertices);
             all_indices.extend(indices);
         }
@@ -1663,6 +1662,153 @@ impl<'a> State<'a> {
     }
 }
 
+// Information window for displaying trading data as text
+struct InfoWindow {
+    window: Arc<Window>,
+    surface: wgpu::Surface<'static>,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    config: wgpu::SurfaceConfiguration,
+    size: winit::dpi::PhysicalSize<u32>,
+}
+
+impl InfoWindow {
+    async fn new(
+        instance: &wgpu::Instance,
+        window: Window,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let window = Arc::new(window);
+        let surface = instance.create_surface(window.clone())?;
+
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::LowPower,
+                compatible_surface: Some(&surface),
+                force_fallback_adapter: false,
+            })
+            .await
+            .ok_or("Failed to find adapter")?;
+
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits::default(),
+                    label: None,
+                },
+                None,
+            )
+            .await?;
+
+        let surface_caps = surface.get_capabilities(&adapter);
+        let surface_format = surface_caps
+            .formats
+            .iter()
+            .copied()
+            .find(|f| f.is_srgb())
+            .unwrap_or(surface_caps.formats[0]);
+
+        let size = window.inner_size();
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: surface_format,
+            width: size.width,
+            height: size.height,
+            present_mode: wgpu::PresentMode::AutoVsync,
+            alpha_mode: surface_caps.alpha_modes[0],
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
+        surface.configure(&device, &config);
+
+        Ok(Self {
+            window: window.clone(),
+            surface,
+            device,
+            queue,
+            config,
+            size,
+        })
+    }
+
+    fn window_id(&self) -> winit::window::WindowId {
+        self.window.id()
+    }
+
+    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+        if new_size.width > 0 && new_size.height > 0 {
+            self.size = new_size;
+            self.config.width = new_size.width;
+            self.config.height = new_size.height;
+            self.surface.configure(&self.device, &self.config);
+        }
+    }
+
+    fn render(
+        &mut self,
+        candle_data: &Candle,
+        _camera_info: &str,
+        _fps: u32,
+        _candle_count: usize,
+    ) -> Result<(), wgpu::SurfaceError> {
+        let output = self.surface.get_current_texture()?;
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Info Render Encoder"),
+            });
+
+        // Color background based on price direction
+        let bg_color = if candle_data.close > candle_data.open {
+            wgpu::Color {
+                r: 0.0,
+                g: 0.15,
+                b: 0.05,
+                a: 1.0,
+            } // Dark green
+        } else if candle_data.close < candle_data.open {
+            wgpu::Color {
+                r: 0.15,
+                g: 0.0,
+                b: 0.05,
+                a: 1.0,
+            } // Dark red
+        } else {
+            wgpu::Color {
+                r: 0.1,
+                g: 0.1,
+                b: 0.1,
+                a: 1.0,
+            } // Dark gray
+        };
+
+        {
+            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Info Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(bg_color),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                ..Default::default()
+            });
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        output.present();
+
+        Ok(())
+    }
+}
+
 #[tokio::main]
 async fn main() {
     env_logger::init();
@@ -1674,12 +1820,33 @@ async fn main() {
     println!("Fetched {} historical candles", historical_candles.len());
 
     let event_loop = EventLoop::new().unwrap();
-    let window = WindowBuilder::new()
-        .with_title("3D BTC Candle - Real-time")
+    
+    // Create main chart window
+    let main_window = WindowBuilder::new()
+        .with_title("🚀 3D BTC Candlestick Chart | Press 'I' to toggle Info Window")
+        .with_inner_size(winit::dpi::LogicalSize::new(1200, 800))
         .build(&event_loop)
         .unwrap();
 
-    let mut state = State::new(&window, historical_candles).await;
+    // Create info window upfront but initially hidden
+    let info_window_handle = WindowBuilder::new()
+        .with_title("📊 Trading Information Dashboard")
+        .with_inner_size(winit::dpi::LogicalSize::new(500, 400))
+        .with_resizable(true)
+        .with_position(winit::dpi::LogicalPosition::new(50, 50))
+        .with_visible(false)  // Start hidden
+        .build(&event_loop)
+        .unwrap();
+
+    let mut state = State::new(&main_window, historical_candles).await;
+    
+    // Initialize info window
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::all(),
+        ..Default::default()
+    });
+    let mut info_window = InfoWindow::new(&instance, info_window_handle).await.unwrap();
+    let mut show_info_window = false;
     
     // Shared candle data - initialize with last historical candle if available
     let initial_candle = if let Some(last_candle) = state.historical_candles.last() {
@@ -1712,11 +1879,11 @@ async fn main() {
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } if window_id == window.id() => match event {
+            } if window_id == main_window.id() => match event {
                 WindowEvent::CloseRequested => target.exit(),
                 WindowEvent::Resized(physical_size) => {
                     state.resize(*physical_size);
-                    window.request_redraw(); // Always redraw on resize
+                    main_window.request_redraw();
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
                     if let PhysicalKey::Code(keycode) = event.physical_key {
@@ -1725,6 +1892,17 @@ async fn main() {
                         // Reset camera on R key
                         if keycode == KeyCode::KeyR && event.state == ElementState::Pressed {
                             state.camera_controller = CameraController::new(state.config.width as f32 / state.config.height as f32);
+                        }
+                        
+                        // Toggle info window with 'I' key
+                        if keycode == KeyCode::KeyI && event.state == ElementState::Pressed {
+                            show_info_window = !show_info_window;
+                            info_window.window.set_visible(show_info_window);
+                            if show_info_window {
+                                println!("Info window shown");
+                            } else {
+                                println!("Info window hidden");
+                            }
                         }
                     }
                 }
@@ -1751,7 +1929,7 @@ async fn main() {
                         Ok(_) => {}
                         Err(wgpu::SurfaceError::Lost) => {
                             state.surface.configure(&state.device, &state.config);
-                            window.request_redraw();
+                            main_window.request_redraw();
                         }
                         Err(wgpu::SurfaceError::OutOfMemory) => target.exit(),
                         Err(_) => {
@@ -1788,6 +1966,29 @@ async fn main() {
                 }
                 _ => {}
             },
+            // Handle info window events
+            Event::WindowEvent {
+                ref event,
+                window_id,
+            } if window_id == info_window.window.id() => match event {
+                WindowEvent::CloseRequested => {
+                    show_info_window = false;
+                    info_window.window.set_visible(false);
+                    println!("Info window hidden by user");
+                }
+                WindowEvent::Resized(physical_size) => {
+                    info_window.resize(*physical_size);
+                }
+                WindowEvent::RedrawRequested => {
+                    if let Ok(candle) = candle_data.lock() {
+                        let camera_info = state.camera_controller.get_camera_info();
+                        if let Err(e) = info_window.render(&candle, &camera_info, fps_counter, state.historical_candles.len()) {
+                            println!("Info window render error: {:?}", e);
+                        }
+                    }
+                }
+                _ => {}
+            },
             Event::AboutToWait => {
                 // Check for new candle data
                 let mut updated = false;
@@ -1814,21 +2015,28 @@ async fn main() {
                 if updated {
                     if let Ok(candle) = candle_data.lock() {
                         state.update_current_candle(candle.clone());
-                        // Update window title with camera info
-                        let camera_info = state.camera_controller.get_camera_info();
+                        
+                        // Keep main window title simple - detailed info goes to info window
+                        let price_change_pct = ((candle.close - candle.open) / candle.open) * 100.0;
+                        let direction_emoji = if candle.close > candle.open { "🟢" } else if candle.close < candle.open { "🔴" } else { "⚪" };
+                        
                         let title = format!(
-                            "3D BTC 1m | ${:.2} | {} | FPS: {} | Candles: {} | {}",
+                            "🚀 3D BTC Chart | ${:.2} ({:+.2}%) {} | Press 'I' for Info",
                             candle.close,
-                            if candle.close > candle.open { "🟢" } else if candle.close < candle.open { "🔴" } else { "⚪" },
-                            fps_counter,
-                            state.historical_candles.len(),
-                            camera_info
+                            price_change_pct,
+                            direction_emoji
                         );
-                        window.set_title(&title);
+                        main_window.set_title(&title);
                     }
                 }
-                // Always render with fixed camera (no rotation for traditional chart view)
-                window.request_redraw();
+                
+                // Always render main window
+                main_window.request_redraw();
+                
+                // Render info window if visible
+                if show_info_window {
+                    info_window.window.request_redraw();
+                }
                 // FPS counter
                 fps_counter += 1;
                 if fps_timer.elapsed().as_secs() >= 1 {
