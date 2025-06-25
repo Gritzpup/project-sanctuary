@@ -392,7 +392,7 @@ fn generate_line_chart_vertices(candles: &[Candle], start_idx: usize, chart_offs
     
     let base_price = 107500.0;
     let price_scale = 0.2;
-    let spacing = 1.5;
+    let spacing = 2.5; // Match the candle spacing
     
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
@@ -597,39 +597,57 @@ fn vs_main(model: VertexInput) -> VertexOutput {
     return out;
 }
 
-// Fragment shader with metallic/glass finish and smooth edges
+// Fragment shader with enhanced metallic/glass finish and smooth shading
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Main directional light
-    let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
+    // Multiple light sources for better illumination
+    let light_dir1 = normalize(vec3<f32>(0.6, 1.0, 0.4));   // Main light
+    let light_dir2 = normalize(vec3<f32>(-0.3, 0.5, -0.2)); // Fill light
+    let light_dir3 = normalize(vec3<f32>(0.0, -0.8, 0.6));  // Rim light
+    
     let view_dir = normalize(camera.view_pos - in.world_pos);
     let n = normalize(in.normal);
     
-    // Diffuse lighting
-    let diff = max(dot(n, light_dir), 0.0);
+    // Diffuse lighting from multiple sources
+    let diff1 = max(dot(n, light_dir1), 0.0) * 0.8;
+    let diff2 = max(dot(n, light_dir2), 0.0) * 0.4;
+    let diff3 = max(dot(n, light_dir3), 0.0) * 0.3;
+    let total_diffuse = diff1 + diff2 + diff3;
     
-    // Specular reflection for metallic finish
-    let reflect_dir = reflect(-light_dir, n);
-    let spec = pow(max(dot(view_dir, reflect_dir), 0.0), 32.0);
+    // Enhanced specular with multiple highlights
+    let reflect_dir1 = reflect(-light_dir1, n);
+    let reflect_dir2 = reflect(-light_dir2, n);
+    let spec1 = pow(max(dot(view_dir, reflect_dir1), 0.0), 64.0) * 0.8;
+    let spec2 = pow(max(dot(view_dir, reflect_dir2), 0.0), 32.0) * 0.4;
+    let total_spec = spec1 + spec2;
     
-    // Fresnel effect for glass-like edges
-    let fresnel = pow(1.0 - max(dot(view_dir, n), 0.0), 2.0);
+    // Fresnel effect for glass-like edges (more pronounced)
+    let fresnel = pow(1.0 - max(dot(view_dir, n), 0.0), 1.5);
     
-    // Rim lighting for glowing edges
+    // Enhanced rim lighting for glowing edges
     let rim = 1.0 - max(dot(view_dir, n), 0.0);
-    let rim_light = pow(rim, 3.0) * 0.8;
+    let rim_light = pow(rim, 2.0) * 0.6;
     
-    // Combine lighting
-    let ambient = 0.2;
-    let lighting = ambient + diff * 0.8 + spec * 0.6 + rim_light;
+    // Improved ambient lighting
+    let ambient = 0.15;
     
-    // Apply AO and fresnel
-    let final_light = lighting * in.ao * (1.0 + fresnel * 0.3);
+    // Combine all lighting components
+    let lighting = ambient + total_diffuse + total_spec + rim_light;
     
-    // Apply lighting to color with metallic boost
-    let lit_color = in.color * final_light + vec3<f32>(spec * 0.4);
+    // Apply AO with smoother falloff
+    let ao_factor = smoothstep(0.5, 1.0, in.ao);
     
-    return vec4<f32>(lit_color, 1.0);
+    // Enhanced fresnel contribution
+    let final_light = lighting * ao_factor * (1.0 + fresnel * 0.5);
+    
+    // Apply lighting to color with enhanced metallic boost
+    let metallic_boost = vec3<f32>(total_spec * 0.6);
+    let lit_color = in.color * final_light + metallic_boost;
+    
+    // Subtle color saturation boost for more vibrant appearance
+    let enhanced_color = mix(lit_color, lit_color * lit_color, 0.1);
+    
+    return vec4<f32>(enhanced_color, 1.0);
 }
 "#;
 
@@ -831,6 +849,7 @@ struct CameraController {
     // Input state
     keys_pressed: std::collections::HashSet<KeyCode>,
     mouse_pressed: bool,
+    shift_pressed: bool, // Track shift key for panning mode
     last_mouse_pos: (f64, f64),
 }
 
@@ -851,6 +870,7 @@ impl CameraController {
             
             keys_pressed: std::collections::HashSet::new(),
             mouse_pressed: false,
+            shift_pressed: false,
             last_mouse_pos: (0.0, 0.0),
         }
     }
@@ -863,32 +883,57 @@ impl CameraController {
         match state {
             ElementState::Pressed => {
                 self.keys_pressed.insert(key);
+                if key == KeyCode::ShiftLeft || key == KeyCode::ShiftRight {
+                    self.shift_pressed = true;
+                }
             }
             ElementState::Released => {
                 self.keys_pressed.remove(&key);
+                if key == KeyCode::ShiftLeft || key == KeyCode::ShiftRight {
+                    self.shift_pressed = false;
+                }
             }
         }
     }
     
     fn process_mouse_motion(&mut self, delta_x: f64, delta_y: f64) {
         if self.mouse_pressed {
-            let dx = delta_x as f32 * self.rotation_speed;
-            let dy = delta_y as f32 * self.rotation_speed;
+            let dx = delta_x as f32;
+            let dy = delta_y as f32;
             
-            // Rotate around target
-            let radius = (self.eye - self.target).magnitude();
-            let theta = dx; // Horizontal rotation
-            let phi = dy;   // Vertical rotation
-            
-            let forward = (self.target - self.eye).normalize();
-            let right = forward.cross(self.up).normalize();
-            let up = right.cross(forward).normalize();
-             // Apply rotations
-            let new_forward = Matrix4::from_axis_angle(up, Deg(-theta)) * 
-                             Matrix4::from_axis_angle(right, Deg(-phi)) * 
-                             forward.extend(0.0);
+            if self.shift_pressed {
+                // Panning mode - move both eye and target together
+                let pan_speed = 0.05;
+                let forward = (self.target - self.eye).normalize();
+                let right = forward.cross(self.up).normalize();
+                let up = right.cross(forward).normalize();
+                
+                // Calculate pan movement in world space
+                let pan_movement = right * (-dx * pan_speed) + up * (dy * pan_speed);
+                
+                // Move both eye and target by the same amount (no rotation)
+                self.eye += pan_movement;
+                self.target += pan_movement;
+            } else {
+                // Rotation mode - rotate around target
+                let dx = dx * self.rotation_speed;
+                let dy = dy * self.rotation_speed;
+                
+                let radius = (self.eye - self.target).magnitude();
+                let theta = dx; // Horizontal rotation
+                let phi = dy;   // Vertical rotation
+                
+                let forward = (self.target - self.eye).normalize();
+                let right = forward.cross(self.up).normalize();
+                let up = right.cross(forward).normalize();
+                
+                // Apply rotations
+                let new_forward = Matrix4::from_axis_angle(up, Deg(-theta)) * 
+                                 Matrix4::from_axis_angle(right, Deg(-phi)) * 
+                                 forward.extend(0.0);
 
-            self.eye = self.target - Vector3::new(new_forward.x, new_forward.y, new_forward.z) * radius;
+                self.eye = self.target - Vector3::new(new_forward.x, new_forward.y, new_forward.z) * radius;
+            }
         }
     }
     
@@ -990,6 +1035,8 @@ struct State<'a> {
     camera_controller: CameraController,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    depth_texture: wgpu::Texture,
+    depth_view: wgpu::TextureView,
     historical_candles: Vec<Candle>, // Store historical candles
     current_candle: Option<Candle>,  // Store the current live candle
     ui_layout: UILayout,
@@ -1042,6 +1089,24 @@ impl<'a> State<'a> {
             desired_maximum_frame_latency: 2, // Added for wgpu 0.19+
         };
         surface.configure(&device, &config);
+        
+        // Create depth texture for proper 3D rendering
+        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Texture"),
+            size: wgpu::Extent3d {
+                width: config.width,
+                height: config.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 4, // 4x MSAA
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        
+        let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
         
         // Create shader
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -1125,9 +1190,15 @@ impl<'a> State<'a> {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
-                count: 1,
+                count: 4, // 4x MSAA for high quality anti-aliasing
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -1197,6 +1268,8 @@ impl<'a> State<'a> {
             camera_controller,
             camera_buffer,
             camera_bind_group,
+            depth_texture,
+            depth_view,
             historical_candles,
             current_candle: None, // Initialize with no current candle
             ui_layout,
@@ -1237,12 +1310,30 @@ impl<'a> State<'a> {
             }
         };
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        
+        // Create multisampled color attachment
+        let multisampled_framebuffer = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Multisampled framebuffer"),
+            size: wgpu::Extent3d {
+                width: self.config.width,
+                height: self.config.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 4, // 4x MSAA (8x not supported on this device)
+            dimension: wgpu::TextureDimension::D2,
+            format: self.config.format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let multisampled_view = multisampled_framebuffer.create_view(&wgpu::TextureViewDescriptor::default());
+        
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
 
         // Prepare ALL geometry (line chart + candles) in one buffer
-        let spacing = 1.5;
+        let spacing = 2.5; // Increased spacing between candles
         let max_hist = 40;
         let hist_len = self.historical_candles.len();
         let hist_start = if hist_len > max_hist { hist_len - max_hist } else { 0 };
@@ -1361,8 +1452,8 @@ impl<'a> State<'a> {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
+                view: &multisampled_view,
+                resolve_target: Some(&view),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
                         r: 0.02, g: 0.02, b: 0.04, a: 1.0,
@@ -1370,7 +1461,14 @@ impl<'a> State<'a> {
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
             ..Default::default()
         });
         
@@ -1390,6 +1488,34 @@ impl<'a> State<'a> {
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
         Ok(())
+    }
+    
+    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+        if new_size.width > 0 && new_size.height > 0 {
+            self.size = new_size;
+            self.config.width = new_size.width;
+            self.config.height = new_size.height;
+            self.surface.configure(&self.device, &self.config);
+            
+            // Recreate depth texture with new size
+            self.depth_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Depth Texture"),
+                size: wgpu::Extent3d {
+                    width: self.config.width,
+                    height: self.config.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 4,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Depth32Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+            
+            self.depth_view = self.depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+            self.camera_controller.update_aspect(new_size.width as f32 / new_size.height as f32);
+        }
     }
 }
 
@@ -1445,11 +1571,7 @@ async fn main() {
             } if window_id == window.id() => match event {
                 WindowEvent::CloseRequested => target.exit(),
                 WindowEvent::Resized(physical_size) => {
-                    state.size = *physical_size;
-                    state.config.width = physical_size.width;
-                    state.config.height = physical_size.height;
-                    state.camera_controller.update_aspect(physical_size.width as f32 / physical_size.height as f32);
-                    state.surface.configure(&state.device, &state.config);
+                    state.resize(*physical_size);
                     window.request_redraw(); // Always redraw on resize
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
