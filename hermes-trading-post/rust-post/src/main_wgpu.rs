@@ -24,18 +24,87 @@ struct Candle {
     _volume: f64, // Suppress unused warning
 }
 
-// Vertex data for 3D candle
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 3],
-    color: [f32; 3],
+// UI Layout configuration for professional trading interface
+#[derive(Debug, Clone)]
+struct UILayout {
+    // Fixed dimensions
+    sidebar_width: f32,
+    header_height: f32,
+    footer_height: f32,
+    chart_padding: f32,
+    
+    // Calculated dimensions (updated on resize)
+    chart_x: f32,
+    chart_y: f32,
+    chart_width: f32,
+    chart_height: f32,
+    window_width: f32,
+    window_height: f32,
 }
 
-impl Vertex {
+impl UILayout {
+    fn new(window_width: f32, window_height: f32) -> Self {
+        let sidebar_width = 250.0;
+        let header_height = 50.0;
+        let footer_height = 80.0;
+        let chart_padding = 10.0;
+        
+        let chart_x = sidebar_width + chart_padding;
+        let chart_y = header_height + chart_padding;
+        let chart_width = window_width - sidebar_width - (chart_padding * 2.0);
+        let chart_height = window_height - header_height - footer_height - (chart_padding * 2.0);
+        
+        Self {
+            sidebar_width,
+            header_height,
+            footer_height,
+            chart_padding,
+            chart_x,
+            chart_y,
+            chart_width,
+            chart_height,
+            window_width,
+            window_height,
+        }
+    }
+    
+    fn update_size(&mut self, window_width: f32, window_height: f32) {
+        self.window_width = window_width;
+        self.window_height = window_height;
+        self.chart_x = self.sidebar_width + self.chart_padding;
+        self.chart_y = self.header_height + self.chart_padding;
+        self.chart_width = window_width - self.sidebar_width - (self.chart_padding * 2.0);
+        self.chart_height = window_height - self.header_height - self.footer_height - (self.chart_padding * 2.0);
+    }
+    
+    fn chart_aspect_ratio(&self) -> f32 {
+        self.chart_width / self.chart_height
+    }
+}
+
+// Placeholder for text rendering
+#[derive(Debug, Clone)]
+struct TextInstance {
+    text: String,
+    position: [f32; 2],
+    size: f32,
+    color: [f32; 4],
+}
+
+// Enhanced vertex data with normals and ambient occlusion for better lighting
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct EnhancedVertex {
+    position: [f32; 3],
+    color: [f32; 3],
+    normal: [f32; 3],
+    ao: f32, // Ambient occlusion
+}
+
+impl EnhancedVertex {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<EnhancedVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
                 wgpu::VertexAttribute {
@@ -48,13 +117,28 @@ impl Vertex {
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x3,
                 },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress * 2,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress * 3,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Float32,
+                },
             ],
         }
     }
 }
 
-// Generate 3D candle vertices (a box) positioned at actual price levels
-fn generate_candle_vertices(candle: &Candle) -> (Vec<Vertex>, Vec<u16>) {
+// Helper function to multiply color by a factor
+fn multiply_color(color: [f32; 3], factor: f32) -> [f32; 3] {
+    [color[0] * factor, color[1] * factor, color[2] * factor]
+}
+
+// Generate enhanced 3D candle vertices with lighting and depth shading
+fn generate_enhanced_candle_vertices(candle: &Candle) -> (Vec<EnhancedVertex>, Vec<u16>) {
     // Get actual price values
     let open_f32 = candle.open as f32;
     let close_f32 = candle.close as f32;
@@ -63,8 +147,8 @@ fn generate_candle_vertices(candle: &Candle) -> (Vec<Vertex>, Vec<u16>) {
     
     // Scale BTC prices for better visibility
     // Center around current price range and scale up significantly
-    let base_price = 106400.0; // Updated to current price range
-    let price_scale: f32 = 0.05; // Scale for reasonable height differences
+    let base_price = 107500.0; // Updated to current price range
+    let price_scale: f32 = 0.2; // Scale for reasonable height differences
     
     // Convert actual prices to Y positions (centered around 0)
     let open_y = (open_f32 - base_price) * price_scale;
@@ -83,94 +167,293 @@ fn generate_candle_vertices(candle: &Candle) -> (Vec<Vertex>, Vec<u16>) {
         body_bottom = mid - 0.1;
     }
     
-    let s = 0.3; // Candle body width - proportional to spacing
-    let ws = 0.05; // Wick width
+    let s = 0.8; // Candle body width - proportional to spacing
+    let ws = 0.1; // Wick width
     
-    // Color: vibrant green if price is up, vibrant red if down, gray for no change
-    let color = if close_f32 > open_f32 {
-        [0.2, 1.0, 0.2] // Vibrant green
+    // Enhanced colors with better vibrancy
+    let base_color = if close_f32 > open_f32 {
+        [0.1, 0.9, 0.3] // Vibrant green
     } else if close_f32 < open_f32 {
-        [1.0, 0.2, 0.2] // Vibrant red  
+        [0.95, 0.15, 0.2] // Vibrant red  
     } else {
-        [0.7, 0.7, 0.7] // Light gray
+        [0.6, 0.6, 0.65] // Neutral gray
     };
     
-    let mut vertices = vec![
-        // Candle body (8 vertices)
-        // Front face
-        Vertex { position: [-s, body_bottom,  s], color },
-        Vertex { position: [ s, body_bottom,  s], color },
-        Vertex { position: [ s, body_top,  s], color },
-        Vertex { position: [-s, body_top,  s], color },
-        // Back face
-        Vertex { position: [-s, body_bottom, -s], color },
-        Vertex { position: [ s, body_bottom, -s], color },
-        Vertex { position: [ s, body_top, -s], color },
-        Vertex { position: [-s, body_top, -s], color },
+    // Face-specific color multipliers for realistic depth
+    let face_colors = [
+        multiply_color(base_color, 1.0),   // Front (brightest)
+        multiply_color(base_color, 0.75),  // Right
+        multiply_color(base_color, 0.55),  // Back (darkest)
+        multiply_color(base_color, 0.85),  // Left
+        multiply_color(base_color, 0.95),  // Top
+        multiply_color(base_color, 0.45),  // Bottom
     ];
     
-    let mut indices = vec![
-        // Body indices
-        0, 1, 2, 2, 3, 0, // Front
-        1, 5, 6, 6, 2, 1, // Right
-        5, 4, 7, 7, 6, 5, // Back
-        4, 0, 3, 3, 7, 4, // Left
-        3, 2, 6, 6, 7, 3, // Top
-        4, 5, 1, 1, 0, 4, // Bottom
+    // Normals for each face
+    let normals = [
+        [0.0, 0.0, 1.0],   // Front
+        [1.0, 0.0, 0.0],   // Right
+        [0.0, 0.0, -1.0],  // Back
+        [-1.0, 0.0, 0.0],  // Left
+        [0.0, 1.0, 0.0],   // Top
+        [0.0, -1.0, 0.0],  // Bottom
     ];
     
-    // Add top wick if high > body_top
-    if high_y > body_top + 0.001 {
-        let wick_start_idx = vertices.len() as u16;
-        vertices.extend_from_slice(&[
-            // Top wick (thin vertical line)
-            Vertex { position: [-ws, body_top,  ws], color },
-            Vertex { position: [ ws, body_top,  ws], color },
-            Vertex { position: [ ws, high_y,  ws], color },
-            Vertex { position: [-ws, high_y,  ws], color },
-            Vertex { position: [-ws, body_top, -ws], color },
-            Vertex { position: [ ws, body_top, -ws], color },
-            Vertex { position: [ ws, high_y, -ws], color },
-            Vertex { position: [-ws, high_y, -ws], color },
-        ]);
-        
-        // Add wick indices
-        let w = wick_start_idx;
+    let mut vertices = vec![];
+    
+    // Front face (4 vertices)
+    vertices.extend_from_slice(&[
+        EnhancedVertex { 
+            position: [-s, body_bottom, s], 
+            color: face_colors[0], 
+            normal: normals[0],
+            ao: 0.8  // Corners darker
+        },
+        EnhancedVertex { 
+            position: [s, body_bottom, s], 
+            color: face_colors[0], 
+            normal: normals[0],
+            ao: 0.8
+        },
+        EnhancedVertex { 
+            position: [s, body_top, s], 
+            color: face_colors[0], 
+            normal: normals[0],
+            ao: 0.9
+        },
+        EnhancedVertex { 
+            position: [-s, body_top, s], 
+            color: face_colors[0], 
+            normal: normals[0],
+            ao: 0.9
+        },
+    ]);
+    
+    // Right face
+    vertices.extend_from_slice(&[
+        EnhancedVertex { 
+            position: [s, body_bottom, s], 
+            color: face_colors[1], 
+            normal: normals[1],
+            ao: 0.8
+        },
+        EnhancedVertex { 
+            position: [s, body_bottom, -s], 
+            color: face_colors[1], 
+            normal: normals[1],
+            ao: 0.8
+        },
+        EnhancedVertex { 
+            position: [s, body_top, -s], 
+            color: face_colors[1], 
+            normal: normals[1],
+            ao: 0.9
+        },
+        EnhancedVertex { 
+            position: [s, body_top, s], 
+            color: face_colors[1], 
+            normal: normals[1],
+            ao: 0.9
+        },
+    ]);
+    
+    // Back face
+    vertices.extend_from_slice(&[
+        EnhancedVertex { 
+            position: [s, body_bottom, -s], 
+            color: face_colors[2], 
+            normal: normals[2],
+            ao: 0.7
+        },
+        EnhancedVertex { 
+            position: [-s, body_bottom, -s], 
+            color: face_colors[2], 
+            normal: normals[2],
+            ao: 0.7
+        },
+        EnhancedVertex { 
+            position: [-s, body_top, -s], 
+            color: face_colors[2], 
+            normal: normals[2],
+            ao: 0.8
+        },
+        EnhancedVertex { 
+            position: [s, body_top, -s], 
+            color: face_colors[2], 
+            normal: normals[2],
+            ao: 0.8
+        },
+    ]);
+    
+    // Left face
+    vertices.extend_from_slice(&[
+        EnhancedVertex { 
+            position: [-s, body_bottom, -s], 
+            color: face_colors[3], 
+            normal: normals[3],
+            ao: 0.8
+        },
+        EnhancedVertex { 
+            position: [-s, body_bottom, s], 
+            color: face_colors[3], 
+            normal: normals[3],
+            ao: 0.8
+        },
+        EnhancedVertex { 
+            position: [-s, body_top, s], 
+            color: face_colors[3], 
+            normal: normals[3],
+            ao: 0.9
+        },
+        EnhancedVertex { 
+            position: [-s, body_top, -s], 
+            color: face_colors[3], 
+            normal: normals[3],
+            ao: 0.9
+        },
+    ]);
+    
+    // Top face
+    vertices.extend_from_slice(&[
+        EnhancedVertex { 
+            position: [-s, body_top, s], 
+            color: face_colors[4], 
+            normal: normals[4],
+            ao: 1.0
+        },
+        EnhancedVertex { 
+            position: [s, body_top, s], 
+            color: face_colors[4], 
+            normal: normals[4],
+            ao: 1.0
+        },
+        EnhancedVertex { 
+            position: [s, body_top, -s], 
+            color: face_colors[4], 
+            normal: normals[4],
+            ao: 1.0
+        },
+        EnhancedVertex { 
+            position: [-s, body_top, -s], 
+            color: face_colors[4], 
+            normal: normals[4],
+            ao: 1.0
+        },
+    ]);
+    
+    // Bottom face
+    vertices.extend_from_slice(&[
+        EnhancedVertex { 
+            position: [-s, body_bottom, -s], 
+            color: face_colors[5], 
+            normal: normals[5],
+            ao: 0.7
+        },
+        EnhancedVertex { 
+            position: [s, body_bottom, -s], 
+            color: face_colors[5], 
+            normal: normals[5],
+            ao: 0.7
+        },
+        EnhancedVertex { 
+            position: [s, body_bottom, s], 
+            color: face_colors[5], 
+            normal: normals[5],
+            ao: 0.7
+        },
+        EnhancedVertex { 
+            position: [-s, body_bottom, s], 
+            color: face_colors[5], 
+            normal: normals[5],
+            ao: 0.7
+        },
+    ]);
+    
+    // Create indices for all faces  
+    let mut indices = Vec::new();
+    for i in 0..6 {
+        let base = i * 4;
         indices.extend_from_slice(&[
-            w, w+1, w+2, w+2, w+3, w,     // Front
-            w+1, w+5, w+6, w+6, w+2, w+1, // Right
-            w+5, w+4, w+7, w+7, w+6, w+5, // Back
-            w+4, w, w+3, w+3, w+7, w+4,   // Left
-            w+3, w+2, w+6, w+6, w+7, w+3, // Top
-            w+4, w+5, w+1, w+1, w, w+4,   // Bottom
+            base, base+1, base+2, base+2, base+3, base,
         ]);
     }
     
-    // Add bottom wick if low < body_bottom
-    if low_y < body_bottom - 0.001 {
-        let wick_start_idx = vertices.len() as u16;
-        vertices.extend_from_slice(&[
-            // Bottom wick (thin vertical line)
-            Vertex { position: [-ws, low_y,  ws], color },
-            Vertex { position: [ ws, low_y,  ws], color },
-            Vertex { position: [ ws, body_bottom,  ws], color },
-            Vertex { position: [-ws, body_bottom,  ws], color },
-            Vertex { position: [-ws, low_y, -ws], color },
-            Vertex { position: [ ws, low_y, -ws], color },
-            Vertex { position: [ ws, body_bottom, -ws], color },
-            Vertex { position: [-ws, body_bottom, -ws], color },
-        ]);
+    // TODO: Add wicks with enhanced vertices
+    
+    (vertices, indices)
+}
+
+// Generate line chart vertices for price history
+fn generate_line_chart_vertices(candles: &[Candle], start_idx: usize, chart_offset_x: f32) -> (Vec<EnhancedVertex>, Vec<u16>) {
+    if candles.is_empty() {
+        return (vec![], vec![]);
+    }
+    
+    let base_price = 107500.0;
+    let price_scale = 0.2;
+    let spacing = 1.5;
+    
+    let mut vertices = Vec::new();
+    let mut indices = Vec::new();
+    
+    // Generate line segments connecting close prices
+    let line_color = [0.4, 0.8, 1.0]; // Cyan blue color for line
+    let line_width = 0.05;
+    
+    for (i, window) in candles[start_idx..].windows(2).enumerate() {
+        let candle1 = &window[0];
+        let candle2 = &window[1];
         
-        // Add wick indices
-        let w = wick_start_idx;
-        indices.extend_from_slice(&[
-            w, w+1, w+2, w+2, w+3, w,     // Front
-            w+1, w+5, w+6, w+6, w+2, w+1, // Right
-            w+5, w+4, w+7, w+7, w+6, w+5, // Back
-            w+4, w, w+3, w+3, w+7, w+4,   // Left
-            w+3, w+2, w+6, w+6, w+7, w+3, // Top
-            w+4, w+5, w+1, w+1, w, w+4,   // Bottom
-        ]);
+        let x1 = chart_offset_x + (i as f32 * spacing);
+        let x2 = chart_offset_x + ((i + 1) as f32 * spacing);
+        
+        let y1 = (candle1.close as f32 - base_price) * price_scale;
+        let y2 = (candle2.close as f32 - base_price) * price_scale;
+        
+        // Create a thin quad for the line segment
+        let start_idx = vertices.len() as u16;
+        
+        // Calculate perpendicular vector for line width
+        let dx = x2 - x1;
+        let dy = y2 - y1;
+        let length = (dx * dx + dy * dy).sqrt();
+        if length > 0.0 {
+            let perp_x = -dy / length * line_width;
+            let perp_y = dx / length * line_width;
+            
+            vertices.extend_from_slice(&[
+                EnhancedVertex { 
+                    position: [x1 - perp_x, y1 - perp_y, 0.5], 
+                    color: line_color, 
+                    normal: [0.0, 0.0, 1.0],
+                    ao: 1.0
+                },
+                EnhancedVertex { 
+                    position: [x1 + perp_x, y1 + perp_y, 0.5], 
+                    color: line_color, 
+                    normal: [0.0, 0.0, 1.0],
+                    ao: 1.0
+                },
+                EnhancedVertex { 
+                    position: [x2 + perp_x, y2 + perp_y, 0.5], 
+                    color: line_color, 
+                    normal: [0.0, 0.0, 1.0],
+                    ao: 1.0
+                },
+                EnhancedVertex { 
+                    position: [x2 - perp_x, y2 - perp_y, 0.5], 
+                    color: line_color, 
+                    normal: [0.0, 0.0, 1.0],
+                    ao: 1.0
+                },
+            ]);
+            
+            // Two triangles to form the quad
+            indices.extend_from_slice(&[
+                start_idx, start_idx + 1, start_idx + 2,
+                start_idx + 2, start_idx + 3, start_idx,
+            ]);
+        }
     }
     
     (vertices, indices)
@@ -276,7 +559,66 @@ async fn websocket_task(tx: mpsc::Sender<CandleUpdate>) {
     }
 }
 
-// Shader code
+// Enhanced shader with lighting support
+const ENHANCED_SHADER: &str = r#"
+// Vertex shader
+struct CameraUniform {
+    view_proj: mat4x4<f32>,
+    view_pos: vec3<f32>,
+    _padding: f32,
+}
+@group(0) @binding(0)
+var<uniform> camera: CameraUniform;
+
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) color: vec3<f32>,
+    @location(2) normal: vec3<f32>,
+    @location(3) ao: f32,
+}
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) color: vec3<f32>,
+    @location(1) world_pos: vec3<f32>,
+    @location(2) normal: vec3<f32>,
+    @location(3) ao: f32,
+}
+
+@vertex
+fn vs_main(model: VertexInput) -> VertexOutput {
+    var out: VertexOutput;
+    out.color = model.color;
+    out.world_pos = model.position;
+    out.normal = model.normal;
+    out.ao = model.ao;
+    out.clip_position = camera.view_proj * vec4<f32>(model.position, 1.0);
+    return out;
+}
+
+// Fragment shader with fake directional lighting
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    // Fake directional light
+    let light_dir = normalize(vec3<f32>(0.4, 0.8, 0.4));
+    let n = normalize(in.normal);
+    
+    // Basic diffuse lighting
+    let diff = max(dot(n, light_dir), 0.0);
+    let ambient = 0.3;
+    let lighting = ambient + diff * 0.7;
+    
+    // Apply AO
+    let final_light = lighting * in.ao;
+    
+    // Apply lighting to color
+    let lit_color = in.color * final_light;
+    
+    return vec4<f32>(lit_color, 1.0);
+}
+"#;
+
+// Legacy shader for fallback
 const SHADER: &str = r#"
 // Vertex shader
 struct CameraUniform {
@@ -310,10 +652,149 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 "#;
 
+// Legacy vertex format (for compatibility)
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 3],
+    color: [f32; 3],
+}
+
+impl Vertex {
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+            ],
+        }
+    }
+}
+
+// Generate 3D candle vertices (old version - still used for wicks)
+fn generate_candle_vertices(candle: &Candle) -> (Vec<Vertex>, Vec<u16>) {
+    let open_f32 = candle.open as f32;
+    let close_f32 = candle.close as f32;
+    let high_f32 = candle.high as f32;
+    let low_f32 = candle.low as f32;
+    
+    let base_price = 107500.0; // Updated to current price range
+    let price_scale: f32 = 0.2; // Scale for reasonable height differences
+    
+    let open_y = (open_f32 - base_price) * price_scale;
+    let close_y = (close_f32 - base_price) * price_scale;
+    let high_y = (high_f32 - base_price) * price_scale;
+    let low_y = (low_f32 - base_price) * price_scale;
+    
+    let mut body_bottom = open_y.min(close_y);
+    let mut body_top = open_y.max(close_y);
+    
+    if (body_top - body_bottom).abs() < 0.2 {
+        let mid = (body_top + body_bottom) / 2.0;
+        body_top = mid + 0.1;
+        body_bottom = mid - 0.1;
+    }
+    
+    let s = 0.8; // Candle body width - proportional to spacing
+    let ws = 0.1; // Wick width
+    
+    let color = if close_f32 > open_f32 {
+        [0.1, 0.9, 0.3]
+    } else if close_f32 < open_f32 {
+        [0.95, 0.15, 0.2]
+    } else {
+        [0.6, 0.6, 0.65]
+    };
+    
+    let mut vertices = vec![
+        // Body vertices
+        Vertex { position: [-s, body_bottom,  s], color },
+        Vertex { position: [ s, body_bottom,  s], color },
+        Vertex { position: [ s, body_top,     s], color },
+        Vertex { position: [-s, body_top,     s], color },
+        Vertex { position: [-s, body_bottom, -s], color },
+        Vertex { position: [ s, body_bottom, -s], color },
+        Vertex { position: [ s, body_top,    -s], color },
+        Vertex { position: [-s, body_top,    -s], color },
+    ];
+    
+    let mut indices = vec![
+        0, 1, 2, 2, 3, 0,
+        1, 5, 6, 6, 2, 1,
+        5, 4, 7, 7, 6, 5,
+        4, 0, 3, 3, 7, 4,
+        3, 2, 6, 6, 7, 3,
+        4, 5, 1, 1, 0, 4,
+    ];
+    
+    // Add wicks if needed (similar to enhanced version)
+    if high_y > body_top + 0.001 {
+        let wick_start_idx = vertices.len() as u16;
+        vertices.extend_from_slice(&[
+            Vertex { position: [-ws, body_top,  ws], color },
+            Vertex { position: [ ws, body_top,  ws], color },
+            Vertex { position: [ ws, high_y,  ws], color },
+            Vertex { position: [-ws, high_y,  ws], color },
+            Vertex { position: [-ws, body_top, -ws], color },
+            Vertex { position: [ ws, body_top, -ws], color },
+            Vertex { position: [ ws, high_y, -ws], color },
+            Vertex { position: [-ws, high_y, -ws], color },
+        ]);
+        
+        let w = wick_start_idx;
+        indices.extend_from_slice(&[
+            w, w+1, w+2, w+2, w+3, w,
+            w+1, w+5, w+6, w+6, w+2, w+1,
+            w+5, w+4, w+7, w+7, w+6, w+5,
+            w+4, w, w+3, w+3, w+7, w+4,
+            w+3, w+2, w+6, w+6, w+7, w+3,
+            w+4, w+5, w+1, w+1, w, w+4,
+        ]);
+    }
+    
+    if low_y < body_bottom - 0.001 {
+        let wick_start_idx = vertices.len() as u16;
+        vertices.extend_from_slice(&[
+            Vertex { position: [-ws, low_y,  ws], color },
+            Vertex { position: [ ws, low_y,  ws], color },
+            Vertex { position: [ ws, body_bottom,  ws], color },
+            Vertex { position: [-ws, body_bottom,  ws], color },
+            Vertex { position: [-ws, low_y, -ws], color },
+            Vertex { position: [ ws, low_y, -ws], color },
+            Vertex { position: [ ws, body_bottom, -ws], color },
+            Vertex { position: [-ws, body_bottom, -ws], color },
+        ]);
+        
+        let w = wick_start_idx;
+        indices.extend_from_slice(&[
+            w, w+1, w+2, w+2, w+3, w,
+            w+1, w+5, w+6, w+6, w+2, w+1,
+            w+5, w+4, w+7, w+7, w+6, w+5,
+            w+4, w, w+3, w+3, w+7, w+4,
+            w+3, w+2, w+6, w+6, w+7, w+3,
+            w+4, w+5, w+1, w+1, w, w+4,
+        ]);
+    }
+    
+    (vertices, indices)
+}
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct CameraUniform {
     view_proj: [[f32; 4]; 4],
+    view_pos: [f32; 3],
+    _padding: f32,
 }
 
 impl CameraUniform {
@@ -321,22 +802,23 @@ impl CameraUniform {
         use cgmath::SquareMatrix;
         Self {
             view_proj: cgmath::Matrix4::identity().into(),
+            view_pos: [0.0, 0.0, 0.0],
+            _padding: 0.0,
         }
     }
 
     fn update_view_proj(&mut self, aspect: f32, _rotation: f32) {
-        // Camera with good zoom level
-        let spacing = 1.5;
-        let num_candles = 40.0;
-        let center_x = -(num_candles * spacing) / 2.0 + 15.0; // Center on recent candles
-        let distance = 75.0; // Good balance between zoom and overview
-        let height = 20.0; // Good viewing angle
-        let eye = Point3::new(center_x + 5.0, height, distance); // Slight offset for perspective
-        let target = Point3::new(center_x, 0.0, 0.0); // Look at center of candles
+        // Camera positioned to view both line chart and candles
+        let center_x = 0.0; // Center between line chart and candles
+        let distance = 120.0; // Increased distance to see both views
+        let height = 25.0; // Good viewing angle
+        let eye = Point3::new(center_x + 8.0, height, distance); // Slight offset for perspective
+        let target = Point3::new(center_x, 0.0, 0.0); // Look at center
         let up = Vector3::unit_y();
         let view = Matrix4::look_at_rh(eye, target, up);
-        let proj = perspective(Deg(38.0), aspect, 0.1, 300.0); // Good FOV
+        let proj = perspective(Deg(45.0), aspect, 0.1, 400.0); // Wider FOV to see more
         self.view_proj = (proj * view).into();
+        self.view_pos = [eye.x, eye.y, eye.z]; // Update camera position for lighting
     }
 }
 
@@ -354,6 +836,8 @@ struct State<'a> {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     historical_candles: Vec<Candle>, // Store historical candles
+    current_candle: Option<Candle>,  // Store the current live candle
+    ui_layout: UILayout,
 }
 
 impl<'a> State<'a> {
@@ -406,8 +890,11 @@ impl<'a> State<'a> {
         // Create shader
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(SHADER.into()),
+            source: wgpu::ShaderSource::Wgsl(ENHANCED_SHADER.into()),
         });
+        
+        // Create UI layout
+        let ui_layout = UILayout::new(size.width as f32, size.height as f32);
         
         // Camera
         let mut camera_uniform = CameraUniform::new();
@@ -461,7 +948,7 @@ impl<'a> State<'a> {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[Vertex::desc()],
+                buffers: &[EnhancedVertex::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -503,12 +990,12 @@ impl<'a> State<'a> {
             }
         };
         
-        let (vertices, indices) = generate_candle_vertices(&initial_candle);
+        let (vertices, indices) = generate_enhanced_candle_vertices(&initial_candle);
         
-        // Create buffers large enough for candles with wicks
-        // Max: 8 vertices for body + 8 for top wick + 8 for bottom wick = 24 vertices
+        // Create buffers large enough for enhanced candles with wicks
+        // Max: 24 vertices for body + 8 for top wick + 8 for bottom wick = 40 vertices
         // Max: 36 indices for body + 36 for top wick + 36 for bottom wick = 108 indices
-        let max_vertex_size = 24 * std::mem::size_of::<Vertex>();
+        let max_vertex_size = 40 * std::mem::size_of::<EnhancedVertex>();
         let max_index_size = 108 * std::mem::size_of::<u16>();
         
         let mut vertex_data = vec![0u8; max_vertex_size];
@@ -553,46 +1040,30 @@ impl<'a> State<'a> {
             camera_buffer,
             camera_bind_group,
             historical_candles,
+            current_candle: None, // Initialize with no current candle
+            ui_layout,
         }
     }
     
     fn update_candle(&mut self, candle: &Candle) {
-        let (mut vertices, indices) = generate_candle_vertices(candle);
-        
-        // Position live candle right after the last historical candle
-        let spacing = 1.5; // Match spacing from render function
-        let max_hist = 40;
-        let hist_len = self.historical_candles.len();
-        let hist_start = if hist_len > max_hist { hist_len - max_hist } else { 0 };
-        let num_shown = hist_len - hist_start;
-        let live_x = (num_shown as f32 - max_hist as f32) * spacing; // Position at the end
-        for v in &mut vertices {
-            v.position[0] += live_x;
+        // Replace or add the live candle as the most recent historical candle
+        if self.historical_candles.is_empty() {
+            self.historical_candles.push(candle.clone());
+        } else {
+            // Update the last candle (this represents the current live candle)
+            *self.historical_candles.last_mut().unwrap() = candle.clone();
         }
-        
-        // Create padded buffers for consistent size
-        let max_vertex_size = 24 * std::mem::size_of::<Vertex>();
-        let max_index_size = 108 * std::mem::size_of::<u16>();
-        
-        let mut vertex_data = vec![0u8; max_vertex_size];
-        let mut index_data = vec![0u8; max_index_size];
-        
-        // Copy actual data
-        let vertex_bytes = bytemuck::cast_slice(&vertices);
-        vertex_data[..vertex_bytes.len()].copy_from_slice(vertex_bytes);
-        
-        let index_bytes = bytemuck::cast_slice(&indices);
-        index_data[..index_bytes.len()].copy_from_slice(index_bytes);
-        
-        // Update buffers
-        self.queue.write_buffer(&self.vertex_buffer, 0, &vertex_data);
-        self.queue.write_buffer(&self.index_buffer, 0, &index_data);
-        self.num_indices = indices.len() as u32;
+    }
+    
+    fn update_current_candle(&mut self, candle: Candle) {
+        // Update the current live candle that gets rendered separately
+        self.current_candle = Some(candle);
     }
     
     fn render(&mut self, _rotation: f32) -> Result<(), wgpu::SurfaceError> {
-        self.camera_uniform.update_view_proj(self.config.width as f32 / self.config.height as f32, 0.0); // No rotation
+        self.camera_uniform.update_view_proj(self.config.width as f32 / self.config.height as f32, 0.0);
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+        
         let output = match self.surface.get_current_texture() {
             Ok(tex) => tex,
             Err(e) => {
@@ -605,53 +1076,123 @@ impl<'a> State<'a> {
             label: Some("Render Encoder"),
         });
 
-        // Prepare all historical candle geometry and buffers before render_pass
-        let spacing = 1.5; // Increased spacing for better visibility
-        let z_offset = 0.0; // Same z-plane as live candle
-        let max_hist = 40; // Show last 40 candles for better visibility
+        // Prepare ALL geometry (line chart + candles) in one buffer
+        let spacing = 1.5;
+        let max_hist = 40;
         let hist_len = self.historical_candles.len();
         let hist_start = if hist_len > max_hist { hist_len - max_hist } else { 0 };
+        
+        println!("Rendering: total_candles={}, showing={}, hist_start={}", 
+            hist_len, hist_len - hist_start, hist_start);
+        
         let mut all_vertices = Vec::new();
         let mut all_indices = Vec::new();
         let mut draw_ranges = Vec::new();
         let mut vtx_offset = 0u16;
-        // Position historical candles from left to right
+        
+        // Calculate positioning for split view: line chart on left, candles on right
+        let visible_count = (hist_len - hist_start) as f32;
+        let chart_width = visible_count * spacing;
+        let gap = spacing * 2.0; // Gap between line chart and candles
+        let total_width = chart_width * 2.0 + gap; // Line chart + gap + candles
+        let start_x = -total_width / 2.0;
+        
+        // 1. Add line chart on the left side
+        let line_chart_start_x = start_x;
+        if hist_len > hist_start + 1 {
+            let (mut line_vertices, mut line_indices) = generate_line_chart_vertices(
+                &self.historical_candles, 
+                hist_start, 
+                line_chart_start_x
+            );
+            
+            for idx in &mut line_indices {
+                *idx += vtx_offset;
+            }
+            
+            if !line_vertices.is_empty() {
+                draw_ranges.push((all_indices.len() as u32, line_indices.len() as u32));
+                vtx_offset += line_vertices.len() as u16;
+                all_vertices.extend(line_vertices);
+                all_indices.extend(line_indices);
+            }
+        }
+        
+        // 2. Add historical candles on the right side
+        let candles_start_x = start_x + chart_width + gap;
+        
         for (i, candle) in self.historical_candles[hist_start..].iter().enumerate() {
-            let x = (i as f32 - max_hist as f32) * spacing; // Start from left, move right
-            let (mut vertices, mut indices) = generate_candle_vertices(candle);
+            let x = candles_start_x + (i as f32 * spacing);
+            let (mut vertices, mut indices) = generate_enhanced_candle_vertices(candle);
+            
+            // Debug output for first few candles
+            if i < 3 {
+                println!("Candle {}: x={:.2}, open={:.2}, close={:.2}, vertices={}", 
+                    i, x, candle.open, candle.close, vertices.len());
+            }
+            
             for v in &mut vertices {
                 v.position[0] += x;
-                v.position[2] += z_offset;
-                // Slightly dim historical candles based on age
-                let fade_factor = 0.8 + (i as f32 / max_hist as f32) * 0.2; // 0.8 to 1.0
+                // Fade historical candles slightly, with most recent being brightest
+                let fade_factor = 0.6 + (i as f32 / visible_count) * 0.4;
                 v.color = [v.color[0] * fade_factor, v.color[1] * fade_factor, v.color[2] * fade_factor];
             }
+            
             for idx in &mut indices {
                 *idx += vtx_offset;
             }
+            
             draw_ranges.push((all_indices.len() as u32, indices.len() as u32));
             vtx_offset += vertices.len() as u16;
             all_vertices.extend(vertices);
             all_indices.extend(indices);
         }
-        let vbuf = if !all_vertices.is_empty() {
+        
+        // 3. Add live candle at the rightmost position
+        if let Some(current_candle) = &self.current_candle {
+            let live_x = candles_start_x + visible_count * spacing;
+            let (mut vertices, mut indices) = generate_enhanced_candle_vertices(current_candle);
+            
+            println!("Live candle: x={:.2}, open={:.2}, close={:.2}, high={:.2}, low={:.2}", 
+                live_x, current_candle.open, current_candle.close, current_candle.high, current_candle.low);
+            
+            for v in &mut vertices {
+                v.position[0] += live_x;
+                // Make live candle brighter to distinguish it
+                v.color = [v.color[0] * 1.2, v.color[1] * 1.2, v.color[2] * 1.2];
+            }
+            
+            for idx in &mut indices {
+                *idx += vtx_offset;
+            }
+            
+            draw_ranges.push((all_indices.len() as u32, indices.len() as u32));
+            vtx_offset += vertices.len() as u16;
+            all_vertices.extend(vertices);
+            all_indices.extend(indices);
+        }
+        
+        // Create combined buffers for all candles
+        let combined_vbuf = if !all_vertices.is_empty() {
             Some(self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Hist Vertex Buffer"),
+                label: Some("Combined Vertex Buffer"),
                 contents: bytemuck::cast_slice(&all_vertices),
                 usage: wgpu::BufferUsages::VERTEX,
             }))
         } else {
             None
         };
-        let ibuf = if !all_indices.is_empty() {
+        
+        let combined_ibuf = if !all_indices.is_empty() {
             Some(self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Hist Index Buffer"),
+                label: Some("Combined Index Buffer"),
                 contents: bytemuck::cast_slice(&all_indices),
                 usage: wgpu::BufferUsages::INDEX,
             }))
         } else {
             None
         };
+        
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -667,22 +1208,19 @@ impl<'a> State<'a> {
             depth_stencil_attachment: None,
             ..Default::default()
         });
-        // Draw historical candles (1-minute candles)
-        if let (Some(ref vbuf), Some(ref ibuf)) = (vbuf.as_ref(), ibuf.as_ref()) {
+        
+        // Draw all candles at once
+        if let (Some(ref vbuf), Some(ref ibuf)) = (combined_vbuf.as_ref(), combined_ibuf.as_ref()) {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, vbuf.slice(..));
             render_pass.set_index_buffer(ibuf.slice(..), wgpu::IndexFormat::Uint16);
+            
             for (start, count) in &draw_ranges {
                 render_pass.draw_indexed(*start..(*start+*count), 0, 0..1);
             }
         }
-        // Draw the live candle at x=0, z=0 (already handled by update_candle)
-        render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+        
         drop(render_pass);
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
@@ -816,7 +1354,7 @@ async fn main() {
                 // Update candle geometry if data changed
                 if updated {
                     if let Ok(candle) = candle_data.lock() {
-                        state.update_candle(&*candle);
+                        state.update_current_candle(candle.clone());
                         // Update window title
                         let title = format!(
                             "3D BTC 1m | ${:.2} | {} | FPS: {} | Candles: {}",
