@@ -12,6 +12,7 @@ use winit::{
 };
 use wgpu::util::DeviceExt;
 use cgmath::{Matrix4, Deg, perspective, Point3, Vector3};
+use reqwest;
 
 // Candle data structure
 #[derive(Debug, Clone, Deserialize)]
@@ -52,42 +53,64 @@ impl Vertex {
     }
 }
 
-// Generate 3D candle vertices (a box)
+// Generate 3D candle vertices (a box) positioned at actual price levels
 fn generate_candle_vertices(candle: &Candle) -> (Vec<Vertex>, Vec<u16>) {
-    // Height is based on the dollar difference, scaled for visibility
+    // Get actual price values
     let open_f32 = candle.open as f32;
     let close_f32 = candle.close as f32;
-    let dollar_change = close_f32 - open_f32;
-    let scale: f32 = 0.05; // Visual scale for dollar changes
-    let height = dollar_change.abs() * scale + 0.1; // Always at least 0.1 tall
-    let s = 0.2; // width/depth
-    // Color: green if price is up, red if down, gray for no change
+    let high_f32 = candle.high as f32;
+    let low_f32 = candle.low as f32;
+    
+    // Scale BTC prices for better visibility
+    // Center around current price range and scale up significantly
+    let base_price = 106400.0; // Updated to current price range
+    let price_scale: f32 = 0.05; // Scale for reasonable height differences
+    
+    // Convert actual prices to Y positions (centered around 0)
+    let open_y = (open_f32 - base_price) * price_scale;
+    let close_y = (close_f32 - base_price) * price_scale;
+    let high_y = (high_f32 - base_price) * price_scale;
+    let low_y = (low_f32 - base_price) * price_scale;
+    
+    // Candle body goes from open to close
+    let mut body_bottom = open_y.min(close_y);
+    let mut body_top = open_y.max(close_y);
+    
+    // Ensure minimum body height for visibility
+    if (body_top - body_bottom).abs() < 0.2 {
+        let mid = (body_top + body_bottom) / 2.0;
+        body_top = mid + 0.1;
+        body_bottom = mid - 0.1;
+    }
+    
+    let s = 0.3; // Candle body width - proportional to spacing
+    let ws = 0.05; // Wick width
+    
+    // Color: vibrant green if price is up, vibrant red if down, gray for no change
     let color = if close_f32 > open_f32 {
-        [0.0, 1.0, 0.0]
+        [0.2, 1.0, 0.2] // Vibrant green
     } else if close_f32 < open_f32 {
-        [1.0, 0.0, 0.0]
+        [1.0, 0.2, 0.2] // Vibrant red  
     } else {
-        [0.5, 0.5, 0.5]
+        [0.7, 0.7, 0.7] // Light gray
     };
-    // If price is up, base is at 0 and top is positive; if down, top is at 0 and base is negative
-    let (base, top) = if dollar_change >= 0.0 {
-        (0.0, height)
-    } else {
-        (-height, 0.0)
-    };
-    let vertices = vec![
+    
+    let mut vertices = vec![
+        // Candle body (8 vertices)
         // Front face
-        Vertex { position: [-s, base,  s], color },
-        Vertex { position: [ s, base,  s], color },
-        Vertex { position: [ s, top,  s], color },
-        Vertex { position: [-s, top,  s], color },
+        Vertex { position: [-s, body_bottom,  s], color },
+        Vertex { position: [ s, body_bottom,  s], color },
+        Vertex { position: [ s, body_top,  s], color },
+        Vertex { position: [-s, body_top,  s], color },
         // Back face
-        Vertex { position: [-s, base, -s], color },
-        Vertex { position: [ s, base, -s], color },
-        Vertex { position: [ s, top, -s], color },
-        Vertex { position: [-s, top, -s], color },
+        Vertex { position: [-s, body_bottom, -s], color },
+        Vertex { position: [ s, body_bottom, -s], color },
+        Vertex { position: [ s, body_top, -s], color },
+        Vertex { position: [-s, body_top, -s], color },
     ];
-    let indices = vec![
+    
+    let mut indices = vec![
+        // Body indices
         0, 1, 2, 2, 3, 0, // Front
         1, 5, 6, 6, 2, 1, // Right
         5, 4, 7, 7, 6, 5, // Back
@@ -95,6 +118,61 @@ fn generate_candle_vertices(candle: &Candle) -> (Vec<Vertex>, Vec<u16>) {
         3, 2, 6, 6, 7, 3, // Top
         4, 5, 1, 1, 0, 4, // Bottom
     ];
+    
+    // Add top wick if high > body_top
+    if high_y > body_top + 0.001 {
+        let wick_start_idx = vertices.len() as u16;
+        vertices.extend_from_slice(&[
+            // Top wick (thin vertical line)
+            Vertex { position: [-ws, body_top,  ws], color },
+            Vertex { position: [ ws, body_top,  ws], color },
+            Vertex { position: [ ws, high_y,  ws], color },
+            Vertex { position: [-ws, high_y,  ws], color },
+            Vertex { position: [-ws, body_top, -ws], color },
+            Vertex { position: [ ws, body_top, -ws], color },
+            Vertex { position: [ ws, high_y, -ws], color },
+            Vertex { position: [-ws, high_y, -ws], color },
+        ]);
+        
+        // Add wick indices
+        let w = wick_start_idx;
+        indices.extend_from_slice(&[
+            w, w+1, w+2, w+2, w+3, w,     // Front
+            w+1, w+5, w+6, w+6, w+2, w+1, // Right
+            w+5, w+4, w+7, w+7, w+6, w+5, // Back
+            w+4, w, w+3, w+3, w+7, w+4,   // Left
+            w+3, w+2, w+6, w+6, w+7, w+3, // Top
+            w+4, w+5, w+1, w+1, w, w+4,   // Bottom
+        ]);
+    }
+    
+    // Add bottom wick if low < body_bottom
+    if low_y < body_bottom - 0.001 {
+        let wick_start_idx = vertices.len() as u16;
+        vertices.extend_from_slice(&[
+            // Bottom wick (thin vertical line)
+            Vertex { position: [-ws, low_y,  ws], color },
+            Vertex { position: [ ws, low_y,  ws], color },
+            Vertex { position: [ ws, body_bottom,  ws], color },
+            Vertex { position: [-ws, body_bottom,  ws], color },
+            Vertex { position: [-ws, low_y, -ws], color },
+            Vertex { position: [ ws, low_y, -ws], color },
+            Vertex { position: [ ws, body_bottom, -ws], color },
+            Vertex { position: [-ws, body_bottom, -ws], color },
+        ]);
+        
+        // Add wick indices
+        let w = wick_start_idx;
+        indices.extend_from_slice(&[
+            w, w+1, w+2, w+2, w+3, w,     // Front
+            w+1, w+5, w+6, w+6, w+2, w+1, // Right
+            w+5, w+4, w+7, w+7, w+6, w+5, // Back
+            w+4, w, w+3, w+3, w+7, w+4,   // Left
+            w+3, w+2, w+6, w+6, w+7, w+3, // Top
+            w+4, w+5, w+1, w+1, w, w+4,   // Bottom
+        ]);
+    }
+    
     (vertices, indices)
 }
 
@@ -210,14 +288,18 @@ impl CameraUniform {
         }
     }
 
-    fn update_view_proj(&mut self, aspect: f32, rotation: f32) {
-        // Camera farther away for 3x zoom out
-        let distance = 2.0; // was 2.0, now 3x farther
-        let eye = Point3::new(distance * rotation.cos(), 3.0, distance * rotation.sin());
-        let target = Point3::new(0.0, 0.5, 0.0);
+    fn update_view_proj(&mut self, aspect: f32, _rotation: f32) {
+        // Camera zoomed out with nice perspective angle
+        let spacing = 1.5;
+        let num_candles = 40.0;
+        let center_x = -(num_candles * spacing) / 2.0; // Center of historical candles
+        let distance = 90.0; // Much further back to see more
+        let height = 25.0; // Higher up for better angle
+        let eye = Point3::new(center_x + 10.0, height, distance); // Slight offset for perspective
+        let target = Point3::new(center_x, 0.0, 0.0); // Look at center of candles
         let up = Vector3::unit_y();
         let view = Matrix4::look_at_rh(eye, target, up);
-        let proj = perspective(Deg(45.0), aspect, 0.1, 100.0);
+        let proj = perspective(Deg(40.0), aspect, 0.1, 300.0); // Good FOV
         self.view_proj = (proj * view).into();
     }
 }
@@ -235,10 +317,11 @@ struct State<'a> {
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    historical_candles: Vec<Candle>, // Store historical candles
 }
 
 impl<'a> State<'a> {
-    async fn new(window: &'a winit::window::Window) -> Self {
+    async fn new(window: &'a winit::window::Window, historical_candles: Vec<Candle>) -> Self {
         let size = window.inner_size();
         
         // Create instance
@@ -382,10 +465,26 @@ impl<'a> State<'a> {
         
         let (vertices, indices) = generate_candle_vertices(&initial_candle);
         
+        // Create buffers large enough for candles with wicks
+        // Max: 8 vertices for body + 8 for top wick + 8 for bottom wick = 24 vertices
+        // Max: 36 indices for body + 36 for top wick + 36 for bottom wick = 108 indices
+        let max_vertex_size = 24 * std::mem::size_of::<Vertex>();
+        let max_index_size = 108 * std::mem::size_of::<u16>();
+        
+        let mut vertex_data = vec![0u8; max_vertex_size];
+        let mut index_data = vec![0u8; max_index_size];
+        
+        // Copy actual data into buffers
+        let vertex_bytes = bytemuck::cast_slice(&vertices);
+        vertex_data[..vertex_bytes.len()].copy_from_slice(vertex_bytes);
+        
+        let index_bytes = bytemuck::cast_slice(&indices);
+        index_data[..index_bytes.len()].copy_from_slice(index_bytes);
+        
         let vertex_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(&vertices),
+                contents: &vertex_data,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             }
         );
@@ -393,7 +492,7 @@ impl<'a> State<'a> {
         let index_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(&indices),
+                contents: &index_data,
                 usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
             }
         );
@@ -413,20 +512,42 @@ impl<'a> State<'a> {
             camera_uniform,
             camera_buffer,
             camera_bind_group,
+            historical_candles,
         }
     }
     
     fn update_candle(&mut self, candle: &Candle) {
-        let (vertices, indices) = generate_candle_vertices(candle);
+        let (mut vertices, indices) = generate_candle_vertices(candle);
+        
+        // Position live candle at the right end of the chart
+        let spacing = 1.5; // Match spacing from render function
+        let live_x = spacing; // One spacing to the right of x=0
+        for v in &mut vertices {
+            v.position[0] += live_x;
+        }
+        
+        // Create padded buffers for consistent size
+        let max_vertex_size = 24 * std::mem::size_of::<Vertex>();
+        let max_index_size = 108 * std::mem::size_of::<u16>();
+        
+        let mut vertex_data = vec![0u8; max_vertex_size];
+        let mut index_data = vec![0u8; max_index_size];
+        
+        // Copy actual data
+        let vertex_bytes = bytemuck::cast_slice(&vertices);
+        vertex_data[..vertex_bytes.len()].copy_from_slice(vertex_bytes);
+        
+        let index_bytes = bytemuck::cast_slice(&indices);
+        index_data[..index_bytes.len()].copy_from_slice(index_bytes);
         
         // Update buffers
-        self.queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
-        self.queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&indices));
+        self.queue.write_buffer(&self.vertex_buffer, 0, &vertex_data);
+        self.queue.write_buffer(&self.index_buffer, 0, &index_data);
         self.num_indices = indices.len() as u32;
     }
     
-    fn render(&mut self, rotation: f32) -> Result<(), wgpu::SurfaceError> {
-        self.camera_uniform.update_view_proj(self.config.width as f32 / self.config.height as f32, rotation);
+    fn render(&mut self, _rotation: f32) -> Result<(), wgpu::SurfaceError> {
+        self.camera_uniform.update_view_proj(self.config.width as f32 / self.config.height as f32, 0.0); // No rotation
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
         let output = match self.surface.get_current_texture() {
             Ok(tex) => tex,
@@ -439,28 +560,86 @@ impl<'a> State<'a> {
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.2, g: 0.2, b: 0.3, a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                ..Default::default()
-            });
+
+        // Prepare all historical candle geometry and buffers before render_pass
+        let spacing = 1.5; // Increased spacing for better visibility
+        let z_offset = 0.0; // Same z-plane as live candle
+        let max_hist = 40; // Show last 40 candles for better visibility
+        let hist_len = self.historical_candles.len();
+        let hist_start = if hist_len > max_hist { hist_len - max_hist } else { 0 };
+        let mut all_vertices = Vec::new();
+        let mut all_indices = Vec::new();
+        let mut draw_ranges = Vec::new();
+        let mut vtx_offset = 0u16;
+        // Position historical candles from left to right
+        for (i, candle) in self.historical_candles[hist_start..].iter().enumerate() {
+            let x = (i as f32 - max_hist as f32) * spacing; // Start from left, move right
+            let (mut vertices, mut indices) = generate_candle_vertices(candle);
+            for v in &mut vertices {
+                v.position[0] += x;
+                v.position[2] += z_offset;
+                // Slightly dim historical candles based on age
+                let fade_factor = 0.8 + (i as f32 / max_hist as f32) * 0.2; // 0.8 to 1.0
+                v.color = [v.color[0] * fade_factor, v.color[1] * fade_factor, v.color[2] * fade_factor];
+            }
+            for idx in &mut indices {
+                *idx += vtx_offset;
+            }
+            draw_ranges.push((all_indices.len() as u32, indices.len() as u32));
+            vtx_offset += vertices.len() as u16;
+            all_vertices.extend(vertices);
+            all_indices.extend(indices);
+        }
+        let vbuf = if !all_vertices.is_empty() {
+            Some(self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Hist Vertex Buffer"),
+                contents: bytemuck::cast_slice(&all_vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }))
+        } else {
+            None
+        };
+        let ibuf = if !all_indices.is_empty() {
+            Some(self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Hist Index Buffer"),
+                contents: bytemuck::cast_slice(&all_indices),
+                usage: wgpu::BufferUsages::INDEX,
+            }))
+        } else {
+            None
+        };
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.02, g: 0.02, b: 0.04, a: 1.0,
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            ..Default::default()
+        });
+        // Draw historical candles (1-minute candles)
+        if let (Some(ref vbuf), Some(ref ibuf)) = (vbuf.as_ref(), ibuf.as_ref()) {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+            render_pass.set_vertex_buffer(0, vbuf.slice(..));
+            render_pass.set_index_buffer(ibuf.slice(..), wgpu::IndexFormat::Uint16);
+            for (start, count) in &draw_ranges {
+                render_pass.draw_indexed(*start..(*start+*count), 0, 0..1);
+            }
         }
+        // Draw the live candle at x=0, z=0 (already handled by update_candle)
+        render_pass.set_pipeline(&self.render_pipeline);
+        render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+        drop(render_pass);
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
         Ok(())
@@ -470,17 +649,20 @@ impl<'a> State<'a> {
 #[tokio::main]
 async fn main() {
     env_logger::init();
-    
     println!("3D Candle Renderer - Ultra Fast Edition!");
     println!("Connecting to Coinbase for real-time BTC prices...");
-    
+
+    // Fetch historical candles before starting event loop
+    let historical_candles = fetch_historical_candles().await.unwrap_or_default();
+    println!("Fetched {} historical candles", historical_candles.len());
+
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
         .with_title("3D BTC Candle - Real-time")
         .build(&event_loop)
         .unwrap();
-    
-    let mut state = State::new(&window).await;
+
+    let mut state = State::new(&window, historical_candles).await;
     
     // Shared candle data
     let candle_data = Arc::new(Mutex::new(Candle {
@@ -501,7 +683,6 @@ async fn main() {
     
     let mut fps_counter = 0;
     let mut fps_timer = std::time::Instant::now();
-    let mut rotation: f32 = 0.0;
     
     event_loop.run(|event, target| {
         target.set_control_flow(ControlFlow::Poll);
@@ -520,7 +701,7 @@ async fn main() {
                 }
                 WindowEvent::RedrawRequested => {
                     // Always try to render, even if no new data
-                    match state.render(rotation) {
+                    match state.render(0.0) {
                         Ok(_) => {}
                         Err(wgpu::SurfaceError::Lost) => {
                             state.surface.configure(&state.device, &state.config);
@@ -545,7 +726,7 @@ async fn main() {
                                         resolve_target: None,
                                         ops: wgpu::Operations {
                                             load: wgpu::LoadOp::Clear(wgpu::Color {
-                                                r: 0.1, g: 0.1, b: 0.2, a: 1.0,
+                                                r: 0.02, g: 0.02, b: 0.04, a: 1.0,
                                             }),
                                             store: wgpu::StoreOp::Store,
                                         },
@@ -564,10 +745,23 @@ async fn main() {
             Event::AboutToWait => {
                 // Check for new candle data
                 let mut updated = false;
+                let mut new_candle_to_add = None;
                 while let Ok(new_candle) = rx.try_recv() {
                     if let Ok(mut candle) = candle_data.lock() {
+                        // Check if we should add a new historical candle (significant price change)
+                        if (new_candle.close - candle.close).abs() > 100.0 {
+                            new_candle_to_add = Some(candle.clone());
+                        }
                         *candle = new_candle;
                         updated = true;
+                    }
+                }
+                // Add new candle to historical if needed
+                if let Some(candle_to_add) = new_candle_to_add {
+                    state.historical_candles.push(candle_to_add);
+                    // Keep only last 100 candles to prevent memory issues
+                    if state.historical_candles.len() > 100 {
+                        state.historical_candles.remove(0);
                     }
                 }
                 // Update candle geometry if data changed
@@ -576,17 +770,16 @@ async fn main() {
                         state.update_candle(&*candle);
                         // Update window title
                         let title = format!(
-                            "3D BTC | ${:.2} | {} | FPS: {}",
+                            "3D BTC 1m | ${:.2} | {} | FPS: {} | Candles: {}",
                             candle.close,
                             if candle.close > candle.open { "🟢" } else if candle.close < candle.open { "🔴" } else { "⚪" },
-                            fps_counter
+                            fps_counter,
+                            state.historical_candles.len()
                         );
                         window.set_title(&title);
                     }
                 }
-                // Always render for smooth rotation
-                rotation += 0.001; // Half the previous speed
-                state.camera_uniform.update_view_proj(state.config.width as f32 / state.config.height as f32, rotation);
+                // Always render with fixed camera (no rotation for traditional chart view)
                 window.request_redraw();
                 // FPS counter
                 fps_counter += 1;
@@ -598,4 +791,41 @@ async fn main() {
             _ => {}
         }
     }).unwrap();
+}
+
+// Fetch historical candles from Coinbase REST API
+async fn fetch_historical_candles() -> Result<Vec<Candle>, Box<dyn std::error::Error>> {
+    // Use Coinbase Exchange API (public endpoint)
+    // Granularity: 60 = 1 minute candles
+    let url = "https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=60";
+    let client = reqwest::Client::new();
+    let resp = client.get(url)
+        .header("User-Agent", "rust-trading-app/1.0")
+        .send()
+        .await?
+        .text()
+        .await?;
+    
+    // Coinbase Exchange returns: [[time, low, high, open, close, volume], ...]
+    let json: serde_json::Value = serde_json::from_str(&resp)?;
+    let mut candles = Vec::new();
+    if let Some(arr) = json.as_array() {
+        for entry in arr {
+            if let Some(vals) = entry.as_array() {
+                if vals.len() >= 6 {
+                    candles.push(Candle {
+                        open: vals[3].as_f64().unwrap_or(0.0),
+                        high: vals[2].as_f64().unwrap_or(0.0),
+                        low: vals[1].as_f64().unwrap_or(0.0),
+                        close: vals[4].as_f64().unwrap_or(0.0),
+                        _volume: vals[5].as_f64().unwrap_or(0.0),
+                    });
+                }
+            }
+        }
+    }
+    // Reverse to get chronological order (API returns newest first)
+    candles.reverse();
+    println!("Parsed {} candles from API response", candles.len());
+    Ok(candles)
 }
