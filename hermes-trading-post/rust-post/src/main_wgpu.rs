@@ -20,7 +20,7 @@ struct Candle {
     high: f64,
     low: f64,
     close: f64,
-    volume: f64,
+    _volume: f64, // Suppress unused warning
 }
 
 // Vertex data for 3D candle
@@ -54,25 +54,24 @@ impl Vertex {
 
 // Generate 3D candle vertices (a box)
 fn generate_candle_vertices(candle: &Candle) -> (Vec<Vertex>, Vec<u16>) {
-    // Candle height is proportional to percent change (close - open) / open
-    let base: f32 = -0.5; // Center the candle vertically
+    // Height is based on the dollar difference, scaled for visibility
     let open_f32 = candle.open as f32;
     let close_f32 = candle.close as f32;
-    let percent_change = if open_f32.abs() > 1e-6 {
-        (close_f32 - open_f32) / open_f32
-    } else {
-        0.0
-    };
-    let scale: f32 = 2.0; // Visual scale for percent change
-    let height = (percent_change * scale).clamp(-1.0, 1.0); // Clamp for sanity
+    let dollar_change = close_f32 - open_f32;
+    let scale: f32 = 0.05; // Much smaller scale for dollar changes
+    let height = dollar_change.abs() * scale + 0.1; // Always at least 0.1 tall
+    // Center the cube vertically at y=0
+    let base = -height / 2.0;
     let s = 0.2; // width/depth
-    // Color: green if price is up, red if down
-    let color = if close_f32 >= open_f32 {
-        [0.0, 1.0, 0.0] // green
+    // Color: green if price is up, red if down, gray for no change
+    let color = if close_f32 > open_f32 {
+        [0.0, 1.0, 0.0]
+    } else if close_f32 < open_f32 {
+        [1.0, 0.0, 0.0]
     } else {
-        [1.0, 0.0, 0.0] // red
+        [0.5, 0.5, 0.5]
     };
-    let top = base + height.max(0.05); // Ensure minimum height
+    let top = base + height;
     let vertices = vec![
         // Front face
         Vertex { position: [-s, base,  s], color },
@@ -136,7 +135,7 @@ async fn websocket_task(tx: mpsc::Sender<Candle>) {
         high: 100000.0,
         low: 100000.0,
         close: 100000.0,
-        volume: 0.0,
+        _volume: 0.0,
     };
 
     while let Some(msg) = read.next().await {
@@ -146,10 +145,10 @@ async fn websocket_task(tx: mpsc::Sender<Candle>) {
                     if let Some(price_str) = json["price"].as_str() {
                         if let Ok(price) = price_str.parse::<f64>() {
                             // Update candle with latest price
+                            current_candle.open = current_candle.close; // <-- update open to previous close
                             current_candle.close = price;
                             current_candle.high = current_candle.high.max(price);
                             current_candle.low = current_candle.low.min(price);
-                            
                             // Send update immediately for fast rendering
                             let _ = tx.send(current_candle.clone()).await;
                         }
@@ -210,7 +209,7 @@ impl CameraUniform {
 
     fn update_view_proj(&mut self, aspect: f32, rotation: f32) {
         // Camera farther away for 3x zoom out
-        let distance = 3.0; // was 2.0, now 3x farther
+        let distance = 2.0; // was 2.0, now 3x farther
         let eye = Point3::new(distance * rotation.cos(), 3.0, distance * rotation.sin());
         let target = Point3::new(0.0, 0.5, 0.0);
         let up = Vector3::unit_y();
@@ -375,7 +374,7 @@ impl<'a> State<'a> {
             high: 101000.0,
             low: 99000.0,
             close: 100500.0,
-            volume: 1.0,
+            _volume: 1.0,
         };
         
         let (vertices, indices) = generate_candle_vertices(&initial_candle);
@@ -486,7 +485,7 @@ async fn main() {
         high: 100000.0,
         low: 100000.0,
         close: 100000.0,
-        volume: 0.0,
+        _volume: 0.0,
     }));
     
     // WebSocket channel
@@ -574,16 +573,16 @@ async fn main() {
                         state.update_candle(&*candle);
                         // Update window title
                         let title = format!(
-                            "3D BTC | ${:.0} | {} | FPS: {}",
+                            "3D BTC | ${:.2} | {} | FPS: {}",
                             candle.close,
-                            if candle.close > candle.open { "🟢" } else { "🔴" },
+                            if candle.close > candle.open { "🟢" } else if candle.close < candle.open { "🔴" } else { "⚪" },
                             fps_counter
                         );
                         window.set_title(&title);
                     }
                 }
                 // Always render for smooth rotation
-                rotation += 0.002; // Slower rotation
+                rotation += 0.001; // Half the previous speed
                 state.camera_uniform.update_view_proj(state.config.width as f32 / state.config.height as f32, rotation);
                 window.request_redraw();
                 // FPS counter
