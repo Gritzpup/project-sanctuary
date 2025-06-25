@@ -154,8 +154,8 @@ fn generate_enhanced_candle_vertices(candle: &Candle) -> (Vec<EnhancedVertex>, V
     // Convert actual prices to Y positions (centered around 0)
     let open_y = (open_f32 - base_price) * price_scale;
     let close_y = (close_f32 - base_price) * price_scale;
-    let _high_y = (high_f32 - base_price) * price_scale;
-    let _low_y = (low_f32 - base_price) * price_scale;
+    let high_y = (high_f32 - base_price) * price_scale;
+    let low_y = (low_f32 - base_price) * price_scale;
     
     // Candle body goes from open to close
     let mut body_bottom = open_y.min(close_y);
@@ -379,7 +379,151 @@ fn generate_enhanced_candle_vertices(candle: &Candle) -> (Vec<EnhancedVertex>, V
         ]);
     }
     
-    // TODO: Add wicks with enhanced vertices
+    // Add upper wick if high price is above the candle body
+    if high_y > body_top + 0.001 {
+        let wick_start_idx = vertices.len() as u16;
+        let wick_width = 0.15; // Thinner than body
+        let wick_color = multiply_color(base_color, 0.8); // Slightly darker than body
+        
+        // Upper wick vertices (thin vertical line)
+        vertices.extend_from_slice(&[
+            EnhancedVertex { 
+                position: [-wick_width, body_top, wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, 1.0],
+                ao: 0.9
+            },
+            EnhancedVertex { 
+                position: [wick_width, body_top, wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, 1.0],
+                ao: 0.9
+            },
+            EnhancedVertex { 
+                position: [wick_width, high_y, wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, 1.0],
+                ao: 1.0
+            },
+            EnhancedVertex { 
+                position: [-wick_width, high_y, wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, 1.0],
+                ao: 1.0
+            },
+            // Back face
+            EnhancedVertex { 
+                position: [-wick_width, body_top, -wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, -1.0],
+                ao: 0.8
+            },
+            EnhancedVertex { 
+                position: [wick_width, body_top, -wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, -1.0],
+                ao: 0.8
+            },
+            EnhancedVertex { 
+                position: [wick_width, high_y, -wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, -1.0],
+                ao: 0.9
+            },
+            EnhancedVertex { 
+                position: [-wick_width, high_y, -wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, -1.0],
+                ao: 0.9
+            },
+        ]);
+        
+        let w = wick_start_idx;
+        // Upper wick indices (front, back, left, right faces)
+        indices.extend_from_slice(&[
+            // Front face
+            w, w+1, w+2, w+2, w+3, w,
+            // Right face  
+            w+1, w+5, w+6, w+6, w+2, w+1,
+            // Back face
+            w+5, w+4, w+7, w+7, w+6, w+5,
+            // Left face
+            w+4, w, w+3, w+3, w+7, w+4,
+        ]);
+    }
+    
+    // Add lower wick if low price is below the candle body
+    if low_y < body_bottom - 0.001 {
+        let wick_start_idx = vertices.len() as u16;
+        let wick_width = 0.15; // Thinner than body
+        let wick_color = multiply_color(base_color, 0.8); // Slightly darker than body
+        
+        // Lower wick vertices (thin vertical line)
+        vertices.extend_from_slice(&[
+            EnhancedVertex { 
+                position: [-wick_width, low_y, wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, 1.0],
+                ao: 0.8
+            },
+            EnhancedVertex { 
+                position: [wick_width, low_y, wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, 1.0],
+                ao: 0.8
+            },
+            EnhancedVertex { 
+                position: [wick_width, body_bottom, wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, 1.0],
+                ao: 0.9
+            },
+            EnhancedVertex { 
+                position: [-wick_width, body_bottom, wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, 1.0],
+                ao: 0.9
+            },
+            // Back face
+            EnhancedVertex { 
+                position: [-wick_width, low_y, -wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, -1.0],
+                ao: 0.7
+            },
+            EnhancedVertex { 
+                position: [wick_width, low_y, -wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, -1.0],
+                ao: 0.7
+            },
+            EnhancedVertex { 
+                position: [wick_width, body_bottom, -wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, -1.0],
+                ao: 0.8
+            },
+            EnhancedVertex { 
+                position: [-wick_width, body_bottom, -wick_width], 
+                color: wick_color, 
+                normal: [0.0, 0.0, -1.0],
+                ao: 0.8
+            },
+        ]);
+        
+        let w = wick_start_idx;
+        // Lower wick indices (front, back, left, right faces)
+        indices.extend_from_slice(&[
+            // Front face
+            w, w+1, w+2, w+2, w+3, w,
+            // Right face
+            w+1, w+5, w+6, w+6, w+2, w+1,
+            // Back face
+            w+5, w+4, w+7, w+7, w+6, w+5,
+            // Left face
+            w+4, w, w+3, w+3, w+7, w+4,
+        ]);
+    }
     
     (vertices, indices)
 }
