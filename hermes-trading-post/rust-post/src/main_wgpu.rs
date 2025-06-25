@@ -58,10 +58,8 @@ fn generate_candle_vertices(candle: &Candle) -> (Vec<Vertex>, Vec<u16>) {
     let open_f32 = candle.open as f32;
     let close_f32 = candle.close as f32;
     let dollar_change = close_f32 - open_f32;
-    let scale: f32 = 0.05; // Much smaller scale for dollar changes
+    let scale: f32 = 0.05; // Visual scale for dollar changes
     let height = dollar_change.abs() * scale + 0.1; // Always at least 0.1 tall
-    // Center the cube vertically at y=0
-    let base = -height / 2.0;
     let s = 0.2; // width/depth
     // Color: green if price is up, red if down, gray for no change
     let color = if close_f32 > open_f32 {
@@ -71,7 +69,12 @@ fn generate_candle_vertices(candle: &Candle) -> (Vec<Vertex>, Vec<u16>) {
     } else {
         [0.5, 0.5, 0.5]
     };
-    let top = base + height;
+    // If price is up, base is at 0 and top is positive; if down, top is at 0 and base is negative
+    let (base, top) = if dollar_change >= 0.0 {
+        (0.0, height)
+    } else {
+        (-height, 0.0)
+    };
     let vertices = vec![
         // Front face
         Vertex { position: [-s, base,  s], color },
