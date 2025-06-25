@@ -54,27 +54,36 @@ impl Vertex {
 
 // Generate 3D candle vertices (a box)
 fn generate_candle_vertices(candle: &Candle) -> (Vec<Vertex>, Vec<u16>) {
-    // Candle height based on price difference (close - open)
-    let base = 0.0;
-    let height = ((candle.close - candle.open) as f32).abs().max(0.01); // avoid zero height
-    let center_y = base + height / 2.0;
-    let s = 0.2; // width/depth
-    let color = if candle.close >= candle.open {
-        [0.0, 1.0, 0.0] // green for up
+    // Candle height is proportional to percent change (close - open) / open
+    let base: f32 = -0.5; // Center the candle vertically
+    let open_f32 = candle.open as f32;
+    let close_f32 = candle.close as f32;
+    let percent_change = if open_f32.abs() > 1e-6 {
+        (close_f32 - open_f32) / open_f32
     } else {
-        [1.0, 0.0, 0.0] // red for down
+        0.0
     };
+    let scale: f32 = 2.0; // Visual scale for percent change
+    let height = (percent_change * scale).clamp(-1.0, 1.0); // Clamp for sanity
+    let s = 0.2; // width/depth
+    // Color: green if price is up, red if down
+    let color = if close_f32 >= open_f32 {
+        [0.0, 1.0, 0.0] // green
+    } else {
+        [1.0, 0.0, 0.0] // red
+    };
+    let top = base + height.max(0.05); // Ensure minimum height
     let vertices = vec![
         // Front face
         Vertex { position: [-s, base,  s], color },
         Vertex { position: [ s, base,  s], color },
-        Vertex { position: [ s, base + height,  s], color },
-        Vertex { position: [-s, base + height,  s], color },
+        Vertex { position: [ s, top,  s], color },
+        Vertex { position: [-s, top,  s], color },
         // Back face
         Vertex { position: [-s, base, -s], color },
         Vertex { position: [ s, base, -s], color },
-        Vertex { position: [ s, base + height, -s], color },
-        Vertex { position: [-s, base + height, -s], color },
+        Vertex { position: [ s, top, -s], color },
+        Vertex { position: [-s, top, -s], color },
     ];
     let indices = vec![
         0, 1, 2, 2, 3, 0, // Front
@@ -200,8 +209,9 @@ impl CameraUniform {
     }
 
     fn update_view_proj(&mut self, aspect: f32, rotation: f32) {
-        // Camera at an angle for 3D effect
-        let eye = Point3::new(2.0 * rotation.cos(), 1.5, 2.0 * rotation.sin());
+        // Camera farther away for 3x zoom out
+        let distance = 3.0; // was 2.0, now 3x farther
+        let eye = Point3::new(distance * rotation.cos(), 3.0, distance * rotation.sin());
         let target = Point3::new(0.0, 0.5, 0.0);
         let up = Vector3::unit_y();
         let view = Matrix4::look_at_rh(eye, target, up);
@@ -573,7 +583,7 @@ async fn main() {
                     }
                 }
                 // Always render for smooth rotation
-                rotation += 0.01; // Rotate camera
+                rotation += 0.002; // Slower rotation
                 state.camera_uniform.update_view_proj(state.config.width as f32 / state.config.height as f32, rotation);
                 window.request_redraw();
                 // FPS counter
