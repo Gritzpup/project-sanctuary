@@ -9,9 +9,10 @@ use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
+    keyboard::{KeyCode, PhysicalKey},
 };
 use wgpu::util::DeviceExt;
-use cgmath::{Matrix4, Deg, perspective, Point3, Vector3};
+use cgmath::{Matrix4, Deg, perspective, Point3, Vector3, InnerSpace};
 use reqwest;
 
 // Candle data structure
@@ -153,8 +154,8 @@ fn generate_enhanced_candle_vertices(candle: &Candle) -> (Vec<EnhancedVertex>, V
     // Convert actual prices to Y positions (centered around 0)
     let open_y = (open_f32 - base_price) * price_scale;
     let close_y = (close_f32 - base_price) * price_scale;
-    let high_y = (high_f32 - base_price) * price_scale;
-    let low_y = (low_f32 - base_price) * price_scale;
+    let _high_y = (high_f32 - base_price) * price_scale;
+    let _low_y = (low_f32 - base_price) * price_scale;
     
     // Candle body goes from open to close
     let mut body_bottom = open_y.min(close_y);
@@ -168,25 +169,25 @@ fn generate_enhanced_candle_vertices(candle: &Candle) -> (Vec<EnhancedVertex>, V
     }
     
     let s = 0.8; // Candle body width - proportional to spacing
-    let ws = 0.1; // Wick width
+    let _ws = 0.1; // Wick width
     
-    // Enhanced colors with better vibrancy
+    // Enhanced colors with metallic/glass finish
     let base_color = if close_f32 > open_f32 {
-        [0.1, 0.9, 0.3] // Vibrant green
+        [0.0, 1.0, 0.4] // Electric green
     } else if close_f32 < open_f32 {
-        [0.95, 0.15, 0.2] // Vibrant red  
+        [1.0, 0.1, 0.3] // Hot red  
     } else {
-        [0.6, 0.6, 0.65] // Neutral gray
+        [0.8, 0.8, 0.9] // Metallic gray
     };
     
-    // Face-specific color multipliers for realistic depth
+    // Face-specific color multipliers for metallic finish
     let face_colors = [
-        multiply_color(base_color, 1.0),   // Front (brightest)
-        multiply_color(base_color, 0.75),  // Right
-        multiply_color(base_color, 0.55),  // Back (darkest)
-        multiply_color(base_color, 0.85),  // Left
-        multiply_color(base_color, 0.95),  // Top
-        multiply_color(base_color, 0.45),  // Bottom
+        multiply_color(base_color, 1.2),   // Front (brightest - metallic shine)
+        multiply_color(base_color, 0.9),   // Right
+        multiply_color(base_color, 0.6),   // Back (darkest)
+        multiply_color(base_color, 1.0),   // Left
+        multiply_color(base_color, 1.4),   // Top (glossy reflection)
+        multiply_color(base_color, 0.4),   // Bottom (shadow)
     ];
     
     // Normals for each face
@@ -396,9 +397,9 @@ fn generate_line_chart_vertices(candles: &[Candle], start_idx: usize, chart_offs
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
     
-    // Generate line segments connecting close prices
-    let line_color = [0.4, 0.8, 1.0]; // Cyan blue color for line
-    let line_width = 0.05;
+    // Generate line segments connecting close prices with glow effect
+    let line_color = [0.0, 0.8, 1.0]; // Electric cyan
+    let line_width = 0.08; // Thicker line for more presence
     
     for (i, window) in candles[start_idx..].windows(2).enumerate() {
         let candle1 = &window[0];
@@ -559,7 +560,7 @@ async fn websocket_task(tx: mpsc::Sender<CandleUpdate>) {
     }
 }
 
-// Enhanced shader with lighting support
+// Enhanced shader with improved lighting and smooth edges
 const ENHANCED_SHADER: &str = r#"
 // Vertex shader
 struct CameraUniform {
@@ -596,23 +597,37 @@ fn vs_main(model: VertexInput) -> VertexOutput {
     return out;
 }
 
-// Fragment shader with fake directional lighting
+// Fragment shader with metallic/glass finish and smooth edges
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Fake directional light
-    let light_dir = normalize(vec3<f32>(0.4, 0.8, 0.4));
+    // Main directional light
+    let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
+    let view_dir = normalize(camera.view_pos - in.world_pos);
     let n = normalize(in.normal);
     
-    // Basic diffuse lighting
+    // Diffuse lighting
     let diff = max(dot(n, light_dir), 0.0);
-    let ambient = 0.3;
-    let lighting = ambient + diff * 0.7;
     
-    // Apply AO
-    let final_light = lighting * in.ao;
+    // Specular reflection for metallic finish
+    let reflect_dir = reflect(-light_dir, n);
+    let spec = pow(max(dot(view_dir, reflect_dir), 0.0), 32.0);
     
-    // Apply lighting to color
-    let lit_color = in.color * final_light;
+    // Fresnel effect for glass-like edges
+    let fresnel = pow(1.0 - max(dot(view_dir, n), 0.0), 2.0);
+    
+    // Rim lighting for glowing edges
+    let rim = 1.0 - max(dot(view_dir, n), 0.0);
+    let rim_light = pow(rim, 3.0) * 0.8;
+    
+    // Combine lighting
+    let ambient = 0.2;
+    let lighting = ambient + diff * 0.8 + spec * 0.6 + rim_light;
+    
+    // Apply AO and fresnel
+    let final_light = lighting * in.ao * (1.0 + fresnel * 0.3);
+    
+    // Apply lighting to color with metallic boost
+    let lit_color = in.color * final_light + vec3<f32>(spec * 0.4);
     
     return vec4<f32>(lit_color, 1.0);
 }
@@ -797,6 +812,154 @@ struct CameraUniform {
     _padding: f32,
 }
 
+// Camera controller for smooth movement
+#[derive(Debug)]
+struct CameraController {
+    eye: Point3<f32>,
+    target: Point3<f32>,
+    up: Vector3<f32>,
+    fov: f32,
+    aspect: f32,
+    znear: f32,
+    zfar: f32,
+    
+    // Controls
+    forward_speed: f32,
+    rotation_speed: f32,
+    zoom_speed: f32,
+    
+    // Input state
+    keys_pressed: std::collections::HashSet<KeyCode>,
+    mouse_pressed: bool,
+    last_mouse_pos: (f64, f64),
+}
+
+impl CameraController {
+    fn new(aspect: f32) -> Self {
+        Self {
+            eye: Point3::new(8.0, 25.0, 120.0),
+            target: Point3::new(0.0, 0.0, 0.0),
+            up: Vector3::unit_y(),
+            fov: 45.0,
+            aspect,
+            znear: 0.1,
+            zfar: 400.0,
+            
+            forward_speed: 5.0,
+            rotation_speed: 0.015, // Increased sensitivity for more responsive rotation
+            zoom_speed: 2.0,
+            
+            keys_pressed: std::collections::HashSet::new(),
+            mouse_pressed: false,
+            last_mouse_pos: (0.0, 0.0),
+        }
+    }
+    
+    fn update_aspect(&mut self, aspect: f32) {
+        self.aspect = aspect;
+    }
+    
+    fn process_keyboard(&mut self, key: KeyCode, state: ElementState) {
+        match state {
+            ElementState::Pressed => {
+                self.keys_pressed.insert(key);
+            }
+            ElementState::Released => {
+                self.keys_pressed.remove(&key);
+            }
+        }
+    }
+    
+    fn process_mouse_motion(&mut self, delta_x: f64, delta_y: f64) {
+        if self.mouse_pressed {
+            let dx = delta_x as f32 * self.rotation_speed;
+            let dy = delta_y as f32 * self.rotation_speed;
+            
+            // Rotate around target
+            let radius = (self.eye - self.target).magnitude();
+            let theta = dx; // Horizontal rotation
+            let phi = dy;   // Vertical rotation
+            
+            let forward = (self.target - self.eye).normalize();
+            let right = forward.cross(self.up).normalize();
+            let up = right.cross(forward).normalize();
+             // Apply rotations
+            let new_forward = Matrix4::from_axis_angle(up, Deg(-theta)) * 
+                             Matrix4::from_axis_angle(right, Deg(-phi)) * 
+                             forward.extend(0.0);
+
+            self.eye = self.target - Vector3::new(new_forward.x, new_forward.y, new_forward.z) * radius;
+        }
+    }
+    
+    fn process_mouse_button(&mut self, button: MouseButton, state: ElementState) {
+        if button == MouseButton::Left {
+            self.mouse_pressed = state == ElementState::Pressed;
+        }
+    }
+    
+    fn process_scroll(&mut self, delta: f32) {
+        let forward = (self.target - self.eye).normalize();
+        self.eye += forward * delta * self.zoom_speed;
+        
+        // Prevent getting too close
+        let distance = (self.eye - self.target).magnitude();
+        if distance < 5.0 {
+            self.eye = self.target - forward * 5.0;
+        }
+    }
+    
+    fn update(&mut self, dt: f32) {
+        let forward = (self.target - self.eye).normalize();
+        let right = forward.cross(self.up).normalize();
+        let up = right.cross(forward).normalize();
+        
+        let mut movement = Vector3::new(0.0, 0.0, 0.0);
+        
+        // WASD movement
+        if self.keys_pressed.contains(&KeyCode::KeyW) {
+            movement += forward;
+        }
+        if self.keys_pressed.contains(&KeyCode::KeyS) {
+            movement -= forward;
+        }
+        if self.keys_pressed.contains(&KeyCode::KeyA) {
+            movement -= right;
+        }
+        if self.keys_pressed.contains(&KeyCode::KeyD) {
+            movement += right;
+        }
+        if self.keys_pressed.contains(&KeyCode::KeyQ) {
+            movement += up;
+        }
+        if self.keys_pressed.contains(&KeyCode::KeyE) {
+            movement -= up;
+        }
+        
+        // Apply movement
+        if movement.magnitude() > 0.0 {
+            movement = movement.normalize() * self.forward_speed * dt;
+            self.eye += movement;
+            self.target += movement;
+        }
+    }
+    
+    fn build_view_projection_matrix(&self) -> Matrix4<f32> {
+        let view = Matrix4::look_at_rh(self.eye, self.target, self.up);
+        let proj = perspective(Deg(self.fov), self.aspect, self.znear, self.zfar);
+        proj * view
+    }
+    
+    fn get_camera_info(&self) -> String {
+        format!(
+            "Camera: Eye({:.1}, {:.1}, {:.1}) Target({:.1}, {:.1}, {:.1}) FOV: {:.1}°",
+            self.eye.x, self.eye.y, self.eye.z,
+            self.target.x, self.target.y, self.target.z,
+            self.fov
+        )
+    }
+}
+
 impl CameraUniform {
     fn new() -> Self {
         use cgmath::SquareMatrix;
@@ -807,18 +970,9 @@ impl CameraUniform {
         }
     }
 
-    fn update_view_proj(&mut self, aspect: f32, _rotation: f32) {
-        // Camera positioned to view both line chart and candles
-        let center_x = 0.0; // Center between line chart and candles
-        let distance = 120.0; // Increased distance to see both views
-        let height = 25.0; // Good viewing angle
-        let eye = Point3::new(center_x + 8.0, height, distance); // Slight offset for perspective
-        let target = Point3::new(center_x, 0.0, 0.0); // Look at center
-        let up = Vector3::unit_y();
-        let view = Matrix4::look_at_rh(eye, target, up);
-        let proj = perspective(Deg(45.0), aspect, 0.1, 400.0); // Wider FOV to see more
-        self.view_proj = (proj * view).into();
-        self.view_pos = [eye.x, eye.y, eye.z]; // Update camera position for lighting
+    fn update_view_proj(&mut self, camera_controller: &CameraController) {
+        self.view_proj = camera_controller.build_view_projection_matrix().into();
+        self.view_pos = [camera_controller.eye.x, camera_controller.eye.y, camera_controller.eye.z];
     }
 }
 
@@ -833,11 +987,13 @@ struct State<'a> {
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     camera_uniform: CameraUniform,
+    camera_controller: CameraController,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     historical_candles: Vec<Candle>, // Store historical candles
     current_candle: Option<Candle>,  // Store the current live candle
     ui_layout: UILayout,
+    last_frame_time: std::time::Instant,
 }
 
 impl<'a> State<'a> {
@@ -896,9 +1052,10 @@ impl<'a> State<'a> {
         // Create UI layout
         let ui_layout = UILayout::new(size.width as f32, size.height as f32);
         
-        // Camera
+        // Camera controller
+        let camera_controller = CameraController::new(config.width as f32 / config.height as f32);
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(config.width as f32 / config.height as f32, 0.0);
+        camera_uniform.update_view_proj(&camera_controller);
         
         let camera_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
@@ -912,7 +1069,7 @@ impl<'a> State<'a> {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -1037,11 +1194,13 @@ impl<'a> State<'a> {
             index_buffer,
             num_indices,
             camera_uniform,
+            camera_controller,
             camera_buffer,
             camera_bind_group,
             historical_candles,
             current_candle: None, // Initialize with no current candle
             ui_layout,
+            last_frame_time: std::time::Instant::now(),
         }
     }
     
@@ -1061,7 +1220,13 @@ impl<'a> State<'a> {
     }
     
     fn render(&mut self, _rotation: f32) -> Result<(), wgpu::SurfaceError> {
-        self.camera_uniform.update_view_proj(self.config.width as f32 / self.config.height as f32, 0.0);
+        // Update camera controller
+        let now = std::time::Instant::now();
+        let dt = now.duration_since(self.last_frame_time).as_secs_f32();
+        self.last_frame_time = now;
+        
+        self.camera_controller.update(dt);
+        self.camera_uniform.update_view_proj(&self.camera_controller);
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
         
         let output = match self.surface.get_current_texture() {
@@ -1100,7 +1265,7 @@ impl<'a> State<'a> {
         // 1. Add line chart on the left side
         let line_chart_start_x = start_x;
         if hist_len > hist_start + 1 {
-            let (mut line_vertices, mut line_indices) = generate_line_chart_vertices(
+            let (line_vertices, mut line_indices) = generate_line_chart_vertices(
                 &self.historical_candles, 
                 hist_start, 
                 line_chart_start_x
@@ -1283,8 +1448,36 @@ async fn main() {
                     state.size = *physical_size;
                     state.config.width = physical_size.width;
                     state.config.height = physical_size.height;
+                    state.camera_controller.update_aspect(physical_size.width as f32 / physical_size.height as f32);
                     state.surface.configure(&state.device, &state.config);
                     window.request_redraw(); // Always redraw on resize
+                }
+                WindowEvent::KeyboardInput { event, .. } => {
+                    if let PhysicalKey::Code(keycode) = event.physical_key {
+                        state.camera_controller.process_keyboard(keycode, event.state);
+                        
+                        // Reset camera on R key
+                        if keycode == KeyCode::KeyR && event.state == ElementState::Pressed {
+                            state.camera_controller = CameraController::new(state.config.width as f32 / state.config.height as f32);
+                        }
+                    }
+                }
+                WindowEvent::MouseInput { button, state: btn_state, .. } => {
+                    state.camera_controller.process_mouse_button(*button, *btn_state);
+                }
+                WindowEvent::CursorMoved { position, .. } => {
+                    let (last_x, last_y) = state.camera_controller.last_mouse_pos;
+                    let delta_x = position.x - last_x;
+                    let delta_y = position.y - last_y;
+                    state.camera_controller.process_mouse_motion(delta_x, delta_y);
+                    state.camera_controller.last_mouse_pos = (position.x, position.y);
+                }
+                WindowEvent::MouseWheel { delta, .. } => {
+                    let scroll_delta = match delta {
+                        MouseScrollDelta::LineDelta(_, y) => *y,
+                        MouseScrollDelta::PixelDelta(pos) => pos.y as f32 * 0.01,
+                    };
+                    state.camera_controller.process_scroll(scroll_delta);
                 }
                 WindowEvent::RedrawRequested => {
                     // Always try to render, even if no new data
@@ -1355,13 +1548,15 @@ async fn main() {
                 if updated {
                     if let Ok(candle) = candle_data.lock() {
                         state.update_current_candle(candle.clone());
-                        // Update window title
+                        // Update window title with camera info
+                        let camera_info = state.camera_controller.get_camera_info();
                         let title = format!(
-                            "3D BTC 1m | ${:.2} | {} | FPS: {} | Candles: {}",
+                            "3D BTC 1m | ${:.2} | {} | FPS: {} | Candles: {} | {}",
                             candle.close,
                             if candle.close > candle.open { "🟢" } else if candle.close < candle.open { "🔴" } else { "⚪" },
                             fps_counter,
-                            state.historical_candles.len()
+                            state.historical_candles.len(),
+                            camera_info
                         );
                         window.set_title(&title);
                     }
