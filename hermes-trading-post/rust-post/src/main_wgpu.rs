@@ -176,8 +176,14 @@ fn generate_candle_vertices(candle: &Candle) -> (Vec<Vertex>, Vec<u16>) {
     (vertices, indices)
 }
 
+// Message types from websocket
+enum CandleUpdate {
+    LiveUpdate(Candle),
+    NewMinuteCandle(Candle),
+}
+
 // Coinbase WebSocket task
-async fn websocket_task(tx: mpsc::Sender<Candle>) {
+async fn websocket_task(tx: mpsc::Sender<CandleUpdate>) {
     use tokio_tungstenite::connect_async;
     use tungstenite::Message;
     use serde_json::Value;
@@ -210,14 +216,12 @@ async fn websocket_task(tx: mpsc::Sender<Candle>) {
         return;
     }
 
-    // Track candle data
-    let mut current_candle = Candle {
-        open: 100000.0,
-        high: 100000.0,
-        low: 100000.0,
-        close: 100000.0,
-        _volume: 0.0,
-    };
+    // Track candle data - wait for first price
+    let mut current_candle: Option<Candle> = None;
+    
+    // Track when to create new candle
+    let mut candle_start_time = std::time::Instant::now();
+    let candle_duration = std::time::Duration::from_secs(60); // 1 minute candles
 
     while let Some(msg) = read.next().await {
         if let Ok(Message::Text(txt)) = msg {
@@ -225,13 +229,45 @@ async fn websocket_task(tx: mpsc::Sender<Candle>) {
                 if json["type"] == "ticker" && json["product_id"] == "BTC-USD" {
                     if let Some(price_str) = json["price"].as_str() {
                         if let Ok(price) = price_str.parse::<f64>() {
-                            // Update candle with latest price
-                            current_candle.open = current_candle.close; // <-- update open to previous close
-                            current_candle.close = price;
-                            current_candle.high = current_candle.high.max(price);
-                            current_candle.low = current_candle.low.min(price);
+                            match &mut current_candle {
+                                None => {
+                                    // First price - create initial candle
+                                    current_candle = Some(Candle {
+                                        open: price,
+                                        high: price,
+                                        low: price,
+                                        close: price,
+                                        _volume: 0.0,
+                                    });
+                                    candle_start_time = std::time::Instant::now();
+                                }
+                                Some(candle) => {
+                                    // Check if we need a new candle
+                                    if candle_start_time.elapsed() >= candle_duration {
+                                        // Send the completed candle
+                                        let _ = tx.send(CandleUpdate::NewMinuteCandle(candle.clone())).await;
+                                        
+                                        // Start new candle
+                                        *candle = Candle {
+                                            open: price,
+                                            high: price,
+                                            low: price,
+                                            close: price,
+                                            _volume: 0.0,
+                                        };
+                                        candle_start_time = std::time::Instant::now();
+                                    } else {
+                                        // Update current candle - keep open price constant
+                                        candle.close = price;
+                                        candle.high = candle.high.max(price);
+                                        candle.low = candle.low.min(price);
+                                    }
+                                }
+                            }
                             // Send update immediately for fast rendering
-                            let _ = tx.send(current_candle.clone()).await;
+                            if let Some(candle) = &current_candle {
+                                let _ = tx.send(CandleUpdate::LiveUpdate(candle.clone())).await;
+                            }
                         }
                     }
                 }
@@ -289,17 +325,17 @@ impl CameraUniform {
     }
 
     fn update_view_proj(&mut self, aspect: f32, _rotation: f32) {
-        // Camera zoomed out with nice perspective angle
+        // Camera with good zoom level
         let spacing = 1.5;
         let num_candles = 40.0;
-        let center_x = -(num_candles * spacing) / 2.0; // Center of historical candles
-        let distance = 90.0; // Much further back to see more
-        let height = 25.0; // Higher up for better angle
-        let eye = Point3::new(center_x + 10.0, height, distance); // Slight offset for perspective
+        let center_x = -(num_candles * spacing) / 2.0 + 15.0; // Center on recent candles
+        let distance = 75.0; // Good balance between zoom and overview
+        let height = 20.0; // Good viewing angle
+        let eye = Point3::new(center_x + 5.0, height, distance); // Slight offset for perspective
         let target = Point3::new(center_x, 0.0, 0.0); // Look at center of candles
         let up = Vector3::unit_y();
         let view = Matrix4::look_at_rh(eye, target, up);
-        let proj = perspective(Deg(40.0), aspect, 0.1, 300.0); // Good FOV
+        let proj = perspective(Deg(38.0), aspect, 0.1, 300.0); // Good FOV
         self.view_proj = (proj * view).into();
     }
 }
@@ -454,13 +490,17 @@ impl<'a> State<'a> {
             multiview: None,
         });
         
-        // Initial candle
-        let initial_candle = Candle {
-            open: 100000.0,
-            high: 101000.0,
-            low: 99000.0,
-            close: 100500.0,
-            _volume: 1.0,
+        // Initial candle - use last historical or default to current price range
+        let initial_candle = if let Some(last) = historical_candles.last() {
+            last.clone()
+        } else {
+            Candle {
+                open: 106000.0,
+                high: 106100.0,
+                low: 105900.0,
+                close: 106050.0,
+                _volume: 1.0,
+            }
         };
         
         let (vertices, indices) = generate_candle_vertices(&initial_candle);
@@ -519,9 +559,13 @@ impl<'a> State<'a> {
     fn update_candle(&mut self, candle: &Candle) {
         let (mut vertices, indices) = generate_candle_vertices(candle);
         
-        // Position live candle at the right end of the chart
+        // Position live candle right after the last historical candle
         let spacing = 1.5; // Match spacing from render function
-        let live_x = spacing; // One spacing to the right of x=0
+        let max_hist = 40;
+        let hist_len = self.historical_candles.len();
+        let hist_start = if hist_len > max_hist { hist_len - max_hist } else { 0 };
+        let num_shown = hist_len - hist_start;
+        let live_x = (num_shown as f32 - max_hist as f32) * spacing; // Position at the end
         for v in &mut vertices {
             v.position[0] += live_x;
         }
@@ -664,17 +708,22 @@ async fn main() {
 
     let mut state = State::new(&window, historical_candles).await;
     
-    // Shared candle data
-    let candle_data = Arc::new(Mutex::new(Candle {
-        open: 100000.0,
-        high: 100000.0,
-        low: 100000.0,
-        close: 100000.0,
-        _volume: 0.0,
-    }));
+    // Shared candle data - initialize with last historical candle if available
+    let initial_candle = if let Some(last_candle) = state.historical_candles.last() {
+        last_candle.clone()
+    } else {
+        Candle {
+            open: 106000.0,
+            high: 106000.0,
+            low: 106000.0,
+            close: 106000.0,
+            _volume: 0.0,
+        }
+    };
+    let candle_data = Arc::new(Mutex::new(initial_candle));
     
     // WebSocket channel
-    let (tx, mut rx) = mpsc::channel::<Candle>(100);
+    let (tx, mut rx) = mpsc::channel::<CandleUpdate>(100);
     
     // Spawn WebSocket task
     tokio::spawn(async move {
@@ -745,23 +794,23 @@ async fn main() {
             Event::AboutToWait => {
                 // Check for new candle data
                 let mut updated = false;
-                let mut new_candle_to_add = None;
-                while let Ok(new_candle) = rx.try_recv() {
-                    if let Ok(mut candle) = candle_data.lock() {
-                        // Check if we should add a new historical candle (significant price change)
-                        if (new_candle.close - candle.close).abs() > 100.0 {
-                            new_candle_to_add = Some(candle.clone());
+                while let Ok(update) = rx.try_recv() {
+                    match update {
+                        CandleUpdate::LiveUpdate(new_candle) => {
+                            if let Ok(mut candle) = candle_data.lock() {
+                                *candle = new_candle;
+                                updated = true;
+                            }
                         }
-                        *candle = new_candle;
-                        updated = true;
-                    }
-                }
-                // Add new candle to historical if needed
-                if let Some(candle_to_add) = new_candle_to_add {
-                    state.historical_candles.push(candle_to_add);
-                    // Keep only last 100 candles to prevent memory issues
-                    if state.historical_candles.len() > 100 {
-                        state.historical_candles.remove(0);
+                        CandleUpdate::NewMinuteCandle(completed_candle) => {
+                            // Add completed candle to historical
+                            state.historical_candles.push(completed_candle);
+                            // Keep only last 350 candles
+                            if state.historical_candles.len() > 350 {
+                                state.historical_candles.remove(0);
+                            }
+                            updated = true;
+                        }
                     }
                 }
                 // Update candle geometry if data changed
