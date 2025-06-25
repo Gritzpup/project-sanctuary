@@ -15,14 +15,14 @@ import redis
 import json
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Disable werkzeug request logging to reduce spam
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
 # Set specific module logging levels to reduce verbosity
-logging.getLogger('components.chart_acceleration').setLevel(logging.WARNING)
+logging.getLogger('components.chart_acceleration').setLevel(logging.DEBUG)
 logging.getLogger('pages.dashboard').setLevel(logging.INFO)
 
 # Check for debug mode from environment variable
@@ -109,6 +109,13 @@ def get_latest_candle():
             return json.loads(data)
     except Exception:
         return None
+
+# In your Dash callback or update logic, always pull from ws_data_queue (non-blocking)
+def get_latest_processed_data():
+    latest = None
+    while not ws_data_queue.empty():
+        latest = ws_data_queue.get()
+    return latest
 
 # Define the modern collapsible sidebar navigation
 sidebar = html.Div([
@@ -297,6 +304,21 @@ app.clientside_callback(
     [State("theme-store", "data")],
     prevent_initial_call=False
 )
+
+# Example Dash callback for updating chart and top display
+@app.callback(
+    Output('latest-candle-div', 'children'),
+    Output('chart-div', 'children'),
+    Input('interval-component', 'n_intervals')
+)
+def update_chart_and_top(n):
+    latest = get_latest_processed_data()
+    if latest:
+        # Update both the top display and the chart
+        # (Assume you have a function to render the chart and top display)
+        return render_top(latest), render_chart(latest)
+    else:
+        raise dash.exceptions.PreventUpdate
 
 if __name__ == "__main__":
     # Run in single-threaded mode to avoid OpenGL thread safety issues

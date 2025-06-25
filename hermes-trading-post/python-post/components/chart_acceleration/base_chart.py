@@ -163,7 +163,9 @@ class ChartFactory:
                 
                 logger.info(f"Using ThreadedGPURenderer with LinuxGPUChart for {symbol} (target: {capabilities.estimated_chart_latency_ms:.2f}ms)")
                 
-                # Create threaded GPU renderer for thread-safe multi-threaded operation
+                # IMPORTANT: The chart instance must only receive data from a CPU-side thread-safe buffer (e.g., Redis or LatestChartState),
+                # never directly from WebSocket or network. All data processing/sorting must be done on the CPU.
+                # The GPU chart only reads from the buffer and renders.
                 renderer = ThreadedGPURenderer(LinuxGPUChart, symbol, width, height)
                 renderer.start()
                 

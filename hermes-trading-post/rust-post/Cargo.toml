@@ -1,0 +1,42 @@
+[package]
+name = "rust-post"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Graphics options
+minifb = "0.25"  # Simple pixel buffer - WORKING VERSION
+winit = "0.29"
+ash = "0.38"
+ash-window = "0.13"
+wgpu = "0.19"  # Modern GPU API for 3D rendering
+cgmath = "0.18"  # 3D math
+bytemuck = { version = "1.14", features = ["derive"] }  # For vertex data
+
+# Async & WebSocket
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+tungstenite = "0.21"
+futures = "0.3"
+
+# Utilities
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+log = "0.4"
+env_logger = "0.10"
+
+[[bin]]
+name = "rust-post"
+path = "src/main.rs"
+
+[[bin]]
+name = "rust-post-minifb"
+path = "src/main_minifb_backup.rs"
+
+[[bin]]
+name = "rust-post-3d"
+path = "src/main_wgpu.rs"
+
+[[bin]]
+name = "rust-post-realtime"
+path = "src/main_wgpu_realtime.rs"

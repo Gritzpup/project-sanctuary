@@ -8,6 +8,8 @@ import time
 import base64
 from typing import Dict, Any, Optional
 import logging
+import concurrent.futures
+import queue
 
 from components.chart_acceleration import create_optimal_chart, get_system_capabilities
 
@@ -66,8 +68,8 @@ class AcceleratedChartComponent:
                     'padding': '0',  # Remove padding for full width
                     'backgroundColor': '#1a1a1a',
                     'marginBottom': '10px',
-                    'overflow': 'hidden',  # Prevent overflow
-                    'minHeight': f'{self.height}px'
+                    'overflow': 'visible',  # Allow timeline to show
+                    'minHeight': f'{self.height + 40}px'  # Add extra space for timeline
                 }
             ),
             
@@ -338,3 +340,24 @@ def register_chart_callbacks(chart_id: str, chart_component: AcceleratedChartCom
             })
             
             return error_component, "Error"
+
+
+# Thread pool for WebSocket/data processing
+ws_thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=12)
+ws_data_queue = queue.Queue()
+
+# Example WebSocket handler (to be connected to your actual WebSocket logic)
+def websocket_message_handler(msg):
+    ws_thread_pool.submit(process_ws_message, msg)
+
+def process_ws_message(msg):
+    # Parse, dedupe, sort, etc. (implement your logic here)
+    # Then put the result in the queue
+    ws_data_queue.put(msg)
+
+# In your Dash callback or update logic, always pull from ws_data_queue (non-blocking)
+def get_latest_processed_data():
+    latest = None
+    while not ws_data_queue.empty():
+        latest = ws_data_queue.get()
+    return latest

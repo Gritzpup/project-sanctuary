@@ -52,6 +52,12 @@ if lsof -Pi :8050 -sTCP:LISTEN -t >/dev/null 2>&1; then
     sleep 2
 fi
 
-# Run the app with GPU acceleration (default behavior)
-echo "Starting dashboard app with GPU acceleration (if available)..."
+# Run the app with GPU acceleration enabled
+echo "Starting dashboard app with GPU acceleration enabled..."
+
+# Set GPU-friendly environment
+export CUDA_VISIBLE_DEVICES=0
+export TF_FORCE_GPU_ALLOW_GROWTH=true
+
+# Run directly without forcing CPU-only mode
 python3 dash_app.py
