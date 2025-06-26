@@ -3,7 +3,16 @@ name = "rust-post"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+members = ["src/components/btc-chart"]
+
 [dependencies]
+# Tauri dependencies
+tauri = { version = "2.0", features = ["tray-icon"], optional = true }
+tauri-plugin-shell = { version = "2.0", optional = true }
+
+# Local components
+btc-chart = { path = "src/components/btc-chart" }
 # Graphics options
 minifb = "0.25"  # Simple pixel buffer - WORKING VERSION
 winit = "0.30"
@@ -37,13 +46,17 @@ name = "rust-post"
 path = "src/main.rs"
 
 [[bin]]
-name = "rust-post-minifb"
-path = "src/main_minifb_backup.rs"
+name = "rust-post-tauri"
+path = "src/tauri_main.rs"
+required-features = ["tauri"]
 
 [[bin]]
 name = "rust-post-3d"
 path = "src/main_wgpu.rs"
 
-[[bin]]
-name = "rust-post-realtime"
-path = "src/main_wgpu_realtime.rs"
+[features]
+default = []
+tauri = ["dep:tauri", "dep:tauri-plugin-shell"]
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }

@@ -10,8 +10,8 @@ use serde::Deserialize;
 use tokio::sync::mpsc;
 use winit::{
     event::*,
-    event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
+    event_loop::{ControlFlow, EventLoop, ActiveEventLoop},
+    window::Window,
     raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle},
 };
 use ash::{vk, Entry, Instance, Device};
@@ -258,18 +258,17 @@ impl VulkanApp {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
-    
     println!("Starting Rust Vulkan Candle Demo...");
     println!("The window will change color based on BTC price movement:");
     println!("- Green background = Price going UP");
     println!("- Red background = Price going DOWN");
-    
+
     let event_loop = EventLoop::new()?;
-    let window = WindowBuilder::new()
+    let window_attrs = winit::window::WindowAttributes::default()
         .with_title("Rust Vulkan Candle Demo - BTC-USD")
-        .with_inner_size(winit::dpi::LogicalSize::new(800, 600))
-        .build(&event_loop)?;
-    
+        .with_inner_size(winit::dpi::LogicalSize::new(800, 600));
+    let window = event_loop.create_window(window_attrs)?;
+
     // Note: Full Vulkan setup is complex; for demo purposes, we'll just show the concept
     let _vulkan_app = unsafe { VulkanApp::new(&window).ok() };
     
@@ -291,7 +290,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         websocket_task(tx, candle_data_clone).await;
     });
     
-    event_loop.run(move |event, target| {
+    event_loop.run(|event, target| {
         target.set_control_flow(ControlFlow::Poll);
         
         match event {
@@ -328,6 +327,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => {}
         }
     })?;
-    
     Ok(())
 }
