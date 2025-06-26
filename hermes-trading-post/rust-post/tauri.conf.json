@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "identifier": "com.sanctuary.btc-dashboard",
   "build": {
-    "frontendDist": "./dist",
-    "devUrl": "http://localhost:3000"
+    "frontendDist": "./dist"
   },
   "app": {
     "windows": [
