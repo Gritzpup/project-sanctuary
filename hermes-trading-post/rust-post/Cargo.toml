@@ -6,10 +6,10 @@ edition = "2021"
 [dependencies]
 # Graphics options
 minifb = "0.25"  # Simple pixel buffer - WORKING VERSION
-winit = "0.29"
+winit = "0.30"
 ash = "0.38"
 ash-window = "0.13"
-wgpu = "0.19"  # Modern GPU API for 3D rendering
+wgpu = "23"  # Modern GPU API for 3D rendering
 cgmath = "0.18"  # 3D math
 bytemuck = { version = "1.14", features = ["derive"] }  # For vertex data
 
@@ -28,6 +28,9 @@ pollster = "0.3"  # For blocking async operations
 
 # REST API
 reqwest = { version = "0.11", features = ["json", "blocking"] }
+
+# High-performance bitmap font rendering for trading data
+image = "0.24"  # For bitmap font atlas generation
 
 [[bin]]
 name = "rust-post"

@@ -8,12 +8,15 @@ use tokio::sync::mpsc;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
-    window::{WindowBuilder, Window},
+    window::{Window, WindowAttributes},
     keyboard::{KeyCode, PhysicalKey},
 };
 use wgpu::util::DeviceExt;
 use cgmath::{Matrix4, Deg, perspective, Point3, Vector3, InnerSpace};
 use reqwest;
+// High-performance bitmap font atlas for trading data
+use image::{ImageBuffer, Rgba, RgbaImage};
+use std::collections::HashMap;
 
 // Candle data structure
 #[derive(Debug, Clone, Deserialize)]
@@ -83,13 +86,516 @@ impl UILayout {
     }
 }
 
-// Placeholder for text rendering
+// High-performance bitmap font atlas for ultra-fast trading text updates
 #[derive(Debug, Clone)]
-struct TextInstance {
-    text: String,
-    position: [f32; 2],
-    size: f32,
-    color: [f32; 4],
+struct CharacterInfo {
+    atlas_x: f32,      // X position in atlas (0.0-1.0)
+    atlas_y: f32,      // Y position in atlas (0.0-1.0) 
+    atlas_w: f32,      // Width in atlas (0.0-1.0)
+    atlas_h: f32,      // Height in atlas (0.0-1.0)
+    char_w: f32,       // Character width (pixels)
+    char_h: f32,       // Character height (pixels)
+    bearing_x: f32,    // Horizontal bearing
+    bearing_y: f32,    // Vertical bearing
+    advance: f32,      // Horizontal advance
+}
+
+// Text vertex for GPU rendering
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct TextVertex {
+    position: [f32; 2],    // Screen position
+    tex_coords: [f32; 2],  // Atlas texture coordinates
+    color: [f32; 4],       // RGBA color
+}
+
+impl TextVertex {
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<TextVertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+            ],
+        }
+    }
+}
+
+// Optimized font atlas for trading symbols and numbers
+struct FontAtlas {
+    texture: wgpu::Texture,
+    texture_view: wgpu::TextureView,
+    sampler: wgpu::Sampler,
+    bind_group: wgpu::BindGroup,
+    characters: HashMap<char, CharacterInfo>,
+    atlas_size: u32,
+}
+
+impl FontAtlas {
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue, bind_group_layout: &wgpu::BindGroupLayout) -> Self {
+        // Trading-optimized character set: numbers, currency symbols, percentage
+        let chars = "0123456789.,+-%$€£¥₿▲▼ BTCETHXRPLTCADAUSDEUR";
+        
+        // Create bitmap font atlas (512x512 for high DPI)
+        let atlas_size = 512u32;
+        let mut atlas_image: RgbaImage = ImageBuffer::new(atlas_size, atlas_size);
+        let mut characters = HashMap::new();
+        
+        // Simple bitmap font generation (8x16 pixel chars for ultra-fast rendering)
+        let char_width = 16u32;
+        let char_height = 24u32;
+        let chars_per_row = atlas_size / char_width;
+        
+        for (i, ch) in chars.chars().enumerate() {
+            let row = i as u32 / chars_per_row;
+            let col = i as u32 % chars_per_row;
+            let x = col * char_width;
+            let y = row * char_height;
+            
+            // Draw simple bitmap character (white pixels for readability)
+            match ch {
+                '0' => draw_zero(&mut atlas_image, x, y, char_width, char_height),
+                '1' => draw_one(&mut atlas_image, x, y, char_width, char_height),
+                '2' => draw_two(&mut atlas_image, x, y, char_width, char_height),
+                '3' => draw_three(&mut atlas_image, x, y, char_width, char_height),
+                '4' => draw_four(&mut atlas_image, x, y, char_width, char_height),
+                '5' => draw_five(&mut atlas_image, x, y, char_width, char_height),
+                '6' => draw_six(&mut atlas_image, x, y, char_width, char_height),
+                '7' => draw_seven(&mut atlas_image, x, y, char_width, char_height),
+                '8' => draw_eight(&mut atlas_image, x, y, char_width, char_height),
+                '9' => draw_nine(&mut atlas_image, x, y, char_width, char_height),
+                '.' => draw_dot(&mut atlas_image, x, y, char_width, char_height),
+                ',' => draw_comma(&mut atlas_image, x, y, char_width, char_height),
+                '+' => draw_plus(&mut atlas_image, x, y, char_width, char_height),
+                '-' => draw_minus(&mut atlas_image, x, y, char_width, char_height),
+                '%' => draw_percent(&mut atlas_image, x, y, char_width, char_height),
+                '$' => draw_dollar(&mut atlas_image, x, y, char_width, char_height),
+                '▲' => draw_up_triangle(&mut atlas_image, x, y, char_width, char_height),
+                '▼' => draw_down_triangle(&mut atlas_image, x, y, char_width, char_height),
+                ' ' => {}, // Space - leave empty
+                _ => draw_letter(&mut atlas_image, x, y, char_width, char_height, ch),
+            }
+            
+            // Store character info for rendering
+            characters.insert(ch, CharacterInfo {
+                atlas_x: x as f32 / atlas_size as f32,
+                atlas_y: y as f32 / atlas_size as f32,
+                atlas_w: char_width as f32 / atlas_size as f32,
+                atlas_h: char_height as f32 / atlas_size as f32,
+                char_w: char_width as f32,
+                char_h: char_height as f32,
+                bearing_x: 0.0,
+                bearing_y: char_height as f32,
+                advance: char_width as f32,
+            });
+        }
+        
+        // Create GPU texture from atlas
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Font Atlas Texture"),
+            size: wgpu::Extent3d {
+                width: atlas_size,
+                height: atlas_size,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &atlas_image,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * atlas_size),
+                rows_per_image: Some(atlas_size),
+            },
+            wgpu::Extent3d {
+                width: atlas_size,
+                height: atlas_size,
+                depth_or_array_layers: 1,
+            },
+        );
+        
+        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest, // Crisp pixel-perfect text
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+        
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+            ],
+            label: Some("Font Atlas Bind Group"),
+        });
+        
+        Self {
+            texture,
+            texture_view,
+            sampler,
+            bind_group,
+            characters,
+            atlas_size,
+        }
+    }
+}
+
+// Ultra-fast text renderer for trading data
+struct FastText {
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    render_pipeline: wgpu::RenderPipeline,
+    font_atlas: FontAtlas,
+    vertices: Vec<TextVertex>,
+    indices: Vec<u16>,
+    max_chars: usize,
+}
+
+impl FastText {
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat) -> Self {
+        // Create bind group layout for font atlas
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+            label: Some("Font Atlas Bind Group Layout"),
+        });
+        
+        let font_atlas = FontAtlas::new(device, queue, &bind_group_layout);
+        
+        // Create text shader
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Text Shader"),
+            source: wgpu::ShaderSource::Wgsl(TEXT_SHADER.into()),
+        });
+        
+        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Text Render Pipeline Layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+        
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Text Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: &[TextVertex::desc()],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        });
+        
+        // Pre-allocate vertex/index buffers for 1000 characters (4000 vertices, 6000 indices)
+        let max_chars = 1000;
+        let vertices = vec![TextVertex { position: [0.0, 0.0], tex_coords: [0.0, 0.0], color: [1.0, 1.0, 1.0, 1.0] }; max_chars * 4];
+        let indices = vec![0u16; max_chars * 6];
+        
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Text Vertex Buffer"),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+        
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Text Index Buffer"),
+            contents: bytemuck::cast_slice(&indices),
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+        });
+        
+        Self {
+            vertex_buffer,
+            index_buffer,
+            render_pipeline,
+            font_atlas,
+            vertices,
+            indices,
+            max_chars,
+        }
+    }
+    
+    // Ultra-fast text update - directly modify vertex buffer for microsecond performance
+    fn update_text(&mut self, text: &str, x: f32, y: f32, size: f32, color: [f32; 4], queue: &wgpu::Queue, screen_width: f32, screen_height: f32) {
+        self.vertices.clear();
+        self.indices.clear();
+        
+        let mut cursor_x = x;
+        let mut vertex_count = 0u16;
+        
+        for ch in text.chars() {
+            if let Some(char_info) = self.font_atlas.characters.get(&ch) {
+                if vertex_count >= (self.max_chars * 4) as u16 {
+                    break; // Prevent buffer overflow
+                }
+                
+                let char_w = char_info.char_w * size / 24.0; // Scale from 24px base
+                let char_h = char_info.char_h * size / 24.0;
+                
+                // Convert screen coordinates to NDC (-1 to 1)
+                let left = (cursor_x / screen_width) * 2.0 - 1.0;
+                let right = ((cursor_x + char_w) / screen_width) * 2.0 - 1.0;
+                let top = 1.0 - (y / screen_height) * 2.0;
+                let bottom = 1.0 - ((y + char_h) / screen_height) * 2.0;
+                
+                // Create quad for character
+                self.vertices.extend_from_slice(&[
+                    TextVertex { position: [left, bottom], tex_coords: [char_info.atlas_x, char_info.atlas_y + char_info.atlas_h], color },
+                    TextVertex { position: [right, bottom], tex_coords: [char_info.atlas_x + char_info.atlas_w, char_info.atlas_y + char_info.atlas_h], color },
+                    TextVertex { position: [right, top], tex_coords: [char_info.atlas_x + char_info.atlas_w, char_info.atlas_y], color },
+                    TextVertex { position: [left, top], tex_coords: [char_info.atlas_x, char_info.atlas_y], color },
+                ]);
+                
+                // Create indices for quad (2 triangles)
+                self.indices.extend_from_slice(&[
+                    vertex_count, vertex_count + 1, vertex_count + 2,
+                    vertex_count, vertex_count + 2, vertex_count + 3,
+                ]);
+                
+                cursor_x += char_info.advance * size / 24.0;
+                vertex_count += 4;
+            }
+        }
+        
+        // Update GPU buffers (extremely fast)
+        if !self.vertices.is_empty() {
+            queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&self.vertices));
+            queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&self.indices));
+        }
+    }
+    
+    fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+        if !self.indices.is_empty() {
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(0, &self.font_atlas.bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
+        }
+    }
+}
+
+// Simple bitmap character drawing functions
+fn draw_zero(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    // Draw outline of 0
+    for i in 2..w-2 { image.put_pixel(x+i, y+2, white); image.put_pixel(x+i, y+h-3, white); }
+    for i in 2..h-2 { image.put_pixel(x+2, y+i, white); image.put_pixel(x+w-3, y+i, white); }
+}
+
+fn draw_one(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    let mid = w / 2;
+    for i in 2..h-2 { image.put_pixel(x+mid, y+i, white); }
+    for i in mid-1..w-2 { image.put_pixel(x+i, y+h-3, white); }
+}
+
+fn draw_two(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    for i in 2..w-2 { image.put_pixel(x+i, y+2, white); image.put_pixel(x+i, y+h/2, white); image.put_pixel(x+i, y+h-3, white); }
+    for i in 2..h/2 { image.put_pixel(x+w-3, y+i, white); }
+    for i in h/2..h-2 { image.put_pixel(x+2, y+i, white); }
+}
+
+fn draw_three(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    for i in 2..w-2 { image.put_pixel(x+i, y+2, white); image.put_pixel(x+i, y+h/2, white); image.put_pixel(x+i, y+h-3, white); }
+    for i in 2..h-2 { if i != h/2 { image.put_pixel(x+w-3, y+i, white); } }
+}
+
+fn draw_four(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    for i in 2..h/2+1 { image.put_pixel(x+2, y+i, white); }
+    for i in 2..h-2 { image.put_pixel(x+w-3, y+i, white); }
+    for i in 2..w-2 { image.put_pixel(x+i, y+h/2, white); }
+}
+
+fn draw_five(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    for i in 2..w-2 { image.put_pixel(x+i, y+2, white); image.put_pixel(x+i, y+h/2, white); image.put_pixel(x+i, y+h-3, white); }
+    for i in 2..h/2 { image.put_pixel(x+2, y+i, white); }
+    for i in h/2..h-2 { image.put_pixel(x+w-3, y+i, white); }
+}
+
+fn draw_six(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    for i in 2..w-2 { image.put_pixel(x+i, y+2, white); image.put_pixel(x+i, y+h/2, white); image.put_pixel(x+i, y+h-3, white); }
+    for i in 2..h-2 { image.put_pixel(x+2, y+i, white); }
+    for i in h/2..h-2 { image.put_pixel(x+w-3, y+i, white); }
+}
+
+fn draw_seven(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    for i in 2..w-2 { image.put_pixel(x+i, y+2, white); }
+    for i in 2..h-2 { image.put_pixel(x+w-3, y+i, white); }
+}
+
+fn draw_eight(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    for i in 2..w-2 { image.put_pixel(x+i, y+2, white); image.put_pixel(x+i, y+h/2, white); image.put_pixel(x+i, y+h-3, white); }
+    for i in 2..h-2 { if i != h/2 { image.put_pixel(x+2, y+i, white); image.put_pixel(x+w-3, y+i, white); } }
+}
+
+fn draw_nine(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    for i in 2..w-2 { image.put_pixel(x+i, y+2, white); image.put_pixel(x+i, y+h/2, white); image.put_pixel(x+i, y+h-3, white); }
+    for i in 2..h/2+1 { image.put_pixel(x+2, y+i, white); }
+    for i in 2..h-2 { image.put_pixel(x+w-3, y+i, white); }
+}
+
+fn draw_dot(image: &mut RgbaImage, x: u32, y: u32, _w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    image.put_pixel(x+4, y+h-4, white);
+    image.put_pixel(x+5, y+h-4, white);
+    image.put_pixel(x+4, y+h-5, white);
+    image.put_pixel(x+5, y+h-5, white);
+}
+
+fn draw_comma(image: &mut RgbaImage, x: u32, y: u32, _w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    image.put_pixel(x+4, y+h-3, white);
+    image.put_pixel(x+3, y+h-2, white);
+}
+
+fn draw_plus(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    let mid_x = w / 2;
+    let mid_y = h / 2;
+    for i in 3..w-3 { image.put_pixel(x+i, y+mid_y, white); }
+    for i in 3..h-3 { image.put_pixel(x+mid_x, y+i, white); }
+}
+
+fn draw_minus(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    let mid_y = h / 2;
+    for i in 3..w-3 { image.put_pixel(x+i, y+mid_y, white); }
+}
+
+fn draw_percent(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    // Draw % symbol
+    image.put_pixel(x+2, y+2, white); image.put_pixel(x+3, y+2, white);
+    image.put_pixel(x+2, y+3, white); image.put_pixel(x+3, y+3, white);
+    for i in 0..h-2 { image.put_pixel(x+4+i*2/3, y+2+i, white); }
+    image.put_pixel(x+w-4, y+h-4, white); image.put_pixel(x+w-3, y+h-4, white);
+    image.put_pixel(x+w-4, y+h-3, white); image.put_pixel(x+w-3, y+h-3, white);
+}
+
+fn draw_dollar(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    let mid = w / 2;
+    for i in 1..h-1 { image.put_pixel(x+mid, y+i, white); } // Vertical line
+    // Add S shape around it
+    for i in 2..w-2 { image.put_pixel(x+i, y+2, white); image.put_pixel(x+i, y+h/2, white); image.put_pixel(x+i, y+h-3, white); }
+}
+
+fn draw_up_triangle(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([0u8, 255u8, 0u8, 255u8]); // Green for up
+    let mid = w / 2;
+    for i in 0..h/2 {
+        for j in 0..i*2+1 {
+            if mid+j < w && j < mid*2 {
+                image.put_pixel(x+mid-i+j, y+2+i, white);
+            }
+        }
+    }
+}
+
+fn draw_down_triangle(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32) {
+    let white = Rgba([255u8, 0u8, 0u8, 255u8]); // Red for down
+    let mid = w / 2;
+    for i in 0..h/2 {
+        for j in 0..(h/2-i)*2+1 {
+            if mid+j < w && j < mid*2 {
+                image.put_pixel(x+mid-(h/2-i)+j, y+2+i, white);
+            }
+        }
+    }
+}
+
+fn draw_letter(image: &mut RgbaImage, x: u32, y: u32, w: u32, h: u32, _ch: char) {
+    let white = Rgba([255u8, 255u8, 255u8, 255u8]);
+    // Generic letter - simple rectangle for now
+    for i in 2..w-2 { image.put_pixel(x+i, y+2, white); image.put_pixel(x+i, y+h-3, white); }
+    for i in 2..h-2 { image.put_pixel(x+2, y+i, white); image.put_pixel(x+w-3, y+i, white); }
 }
 
 // Enhanced vertex data with normals and ambient occlusion for better lighting
@@ -168,26 +674,26 @@ fn generate_enhanced_candle_vertices(candle: &Candle) -> (Vec<EnhancedVertex>, V
         body_bottom = mid - 0.1;
     }
     
-    let s = 0.8; // Candle body width - proportional to spacing
-    let _ws = 0.1; // Wick width
+    let s = 0.9; // Wider candle body for more presence
+    let _ws = 0.15; // Thicker wick width for better visibility
     
-    // Enhanced colors with metallic/glass finish
+    // Ultra-enhanced colors with depth and glow effects
     let base_color = if close_f32 > open_f32 {
-        [0.0, 1.0, 0.4] // Electric green
+        [0.0, 1.2, 0.5] // Brilliant electric green with glow
     } else if close_f32 < open_f32 {
-        [1.0, 0.1, 0.3] // Hot red  
+        [1.2, 0.0, 0.2] // Intense hot red with glow
     } else {
-        [0.8, 0.8, 0.9] // Metallic gray
+        [0.9, 0.9, 1.0] // Bright metallic silver
     };
     
-    // Face-specific color multipliers for metallic finish
+    // Face-specific color multipliers for dramatic 3D depth
     let face_colors = [
-        multiply_color(base_color, 1.2),   // Front (brightest - metallic shine)
-        multiply_color(base_color, 0.9),   // Right
-        multiply_color(base_color, 0.6),   // Back (darkest)
-        multiply_color(base_color, 1.0),   // Left
-        multiply_color(base_color, 1.4),   // Top (glossy reflection)
-        multiply_color(base_color, 0.4),   // Bottom (shadow)
+        multiply_color(base_color, 1.5),   // Front (super bright - metallic shine)
+        multiply_color(base_color, 0.8),   // Right (medium depth)
+        multiply_color(base_color, 0.4),   // Back (deep shadow)
+        multiply_color(base_color, 1.0),   // Left (standard)
+        multiply_color(base_color, 1.7),   // Top (ultra glossy reflection)
+        multiply_color(base_color, 0.3),   // Bottom (deep shadow)
     ];
     
     // Normals for each face
@@ -829,6 +1335,43 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 "#;
 
+// High-performance text rendering shader
+const TEXT_SHADER: &str = r#"
+// Vertex shader for text rendering
+struct VertexInput {
+    @location(0) position: vec2<f32>,
+    @location(1) tex_coords: vec2<f32>,
+    @location(2) color: vec4<f32>,
+}
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) tex_coords: vec2<f32>,
+    @location(1) color: vec4<f32>,
+}
+
+@vertex
+fn vs_main(input: VertexInput) -> VertexOutput {
+    var out: VertexOutput;
+    out.clip_position = vec4<f32>(input.position, 0.0, 1.0);
+    out.tex_coords = input.tex_coords;
+    out.color = input.color;
+    return out;
+}
+
+// Fragment shader for text rendering
+@group(0) @binding(0)
+var font_texture: texture_2d<f32>;
+@group(0) @binding(1)
+var font_sampler: sampler;
+
+@fragment
+fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+    let alpha = textureSample(font_texture, font_sampler, input.tex_coords).a;
+    return vec4<f32>(input.color.rgb, input.color.a * alpha);
+}
+"#;
+
 // Legacy vertex format (for compatibility)
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -1000,10 +1543,10 @@ struct CameraController {
 impl CameraController {
     fn new(aspect: f32) -> Self {
         Self {
-            eye: Point3::new(0.0, 30.0, 80.0), // Better starting position for trading chart view
-            target: Point3::new(0.0, 0.0, 0.0),
+            eye: Point3::new(-10.0, 60.0, 30.0), // Higher elevated view for better chart perspective
+            target: Point3::new(15.0, 0.0, 0.0), // Look at center-right of the chart area
             up: Vector3::unit_y(),
-            fov: 60.0, // Wider field of view for better chart visibility
+            fov: 45.0, // Narrower FOV for more focused view
             aspect,
             znear: 0.1,
             zfar: 400.0,
@@ -1185,6 +1728,7 @@ struct State<'a> {
     current_candle: Option<Candle>,  // Store the current live candle
     ui_layout: UILayout,
     last_frame_time: std::time::Instant,
+    fast_text: FastText,
 }
 
 impl<'a> State<'a> {
@@ -1211,6 +1755,7 @@ impl<'a> State<'a> {
             &wgpu::DeviceDescriptor {
                 required_features: wgpu::Features::empty(),
                 required_limits: wgpu::Limits::default(),
+                memory_hints: wgpu::MemoryHints::default(),
                 label: None,
             },
             None,
@@ -1260,6 +1805,9 @@ impl<'a> State<'a> {
         
         // Create UI layout
         let ui_layout = UILayout::new(size.width as f32, size.height as f32);
+        
+        // Initialize high-performance bitmap font rendering
+        let fast_text = FastText::new(&device, &queue, config.format);
         
         // Camera controller
         let camera_controller = CameraController::new(config.width as f32 / config.height as f32);
@@ -1313,18 +1861,21 @@ impl<'a> State<'a> {
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
                 buffers: &[EnhancedVertex::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
                     blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
+            cache: None,
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
@@ -1418,6 +1969,7 @@ impl<'a> State<'a> {
             current_candle: None, // Initialize with no current candle
             ui_layout,
             last_frame_time: std::time::Instant::now(),
+            fast_text,
         }
     }
     
@@ -1434,6 +1986,32 @@ impl<'a> State<'a> {
     fn update_current_candle(&mut self, candle: Candle) {
         // Update the current live candle that gets rendered separately
         self.current_candle = Some(candle);
+    }
+    
+    // UI Rendering Methods - text rendering moved to egui
+    fn render_sidebar(&mut self, _encoder: &mut wgpu::CommandEncoder, _view: &wgpu::TextureView) {
+        // Text rendering handled by egui now
+    }
+    
+    fn render_header(&mut self, _encoder: &mut wgpu::CommandEncoder, _view: &wgpu::TextureView) {
+        // Text rendering handled by egui now
+    }
+    
+    fn render_footer(&mut self, _encoder: &mut wgpu::CommandEncoder, _view: &wgpu::TextureView) {
+        // Text rendering handled by egui now
+    }
+    
+    fn render_ui_panels(&mut self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
+        // Render sidebar
+        self.render_sidebar(encoder, view);
+        
+        // Render header  
+        self.render_header(encoder, view);
+        
+        // Render footer
+        self.render_footer(encoder, view);
+        
+        // Text rendering removed - using egui instead
     }
     
     fn render(&mut self, _rotation: f32) -> Result<(), wgpu::SurfaceError> {
@@ -1490,36 +2068,14 @@ impl<'a> State<'a> {
         let mut draw_ranges = Vec::new();
         let mut vtx_offset = 0u16;
         
-        // Calculate positioning for split view: line chart on left, candles on right
+        // Calculate positioning for candles only
         let visible_count = (hist_len - hist_start) as f32;
         let chart_width = visible_count * spacing;
-        let gap = spacing * 2.0; // Gap between line chart and candles
-        let total_width = chart_width * 2.0 + gap; // Line chart + gap + candles
+        let total_width = chart_width; // Candles only
         let start_x = -total_width / 2.0;
         
-        // 1. Add line chart on the left side
-        let line_chart_start_x = start_x;
-        if hist_len > hist_start + 1 {
-            let (line_vertices, mut line_indices) = generate_line_chart_vertices(
-                &self.historical_candles, 
-                hist_start, 
-                line_chart_start_x
-            );
-            
-            for idx in &mut line_indices {
-                *idx += vtx_offset;
-            }
-            
-            if !line_vertices.is_empty() {
-                draw_ranges.push((all_indices.len() as u32, line_indices.len() as u32));
-                vtx_offset += line_vertices.len() as u16;
-                all_vertices.extend(line_vertices);
-                all_indices.extend(line_indices);
-            }
-        }
-        
-        // 2. Add historical candles on the right side
-        let candles_start_x = start_x + chart_width + gap;
+        // Add historical candles
+        let candles_start_x = start_x;
         
         for (i, candle) in self.historical_candles[hist_start..].iter().enumerate() {
             let x = candles_start_x + (i as f32 * spacing);
@@ -1628,8 +2184,85 @@ impl<'a> State<'a> {
         }
         
         drop(render_pass);
+        
+        // Render trading data with ultra-fast bitmap text
+        if let Some(candle) = &self.current_candle {
+            let screen_width = self.config.width as f32;
+            let screen_height = self.config.height as f32;
+            
+            // Display current price on the right side of the candles (large, prominent)
+            let price_text = format!("${:.2}", candle.close);
+            let price_color = if candle.close > candle.open {
+                [0.0, 1.0, 0.2, 1.0] // Bright green for up
+            } else if candle.close < candle.open {
+                [1.0, 0.2, 0.2, 1.0] // Red for down
+            } else {
+                [1.0, 1.0, 1.0, 1.0] // White for unchanged
+            };
+            // Position price on the right side of screen
+            let price_x = screen_width - 250.0; // Right side with margin
+            let price_y = 20.0;
+            self.fast_text.update_text(&price_text, price_x, price_y, 48.0, price_color, &self.queue, screen_width, screen_height);
+            
+            // Display additional trading stats
+            let percent_change = ((candle.close - candle.open) / candle.open) * 100.0;
+            let change_text = format!("{:+.2}%", percent_change);
+            let change_color = if percent_change > 0.0 {
+                [0.0, 1.0, 0.2, 1.0] // Green for positive
+            } else if percent_change < 0.0 {
+                [1.0, 0.2, 0.2, 1.0] // Red for negative
+            } else {
+                [1.0, 1.0, 1.0, 1.0] // White for zero
+            };
+            
+            // Prepare all text strings first
+            let high_text = format!("H: ${:.2}", candle.high);
+            let low_text = format!("L: ${:.2}", candle.low);
+            let volume_text = format!("Vol: {:.0}", candle._volume);
+            let camera_info = self.camera_controller.get_camera_info();
+            
+            // Create all text elements in sequence (this is ultra-fast with bitmap fonts)
+            let all_text_data = vec![
+                (price_text, price_x, price_y, 48.0, price_color),
+                (change_text, price_x, price_y + 60.0, 24.0, change_color),
+                (high_text, price_x, price_y + 100.0, 16.0, [0.8, 0.8, 0.8, 1.0]),
+                (low_text, price_x, price_y + 120.0, 16.0, [0.8, 0.8, 0.8, 1.0]),
+                (volume_text, price_x, price_y + 140.0, 14.0, [0.6, 0.6, 0.6, 1.0]),
+                (camera_info, 20.0, screen_height - 40.0, 12.0, [0.5, 0.5, 0.5, 1.0]),
+            ];
+            
+            // Create single render pass for all text (optimal performance)
+            let mut text_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Text Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // Preserve 3D content
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                ..Default::default()
+            });
+            
+            // Update all text first
+            for (text, x, y, size, color) in &all_text_data {
+                self.fast_text.update_text(text, *x, *y, *size, *color, &self.queue, screen_width, screen_height);
+            }
+            
+            // Single render call for all text
+            self.fast_text.render(&mut text_render_pass);
+            
+            drop(text_render_pass);
+        }
+        
+        // Finish command encoding and prepare for submission
+        
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
+        
+        // Staging belt removed
         Ok(())
     }
     
@@ -1662,7 +2295,7 @@ impl<'a> State<'a> {
     }
 }
 
-// Information window for displaying trading data as text
+// Information window for displaying trading data with bitmap fonts
 struct InfoWindow {
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
@@ -1670,6 +2303,8 @@ struct InfoWindow {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
+    // High-performance bitmap text renderer
+    fast_text: FastText,
 }
 
 impl InfoWindow {
@@ -1694,6 +2329,7 @@ impl InfoWindow {
                 &wgpu::DeviceDescriptor {
                     required_features: wgpu::Features::empty(),
                     required_limits: wgpu::Limits::default(),
+                    memory_hints: wgpu::MemoryHints::default(),
                     label: None,
                 },
                 None,
@@ -1721,6 +2357,9 @@ impl InfoWindow {
         };
         surface.configure(&device, &config);
 
+        // Initialize high-performance bitmap text renderer
+        let fast_text = FastText::new(&device, &queue, surface_format);
+
         Ok(Self {
             window: window.clone(),
             surface,
@@ -1728,6 +2367,7 @@ impl InfoWindow {
             queue,
             config,
             size,
+            fast_text,
         })
     }
 
@@ -1747,10 +2387,16 @@ impl InfoWindow {
     fn render(
         &mut self,
         candle_data: &Candle,
-        _camera_info: &str,
-        _fps: u32,
-        _candle_count: usize,
+        camera_info: &str,
+        fps: u32,
+        candle_count: usize,
     ) -> Result<(), wgpu::SurfaceError> {
+        // Prevent rendering if window is too small (prevents texture atlas issues)
+        let window_size = self.window.inner_size();
+        if window_size.width < 32 || window_size.height < 32 {
+            return Ok(());
+        }
+        
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -1762,38 +2408,26 @@ impl InfoWindow {
                 label: Some("Info Render Encoder"),
             });
 
-        // Color background based on price direction
-        let bg_color = if candle_data.close > candle_data.open {
-            wgpu::Color {
-                r: 0.0,
-                g: 0.15,
-                b: 0.05,
-                a: 1.0,
-            } // Dark green
-        } else if candle_data.close < candle_data.open {
-            wgpu::Color {
-                r: 0.15,
-                g: 0.0,
-                b: 0.05,
-                a: 1.0,
-            } // Dark red
-        } else {
-            wgpu::Color {
-                r: 0.1,
-                g: 0.1,
-                b: 0.1,
-                a: 1.0,
-            } // Dark gray
-        };
+        // Calculate trading data
+        let price_change = candle_data.close - candle_data.open;
+        let percent_change = (price_change / candle_data.open) * 100.0;
+        let frame_time_ms = if fps > 0 { 1000.0 / fps as f32 } else { 0.0 };
+        
+        // Console output for trading data (temporary until GUI text is fixed)
+        if fps % 60 == 0 { // Print every 60 frames to avoid spam
+            println!("📊 Trading Info | Price: ${:.2} | Change: {:.2}% | FPS: {} | Candles: {}", 
+                candle_data.close, percent_change, fps, candle_count);
+        }
 
+        // Simple render pass for the info window
         {
-            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Info Render Pass"),
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Info Window Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(bg_color),
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -1801,12 +2435,15 @@ impl InfoWindow {
                 ..Default::default()
             });
         }
+        
+        let command_buffer = encoder.finish();
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.queue.submit(std::iter::once(command_buffer));
         output.present();
 
         Ok(())
     }
+
 }
 
 #[tokio::main]
@@ -1822,31 +2459,12 @@ async fn main() {
     let event_loop = EventLoop::new().unwrap();
     
     // Create main chart window
-    let main_window = WindowBuilder::new()
-        .with_title("🚀 3D BTC Candlestick Chart | Press 'I' to toggle Info Window")
-        .with_inner_size(winit::dpi::LogicalSize::new(1200, 800))
-        .build(&event_loop)
-        .unwrap();
-
-    // Create info window upfront but initially hidden
-    let info_window_handle = WindowBuilder::new()
-        .with_title("📊 Trading Information Dashboard")
-        .with_inner_size(winit::dpi::LogicalSize::new(500, 400))
-        .with_resizable(true)
-        .with_position(winit::dpi::LogicalPosition::new(50, 50))
-        .with_visible(false)  // Start hidden
-        .build(&event_loop)
-        .unwrap();
+    let main_window_attrs = WindowAttributes::default()
+        .with_title("🚀 3D BTC Candlestick Chart | Real-time Trading Visualization")
+        .with_inner_size(winit::dpi::LogicalSize::new(1200, 800));
+    let main_window = event_loop.create_window(main_window_attrs).unwrap();
 
     let mut state = State::new(&main_window, historical_candles).await;
-    
-    // Initialize info window
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::all(),
-        ..Default::default()
-    });
-    let mut info_window = InfoWindow::new(&instance, info_window_handle).await.unwrap();
-    let mut show_info_window = false;
     
     // Shared candle data - initialize with last historical candle if available
     let initial_candle = if let Some(last_candle) = state.historical_candles.last() {
@@ -1894,16 +2512,7 @@ async fn main() {
                             state.camera_controller = CameraController::new(state.config.width as f32 / state.config.height as f32);
                         }
                         
-                        // Toggle info window with 'I' key
-                        if keycode == KeyCode::KeyI && event.state == ElementState::Pressed {
-                            show_info_window = !show_info_window;
-                            info_window.window.set_visible(show_info_window);
-                            if show_info_window {
-                                println!("Info window shown");
-                            } else {
-                                println!("Info window hidden");
-                            }
-                        }
+                        // Info window removed - all trading data now displayed in main window
                     }
                 }
                 WindowEvent::MouseInput { button, state: btn_state, .. } => {
@@ -1966,29 +2575,7 @@ async fn main() {
                 }
                 _ => {}
             },
-            // Handle info window events
-            Event::WindowEvent {
-                ref event,
-                window_id,
-            } if window_id == info_window.window.id() => match event {
-                WindowEvent::CloseRequested => {
-                    show_info_window = false;
-                    info_window.window.set_visible(false);
-                    println!("Info window hidden by user");
-                }
-                WindowEvent::Resized(physical_size) => {
-                    info_window.resize(*physical_size);
-                }
-                WindowEvent::RedrawRequested => {
-                    if let Ok(candle) = candle_data.lock() {
-                        let camera_info = state.camera_controller.get_camera_info();
-                        if let Err(e) = info_window.render(&candle, &camera_info, fps_counter, state.historical_candles.len()) {
-                            println!("Info window render error: {:?}", e);
-                        }
-                    }
-                }
-                _ => {}
-            },
+            // Info window removed - all data now displayed in main window with high-performance bitmap fonts
             Event::AboutToWait => {
                 // Check for new candle data
                 let mut updated = false;
@@ -2030,13 +2617,8 @@ async fn main() {
                     }
                 }
                 
-                // Always render main window
+                // Always render main window with bitmap text overlay
                 main_window.request_redraw();
-                
-                // Render info window if visible
-                if show_info_window {
-                    info_window.window.request_redraw();
-                }
                 // FPS counter
                 fps_counter += 1;
                 if fps_timer.elapsed().as_secs() >= 1 {
