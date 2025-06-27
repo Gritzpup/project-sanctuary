@@ -7,7 +7,7 @@ use winit::{
 };
 use wgpu::*;
 use crate::{
-    rendering::Renderer,
+    rendering::{Renderer, grid::{create_grid_vertices, GridVertex}},
     ui3d::UI3DSystem,
     visualization::{VisualizationManager, chart::camera::{CameraController, CameraUniform}},
     data::DataManager,
@@ -34,6 +34,16 @@ pub struct FuturisticDashboard<'a> {
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    // Grid rendering
+    grid_vertex_buffer: wgpu::Buffer,
+    grid_index_buffer: wgpu::Buffer,
+    grid_index_count: u32,
+    grid_pipeline: wgpu::RenderPipeline,
+    // Holographic panel rendering
+    holographic_panel_pipeline: wgpu::RenderPipeline,
+    holographic_vertex_buffer: Option<wgpu::Buffer>,
+    holographic_index_buffer: Option<wgpu::Buffer>,
+    holographic_index_count: u32,
 }
 
 impl<'a> FuturisticDashboard<'a> {
@@ -60,9 +70,10 @@ impl<'a> FuturisticDashboard<'a> {
         
         // Create main dashboard camera positioned to see entire scene
         let mut main_camera = CameraController::new(renderer.config.width as f32 / renderer.config.height as f32);
-        // Position camera to view the whole dashboard from a good vantage point
-        main_camera.eye = cgmath::Point3::new(0.0, 50.0, 80.0); // Much higher and further back
-        main_camera.target = cgmath::Point3::new(0.0, 5.0, 0.0); // Look slightly above center
+        // Position camera for a direct front view of the chart
+        main_camera.eye = cgmath::Point3::new(0.0, 0.0, 150.0); // Front view, centered
+        main_camera.target = cgmath::Point3::new(0.0, 0.0, 0.0); // Look at center
+        main_camera.zfar = 2000.0; // Match the increased far plane
         
         // Create camera uniform and buffer
         let mut camera_uniform = CameraUniform::new();
@@ -120,6 +131,132 @@ impl<'a> FuturisticDashboard<'a> {
         
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
         
+        // Create grid
+        let (grid_vertices, grid_indices) = create_grid_vertices(400.0, 40);
+        let grid_vertex_buffer = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Grid Vertex Buffer"),
+            contents: bytemuck::cast_slice(&grid_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let grid_index_buffer = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Grid Index Buffer"),
+            contents: bytemuck::cast_slice(&grid_indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        let grid_index_count = grid_indices.len() as u32;
+        
+        // Create grid pipeline
+        let grid_shader = renderer.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Grid Shader"),
+            source: wgpu::ShaderSource::Wgsl(crate::rendering::shaders::GRID_SHADER.into()),
+        });
+        
+        let grid_pipeline_layout = renderer.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Grid Pipeline Layout"),
+            bind_group_layouts: &[&camera_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+        
+        let grid_pipeline = renderer.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Grid Pipeline"),
+            layout: Some(&grid_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &grid_shader,
+                entry_point: Some("vs_main"),
+                buffers: &[GridVertex::desc()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &grid_shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: renderer.config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::LineList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        });
+        
+        // Create holographic panel pipeline
+        let holographic_shader = renderer.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Holographic Panel Shader"),
+            source: wgpu::ShaderSource::Wgsl(crate::rendering::shaders::HOLOGRAPHIC_PANEL_SHADER.into()),
+        });
+        
+        let holographic_pipeline_layout = renderer.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Holographic Panel Pipeline Layout"),
+            bind_group_layouts: &[&camera_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+        
+        let holographic_panel_pipeline = renderer.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Holographic Panel Pipeline"),
+            layout: Some(&holographic_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &holographic_shader,
+                entry_point: Some("vs_main"),
+                buffers: &[crate::ui3d::panels::HologramVertex::desc()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &holographic_shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: renderer.config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        });
+        
         Self {
             renderer,
             ui_system,
@@ -135,6 +272,14 @@ impl<'a> FuturisticDashboard<'a> {
             camera_uniform,
             camera_buffer,
             camera_bind_group,
+            grid_vertex_buffer,
+            grid_index_buffer,
+            grid_index_count,
+            grid_pipeline,
+            holographic_panel_pipeline,
+            holographic_vertex_buffer: None,
+            holographic_index_buffer: None,
+            holographic_index_count: 0,
         }
     }
     
@@ -224,25 +369,24 @@ impl<'a> FuturisticDashboard<'a> {
         
         let input = &self.interaction.input;
         
-        // Keyboard controls
-        if input.is_key_pressed(KeyCode::KeyW) {
-            self.main_camera.process_keyboard(KeyCode::KeyW, ElementState::Pressed);
+        // Keyboard controls with proper press/release handling
+        let keys = [
+            (KeyCode::KeyW, input.is_key_pressed(KeyCode::KeyW)),
+            (KeyCode::KeyS, input.is_key_pressed(KeyCode::KeyS)),
+            (KeyCode::KeyA, input.is_key_pressed(KeyCode::KeyA)),
+            (KeyCode::KeyD, input.is_key_pressed(KeyCode::KeyD)),
+            (KeyCode::KeyQ, input.is_key_pressed(KeyCode::KeyQ)),
+            (KeyCode::KeyE, input.is_key_pressed(KeyCode::KeyE)),
+        ];
+        
+        for (key, pressed) in keys {
+            if pressed {
+                self.main_camera.process_keyboard(key, ElementState::Pressed);
+            } else {
+                self.main_camera.process_keyboard(key, ElementState::Released);
+            }
         }
-        if input.is_key_pressed(KeyCode::KeyS) {
-            self.main_camera.process_keyboard(KeyCode::KeyS, ElementState::Pressed);
-        }
-        if input.is_key_pressed(KeyCode::KeyA) {
-            self.main_camera.process_keyboard(KeyCode::KeyA, ElementState::Pressed);
-        }
-        if input.is_key_pressed(KeyCode::KeyD) {
-            self.main_camera.process_keyboard(KeyCode::KeyD, ElementState::Pressed);
-        }
-        if input.is_key_pressed(KeyCode::KeyQ) {
-            self.main_camera.process_keyboard(KeyCode::KeyQ, ElementState::Pressed);
-        }
-        if input.is_key_pressed(KeyCode::KeyE) {
-            self.main_camera.process_keyboard(KeyCode::KeyE, ElementState::Pressed);
-        }
+        
         if input.is_key_pressed(KeyCode::KeyR) {
             self.main_camera.reset();
         }
@@ -304,11 +448,52 @@ impl<'a> FuturisticDashboard<'a> {
                     });
                 }
                 
+                // Render grid floor
+                {
+                    let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                        label: Some("Grid Render Pass"),
+                        color_attachments: &[Some(RenderPassColorAttachment {
+                            view: &view,
+                            resolve_target: None,
+                            ops: Operations {
+                                load: LoadOp::Load,
+                                store: StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                            view: &self.depth_view,
+                            depth_ops: Some(Operations {
+                                load: LoadOp::Load,
+                                store: StoreOp::Store,
+                            }),
+                            stencil_ops: None,
+                        }),
+                        occlusion_query_set: None,
+                        timestamp_writes: None,
+                    });
+                    
+                    render_pass.set_pipeline(&self.grid_pipeline);
+                    render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                    render_pass.set_vertex_buffer(0, self.grid_vertex_buffer.slice(..));
+                    render_pass.set_index_buffer(self.grid_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                    render_pass.draw_indexed(0..self.grid_index_count, 0, 0..1);
+                }
+                
                 // Render BTC chart and visualizations with main dashboard camera
                 self.visualizations.render(&mut encoder, &view, &self.depth_view, &self.camera_bind_group);
                 
                 // Render holographic UI panels
-                self.ui_system.render(&mut encoder);
+                self.ui_system.render(
+                    &mut encoder,
+                    &view,
+                    &self.depth_view,
+                    &self.camera_bind_group,
+                    &self.holographic_panel_pipeline,
+                    &self.renderer.device,
+                    &mut self.holographic_vertex_buffer,
+                    &mut self.holographic_index_buffer,
+                    &mut self.holographic_index_count,
+                );
                 
                 // Submit commands and present
                 self.renderer.queue.submit(std::iter::once(encoder.finish()));

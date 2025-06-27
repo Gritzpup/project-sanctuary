@@ -10,8 +10,9 @@ pub mod panels;
 pub mod sidebar;
 
 use crate::rendering::Renderer;
-use crate::ui3d::sidebar::SidebarManager;
+use crate::ui3d::sidebar::{SidebarManager, PanelWrapper};
 use crate::ui3d::panels::HologramVertex;
+use wgpu::util::DeviceExt;
 
 pub struct UI3DSystem {
     panels: Vec<panel::Panel3D>,
@@ -24,10 +25,16 @@ impl UI3DSystem {
         println!("✨ Initializing futuristic UI components...");
         println!("🔮 Creating holographic panels...");
         
+        let mut sidebar = SidebarManager::new();
+        
+        // The sidebar automatically initializes panels in its constructor
+        // Set layout to circular for cool arrangement
+        sidebar.set_layout(crate::ui3d::sidebar::PanelLayout::Circular);
+        
         Self {
             panels: Vec::new(),
             active_theme: theme::FuturisticTheme::cyberpunk(),
-            sidebar: SidebarManager::new(),
+            sidebar,
         }
     }
     
@@ -41,19 +48,91 @@ impl UI3DSystem {
         self.sidebar.update(dt);
     }
     
-    pub fn render(&self, encoder: &mut wgpu::CommandEncoder) {
-        // Render UI elements
-        
-        // Generate sidebar vertices and render
+    pub fn render(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        depth_view: &wgpu::TextureView,
+        camera_bind_group: &wgpu::BindGroup,
+        holographic_panel_pipeline: &wgpu::RenderPipeline,
+        device: &wgpu::Device,
+        vertex_buffer: &mut Option<wgpu::Buffer>,
+        index_buffer: &mut Option<wgpu::Buffer>,
+        index_count: &mut u32,
+    ) {
+        // Generate vertices for all panels
         let (vertices, indices) = self.sidebar.generate_all_vertices();
         
-        // Debug: Show how many vertices we have
-        if !vertices.is_empty() {
-            println!("🎨 Rendering {} UI vertices with {} indices", vertices.len(), indices.len());
+        if vertices.is_empty() {
+            return;
         }
         
-        // TODO: Create vertex buffer and render pass for holographic panels
-        // For now, this is just a placeholder - we need to implement actual rendering
+        // Create or update vertex buffer
+        *vertex_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Holographic Panel Vertex Buffer"),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        }));
+        
+        // Create or update index buffer
+        *index_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Holographic Panel Index Buffer"),
+            contents: bytemuck::cast_slice(&indices),
+            usage: wgpu::BufferUsages::INDEX,
+        }));
+        
+        *index_count = indices.len() as u32;
+        
+        // Debug: Log panel rendering info
+        println!("🎭 Rendering {} holographic panel vertices, {} indices", 
+                 vertices.len(), indices.len());
+        
+        // Debug: Log each panel position
+        for panel in &self.sidebar.panels {
+            match panel {
+                PanelWrapper::Portfolio(p) => {
+                    println!("  📊 Portfolio at {:?}", p.base_panel.transform.position);
+                },
+                PanelWrapper::OrderBook(p) => {
+                    println!("  📈 OrderBook at {:?}", p.base_panel.transform.position);
+                },
+                PanelWrapper::MarketHeatmap(p) => {
+                    println!("  🔥 Heatmap at {:?}", p.base_panel.transform.position);
+                },
+                PanelWrapper::TradeStream(p) => {
+                    println!("  💫 TradeStream at {:?}", p.base_panel.transform.position);
+                },
+            }
+        }
+        
+        // Render holographic panels
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Holographic Panel Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            occlusion_query_set: None,
+            timestamp_writes: None,
+        });
+        
+        render_pass.set_pipeline(holographic_panel_pipeline);
+        render_pass.set_bind_group(0, camera_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, vertex_buffer.as_ref().unwrap().slice(..));
+        render_pass.set_index_buffer(index_buffer.as_ref().unwrap().slice(..), wgpu::IndexFormat::Uint16);
+        render_pass.draw_indexed(0..*index_count, 0, 0..1);
     }
     
     pub fn get_sidebar(&mut self) -> &mut SidebarManager {

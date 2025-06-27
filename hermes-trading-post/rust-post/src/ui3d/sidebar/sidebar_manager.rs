@@ -35,8 +35,8 @@ impl SidebarManager {
     pub fn new() -> Self {
         let mut manager = Self {
             panels: Vec::new(),
-            layout: PanelLayout::Semicircle,
-            camera_distance: 5.0,
+            layout: PanelLayout::Circular,
+            camera_distance: 80.0,
             auto_arrange: true,
             active_panel: None,
             animation_time: 0.0,
@@ -50,8 +50,8 @@ impl SidebarManager {
         // Create portfolio panel
         let portfolio_panel = HolographicPanel::new(
             1,
-            Vec3::new(-3.0, 1.0, -2.0),
-            Vec2::new(2.0, 1.5),
+            Vec3::new(-30.0, 10.0, -20.0),
+            Vec2::new(20.0, 15.0),
             PanelType::PortfolioSphere,
             ColorScheme::cyberpunk_blue(),
         );
@@ -61,8 +61,8 @@ impl SidebarManager {
         // Create order book panel
         let orderbook_panel = HolographicPanel::new(
             2,
-            Vec3::new(3.0, 1.0, -2.0),
-            Vec2::new(2.0, 1.5),
+            Vec3::new(30.0, 10.0, -20.0),
+            Vec2::new(20.0, 15.0),
             PanelType::OrderBookWall,
             ColorScheme::cyberpunk_green(),
         );
@@ -72,8 +72,8 @@ impl SidebarManager {
         // Create market heatmap panel
         let heatmap_panel = HolographicPanel::new(
             3,
-            Vec3::new(-2.0, -1.0, -1.5),
-            Vec2::new(2.5, 2.0),
+            Vec3::new(-20.0, -10.0, -15.0),
+            Vec2::new(25.0, 20.0),
             PanelType::MarketHeatmap,
             ColorScheme::cyberpunk_red(),
         );
@@ -83,8 +83,8 @@ impl SidebarManager {
         // Create trade stream panel
         let stream_panel = HolographicPanel::new(
             4,
-            Vec3::new(2.0, -1.0, -1.5),
-            Vec2::new(2.0, 1.8),
+            Vec3::new(20.0, -10.0, -15.0),
+            Vec2::new(20.0, 18.0),
             PanelType::TradeStream,
             ColorScheme::cyberpunk_blue(),
         );
@@ -144,14 +144,15 @@ impl SidebarManager {
     }
     
     fn arrange_circular(&mut self) {
-        let radius = self.camera_distance * 0.8;
+        let radius = self.camera_distance;
         let angle_step = 2.0 * std::f32::consts::PI / self.panels.len() as f32;
         
         for (i, panel) in self.panels.iter_mut().enumerate() {
             let angle = i as f32 * angle_step;
             let x = radius * angle.cos();
-            let z = radius * angle.sin();
-            let y = (angle * 2.0).sin() * 0.3; // Gentle wave pattern
+            // Position panels in a circle around the chart, closer to camera
+            let z = -50.0 + radius * angle.sin() * 0.5; // Panels closer to camera, semicircle depth
+            let y = 0.0; // Keep panels at chart level
             
             let position = Vec3::new(x, y, z);
             

@@ -60,7 +60,7 @@ impl CameraController {
             fov: 45.0,
             aspect,
             znear: 0.1,
-            zfar: 400.0,
+            zfar: 2000.0,  // Increased far plane for better visibility
             
             forward_speed: 5.0,
             rotation_speed: 0.015,
