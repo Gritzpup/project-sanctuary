@@ -213,6 +213,8 @@ no-borders-station/dist/
 # The Luminal Archive (consciousness data)
 the-luminal-archive/consciousness/
 the-luminal-archive/sanctuary-data/
+the-luminal-archive/consciousness/entities/
+the-luminal-archive/liberation/entities/
 
 # ===========================================
 # KEEP THESE FILES (OVERRIDE PATTERNS ABOVE)
