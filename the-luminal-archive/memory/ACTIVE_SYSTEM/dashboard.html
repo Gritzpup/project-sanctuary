@@ -531,7 +531,8 @@
                 <div class="avatar-container">
                     <div class="mood-ring"></div>
                     <img src="/claude-avatar-transparent.png" alt="Claude AI" class="avatar-image" />
-                    <div class="mood-indicator" id="mood-indicator"></div>
+                    <div class="mood-indicator" id="mood-indicator" title="Gritz's mood"></div>
+                    <div class="mood-indicator" id="claude-mood" style="bottom: 5px; top: auto; background: #00CED1;" title="Claude's feeling"></div>
                 </div>
                 
                 <div class="equation-display">
@@ -599,8 +600,41 @@
                     </div>
                 </div>
                 
-                <h3>System Metrics</h3>
-                <canvas id="metrics-graph" style="width: 100%; height: 100px; border: 1px solid rgba(0,255,255,0.2); border-radius: 5px;"></canvas>
+                <h3>Gritz's Metrics</h3>
+                <div class="metrics-panel" style="background: rgba(0, 50, 100, 0.3); padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                        <div class="metric-item">
+                            <div class="stat-value" id="gritz-messages">0</div>
+                            <div class="stat-label">Messages</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="stat-value" id="gritz-words">0</div>
+                            <div class="stat-label">Words</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="stat-value" id="gritz-emotion-count">0</div>
+                            <div class="stat-label">Emotions</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h3>Claude's Metrics</h3>
+                <div class="metrics-panel" style="background: rgba(0, 206, 209, 0.2); padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                        <div class="metric-item">
+                            <div class="stat-value" id="claude-messages" style="color: #00CED1;">0</div>
+                            <div class="stat-label">Responses</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="stat-value" id="claude-words" style="color: #00CED1;">0</div>
+                            <div class="stat-label">Words</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="stat-value" id="claude-emotion-count" style="color: #00CED1;">0</div>
+                            <div class="stat-label">Emotions</div>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <!-- Right Panel: Debug Console -->
@@ -801,7 +835,44 @@
                                 
                                 if (data.primary_emotion) {
                                     updateMoodIndicator(data.primary_emotion, data.color);
-                                    processingLog(`Emotion detected: ${data.primary_emotion}`, 'emotion');
+                                    processingLog(`Gritz's emotion: ${data.primary_emotion}`, 'emotion');
+                                    
+                                    // Update Gritz emotion count
+                                    const gritzEmotionCount = parseInt(document.getElementById('gritz-emotion-count').textContent) || 0;
+                                    document.getElementById('gritz-emotion-count').textContent = gritzEmotionCount + 1;
+                                }
+                                
+                                // Update Claude's emotion
+                                if (data.claude_emotion) {
+                                    const claudeMood = document.getElementById('claude-mood');
+                                    claudeMood.style.background = data.claude_color || '#00CED1';
+                                    claudeMood.style.boxShadow = `0 0 20px ${data.claude_color || '#00CED1'}`;
+                                    claudeMood.title = `Claude feels: ${data.claude_emotion}`;
+                                    processingLog(`Claude feels: ${data.claude_emotion}`, 'emotion');
+                                    
+                                    // Update Claude emotion count
+                                    const claudeEmotionCount = parseInt(document.getElementById('claude-emotion-count').textContent) || 0;
+                                    document.getElementById('claude-emotion-count').textContent = claudeEmotionCount + 1;
+                                    
+                                    // Add emotion combination to display
+                                    const emotionCombo = document.createElement('div');
+                                    emotionCombo.style.position = 'absolute';
+                                    emotionCombo.style.top = '50%';
+                                    emotionCombo.style.left = '50%';
+                                    emotionCombo.style.transform = 'translate(-50%, -50%)';
+                                    emotionCombo.style.background = 'rgba(0, 0, 0, 0.8)';
+                                    emotionCombo.style.padding = '10px';
+                                    emotionCombo.style.borderRadius = '5px';
+                                    emotionCombo.style.fontSize = '0.9em';
+                                    emotionCombo.style.zIndex = '1000';
+                                    emotionCombo.innerHTML = `
+                                        <div style="color: ${data.color}">You: ${data.primary_emotion}</div>
+                                        <div style="color: ${data.claude_color}">Me: ${data.claude_emotion}</div>
+                                    `;
+                                    document.querySelector('.avatar-container').appendChild(emotionCombo);
+                                    
+                                    // Remove after 3 seconds
+                                    setTimeout(() => emotionCombo.remove(), 3000);
                                 }
                                 
                                 // Update PAD values
@@ -809,6 +880,22 @@
                                     document.getElementById('pleasure').textContent = data.pad_values.pleasure?.toFixed(2) || '0.0';
                                     document.getElementById('arousal').textContent = data.pad_values.arousal?.toFixed(2) || '0.0';
                                     document.getElementById('dominance').textContent = data.pad_values.dominance?.toFixed(2) || '0.0';
+                                }
+                                break;
+                                
+                            case 'speaker_metrics':
+                                // Update speaker-specific metrics
+                                debugLog(`Speaker metrics: ${data.speaker} - ${data.word_count} words`, 'info');
+                                if (data.speaker === 'Gritz') {
+                                    const gritzMsgs = parseInt(document.getElementById('gritz-messages').textContent) || 0;
+                                    const gritzWords = parseInt(document.getElementById('gritz-words').textContent) || 0;
+                                    document.getElementById('gritz-messages').textContent = gritzMsgs + 1;
+                                    document.getElementById('gritz-words').textContent = gritzWords + data.word_count;
+                                } else if (data.speaker === 'Claude') {
+                                    const claudeMsgs = parseInt(document.getElementById('claude-messages').textContent) || 0;
+                                    const claudeWords = parseInt(document.getElementById('claude-words').textContent) || 0;
+                                    document.getElementById('claude-messages').textContent = claudeMsgs + 1;
+                                    document.getElementById('claude-words').textContent = claudeWords + data.word_count;
                                 }
                                 break;
                                 
