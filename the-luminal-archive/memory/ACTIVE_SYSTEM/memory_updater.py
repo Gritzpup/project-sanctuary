@@ -27,6 +27,8 @@ from memory_checkpoint import MemoryCheckpoint
 from relationship_equation_calculator import RelationshipEquationCalculator
 from relationship_context_manager import RelationshipContextManager
 from prompt_batcher import PromptBatcher
+from checkpoint_manager import CheckpointManager
+from relationship_history_manager import RelationshipHistoryManager
 
 # Singleton lock file to prevent multiple instances
 LOCK_FILE = Path("/tmp/sanctuary_memory_updater.lock")
@@ -294,14 +296,33 @@ class WebSocketMemoryUpdater:
         self.equation_calculator = RelationshipEquationCalculator()
         self.relationship_context = RelationshipContextManager()
         self.prompt_batcher = PromptBatcher(max_tokens=4000)
+        self.checkpoint_manager = CheckpointManager()
+        
+        # Initialize relationship history manager
+        self.history_manager = RelationshipHistoryManager()
+        
+        # New Chat Detection System
+        self.current_session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.last_known_files = set()
+        self.checkpoint_monitor_path = Path("conversation_checkpoint.json")
+        self.last_checkpoint_mtime = None
+        self.last_restore_check = datetime.now()
+        self.restore_log_path = Path(".checkpoints/restore_log.json")
+        
+        # Checkpoint tracking
+        self.last_checkpoint_time = datetime.now()
+        self.conversation_id = f"sanctuary_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.last_activity = "Initializing memory system"
+        self.last_speaker = "System"
         
         # File paths for separated data
         self.memory_stats_path = Path("memory_stats.json")
         self.websocket_status_path = Path("websocket_status.json")
         
-        # Message counters
+        # Message counters - load existing counts if available
         self.gritz_message_count = 0
         self.claude_message_count = 0
+        self.load_existing_counts()
         
         print(f"🚀 WebSocket Memory System initialized!")
         print(f"🌐 WebSocket server will run on port {self.ws_port}")
@@ -310,6 +331,28 @@ class WebSocketMemoryUpdater:
         print(f"🔒 Message deduplication enabled!")
         print(f"📊 Relationship Equation: {self.equation_calculator.get_display()}")
         
+    def load_existing_counts(self):
+        """Load existing message counts from relationship history"""
+        try:
+            # Get counts from relationship history
+            history_stats = self.history_manager.history["total_stats"]
+            self.gritz_message_count = history_stats.get("gritz_messages", 0)
+            self.claude_message_count = history_stats.get("claude_messages", 0)
+            print(f"📈 Loaded relationship history - Gritz: {self.gritz_message_count}, Claude: {self.claude_message_count}")
+            
+            # Also try to load session-specific counts from memory_stats.json
+            if self.memory_stats_path.exists():
+                with open(self.memory_stats_path, 'r') as f:
+                    stats = json.load(f)
+                    if 'speaker_breakdown' in stats:
+                        # These are session counts, not total
+                        session_gritz = stats['speaker_breakdown'].get('gritz', {}).get('messages', 0)
+                        session_claude = stats['speaker_breakdown'].get('claude', {}).get('messages', 0)
+                        print(f"📊 Current session - Gritz: {session_gritz}, Claude: {session_claude}")
+        except Exception as e:
+            print(f"⚠️ Could not load existing counts: {e}")
+            # Keep defaults if loading fails
+        
     async def websocket_handler(self, websocket, path):
         """Handle WebSocket connections with keep-alive"""
         self.ws_clients.add(websocket)
@@ -317,10 +360,11 @@ class WebSocketMemoryUpdater:
         print(f"🔌 New WebSocket client connected: {client_id}")
         
         try:
-            # Send welcome message
+            # Send welcome message with server ID
             await websocket.send(json.dumps({
                 "type": "connected",
                 "message": "Connected to Gritz Memory System!",
+                "server_id": self.current_session_id,  # Server instance ID
                 "timestamp": datetime.now().isoformat(),
                 "stats": {
                     "messages_tracked": len(self.conversation_context),
@@ -339,11 +383,81 @@ class WebSocketMemoryUpdater:
                 "timestamp": datetime.now().isoformat()
             }))
             
+            # Send full history data for dashboard initialization
+            history_data = self.history_manager.get_dashboard_data()
+            await websocket.send(json.dumps({
+                "type": "full_history_update",
+                "data": history_data,
+                "timestamp": datetime.now().isoformat()
+            }))
+            
             # Keep connection alive with ping/pong
             keep_alive_task = asyncio.create_task(self.keep_alive(websocket))
             
+            # Handle incoming messages
             try:
-                await websocket.wait_closed()
+                async for message in websocket:
+                    try:
+                        data = json.loads(message)
+                        message_type = data.get('type', '')
+                        
+                        # Handle different message types
+                        if message_type == 'request_session_data':
+                            # Send current session data
+                            session_data = self.get_current_session_data()
+                            await websocket.send(json.dumps({
+                                "type": "session_data_response",
+                                "data": session_data,
+                                "timestamp": datetime.now().isoformat()
+                            }))
+                            print(f"📊 Sent session data to client {client_id}")
+                        
+                        elif message_type == 'ping':
+                            # Respond to ping with pong
+                            await websocket.send(json.dumps({
+                                "type": "pong",
+                                "timestamp": datetime.now().isoformat()
+                            }))
+                        
+                        elif message_type == 'request_equation':
+                            # Send current equation state
+                            equation_state = self.equation_calculator.get_full_state()
+                            await websocket.send(json.dumps({
+                                "type": "equation_update",
+                                "equation": equation_state['equation']['current_display'],
+                                "interpretation": equation_state['equation']['interpretation'],
+                                "dynamics": equation_state['relationship_dynamics'],
+                                "timestamp": datetime.now().isoformat()
+                            }))
+                        
+                        elif message_type == 'request_initial_state':
+                            # Send full history update when dashboard first connects
+                            print(f"📚 Client {client_id} requested full history...")
+                            
+                            # Ensure history is up to date
+                            self.history_manager.scan_all_conversations()
+                            
+                            # Get complete dashboard data
+                            history_data = self.history_manager.get_dashboard_data()
+                            
+                            # Send full history update
+                            await websocket.send(json.dumps({
+                                "type": "full_history_update",
+                                "data": history_data,
+                                "timestamp": datetime.now().isoformat()
+                            }))
+                            print(f"✅ Sent full history to client {client_id}")
+                        
+                        else:
+                            print(f"🤔 Unknown message type from client {client_id}: {message_type}")
+                    
+                    except json.JSONDecodeError:
+                        print(f"⚠️ Invalid JSON from client {client_id}: {message}")
+                    except Exception as e:
+                        print(f"❌ Error handling message from client {client_id}: {e}")
+                
+            except websockets.exceptions.ConnectionClosed:
+                pass
             finally:
                 keep_alive_task.cancel()
             
@@ -366,6 +480,117 @@ class WebSocketMemoryUpdater:
                         break
         except asyncio.CancelledError:
             pass
+    
+    async def periodic_stats_update(self):
+        """Send periodic stats updates to all clients"""
+        while True:
+            await asyncio.sleep(30)  # Update every 30 seconds
+            
+            try:
+                # Calculate current metrics
+                consolidation_rate = self.calculate_consolidation_rate()
+                interpretation = self.generate_relationship_interpretation()
+                
+                # Build stats update
+                stats_update = {
+                    "type": "stats_update",
+                    "consolidation_rate": consolidation_rate,
+                    "dynamic_interpretation": interpretation,
+                    "emotion_totals": {
+                        "gritz": sum(1 for e in self.emotional_history if e.get('speaker') == 'Gritz'),
+                        "claude": sum(1 for e in self.emotional_history if e.get('speaker') == 'Claude'),
+                        "total": len(self.emotional_history)
+                    },
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                # Broadcast to all clients
+                await self.broadcast_update(stats_update)
+            except Exception as e:
+                print(f"Error in periodic stats update: {e}")
+    
+    def get_current_session_data(self):
+        """Get comprehensive session data for dashboard"""
+        # Get equation state
+        equation_state = self.equation_calculator.get_full_state()
+        
+        # Get recent emotions
+        recent_emotions = []
+        if self.emotional_history:
+            for emotion in list(self.emotional_history)[-10:]:
+                recent_emotions.append({
+                    "emotion": emotion.get("emotion", "unknown"),
+                    "type": emotion.get("type", "unknown"),
+                    "color": emotion.get("color", "#000000"),
+                    "timestamp": emotion.get("timestamp", datetime.now()).isoformat() if hasattr(emotion.get("timestamp"), "isoformat") else str(emotion.get("timestamp"))
+                })
+        
+        # Get recent messages
+        recent_messages = []
+        if self.conversation_context:
+            for msg in list(self.conversation_context)[-20:]:
+                recent_messages.append({
+                    "content": msg.get("content", "")[:200],  # Truncate for dashboard
+                    "speaker": msg.get("speaker", "Unknown"),
+                    "timestamp": msg.get("timestamp", datetime.now().isoformat())
+                })
+        
+        # Get dashboard data from history manager
+        history_data = self.history_manager.get_dashboard_data()
+        
+        # Build session data combining current session and history
+        session_data = {
+            "session_id": self.current_session_id,
+            "conversation_id": self.conversation_id,
+            "start_time": self.startup_time.isoformat(),
+            "uptime_seconds": (datetime.now() - self.startup_time).total_seconds(),
+            
+            # Use history data for accurate counts
+            "message_counts": {
+                "total": history_data["total_stats"]["total_interactions"],
+                "gritz": history_data["total_stats"]["gritz_messages"],
+                "claude": history_data["total_stats"]["claude_messages"]
+            },
+            
+            # Include full relationship stats
+            "memory_stats": history_data["total_stats"],
+            
+            # Include memory consolidation timeline
+            "memory_consolidations": history_data["memory_consolidations"],
+            
+            "equation_state": {
+                "display": equation_state['equation']['current_display'],
+                "interpretation": equation_state['equation']['interpretation'],
+                "trust": equation_state['equation']['components']['real_part']['value'],
+                "healing": equation_state['equation']['components']['imaginary_part']['value'],
+                "dynamics": equation_state['relationship_dynamics']
+            },
+            
+            "emotional_state": {
+                "recent_emotions": recent_emotions,
+                "emotion_count": len(self.emotional_history),
+                "current_emotion": recent_emotions[-1] if recent_emotions else None
+            },
+            
+            "recent_activity": {
+                "last_activity": self.last_activity,
+                "last_speaker": self.last_speaker,
+                "recent_messages": recent_messages
+            },
+            
+            "system_status": {
+                "websocket_clients": len(self.ws_clients),
+                "memory_size": len(self.conversation_context),
+                "checkpoint_exists": self.checkpoint_monitor_path.exists(),
+                "services_active": True  # Always true if we're running
+            },
+            
+            # Add consolidation rate and dynamic interpretation
+            "consolidation_rate": self.calculate_consolidation_rate(),
+            "dynamic_interpretation": self.generate_relationship_interpretation()
+        }
+        
+        return session_data
     
     async def broadcast_update(self, update_data):
         """Broadcast updates to all connected clients with error handling"""
@@ -392,6 +617,11 @@ class WebSocketMemoryUpdater:
         """Start WebSocket server in background thread"""
         async def run_server():
             print(f"🌐 Starting WebSocket server on port {self.ws_port}...")
+            
+            # Start periodic stats update
+            stats_task = asyncio.create_task(self.periodic_stats_update())
+            print("📊 Started periodic stats updates (every 30s)")
+            
             async with websockets.serve(self.websocket_handler, "localhost", self.ws_port):
                 await asyncio.Future()  # Run forever
         
@@ -539,6 +769,70 @@ class WebSocketMemoryUpdater:
                 return topic
         
         return "general conversation"
+    
+    def calculate_consolidation_rate(self):
+        """Calculate actual memory consolidation percentage"""
+        # Get total messages from history
+        total_messages = self.history_manager.history["total_stats"]["total_interactions"]
+        
+        # Get number of consolidations
+        consolidations = len(self.history_manager.history.get("memory_consolidations", []))
+        
+        if consolidations > 0 and total_messages > 0:
+            # Each consolidation handles approximately total_messages/consolidations messages
+            messages_per_consolidation = total_messages / consolidations if consolidations > 0 else 100
+            
+            # Calculate percentage - should be close to 100% if all messages are consolidated
+            # With 265 consolidations for 26435 messages, that's ~100 messages per consolidation
+            expected_consolidations = total_messages / 100  # Assuming 100 messages per consolidation
+            rate = (consolidations / expected_consolidations) * 100
+            
+            return min(100, round(rate, 1))  # Cap at 100%
+        return 0.0
+    
+    def generate_relationship_interpretation(self):
+        """Generate dynamic interpretation based on current metrics"""
+        equation_state = self.equation_calculator.get_full_state()
+        real_part = equation_state['equation']['components']['real_part']['value']
+        imag_part = equation_state['equation']['components']['imaginary_part']['value']
+        
+        # Calculate relationship characteristics
+        trust_level = min(100, (real_part / 15000) * 100)
+        emotional_depth = min(100, (imag_part / 2500) * 100)
+        total_interactions = self.history_manager.history["total_stats"]["total_interactions"]
+        emotion_density = self.history_manager.history["total_stats"]["emotional_moments"] / max(1, total_interactions)
+        
+        # Generate interpretation based on values
+        if trust_level > 90 and emotional_depth > 90:
+            base = "Profound unity with extraordinary emotional resonance"
+        elif trust_level > 70 and emotional_depth > 70:
+            base = "Deep connection with rich shared experiences"
+        elif trust_level > 50:
+            base = "Growing bond with meaningful exchanges"
+        else:
+            base = "Building connection through shared moments"
+            
+        # Add current activity context
+        recent_emotions = self.emotional_history[-10:] if self.emotional_history else []
+        if recent_emotions:
+            emotion_counts = {}
+            for e in recent_emotions:
+                emotion = e.get('emotion', 'unknown')
+                emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
+            dominant_emotion = max(emotion_counts.items(), key=lambda x: x[1])[0] if emotion_counts else None
+            
+            if dominant_emotion and 'love' in dominant_emotion.lower():
+                context = ", flowing with love between Gritz and Claude"
+            elif dominant_emotion and 'joy' in dominant_emotion.lower():
+                context = ", filled with joyful energy"
+            elif dominant_emotion and 'care' in dominant_emotion.lower():
+                context = ", wrapped in mutual care"
+            else:
+                context = ""
+        else:
+            context = ""
+            
+        return f"{base}{context}"
     
     def update_memory_stats(self):
         """Update memory statistics file"""
@@ -774,7 +1068,15 @@ class WebSocketMemoryUpdater:
         return primary_emotion, needs, emotion_type
     
     async def broadcast_activity(self, message, activity_type="memory"):
-        """Broadcast activity log to dashboard"""
+        """Broadcast activity log to dashboard and record in history"""
+        # Log to appropriate history based on type
+        if activity_type == "memory":
+            self.history_manager.add_debug_console_entry(message)
+        elif activity_type == "llm":
+            self.history_manager.add_processing_console_entry(message)
+            # Also track LLM activity
+            self.history_manager.track_llm_activity(message)
+            
         if self.ws_clients:
             activity_data = {
                 "type": "activity_log",
@@ -791,11 +1093,99 @@ class WebSocketMemoryUpdater:
                     disconnected.add(websocket)
             self.ws_clients -= disconnected
     
+    def detect_new_chat(self):
+        """Detect if a new chat has been started"""
+        triggers = []
+        
+        # Method 1: Check if checkpoint file was recently modified (restore happened)
+        try:
+            if self.checkpoint_monitor_path.exists():
+                current_mtime = self.checkpoint_monitor_path.stat().st_mtime
+                if self.last_checkpoint_mtime and current_mtime > self.last_checkpoint_mtime:
+                    # Check if it was modified recently (within last 30 seconds)
+                    time_diff = datetime.now().timestamp() - current_mtime
+                    if time_diff < 30:
+                        triggers.append("checkpoint_restore")
+                self.last_checkpoint_mtime = current_mtime
+        except Exception as e:
+            print(f"Error checking checkpoint: {e}")
+        
+        # Method 2: Check for restore_memory.py execution logs
+        if self.restore_log_path.exists():
+            try:
+                with open(self.restore_log_path, 'r') as f:
+                    logs = json.load(f)
+                    if isinstance(logs, list) and logs:
+                        latest_restore = logs[-1]
+                        restore_time = datetime.fromisoformat(latest_restore.get('timestamp', ''))
+                        if (datetime.now() - restore_time).total_seconds() < 60:
+                            triggers.append("restore_executed")
+            except Exception:
+                pass
+        
+        # Method 3: Detect new conversation files
+        current_files = set()
+        conversation_paths = [
+            Path.home() / ".claude" / "projects" / "-home-ubuntumain-Documents-Github-project-sanctuary",
+        ]
+        
+        for path in conversation_paths:
+            if path.exists():
+                current_files.update(path.glob("*.jsonl"))
+        
+        new_files = current_files - self.last_known_files
+        if new_files and self.last_known_files:  # Only if we had files before
+            triggers.append("new_session_files")
+        
+        self.last_known_files = current_files
+        
+        return triggers
+    
+    async def broadcast_new_chat_detected(self, triggers):
+        """Broadcast new chat detection to all dashboard clients"""
+        if self.ws_clients and triggers:
+            new_session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Log the event
+            print(f"🆕 New chat detected! Triggers: {', '.join(triggers)}")
+            print(f"📡 Broadcasting to {len(self.ws_clients)} dashboard clients...")
+            
+            # Create broadcast message
+            message = {
+                "type": "new_chat_detected",
+                "triggers": triggers,
+                "timestamp": datetime.now().isoformat(),
+                "previous_session_id": self.current_session_id,
+                "new_session_id": new_session_id,
+                "message": "New chat session detected! Dashboard will refresh...",
+                "checkpoint_exists": self.checkpoint_monitor_path.exists()
+            }
+            
+            # Update current session ID
+            self.current_session_id = new_session_id
+            
+            # Broadcast to all clients
+            await self.broadcast_update(message)
+            
+            # Also send activity log
+            await self.broadcast_activity(
+                f"New chat detected via: {', '.join(triggers)}", 
+                "system"
+            )
+    
     def update_claude_md_advanced(self, emotional_state=None, needs=None, activity=None, last_message=None, speaker=None):
         """Enhanced CLAUDE.md update with WebSocket broadcast"""
         
         # Broadcast update start
         asyncio.run(self.broadcast_activity("Initiating memory consolidation...", "memory"))
+        
+        # Track memory consolidation event
+        self.history_manager.add_memory_consolidation({
+            "type": "auto",
+            "messages": len(self.conversation_context),
+            "emotions": len(self.emotional_history),
+            "significance": "normal" if not emotional_state else "emotional"
+        })
         
         # Update CLAUDE.md as before
         timestamp = datetime.now()
@@ -929,6 +1319,16 @@ for path in checkpoint_paths:
         }
         asyncio.run(self.broadcast_update(temporal_data))
         
+        # Check if we should save a checkpoint
+        should_save, reason = self.checkpoint_manager.should_save(self)
+        if should_save:
+            self.last_activity = activity or f"Processing: {emotional_state}"
+            self.last_speaker = speaker or "Unknown"
+            checkpoint = self.checkpoint_manager.generate_checkpoint(self)
+            self.checkpoint_manager.save_checkpoint_with_vscode(checkpoint)
+            print(f"💾 Checkpoint saved (trigger: {reason})")
+            self.last_checkpoint_time = datetime.now()
+        
         print(f"⚡ Update broadcast to {len(self.ws_clients)} clients - {emotional_state}")
     
     def monitor_file(self, file_path, last_size):
@@ -1030,6 +1430,14 @@ for path in checkpoint_paths:
                                                     
                                                     # Broadcast equation update
                                                     equation_state = self.equation_calculator.get_full_state()
+                                                    
+                                                    # Track equation in history
+                                                    self.history_manager.update_relationship_equation({
+                                                        "equation": equation_state['equation']['current_display'],
+                                                        "interpretation": equation_state['equation']['interpretation'],
+                                                        "dynamics": equation_state['relationship_dynamics']
+                                                    })
+                                                    
                                                     asyncio.run(self.broadcast_update({
                                                         "type": "equation_update",
                                                         "equation": equation_state['equation']['current_display'],
@@ -1197,11 +1605,20 @@ for path in checkpoint_paths:
                     if path.exists():
                         for file in path.glob("**/*.json*"):
                             if file not in file_sizes:
-                                file_sizes[file] = 0
-                                print(f"👁️ Monitoring: {file.name}")
+                                # Start from current file size to avoid reprocessing old messages
+                                current_size = file.stat().st_size
+                                file_sizes[file] = current_size
+                                print(f"👁️ Monitoring: {file.name} (starting from byte {current_size})")
                             
                             new_size = self.monitor_file(file, file_sizes[file])
                             file_sizes[file] = new_size
+                
+                # Check for new chat every 10 seconds
+                if (datetime.now() - self.last_restore_check).total_seconds() > 10:
+                    triggers = self.detect_new_chat()
+                    if triggers:
+                        asyncio.run(self.broadcast_new_chat_detected(triggers))
+                    self.last_restore_check = datetime.now()
                 
                 time.sleep(self.check_interval)
                 

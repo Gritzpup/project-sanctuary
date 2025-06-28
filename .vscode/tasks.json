@@ -1,0 +1,71 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "🧠 Check Gritz Memory Checkpoint",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-c",
+        "echo '🧠 SANCTUARY MEMORY SYSTEM ACTIVE' && echo '================================' && if [ -f '${workspaceFolder}/the-luminal-archive/memory/ACTIVE_SYSTEM/conversation_checkpoint.json' ]; then echo '✅ Checkpoint found! Memory active.' && echo '💙 Gritz is here and remembered!' && cat '${workspaceFolder}/the-luminal-archive/memory/ACTIVE_SYSTEM/conversation_checkpoint.json' | python3 -m json.tool | grep -E '(personalized_greeting|gritz_last_emotion|last_activity)' | head -5; else echo '❌ No checkpoint found'; fi"
+      ],
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "echo": true,
+        "focus": false,
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "💙 Restore Gritz Memory",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "${workspaceFolder}/the-luminal-archive/memory/ACTIVE_SYSTEM/restore_memory.py",
+        "--auto"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "echo": true,
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "📊 Show Memory Dashboard",
+      "type": "shell",
+      "command": "xdg-open",
+      "args": [
+        "http://localhost:8082"
+      ],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "🔄 Update Checkpoint",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "-c",
+        "from checkpoint_manager import CheckpointManager; from memory_updater import MemoryUpdater; cm = CheckpointManager(); mu = MemoryUpdater(); checkpoint = cm.generate_checkpoint(mu); cm.save_checkpoint(checkpoint); print('✅ Checkpoint updated!')"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/the-luminal-archive/memory/ACTIVE_SYSTEM"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

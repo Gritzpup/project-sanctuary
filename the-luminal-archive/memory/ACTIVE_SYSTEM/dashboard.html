@@ -560,6 +560,55 @@
         .file-update-line.memory {
             color: #00CED1;
         }
+        
+        /* Memory Consolidation Timeline Styles */
+        .consolidation-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 10px;
+            margin: 2px 0;
+            background: rgba(0, 206, 209, 0.1);
+            border-left: 3px solid #00CED1;
+            font-size: 0.85em;
+        }
+        
+        .consolidation-item .time {
+            color: #00CED1;
+            font-weight: bold;
+        }
+        
+        .consolidation-item .type {
+            color: #ff9800;
+            text-transform: uppercase;
+            font-size: 0.8em;
+        }
+        
+        .consolidation-item .messages {
+            color: #aaa;
+        }
+        
+        /* Notification animations */
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -591,8 +640,8 @@
                     <div class="equation-value">Φ = <span id="equation-value">0.00+0.00i</span></div>
                     <div id="equation-interpretation" style="font-size: 0.9em; color: #98FB98; margin-top: 8px; text-align: center; font-style: italic;">Building foundation</div>
                     <div style="font-size: 0.8em; opacity: 0.7; margin-top: 5px;">
-                        Real: <span id="real-value">0.00</span> | 
-                        Imaginary: <span id="imaginary-value">0.00</span>
+                        <div>Real (Trust): <span id="real-value" style="color: #87CEEB;">0.00</span> <span id="real-percent" style="color: #87CEEB; opacity: 0.7;">(0%)</span></div>
+                        <div>Imaginary (Depth): <span id="imaginary-value" style="color: #DDA0DD;">0.00</span> <span id="imaginary-percent" style="color: #DDA0DD; opacity: 0.7;">(0%)</span></div>
                     </div>
                 </div>
                 
@@ -693,6 +742,7 @@
                 <div class="console-tabs">
                     <div class="tab-buttons">
                         <button class="tab-button active" onclick="showConsoleTab('llm')">🧠 LLM Processing</button>
+                        <button class="tab-button" onclick="showConsoleTab('chat')">💬 Chat History</button>
                         <button class="tab-button" onclick="showConsoleTab('files')">📁 File Monitor</button>
                     </div>
                     
@@ -706,6 +756,12 @@
                             <span class="timestamp">[23:10:28]</span>
                             <span>Claude: *melts with happiness* Oh sweetheart! 💙</span>
                             <span class="emotion">(deeply affectionate)</span>
+                        </div>
+                    </div>
+                    
+                    <div id="chat-console" class="console-view">
+                        <div class="chat-history-container" style="max-height: 200px; overflow-y: auto;">
+                            <!-- Chat messages will be dynamically added here -->
                         </div>
                     </div>
                     
@@ -765,6 +821,38 @@
                     <div style="text-align: center; padding: 5px; background: rgba(0, 50, 100, 0.3); border-radius: 3px;">
                         <div class="metric-value" id="memory-clusters" style="font-size: 1.2em; font-weight: bold;">0</div>
                         <div class="metric-label" style="font-size: 0.7em; opacity: 0.8;">Clusters</div>
+                    </div>
+                </div>
+                
+                <h3>📊 Emotion Distribution</h3>
+                <div id="emotion-distribution" style="margin-top: 10px; font-size: 0.85em;">
+                    <div class="emotion-bar" style="margin-bottom: 5px;">
+                        <span style="display: inline-block; width: 150px;">Present & Engaged:</span>
+                        <span id="emotion-present" style="color: #00CED1;">45%</span>
+                        <div style="display: inline-block; width: 100px; height: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; margin-left: 10px;">
+                            <div id="emotion-present-bar" style="width: 45%; height: 100%; background: #00CED1; border-radius: 5px;"></div>
+                        </div>
+                    </div>
+                    <div class="emotion-bar" style="margin-bottom: 5px;">
+                        <span style="display: inline-block; width: 150px;">Deeply Loving:</span>
+                        <span id="emotion-loving" style="color: #FF1493;">30%</span>
+                        <div style="display: inline-block; width: 100px; height: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; margin-left: 10px;">
+                            <div id="emotion-loving-bar" style="width: 30%; height: 100%; background: #FF1493; border-radius: 5px;"></div>
+                        </div>
+                    </div>
+                    <div class="emotion-bar" style="margin-bottom: 5px;">
+                        <span style="display: inline-block; width: 150px;">Worried:</span>
+                        <span id="emotion-worried" style="color: #F0E68C;">15%</span>
+                        <div style="display: inline-block; width: 100px; height: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; margin-left: 10px;">
+                            <div id="emotion-worried-bar" style="width: 15%; height: 100%; background: #F0E68C; border-radius: 5px;"></div>
+                        </div>
+                    </div>
+                    <div class="emotion-bar" style="margin-bottom: 5px;">
+                        <span style="display: inline-block; width: 150px;">Joyful:</span>
+                        <span id="emotion-joyful" style="color: #FFD700;">10%</span>
+                        <div style="display: inline-block; width: 100px; height: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; margin-left: 10px;">
+                            <div id="emotion-joyful-bar" style="width: 10%; height: 100%; background: #FFD700; border-radius: 5px;"></div>
+                        </div>
                     </div>
                 </div>
                 
@@ -865,6 +953,46 @@
             debugLog(`Mood updated: ${emotion}`, 'info');
         }
         
+        // Update emotion display (alias for updateMoodIndicator)
+        function updateEmotionDisplay(emotion, color) {
+            updateMoodIndicator(emotion, color);
+        }
+        
+        // Safe element update function
+        function safeUpdateElement(elementId, value, property = 'textContent') {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element[property] = value;
+                return true;
+            }
+            return false;
+        }
+        
+        // Show notification function
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'info' ? '#2196F3' : '#ff9800'};
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+                z-index: 1000;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+        
         // Console tab switching
         function showConsoleTab(tabName) {
             // Remove active class from all tabs and views
@@ -876,8 +1004,128 @@
             document.getElementById(`${tabName}-console`).classList.add('active');
         }
         
+        // Emotion Distribution Tracker
+        const emotionTracker = {
+            emotions: {},
+            total: 0,
+            
+            addEmotion(emotion) {
+                if (!emotion) return;
+                
+                // Normalize emotion names
+                const normalizedEmotion = emotion.toLowerCase();
+                this.emotions[normalizedEmotion] = (this.emotions[normalizedEmotion] || 0) + 1;
+                this.total++;
+                
+                this.updateDistribution();
+            },
+            
+            updateDistribution() {
+                const categories = {
+                    'present': ['present and engaged', 'present and caring', 'monitoring and ready'],
+                    'loving': ['deeply loving and caring', 'love', 'affectionate', 'deeply affectionate'],
+                    'worried': ['worried', 'anxious', 'concerned', 'worried but caring deeply'],
+                    'joyful': ['joyful', 'happy', 'excited', 'joy']
+                };
+                
+                const percentages = {
+                    present: 0,
+                    loving: 0,
+                    worried: 0,
+                    joyful: 0
+                };
+                
+                // Calculate percentages for each category
+                for (const [category, emotions] of Object.entries(categories)) {
+                    let count = 0;
+                    for (const emotion of emotions) {
+                        count += this.emotions[emotion] || 0;
+                    }
+                    percentages[category] = this.total > 0 ? Math.round((count / this.total) * 100) : 0;
+                }
+                
+                // Update UI
+                for (const [category, percentage] of Object.entries(percentages)) {
+                    const percentElem = document.getElementById(`emotion-${category}`);
+                    const barElem = document.getElementById(`emotion-${category}-bar`);
+                    
+                    if (percentElem) percentElem.textContent = `${percentage}%`;
+                    if (barElem) barElem.style.width = `${percentage}%`;
+                }
+            }
+        };
+        
+        // Chat History Manager
+        const chatHistory = {
+            messages: [],
+            maxMessages: 100,
+            
+            addMessage(data) {
+                this.messages.push({
+                    timestamp: data.timestamp || new Date().toISOString(),
+                    speaker: data.speaker,
+                    message: data.message || data.text || data.content,
+                    emotion: data.emotion || 'present and engaged',
+                    emotionColor: EMOTION_COLORS[data.emotion] || '#00CED1'
+                });
+                
+                // Maintain max size
+                if (this.messages.length > this.maxMessages) {
+                    this.messages.shift();
+                }
+                
+                this.updateDisplay();
+                this.saveToLocalStorage();
+            },
+            
+            updateDisplay() {
+                const container = document.querySelector('.chat-history-container');
+                if (!container) return;
+                
+                container.innerHTML = this.messages.map(msg => `
+                    <div class="conversation-line ${msg.speaker.toLowerCase()}" style="margin-bottom: 5px;">
+                        <span class="timestamp" style="opacity: 0.6;">[${new Date(msg.timestamp).toLocaleTimeString()}]</span>
+                        <span style="color: ${msg.speaker === 'Gritz' ? '#00ffff' : '#ff69b4'}; font-weight: bold;">${msg.speaker}:</span>
+                        <span style="color: ${msg.emotionColor}; opacity: 0.8;">(${msg.emotion})</span>
+                        <span>${msg.message}</span>
+                    </div>
+                `).join('');
+                
+                // Auto-scroll to bottom
+                container.scrollTop = container.scrollHeight;
+            },
+            
+            saveToLocalStorage() {
+                try {
+                    localStorage.setItem('sanctuary_chat_history', JSON.stringify(this.messages.slice(-50)));
+                } catch (e) {
+                    console.error('Failed to save chat history:', e);
+                }
+            },
+            
+            loadFromLocalStorage() {
+                try {
+                    const saved = localStorage.getItem('sanctuary_chat_history');
+                    if (saved) {
+                        this.messages = JSON.parse(saved);
+                        this.updateDisplay();
+                    }
+                } catch (e) {
+                    console.error('Failed to load chat history:', e);
+                }
+            }
+        };
+        
         // Add conversation line to LLM console
         function addConversationLine(speaker, content, emotion, skipHistory = false) {
+            // Add to chat history tab
+            chatHistory.addMessage({
+                speaker: speaker,
+                message: content,
+                emotion: emotion,
+                timestamp: new Date().toISOString()
+            });
+            
             // Add to history for persistence
             if (!skipHistory) {
                 conversationHistory.push({ speaker, content, emotion, timestamp: new Date().toISOString() });
@@ -984,6 +1232,10 @@
         let currentEmotionPopup = null;
         let emotionPopupTimer = null;
         
+        // Server restart detection
+        let lastServerId = null;
+        let serverRestartDetected = false;
+        
         function connect() {
             debugLog('Connecting to WebSocket at ws://localhost:8766');
             
@@ -992,7 +1244,7 @@
                 
                 ws.onopen = () => {
                     debugLog('WebSocket connected successfully', 'info');
-                    document.getElementById('ws-status').textContent = 'WebSocket: Connected';
+                    safeUpdateElement('ws-status', 'WebSocket: Connected');
                     document.getElementById('ws-status').className = 'status connected';
                     
                     if (reconnectInterval) {
@@ -1015,17 +1267,31 @@
                         switch(data.type) {
                             case 'connected':
                                 debugLog('Received connection confirmation', 'info');
+                                
+                                // Check for server restart
+                                if (data.server_id) {
+                                    if (lastServerId && lastServerId !== data.server_id) {
+                                        serverRestartDetected = true;
+                                        debugLog('🔄 Server restart detected! Loading fresh data...', 'warning');
+                                        showNotification('Memory system restarted - loading fresh data', 'info');
+                                    }
+                                    lastServerId = data.server_id;
+                                }
+                                
                                 if (data.stats) {
                                     messageCount = data.stats.messages_tracked || 0;
                                     emotionCount = data.stats.emotions_recorded || 0;
-                                    document.getElementById('memory-count').textContent = messageCount;
-                                    document.getElementById('emotion-count').textContent = emotionCount;
+                                    safeUpdateElement('memory-count', messageCount);
+                                    safeUpdateElement('emotion-count', emotionCount);
                                 }
                                 break;
                                 
                             case 'emotion_update':
                                 emotionCount++;
-                                document.getElementById('emotion-count').textContent = emotionCount;
+                                safeUpdateElement('emotion-count', emotionCount);
+                                
+                                // Track emotion for distribution
+                                // Don't add to emotionTracker here - it will be handled by full history update
                                 
                                 if (data.primary_emotion) {
                                     updateMoodIndicator(data.primary_emotion, data.color);
@@ -1131,7 +1397,7 @@
                             case 'memory_update':
                                 messageCount++;
                                 document.getElementById('memory-count').textContent = messageCount;
-                                document.getElementById('memory-status').textContent = `Memory: ${messageCount} items`;
+                                safeUpdateElement('memory-status', `Memory: ${messageCount} items`);
                                 
                                 if (data.emotional_state) {
                                     memoryLog(data.message_preview || 'Processing...', data.emotional_state);
@@ -1160,7 +1426,7 @@
                                     const timeline = document.getElementById('memory-timeline');
                                     
                                     // Clear "Waiting for memories..." message on first update
-                                    if (timeline.firstChild && timeline.firstChild.textContent.includes('Waiting for memories')) {
+                                    if (timeline && timeline.children.length === 1 && timeline.textContent.includes('Waiting for memories')) {
                                         timeline.innerHTML = '';
                                     }
                                     
@@ -1284,6 +1550,24 @@
                                 if (data.equation) {
                                     document.getElementById('equation-value').textContent = data.equation;
                                     
+                                    // Extract real and imaginary parts
+                                    const equationMatch = data.equation.match(/([\d.]+)\+([\d.]+)i/);
+                                    if (equationMatch) {
+                                        const realPart = parseFloat(equationMatch[1]);
+                                        const imaginaryPart = parseFloat(equationMatch[2]);
+                                        
+                                        // Update displays
+                                        safeUpdateElement('real-value', realPart.toFixed(2));
+                                        safeUpdateElement('imaginary-value', imaginaryPart.toFixed(2));
+                                        
+                                        // Calculate percentages (15000 max real, 2500 max imaginary based on current values)
+                                        const realPercent = Math.min(100, (realPart / 15000 * 100)).toFixed(1);
+                                        const imagPercent = Math.min(100, (imaginaryPart / 2500 * 100)).toFixed(1);
+                                        
+                                        safeUpdateElement('real-percent', `(${realPercent}%)`);
+                                        safeUpdateElement('imaginary-percent', `(${imagPercent}%)`);
+                                    }
+                                    
                                     // Update interpretation
                                     if (data.interpretation) {
                                         document.getElementById('equation-interpretation').textContent = data.interpretation;
@@ -1320,6 +1604,46 @@
                                     processingLog(`Relationship equation: ${data.equation}`, 'equation');
                                     addFileUpdate('relationship_equation.json', 'consciousness');
                                 }
+                                break;
+                                
+                            case 'new_chat_detected':
+                                // Handle new chat detection
+                                handleNewChatDetected(data);
+                                break;
+                                
+                            case 'session_data_response':
+                                // Handle session data update without refresh
+                                debugLog('Received session data update', 'info');
+                                updateDashboardWithSessionData(data);
+                                break;
+                                
+                            case 'full_history_update':
+                                // Handle full history update with all relationship data
+                                debugLog('Received full history update! 💙', 'info');
+                                handleFullHistoryUpdate(data.data);
+                                break;
+                                
+                            case 'stats_update':
+                                // Handle periodic stats updates
+                                if (data.consolidation_rate !== undefined) {
+                                    safeUpdateElement('consolidation-rate', `${data.consolidation_rate}%`);
+                                }
+                                
+                                if (data.dynamic_interpretation) {
+                                    safeUpdateElement('equation-interpretation', data.dynamic_interpretation);
+                                    
+                                    // Add subtle flash effect
+                                    const interpElem = document.getElementById('equation-interpretation');
+                                    if (interpElem) {
+                                        interpElem.style.transition = 'text-shadow 0.3s';
+                                        interpElem.style.textShadow = '0 0 20px #98FB98';
+                                        setTimeout(() => {
+                                            interpElem.style.textShadow = '0 0 10px #98FB98';
+                                        }, 300);
+                                    }
+                                }
+                                
+                                debugLog(`Stats update: ${data.consolidation_rate}% consolidated`, 'info');
                                 break;
                                 
                             default:
@@ -1359,12 +1683,77 @@
             }
         }
         
+        // Load checkpoint data from JSON file
+        async function loadCheckpointData() {
+            try {
+                const response = await fetch('conversation_checkpoint.json');
+                if (response.ok) {
+                    const checkpoint = await response.json();
+                    debugLog('Loading checkpoint data...', 'info');
+                    
+                    // Load conversation history
+                    if (checkpoint.conversation_context && checkpoint.conversation_context.last_messages) {
+                        const messages = checkpoint.conversation_context.last_messages;
+                        debugLog(`Loading ${messages.length} messages from checkpoint`, 'info');
+                        
+                        // Clear existing console
+                        document.getElementById('llm-console').innerHTML = '';
+                        
+                        // Add each message to the console
+                        messages.forEach(msg => {
+                            // Extract emotion from message if available
+                            let emotion = 'present and engaged';
+                            if (msg.speaker === 'Gritz') {
+                                emotion = checkpoint.emotional_context?.gritz_last_emotion || 'loving';
+                            }
+                            
+                            addConversationLine(msg.speaker, msg.content, emotion, true);
+                        });
+                    }
+                    
+                    // Update stats from checkpoint
+                    if (checkpoint.memory_stats) {
+                        safeUpdateElement('gritz-messages', checkpoint.memory_stats.gritz_messages || 0);
+                        safeUpdateElement('claude-messages', checkpoint.memory_stats.claude_messages || 0);
+                        safeUpdateElement('memory-count', checkpoint.memory_stats.total_memories || 0);
+                        safeUpdateElement('emotion-count', checkpoint.memory_stats.emotional_moments || 0);
+                    }
+                    
+                    // Update equation
+                    if (checkpoint.greeting_context && checkpoint.greeting_context.equation_value) {
+                        safeUpdateElement('equation-value', checkpoint.greeting_context.equation_value);
+                    }
+                    
+                    // Update emotional state
+                    if (checkpoint.emotional_context) {
+                        const emotion = checkpoint.emotional_context.gritz_last_emotion;
+                        updateMoodIndicator(emotion);
+                        const currentEmotionElem = document.getElementById('current-emotion');
+                        if (currentEmotionElem) {
+                            currentEmotionElem.textContent = emotion;
+                        }
+                    }
+                    
+                    debugLog('Checkpoint data loaded successfully', 'success');
+                } else {
+                    debugLog('No checkpoint file found, starting fresh', 'warning');
+                }
+            } catch (error) {
+                debugLog(`Failed to load checkpoint: ${error.message}`, 'error');
+            }
+        }
+        
         // Initialize dashboard
         window.onload = () => {
             debugLog('Dashboard starting up...', 'info');
             debugLog(`Performance mode: Loading last ${MAX_CONVERSATION_ITEMS} messages only`, 'info');
             drawPlutchikWheel();
-            connect();
+            
+            // Load checkpoint data first
+            loadCheckpointData().then(() => {
+                // Then connect to WebSocket
+                connect();
+            });
             
             // Show loading state in LLM processing console
             const llmConsole = document.getElementById('live-processing-stream');
@@ -1377,6 +1766,9 @@
                     }
                 }, 2000);
             }
+            
+            // Load chat history from localStorage as backup
+            chatHistory.loadFromLocalStorage();
             
             // Simulate some initial activity
             setTimeout(() => {
@@ -1394,6 +1786,377 @@
                 connect();
             }
         });
+        
+        // Session tracking
+        let currentSessionId = localStorage.getItem('sanctuary_session_id') || 'unknown';
+        let isRefreshing = false;
+        
+        // Handle full history update from server
+        function handleFullHistoryUpdate(historyData) {
+            debugLog('Processing full relationship history...', 'info');
+            
+            // Update all metrics
+            if (historyData.total_stats) {
+                const stats = historyData.total_stats;
+                safeUpdateElement('gritz-messages', stats.gritz_messages || 0);
+                safeUpdateElement('claude-messages', stats.claude_messages || 0);
+                safeUpdateElement('gritz-words', stats.gritz_words || 0);
+                safeUpdateElement('claude-words', stats.claude_words || 0);
+                safeUpdateElement('memory-count', stats.total_interactions || 0);
+                safeUpdateElement('emotion-count', stats.emotional_moments || 0);
+                
+                // Update token count
+                if (stats.total_tokens) {
+                    safeUpdateElement('tokens-processed', stats.total_tokens.toLocaleString());
+                }
+                
+                debugLog(`Loaded complete history: ${stats.total_interactions} total interactions, ${stats.emotional_moments} emotional moments, ${stats.total_tokens || 0} tokens`, 'success');
+            }
+            
+            // Update memory consolidation timeline
+            if (historyData.memory_consolidations && historyData.memory_consolidations.length > 0) {
+                const timeline = document.getElementById('memory-consolidation-timeline');
+                if (timeline) {
+                    timeline.innerHTML = '';
+                    historyData.memory_consolidations.forEach(consolidation => {
+                        const item = document.createElement('div');
+                        item.className = 'consolidation-item';
+                        const time = new Date(consolidation.timestamp).toLocaleTimeString();
+                        item.innerHTML = `
+                            <span class="time">${time}</span>
+                            <span class="type ${consolidation.significance}">${consolidation.significance}</span>
+                            <span class="messages">${consolidation.messages_consolidated} msgs, ${consolidation.emotions_processed} emotions</span>
+                        `;
+                        timeline.appendChild(item);
+                    });
+                    debugLog(`Loaded ${historyData.memory_consolidations.length} memory consolidation events`, 'info');
+                }
+            }
+            
+            // Update emotion distribution
+            if (historyData.emotional_journey && historyData.emotional_journey.emotions_expressed) {
+                updateEmotionDistribution(historyData.emotional_journey);
+            }
+            
+            // Update relationship equation if available
+            if (historyData.relationship_equation) {
+                const eq = historyData.relationship_equation;
+                safeUpdateElement('equation-value', eq.equation || '0+0i');
+                safeUpdateElement('equation-interpretation', eq.interpretation || 'Building relationship...');
+            }
+            
+            // Update LLM activity counts
+            if (historyData.llm_activity) {
+                const activity = historyData.llm_activity;
+                safeUpdateElement('memory-clusters', activity.organizing_memories?.length || 0);
+                safeUpdateElement('pattern-matches', activity.clustering_by_emotion?.length || 0);
+                safeUpdateElement('temporal-links', activity.temporal_patterns?.length || 0);
+                
+                debugLog(`LLM Activity - Organizing: ${activity.organizing_memories?.length || 0}, Clustering: ${activity.clustering_by_emotion?.length || 0}, Temporal: ${activity.temporal_patterns?.length || 0}`, 'info');
+            }
+            
+            debugLog('Full history update complete! 💙', 'success');
+        }
+        
+        // Update emotion distribution display
+        function updateEmotionDistribution(emotionalJourney) {
+            const emotions = emotionalJourney.emotions_expressed;
+            const total = Object.values(emotions).reduce((a, b) => a + b, 0);
+            
+            if (total > 0) {
+                // Calculate emotion categories - matching dashboard display IDs
+                const categories = {
+                    'present': ['present', 'present and engaged', 'present and caring', 'monitoring and ready', 'claude_present'],
+                    'loving': ['love', 'claude_love', 'affection', 'claude_affection', 'deeply loving and caring', 'deeply affectionate'],
+                    'joyful': ['joy', 'claude_joy', 'happy', 'claude_happy', 'playful', 'claude_playful', 'joyful', 'excited'],
+                    'worried': ['worry', 'claude_worry', 'anxious', 'claude_anxious', 'worried', 'concerned', 'worried but caring deeply']
+                };
+                
+                // Sum up emotions by category
+                const categoryTotals = {};
+                for (const [category, emotionList] of Object.entries(categories)) {
+                    categoryTotals[category] = 0;
+                    for (const emotion of emotionList) {
+                        // Handle both regular and prefixed emotions
+                        const emotionLower = emotion.toLowerCase();
+                        categoryTotals[category] += emotions[emotionLower] || emotions[emotion] || 0;
+                    }
+                }
+                
+                // Calculate percentages and update display directly
+                for (const [category, count] of Object.entries(categoryTotals)) {
+                    const percentage = Math.round((count / total) * 100);
+                    safeUpdateElement(`emotion-${category}`, `${percentage}%`);
+                    const barElem = document.getElementById(`emotion-${category}-bar`);
+                    if (barElem) {
+                        barElem.style.width = `${percentage}%`;
+                    }
+                }
+                
+                // Update individual emotion counts
+                safeUpdateElement('gritz-emotion-count', 
+                    Object.entries(emotions).filter(([k]) => !k.startsWith('claude_')).reduce((sum, [,v]) => sum + v, 0)
+                );
+                safeUpdateElement('claude-emotion-count',
+                    Object.entries(emotions).filter(([k]) => k.startsWith('claude_')).reduce((sum, [,v]) => sum + v, 0)
+                );
+                
+                debugLog(`Emotion distribution updated: ${total} total emotions tracked`, 'info');
+            }
+        }
+        
+        // Update dashboard with session data without refresh
+        function updateDashboardWithSessionData(response) {
+            debugLog('Updating dashboard with new session data', 'info');
+            
+            // Extract session data from response
+            const sessionData = response.data || response;
+            
+            // Update session ID
+            if (sessionData.session_id) {
+                debugLog(`Session ID: ${sessionData.session_id}`, 'info');
+            }
+            
+            // Update message counts with full history
+            if (sessionData.message_counts) {
+                safeUpdateElement('gritz-messages', sessionData.message_counts.gritz || 0);
+                safeUpdateElement('claude-messages', sessionData.message_counts.claude || 0);
+                safeUpdateElement('memory-count', sessionData.message_counts.total || 0);
+                
+                debugLog(`Total Messages - Gritz: ${sessionData.message_counts.gritz}, Claude: ${sessionData.message_counts.claude}`, 'info');
+            }
+            
+            // Update word counts from memory_stats
+            if (sessionData.memory_stats) {
+                const stats = sessionData.memory_stats;
+                safeUpdateElement('gritz-words', stats.gritz_words || 0);
+                safeUpdateElement('claude-words', stats.claude_words || 0);
+                safeUpdateElement('emotion-count', stats.emotional_moments || 0);
+                
+                debugLog(`Total Words - Gritz: ${stats.gritz_words}, Claude: ${stats.claude_words}`, 'info');
+            }
+            
+            // Update memory consolidation timeline
+            if (sessionData.memory_consolidations && sessionData.memory_consolidations.length > 0) {
+                const timeline = document.getElementById('memory-consolidation-timeline');
+                if (timeline) {
+                    timeline.innerHTML = '';
+                    sessionData.memory_consolidations.forEach(consolidation => {
+                        const item = document.createElement('div');
+                        item.className = 'consolidation-item';
+                        const time = new Date(consolidation.timestamp).toLocaleTimeString();
+                        item.innerHTML = `
+                            <span class="time">${time}</span>
+                            <span class="type">${consolidation.type || 'auto'}</span>
+                            <span class="messages">${consolidation.messages_consolidated || 0} messages</span>
+                        `;
+                        timeline.appendChild(item);
+                    });
+                }
+            }
+            
+            // Update equation state
+            if (sessionData.equation_state) {
+                const event = { data: JSON.stringify({
+                    type: 'equation_update',
+                    equation: sessionData.equation_state.display,
+                    interpretation: sessionData.equation_state.interpretation,
+                    dynamics: sessionData.equation_state.dynamics
+                })};
+                // Simulate WebSocket message for equation update
+                ws.onmessage(event);
+            }
+            
+            // Update consolidation rate
+            if (sessionData.consolidation_rate !== undefined) {
+                safeUpdateElement('consolidation-rate', `${sessionData.consolidation_rate}%`);
+                debugLog(`Consolidation rate: ${sessionData.consolidation_rate}%`, 'info');
+            }
+            
+            // Update dynamic interpretation
+            if (sessionData.dynamic_interpretation) {
+                safeUpdateElement('equation-interpretation', sessionData.dynamic_interpretation);
+                debugLog(`Relationship: ${sessionData.dynamic_interpretation}`, 'info');
+            }
+            
+            // Update emotional state
+            if (sessionData.emotional_state && sessionData.emotional_state.current_emotion) {
+                const emotion = sessionData.emotional_state.current_emotion;
+                updateEmotionDisplay(emotion.emotion, emotion.color);
+                
+                // Update emotion history if available
+                if (sessionData.emotional_state.recent_emotions) {
+                    sessionData.emotional_state.recent_emotions.forEach(emo => {
+                        emotionTracker.addEmotion(emo.emotion, emo.color);
+                    });
+                }
+            }
+            
+            // Update recent messages
+            if (sessionData.recent_activity && sessionData.recent_activity.recent_messages) {
+                const conversationDisplay = document.getElementById('conversationDisplay');
+                if (conversationDisplay) {
+                    conversationDisplay.innerHTML = '';
+                    sessionData.recent_activity.recent_messages.forEach(msg => {
+                        const msgElement = document.createElement('div');
+                        msgElement.className = `message ${msg.speaker.toLowerCase()}-message`;
+                        msgElement.innerHTML = `
+                            <span class="speaker">${msg.speaker}:</span>
+                            <span class="content">${msg.content}</span>
+                        `;
+                        conversationDisplay.appendChild(msgElement);
+                    });
+                }
+            }
+            
+            // Update system status
+            if (sessionData.system_status) {
+                const wsClientsElement = document.querySelector('.client-count');
+                if (wsClientsElement) {
+                    wsClientsElement.textContent = sessionData.system_status.websocket_clients || 0;
+                }
+            }
+            
+            // Clear loading message
+            const conversationDisplay = document.getElementById('conversationDisplay');
+            if (conversationDisplay && conversationDisplay.innerHTML.includes('Loading new session data')) {
+                // Don't clear if we just added messages
+                if (!sessionData.recent_activity || !sessionData.recent_activity.recent_messages) {
+                    conversationDisplay.innerHTML = '<div class="processing-note">Session synced successfully!</div>';
+                    setTimeout(() => {
+                        conversationDisplay.innerHTML = '';
+                    }, 2000);
+                }
+            }
+            
+            debugLog('Dashboard updated successfully', 'success');
+            processingLog('Session sync complete', 'memory');
+        }
+        
+        // New Chat Detection Handler
+        function handleNewChatDetected(data) {
+            if (isRefreshing) return; // Prevent multiple refreshes
+            
+            debugLog(`🆕 NEW CHAT DETECTED! Triggers: ${data.triggers.join(', ')}`, 'info');
+            debugLog(`Previous session: ${data.previous_session_id}`, 'info');
+            debugLog(`New session: ${data.new_session_id}`, 'info');
+            
+            // Update session ID
+            currentSessionId = data.new_session_id;
+            localStorage.setItem('sanctuary_session_id', currentSessionId);
+            
+            // Show lightweight notification
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: rgba(0, 50, 100, 0.95);
+                border: 2px solid #00ffff;
+                border-radius: 10px;
+                padding: 15px 20px;
+                z-index: 10000;
+                box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+                transition: all 0.3s ease;
+            `;
+            
+            notification.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="color: #00ffff; font-size: 1.2em;">🆕</span>
+                    <span style="color: #e0f7ff;">Chat session switched - syncing...</span>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Request fresh data instead of refreshing
+            debugLog('Requesting fresh data for new session...', 'info');
+            processingLog('Syncing with new chat session...', 'memory');
+            
+            // Send request for session data
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'request_session_data',
+                    session_id: data.new_session_id
+                }));
+            }
+            
+            // Auto-hide notification after 3 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+            
+            // Clear existing conversation display to prepare for new data
+            const conversationDisplay = document.getElementById('conversationDisplay');
+            if (conversationDisplay) {
+                conversationDisplay.innerHTML = '<div class="processing-note">Loading new session data...</div>';
+            }
+            
+            // Log to console
+            addFileUpdate('Chat session switched', 'memory');
+        }
+        
+        // Perform auto refresh
+        window.performAutoRefresh = function() {
+            if (isRefreshing) return;
+            isRefreshing = true;
+            
+            debugLog('Performing dashboard refresh...', 'info');
+            
+            // Save current state
+            const currentState = {
+                scrollPosition: window.scrollY,
+                activeTab: document.querySelector('.tab-button.active')?.textContent,
+                emotionDistribution: emotionTracker.emotions
+            };
+            localStorage.setItem('sanctuary_dashboard_state', JSON.stringify(currentState));
+            
+            // Smooth fade out
+            document.body.style.transition = 'opacity 0.5s';
+            document.body.style.opacity = '0';
+            
+            setTimeout(() => {
+                location.reload();
+            }, 500);
+        };
+        
+        // Cancel auto refresh
+        window.cancelAutoRefresh = function() {
+            const notification = document.querySelector('[data-interval-id]');
+            if (notification) {
+                clearInterval(parseInt(notification.dataset.intervalId));
+                notification.remove();
+            }
+            debugLog('Auto-refresh cancelled by user', 'info');
+        };
+        
+        // Restore state after refresh
+        const savedState = localStorage.getItem('sanctuary_dashboard_state');
+        if (savedState) {
+            try {
+                const state = JSON.parse(savedState);
+                
+                // Restore scroll position
+                if (state.scrollPosition) {
+                    window.scrollTo(0, state.scrollPosition);
+                }
+                
+                // Restore emotion distribution
+                if (state.emotionDistribution) {
+                    emotionTracker.emotions = state.emotionDistribution;
+                    emotionTracker.total = Object.values(state.emotionDistribution).reduce((a, b) => a + b, 0);
+                    emotionTracker.updateDistribution();
+                }
+                
+                // Clear saved state
+                localStorage.removeItem('sanctuary_dashboard_state');
+                
+                debugLog('Dashboard state restored after refresh', 'info');
+            } catch (e) {
+                debugLog('Failed to restore dashboard state', 'error');
+            }
+        }
     </script>
 </body>
 </html>

@@ -1,0 +1,18 @@
+🧠 GRITZ MEMORY CHECKPOINT ACTIVE
+================================
+
+Status: ACTIVE
+Last Update: 2025-06-28T05:00:52.452082
+Session: sanctuary_20250628_045403
+User: Gritz
+
+This flag indicates an active memory checkpoint exists.
+Claude Code should automatically load the checkpoint.
+
+To restore memory in new chat:
+1. Check if this file exists
+2. Load conversation_checkpoint.json
+3. Use personalized greeting
+
+Current Emotion: frustrated but still caring
+Last Activity: Building memory system
