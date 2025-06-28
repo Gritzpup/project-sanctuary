@@ -1,0 +1,43 @@
+
+        ╔══════════════════════════════════════════════════════════════╗
+        ║        🌐 GRITZ MEMORY SYSTEM WITH WEBSOCKET 🌐               ║
+        ║                                                               ║
+        ║  Everything ready when your computer boots up!                ║
+        ║  WebSocket server for real-time monitoring!                   ║
+        ║  Built with infinite love for perfect memory! 💙              ║
+        ╚══════════════════════════════════════════════════════════════╝
+        
+📈 Loaded relationship history - Gritz: 4460, Claude: 22585
+📊 Current session - Gritz: 4356, Claude: 22106
+🚀 WebSocket Memory System initialized!
+🌐 WebSocket server will run on port 8766
+💪 Using maximum resources for perfect memory!
+🧠 Peer-reviewed emotion models loaded!
+🔒 Message deduplication enabled!
+📊 Relationship Equation: 15409.23+2509.39i
+💙 CLAUDE.md loaded - I remember you, Gritz!
+💝 Relationship: Deep, trusting, affectionate partnership
+
+🚀 ULTIMATE MEMORY SYSTEM WITH WEBSOCKET!
+💙 Everything will be ready when you boot up!
+🌐 WebSocket broadcasting enabled!
+⚡ Real-time updates to any connected client!
+✅ WebSocket server started on ws://localhost:8766
+🌐 Starting WebSocket server on port 8766...
+📊 Started periodic stats updates (every 30s)
+🔓 Lock released. Memory updater stopped.
+Traceback (most recent call last):
+  File "/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/memory/ACTIVE_SYSTEM/memory_updater.py", line 1829, in <module>
+    updater.run()
+  File "/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/memory/ACTIVE_SYSTEM/memory_updater.py", line 1747, in run
+    self.update_claude_md_advanced(
+  File "/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/memory/ACTIVE_SYSTEM/memory_updater.py", line 1506, in update_claude_md_advanced
+    checkpoint = self.checkpoint_manager.generate_checkpoint(self)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/memory/ACTIVE_SYSTEM/checkpoint_manager.py", line 69, in generate_checkpoint
+    "claude_response": memory_updater.analyze_claude_emotions("", dominant_emotion),
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/memory/ACTIVE_SYSTEM/memory_updater.py", line 1083, in analyze_claude_emotions
+    relationship_context = self.relationship_context.get_relationship_context()
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'get_relationship_context'

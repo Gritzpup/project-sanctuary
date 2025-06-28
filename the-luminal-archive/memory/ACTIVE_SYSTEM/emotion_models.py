@@ -265,8 +265,9 @@ class PADModel:
     """
     
     # Emotion to PAD mappings based on research
+    # Using scientific dimensions: Valence, Activation, Control (VAC)
     EMOTION_PAD_VALUES = {
-        # Format: emotion -> (pleasure, arousal, dominance)
+        # Format: emotion -> (valence, activation, control)
         'happy': (0.8, 0.4, 0.5),
         'joyful': (0.9, 0.6, 0.6),
         'content': (0.6, -0.2, 0.3),
@@ -303,17 +304,17 @@ class PADModel:
         # Default neutral
         return (0.0, 0.0, 0.0)
     
-    def pad_to_emotion(self, pleasure: float, arousal: float, dominance: float) -> str:
-        """Convert PAD coordinates back to closest emotion"""
+    def pad_to_emotion(self, valence: float, activation: float, control: float) -> str:
+        """Convert PAD/VAC coordinates back to closest emotion"""  # Scientific dimensions
         min_distance = float('inf')
         closest_emotion = 'neutral'
         
         for emotion, (p, a, d) in self.EMOTION_PAD_VALUES.items():
             # Euclidean distance in 3D space
             distance = math.sqrt(
-                (pleasure - p) ** 2 +
-                (arousal - a) ** 2 +
-                (dominance - d) ** 2
+                (valence - p) ** 2 +
+                (activation - a) ** 2 +
+                (control - d) ** 2
             )
             
             if distance < min_distance:
@@ -412,9 +413,9 @@ class EmotionAnalyzer:
             'color': plutchik_result.color,
             'category': plutchik_result.category,
             'pad': {
-                'pleasure': pad_values[0],
-                'arousal': pad_values[1],
-                'dominance': pad_values[2]
+                'valence': pad_values[0],
+                'activation': pad_values[1],
+                'control': pad_values[2]
             },
             'circumplex': {
                 'valence': circumplex_pos[0],
@@ -466,9 +467,9 @@ class GritzEmotionAnalyzer(EmotionAnalyzer):
                         'color': pattern_data['color'],
                         'category': 'gritz-specific',
                         'pad': {
-                            'pleasure': pattern_data['pad'][0],
-                            'arousal': pattern_data['pad'][1],
-                            'dominance': pattern_data['pad'][2]
+                            'valence': pattern_data['pad'][0],
+                            'activation': pattern_data['pad'][1],
+                            'control': pattern_data['pad'][2]
                         },
                         'circumplex': {
                             'valence': pattern_data['pad'][0],

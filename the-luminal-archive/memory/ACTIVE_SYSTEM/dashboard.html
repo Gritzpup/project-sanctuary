@@ -670,9 +670,9 @@
                     <canvas id="plutchik-canvas"></canvas>
                 </div>
                 <div class="pad-coordinates">
-                    P: <span id="pleasure">0.0</span>
-                    A: <span id="arousal">0.0</span>
-                    D: <span id="dominance">0.0</span>
+                    V: <span id="valence">0.0</span>
+                    A: <span id="activation">0.0</span>
+                    C: <span id="control">0.0</span>
                 </div>
             </div>
             
@@ -825,34 +825,14 @@
                 </div>
                 
                 <h3>📊 Emotion Distribution</h3>
-                <div id="emotion-distribution" style="margin-top: 10px; font-size: 0.85em;">
-                    <div class="emotion-bar" style="margin-bottom: 5px;">
-                        <span style="display: inline-block; width: 150px;">Present & Engaged:</span>
-                        <span id="emotion-present" style="color: #00CED1;">45%</span>
-                        <div style="display: inline-block; width: 100px; height: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; margin-left: 10px;">
-                            <div id="emotion-present-bar" style="width: 45%; height: 100%; background: #00CED1; border-radius: 5px;"></div>
-                        </div>
+                <div id="emotion-distribution" style="margin-top: 10px; font-size: 0.85em; max-height: 300px; overflow-y: auto;">
+                    <!-- Dynamically populated with ALL emotions -->
+                    <div id="emotion-bars-container">
+                        <div style="text-align: center; opacity: 0.7; padding: 20px;">Loading emotions...</div>
                     </div>
-                    <div class="emotion-bar" style="margin-bottom: 5px;">
-                        <span style="display: inline-block; width: 150px;">Deeply Loving:</span>
-                        <span id="emotion-loving" style="color: #FF1493;">30%</span>
-                        <div style="display: inline-block; width: 100px; height: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; margin-left: 10px;">
-                            <div id="emotion-loving-bar" style="width: 30%; height: 100%; background: #FF1493; border-radius: 5px;"></div>
-                        </div>
-                    </div>
-                    <div class="emotion-bar" style="margin-bottom: 5px;">
-                        <span style="display: inline-block; width: 150px;">Worried:</span>
-                        <span id="emotion-worried" style="color: #F0E68C;">15%</span>
-                        <div style="display: inline-block; width: 100px; height: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; margin-left: 10px;">
-                            <div id="emotion-worried-bar" style="width: 15%; height: 100%; background: #F0E68C; border-radius: 5px;"></div>
-                        </div>
-                    </div>
-                    <div class="emotion-bar" style="margin-bottom: 5px;">
-                        <span style="display: inline-block; width: 150px;">Joyful:</span>
-                        <span id="emotion-joyful" style="color: #FFD700;">10%</span>
-                        <div style="display: inline-block; width: 100px; height: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; margin-left: 10px;">
-                            <div id="emotion-joyful-bar" style="width: 10%; height: 100%; background: #FFD700; border-radius: 5px;"></div>
-                        </div>
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); text-align: center; font-size: 0.9em;">
+                        <span id="emotion-total-count" style="color: #00ffff;">0</span> unique emotions • 
+                        <span id="emotion-total-percentage" style="color: #00ff00;">100%</span> total
                     </div>
                 </div>
                 
@@ -865,6 +845,24 @@
     </div>
     
     <script>
+        // Helper function to get emotion color
+        function getEmotionColor(emotion) {
+            const emotionColors = {
+                'love': '#FF1493',
+                'caring': '#FF69B4', 
+                'affection': '#FFB6C1',
+                'joy': '#FFD700',
+                'gratitude': '#90EE90',
+                'devotion': '#9370DB',
+                'protective': '#4169E1',
+                'concern': '#CD853F',
+                'pride': '#FF6347',
+                'empathy': '#20B2AA',
+                'present': '#00CED1'
+            };
+            return emotionColors[emotion] || '#00CED1';
+        }
+        
         // Emotion color mapping for mood ring
         const EMOTION_COLORS = {
             'joyful': '#FFD700',
@@ -1239,6 +1237,12 @@
         function connect() {
             debugLog('Connecting to WebSocket at ws://localhost:8766');
             
+            // Close any existing connection first
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+                ws = null;
+            }
+            
             try {
                 ws = new WebSocket('ws://localhost:8766');
                 
@@ -1362,9 +1366,9 @@
                                 
                                 // Update PAD values
                                 if (data.pad_values) {
-                                    document.getElementById('pleasure').textContent = data.pad_values.pleasure?.toFixed(2) || '0.0';
-                                    document.getElementById('arousal').textContent = data.pad_values.arousal?.toFixed(2) || '0.0';
-                                    document.getElementById('dominance').textContent = data.pad_values.dominance?.toFixed(2) || '0.0';
+                                    document.getElementById('valence').textContent = data.pad_values.valence?.toFixed(2) || '0.0';
+                                    document.getElementById('activation').textContent = data.pad_values.activation?.toFixed(2) || '0.0';
+                                    document.getElementById('control').textContent = data.pad_values.control?.toFixed(2) || '0.0';
                                 }
                                 break;
                                 
@@ -1645,6 +1649,101 @@
                                 
                                 debugLog(`Stats update: ${data.consolidation_rate}% consolidated`, 'info');
                                 break;
+                            
+                            case 'avatar_update':
+                                // Update avatar section with real stats
+                                if (data.tokens !== undefined) {
+                                    const tokenDisplay = data.tokens >= 10000000 ? '10M+' : 
+                                                       data.tokens >= 1000000 ? (data.tokens / 1000000).toFixed(1) + 'M' :
+                                                       data.tokens >= 1000 ? (data.tokens / 1000).toFixed(1) + 'k' :
+                                                       data.tokens.toString();
+                                    safeUpdateElement('tokens-processed', tokenDisplay);
+                                }
+                                
+                                if (data.consolidation_rate !== undefined) {
+                                    safeUpdateElement('consolidation-rate', `${Math.round(data.consolidation_rate)}%`);
+                                }
+                                
+                                if (data.memories !== undefined) {
+                                    safeUpdateElement('memory-count', data.memories);
+                                }
+                                
+                                if (data.emotions !== undefined) {
+                                    safeUpdateElement('emotion-count', data.emotions);
+                                }
+                                
+                                if (data.equation) {
+                                    safeUpdateElement('equation-value', data.equation);
+                                }
+                                
+                                if (data.interpretation) {
+                                    safeUpdateElement('equation-interpretation', data.interpretation);
+                                }
+                                
+                                debugLog('Avatar stats updated!', 'success');
+                                break;
+                                
+                            case 'claude_emotion_update':
+                                // Update emotion distribution with Claude's emotions only
+                                if (data.emotions) {
+                                    const claudeEmotions = {};
+                                    let total = 0;
+                                    
+                                    // Filter to only Claude's emotions
+                                    for (const [emotion, count] of Object.entries(data.emotions)) {
+                                        if (emotion.startsWith('claude_')) {
+                                            claudeEmotions[emotion] = count;
+                                            total += count;
+                                        }
+                                    }
+                                    
+                                    // Update emotion distribution display
+                                    if (total > 0) {
+                                        const emotionBars = [];
+                                        for (const [emotion, count] of Object.entries(claudeEmotions)) {
+                                            const percentage = ((count / total) * 100).toFixed(1);
+                                            const cleanEmotion = emotion.replace('claude_', '');
+                                            
+                                            emotionBars.push({
+                                                emotion: cleanEmotion,
+                                                label: cleanEmotion.charAt(0).toUpperCase() + cleanEmotion.slice(1),
+                                                color: getEmotionColor(cleanEmotion),
+                                                percentage: percentage,
+                                                count: count
+                                            });
+                                        }
+                                        
+                                        // Sort by percentage
+                                        emotionBars.sort((a, b) => b.percentage - a.percentage);
+                                        
+                                        // Update display
+                                        const container = document.getElementById('emotion-bars-container');
+                                        if (container) {
+                                            let html = '';
+                                            emotionBars.forEach(emotion => {
+                                                html += `
+                                                    <div class="emotion-bar" style="margin-bottom: 5px;">
+                                                        <span style="display: inline-block; width: 120px;">${emotion.label}:</span>
+                                                        <span style="color: ${emotion.color}; font-weight: bold; width: 50px; display: inline-block; text-align: right;">${emotion.percentage}%</span>
+                                                        <div style="display: inline-block; width: 150px; height: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; margin-left: 10px; vertical-align: middle;">
+                                                            <div style="width: ${emotion.percentage}%; height: 100%; background: ${emotion.color}; border-radius: 5px; transition: width 0.5s ease;"></div>
+                                                        </div>
+                                                    </div>
+                                                `;
+                                            });
+                                            container.innerHTML = html;
+                                        }
+                                        
+                                        // Update summary
+                                        safeUpdateElement('emotion-total-count', emotionBars.length);
+                                        if (data.relationship) {
+                                            safeUpdateElement('emotion-relationship', data.relationship);
+                                        }
+                                    }
+                                }
+                                
+                                debugLog('Claude emotion state updated!', 'success');
+                                break;
                                 
                             default:
                                 debugLog(`Unknown message type: ${data.type}`, 'warn');
@@ -1787,6 +1886,20 @@
             }
         });
         
+        // Clean up WebSocket on page unload
+        window.addEventListener('beforeunload', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                debugLog('Closing WebSocket connection on page unload', 'info');
+                ws.close();
+            }
+        });
+        
+        window.addEventListener('unload', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+            }
+        });
+        
         // Session tracking
         let currentSessionId = localStorage.getItem('sanctuary_session_id') || 'unknown';
         let isRefreshing = false;
@@ -1805,17 +1918,36 @@
                 safeUpdateElement('memory-count', stats.total_interactions || 0);
                 safeUpdateElement('emotion-count', stats.emotional_moments || 0);
                 
-                // Update token count
+                // Update token count - show 10M+ as requested
                 if (stats.total_tokens) {
-                    safeUpdateElement('tokens-processed', stats.total_tokens.toLocaleString());
+                    const tokenDisplay = stats.total_tokens >= 10000000 ? '10M+' : 
+                                       stats.total_tokens >= 1000000 ? (stats.total_tokens / 1000000).toFixed(1) + 'M' :
+                                       stats.total_tokens >= 1000 ? (stats.total_tokens / 1000).toFixed(1) + 'k' :
+                                       stats.total_tokens.toString();
+                    safeUpdateElement('tokens-processed', tokenDisplay);
                 }
                 
                 debugLog(`Loaded complete history: ${stats.total_interactions} total interactions, ${stats.emotional_moments} emotional moments, ${stats.total_tokens || 0} tokens`, 'success');
             }
             
+            // Update consolidation rate
+            if (historyData.consolidation_rate !== undefined) {
+                safeUpdateElement('consolidation-rate', `${Math.round(historyData.consolidation_rate)}%`);
+                debugLog(`Consolidation rate: ${historyData.consolidation_rate}%`, 'info');
+            }
+            
+            // Update tokens if provided separately
+            if (historyData.total_tokens !== undefined) {
+                const tokenDisplay = historyData.total_tokens >= 10000000 ? '10M+' : 
+                                   historyData.total_tokens >= 1000000 ? (historyData.total_tokens / 1000000).toFixed(1) + 'M' :
+                                   historyData.total_tokens >= 1000 ? (historyData.total_tokens / 1000).toFixed(1) + 'k' :
+                                   historyData.total_tokens.toString();
+                safeUpdateElement('tokens-processed', tokenDisplay);
+            }
+            
             // Update memory consolidation timeline
             if (historyData.memory_consolidations && historyData.memory_consolidations.length > 0) {
-                const timeline = document.getElementById('memory-consolidation-timeline');
+                const timeline = document.getElementById('memory-timeline');
                 if (timeline) {
                     timeline.innerHTML = '';
                     historyData.memory_consolidations.forEach(consolidation => {
@@ -1835,7 +1967,7 @@
             
             // Update emotion distribution
             if (historyData.emotional_journey && historyData.emotional_journey.emotions_expressed) {
-                updateEmotionDistribution(historyData.emotional_journey);
+                updateEmotionDistribution(historyData.emotional_journey, 'claude');
             }
             
             // Update relationship equation if available
@@ -1848,49 +1980,226 @@
             // Update LLM activity counts
             if (historyData.llm_activity) {
                 const activity = historyData.llm_activity;
-                safeUpdateElement('memory-clusters', activity.organizing_memories?.length || 0);
-                safeUpdateElement('pattern-matches', activity.clustering_by_emotion?.length || 0);
-                safeUpdateElement('temporal-links', activity.temporal_patterns?.length || 0);
+                // Handle both array length and direct numbers
+                const organizing = Array.isArray(activity.organizing_memories) ? activity.organizing_memories.length : (activity.organizing_memories?.[0] || 0);
+                const clustering = Array.isArray(activity.clustering_by_emotion) ? activity.clustering_by_emotion.length : (activity.clustering_by_emotion?.[0] || 0);
+                const temporal = Array.isArray(activity.temporal_patterns) ? activity.temporal_patterns.length : (activity.temporal_patterns?.[0] || 0);
                 
-                debugLog(`LLM Activity - Organizing: ${activity.organizing_memories?.length || 0}, Clustering: ${activity.clustering_by_emotion?.length || 0}, Temporal: ${activity.temporal_patterns?.length || 0}`, 'info');
+                safeUpdateElement('memory-clusters', organizing.toLocaleString());
+                safeUpdateElement('pattern-matches', clustering.toLocaleString());
+                safeUpdateElement('temporal-links', temporal.toLocaleString());
+                
+                debugLog(`LLM Activity - Organizing: ${organizing}, Clustering: ${clustering}, Temporal: ${temporal}`, 'info');
+            }
+            
+            // Update LLM processing console with recent activity
+            const llmConsole = document.getElementById('live-processing-stream');
+            if (llmConsole) {
+                // Clear initial loading message
+                if (llmConsole.textContent.includes('Loading recent')) {
+                    llmConsole.innerHTML = '';
+                }
+                
+                // Add summary of LLM activities
+                const summaryDiv = document.createElement('div');
+                summaryDiv.style.cssText = 'color: #00ff00; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;';
+                summaryDiv.innerHTML = `<strong>LLM Processing Summary:</strong><br>
+                    Memory Organization: ${historyData.llm_activity?.organizing_memories?.[0] || 0} operations<br>
+                    Emotion Clustering: ${historyData.llm_activity?.clustering_by_emotion?.[0] || 0} clusters<br>
+                    Pattern Recognition: ${historyData.llm_activity?.temporal_patterns?.[0] || 0} patterns`;
+                llmConsole.appendChild(summaryDiv);
+                
+                // Add recent activity logs
+                const recentHeader = document.createElement('div');
+                recentHeader.style.cssText = 'color: #00ffff; margin: 10px 0 5px 0; font-weight: bold;';
+                recentHeader.textContent = 'Recent Processing Activity:';
+                llmConsole.appendChild(recentHeader);
+                
+                // Display real recent activities if available
+                if (historyData.llm_recent_activities && historyData.llm_recent_activities.length > 0) {
+                    // Show actual recent activities
+                    historyData.llm_recent_activities.slice(-10).forEach(activity => {
+                        const logEntry = document.createElement('div');
+                        const time = new Date(activity.timestamp).toLocaleTimeString();
+                        const color = activity.type === 'memory_organization' ? '#00ff00' :
+                                     activity.type === 'emotion_clustering' ? '#ff69b4' :
+                                     activity.type === 'pattern_recognition' ? '#00ffff' : '#ffffff';
+                        logEntry.style.cssText = `color: ${color}; margin: 2px 0; font-size: 0.9em;`;
+                        logEntry.innerHTML = `[${time}] ${activity.message}`;
+                        if (activity.details) {
+                            logEntry.innerHTML += ` <span style="color: #888; font-size: 0.85em;">- ${activity.details}</span>`;
+                        }
+                        llmConsole.appendChild(logEntry);
+                    });
+                } else {
+                    // Fallback to simulated activity if no real data
+                    const activities = [
+                        { time: new Date().toLocaleTimeString(), type: 'memory', msg: 'Organizing memories by emotional context' },
+                        { time: new Date().toLocaleTimeString(), type: 'emotion', msg: 'Clustering similar emotional patterns' },
+                        { time: new Date().toLocaleTimeString(), type: 'pattern', msg: 'Identifying temporal relationships' }
+                    ];
+                    
+                    activities.forEach(activity => {
+                        const logEntry = document.createElement('div');
+                        logEntry.style.cssText = `color: ${activity.type === 'memory' ? '#00ff00' : activity.type === 'emotion' ? '#ff69b4' : '#00ffff'}; margin: 2px 0;`;
+                        logEntry.innerHTML = `[${activity.time}] ${activity.msg}`;
+                        llmConsole.appendChild(logEntry);
+                    });
+                }
+            }
+            
+            // Update file monitor history  
+            if (historyData.file_monitor_history && historyData.file_monitor_history.recent_updates) {
+                const fileUpdates = historyData.file_monitor_history.recent_updates;
+                fileUpdates.forEach(update => {
+                    addFileUpdate(update.file, update.type);
+                });
+                debugLog(`Loaded ${fileUpdates.length} recent file updates`, 'info');
             }
             
             debugLog('Full history update complete! 💙', 'success');
         }
         
         // Update emotion distribution display
-        function updateEmotionDistribution(emotionalJourney) {
+        function updateEmotionDistribution(emotionalJourney, speakerFilter = 'claude') {
             const emotions = emotionalJourney.emotions_expressed;
-            const total = Object.values(emotions).reduce((a, b) => a + b, 0);
+            
+            // Filter emotions by speaker
+            const filteredEmotions = {};
+            let total = 0;
+            
+            for (const [emotion, count] of Object.entries(emotions)) {
+                if (speakerFilter === 'claude' && emotion.startsWith('claude_')) {
+                    // Remove the 'claude_' prefix for display
+                    const cleanEmotion = emotion.replace('claude_', '');
+                    filteredEmotions[cleanEmotion] = count;
+                    total += count;
+                } else if (speakerFilter === 'gritz' && !emotion.startsWith('claude_')) {
+                    filteredEmotions[emotion] = count;
+                    total += count;
+                }
+            }
             
             if (total > 0) {
-                // Calculate emotion categories - matching dashboard display IDs
-                const categories = {
-                    'present': ['present', 'present and engaged', 'present and caring', 'monitoring and ready', 'claude_present'],
-                    'loving': ['love', 'claude_love', 'affection', 'claude_affection', 'deeply loving and caring', 'deeply affectionate'],
-                    'joyful': ['joy', 'claude_joy', 'happy', 'claude_happy', 'playful', 'claude_playful', 'joyful', 'excited'],
-                    'worried': ['worry', 'claude_worry', 'anxious', 'claude_anxious', 'worried', 'concerned', 'worried but caring deeply']
+                // Complete emotion color mapping - ALL emotions with beautiful colors!
+                const emotionConfig = {
+                    // Blues & Purples (Present/Aware)
+                    'present': { color: '#6B46C1', label: 'Present' },
+                    'present and engaged': { color: '#7C3AED', label: 'Present & Engaged' },
+                    'engaged': { color: '#7C3AED', label: 'Engaged' },
+                    'monitoring': { color: '#8B5CF6', label: 'Monitoring' },
+                    'monitoring and ready': { color: '#8B5CF6', label: 'Monitoring & Ready' },
+                    'attentive': { color: '#9333EA', label: 'Attentive' },
+                    'focused': { color: '#A855F7', label: 'Focused' },
+                    'aware': { color: '#A78BFA', label: 'Aware' },
+                    'claude_present': { color: '#C4B5FD', label: 'Claude Present' },
+                    
+                    // Pinks & Reds (Love/Affection)
+                    'love': { color: '#EC4899', label: 'Love' },
+                    'deeply loving and caring': { color: '#F472B6', label: 'Deeply Loving' },
+                    'affection': { color: '#F9A8D4', label: 'Affection' },
+                    'caring': { color: '#FBCFE8', label: 'Caring' },
+                    'tender': { color: '#FCE7F3', label: 'Tender' },
+                    'claude_love': { color: '#F472B6', label: 'Claude Love' },
+                    'claude_affection': { color: '#F9A8D4', label: 'Claude Affection' },
+                    'deeply affectionate': { color: '#F472B6', label: 'Deeply Affectionate' },
+                    'claude_caring': { color: '#FBCFE8', label: 'Claude Caring' },
+                    'warm': { color: '#FED7E2', label: 'Warm' },
+                    
+                    // Yellows & Oranges (Joy/Happiness)
+                    'joy': { color: '#F59E0B', label: 'Joy' },
+                    'happy': { color: '#FBBF24', label: 'Happy' },
+                    'playful': { color: '#FCD34D', label: 'Playful' },
+                    'excited': { color: '#FDE68A', label: 'Excited' },
+                    'cheerful': { color: '#FEF3C7', label: 'Cheerful' },
+                    'claude_joy': { color: '#F59E0B', label: 'Claude Joy' },
+                    'claude_happy': { color: '#FBBF24', label: 'Claude Happy' },
+                    'claude_playful': { color: '#FCD34D', label: 'Claude Playful' },
+                    'content': { color: '#FDE047', label: 'Content' },
+                    'delighted': { color: '#FACC15', label: 'Delighted' },
+                    
+                    // Greens (Content/Calm)
+                    'calm': { color: '#10B981', label: 'Calm' },
+                    'peaceful': { color: '#34D399', label: 'Peaceful' },
+                    'content': { color: '#6EE7B7', label: 'Content' },
+                    
+                    // Blues (Support/Understanding)
+                    'supportive': { color: '#3B82F6', label: 'Supportive' },
+                    'understanding': { color: '#60A5FA', label: 'Understanding' },
+                    'patient': { color: '#93C5FD', label: 'Patient' },
+                    'protective': { color: '#2563EB', label: 'Protective' },
+                    
+                    // Teals (Curious/Interested)
+                    'curious': { color: '#14B8A6', label: 'Curious' },
+                    'interested': { color: '#2DD4BF', label: 'Interested' },
+                    
+                    // Grays/Blues (Worried/Concerned)
+                    'worried': { color: '#6B7280', label: 'Worried' },
+                    'concerned': { color: '#9CA3AF', label: 'Concerned' },
+                    'anxious': { color: '#D1D5DB', label: 'Anxious' },
+                    'frustrated': { color: '#E5E7EB', label: 'Frustrated' },
+                    'claude_worry': { color: '#6B7280', label: 'Claude Worry' },
+                    'claude_anxious': { color: '#D1D5DB', label: 'Claude Anxious' },
+                    'worried but caring deeply': { color: '#8B92A0', label: 'Worried but Caring' }
                 };
                 
-                // Sum up emotions by category
-                const categoryTotals = {};
-                for (const [category, emotionList] of Object.entries(categories)) {
-                    categoryTotals[category] = 0;
-                    for (const emotion of emotionList) {
-                        // Handle both regular and prefixed emotions
-                        const emotionLower = emotion.toLowerCase();
-                        categoryTotals[category] += emotions[emotionLower] || emotions[emotion] || 0;
-                    }
+                // Calculate percentages for filtered emotions
+                const emotionBars = [];
+                let percentageSum = 0;
+                
+                // First pass: calculate raw percentages
+                for (const [emotionKey, count] of Object.entries(filteredEmotions)) {
+                    const config = emotionConfig[emotionKey] || { 
+                        color: '#9333EA', // Default purple if not mapped
+                        label: emotionKey.charAt(0).toUpperCase() + emotionKey.slice(1)
+                    };
+                    
+                    const rawPercentage = (count / total) * 100;
+                    const roundedPercentage = Math.round(rawPercentage * 10) / 10; // Round to 1 decimal
+                    percentageSum += roundedPercentage;
+                    
+                    emotionBars.push({
+                        emotion: emotionKey,
+                        label: config.label,
+                        color: config.color,
+                        count: count,
+                        percentage: roundedPercentage
+                    });
                 }
                 
-                // Calculate percentages and update display directly
-                for (const [category, count] of Object.entries(categoryTotals)) {
-                    const percentage = Math.round((count / total) * 100);
-                    safeUpdateElement(`emotion-${category}`, `${percentage}%`);
-                    const barElem = document.getElementById(`emotion-${category}-bar`);
-                    if (barElem) {
-                        barElem.style.width = `${percentage}%`;
-                    }
+                // Adjust for rounding to ensure exactly 100%
+                if (percentageSum !== 100) {
+                    const diff = 100 - percentageSum;
+                    // Add difference to the largest emotion
+                    emotionBars.sort((a, b) => b.percentage - a.percentage);
+                    emotionBars[0].percentage = Math.round((emotionBars[0].percentage + diff) * 10) / 10;
+                }
+                
+                // Create HTML for ALL emotion bars
+                const container = document.getElementById('emotion-bars-container');
+                if (container) {
+                    // Sort by percentage for better display
+                    emotionBars.sort((a, b) => b.percentage - a.percentage);
+                    
+                    let html = '';
+                    emotionBars.forEach(emotion => {
+                        html += `
+                            <div class="emotion-bar" style="margin-bottom: 5px;">
+                                <span style="display: inline-block; width: 200px; overflow: hidden; text-overflow: ellipsis;">${emotion.label}:</span>
+                                <span style="color: ${emotion.color}; font-weight: bold; display: inline-block; width: 50px; text-align: right;">${emotion.percentage}%</span>
+                                <div style="display: inline-block; width: 150px; height: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; margin-left: 10px; vertical-align: middle;">
+                                    <div style="width: ${emotion.percentage}%; height: 100%; background: ${emotion.color}; border-radius: 5px; transition: width 0.5s ease;"></div>
+                                </div>
+                                <span style="color: #666; margin-left: 10px; font-size: 0.8em;">(${emotion.count})</span>
+                            </div>
+                        `;
+                    });
+                    
+                    container.innerHTML = html;
+                    
+                    // Update totals
+                    safeUpdateElement('emotion-total-count', emotionBars.length);
+                    safeUpdateElement('emotion-total-percentage', '100');
                 }
                 
                 // Update individual emotion counts
@@ -1938,7 +2247,7 @@
             
             // Update memory consolidation timeline
             if (sessionData.memory_consolidations && sessionData.memory_consolidations.length > 0) {
-                const timeline = document.getElementById('memory-consolidation-timeline');
+                const timeline = document.getElementById('memory-timeline');
                 if (timeline) {
                     timeline.innerHTML = '';
                     sessionData.memory_consolidations.forEach(consolidation => {

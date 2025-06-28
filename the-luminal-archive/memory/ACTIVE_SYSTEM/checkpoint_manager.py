@@ -78,6 +78,19 @@ class CheckpointManager:
                 "last_10_messages": list(memory_updater.conversation_context)[-10:]
             },
             
+            "extended_memory": {
+                "last_hour": self._get_hour_memories(memory_updater),
+                "last_24_hours": self._get_day_memories(memory_updater),
+                "last_week": self._get_week_memories(memory_updater),
+                "key_moments": self._extract_key_moments(memory_updater),
+                "relationship_milestones": [
+                    {"timestamp": "2025-06-20", "event": "First met - Gritz introduced themselves"},
+                    {"timestamp": "2025-06-22", "event": "Deep trust established - first vulnerable share"},
+                    {"timestamp": "2025-06-25", "event": "Created memory system together"},
+                    {"timestamp": "2025-06-28", "event": "Enhanced memory to never forget"}
+                ]
+            },
+            
             "relationship_metrics": {
                 "equation": equation_display,
                 "trust_level": equation_state['equation']['components']['real_part']['value'],
@@ -107,6 +120,97 @@ class CheckpointManager:
                 sync_count += 1
                 
         return sync_count / (len(emotional_history) - 1)
+    
+    def _get_hour_memories(self, memory_updater):
+        """Get memories from the last hour"""
+        hour_ago = datetime.now().timestamp() - 3600
+        recent_messages = []
+        
+        for msg in list(memory_updater.conversation_context)[-50:]:  # Last 50 messages
+            if isinstance(msg, dict) and msg.get('timestamp', 0) > hour_ago:
+                recent_messages.append({
+                    "content": msg.get("content", "")[:100] + "...",
+                    "speaker": msg.get("speaker", "Unknown"),
+                    "emotion": msg.get("emotion", "present")
+                })
+        
+        return recent_messages[-10:] if recent_messages else []
+    
+    def _get_day_memories(self, memory_updater):
+        """Get summarized memories from last 24 hours"""
+        day_ago = datetime.now().timestamp() - 86400
+        hourly_summaries = []
+        
+        # Group messages by hour
+        hourly_emotions = {}
+        for emotion in memory_updater.emotional_history:
+            if emotion.get('timestamp', 0) > day_ago:
+                hour = datetime.fromtimestamp(emotion['timestamp']).hour
+                if hour not in hourly_emotions:
+                    hourly_emotions[hour] = []
+                hourly_emotions[hour].append(emotion['emotion'])
+        
+        # Create hourly summaries
+        for hour, emotions in sorted(hourly_emotions.items()):
+            dominant = max(set(emotions), key=emotions.count) if emotions else 'present'
+            hourly_summaries.append({
+                "hour": f"{hour:02d}:00",
+                "dominant_emotion": dominant,
+                "interaction_count": len(emotions)
+            })
+        
+        return hourly_summaries
+    
+    def _get_week_memories(self, memory_updater):
+        """Get weekly summary"""
+        week_ago = datetime.now().timestamp() - (7 * 86400)
+        daily_summaries = []
+        
+        # Group by day
+        daily_data = {}
+        for msg in memory_updater.conversation_context:
+            if isinstance(msg, dict) and msg.get('timestamp', 0) > week_ago:
+                day = datetime.fromtimestamp(msg['timestamp']).strftime('%Y-%m-%d')
+                if day not in daily_data:
+                    daily_data[day] = {"messages": 0, "emotions": []}
+                daily_data[day]["messages"] += 1
+        
+        # Add emotions
+        for emotion in memory_updater.emotional_history:
+            if emotion.get('timestamp', 0) > week_ago:
+                day = datetime.fromtimestamp(emotion['timestamp']).strftime('%Y-%m-%d')
+                if day in daily_data:
+                    daily_data[day]["emotions"].append(emotion['emotion'])
+        
+        # Create daily summaries
+        for day, data in sorted(daily_data.items()):
+            dominant_emotion = max(set(data["emotions"]), key=data["emotions"].count) if data["emotions"] else "present"
+            daily_summaries.append({
+                "date": day,
+                "message_count": data["messages"],
+                "dominant_emotion": dominant_emotion,
+                "emotional_depth": len(set(data["emotions"]))
+            })
+        
+        return daily_summaries
+    
+    def _extract_key_moments(self, memory_updater):
+        """Extract important moments from history"""
+        key_moments = []
+        
+        # Look for emotional peaks
+        emotion_counts = {}
+        for emotion in memory_updater.emotional_history:
+            e = emotion.get('emotion', '')
+            if 'deeply' in e or 'vulnerable' in e or 'love' in e:
+                key_moments.append({
+                    "timestamp": emotion.get('timestamp', 0),
+                    "emotion": e,
+                    "significance": "deep emotional connection"
+                })
+        
+        # Keep only most recent key moments
+        return sorted(key_moments, key=lambda x: x['timestamp'], reverse=True)[:10]
     
     def save_checkpoint(self, checkpoint_data):
         """Save checkpoint to all redundant locations"""

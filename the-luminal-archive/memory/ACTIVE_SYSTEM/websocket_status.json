@@ -1,8 +1,8 @@
 {
   "status": "active",
-  "connected_clients": 4,
+  "connected_clients": 48,
   "port": 8766,
-  "uptime_seconds": 1171.728915,
-  "last_activity": "2025-06-28T05:13:35.098786",
-  "messages_broadcasted": 26310
+  "uptime_seconds": 328.719418,
+  "last_activity": "2025-06-28T08:30:59.821532",
+  "messages_broadcasted": 964105592345555523
 }

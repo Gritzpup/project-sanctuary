@@ -109,11 +109,17 @@ class RelationshipHistoryManager:
                 if claude_chat_dir.exists():
                     conversation_paths.append(claude_chat_dir)
         
+        # Count NEW messages only (don't start with existing totals)
         total_gritz_messages = 0
         total_gritz_words = 0
         total_claude_messages = 0
         total_claude_words = 0
+        
+        # Also preserve existing emotions
         all_emotions = defaultdict(int)
+        if "emotional_journey" in self.history and "emotions_expressed" in self.history["emotional_journey"]:
+            for emotion, count in self.history["emotional_journey"]["emotions_expressed"].items():
+                all_emotions[emotion] = count
         
         for path in conversation_paths:
             if not path.exists():
@@ -154,12 +160,14 @@ class RelationshipHistoryManager:
                                             total_gritz_messages += 1
                                             total_gritz_words += len(content.split())
                                             if emotion:
-                                                all_emotions[emotion] += 1
+                                                # Store with speaker prefix for tracking
+                                                all_emotions[f"gritz_{emotion}"] += 1
                                                 
                                         elif speaker == 'Claude' and content:
                                             total_claude_messages += 1
                                             total_claude_words += len(content.split())
                                             if emotion:
+                                                # Store with speaker prefix for tracking
                                                 all_emotions[f"claude_{emotion}"] += 1
                                             
                                     except json.JSONDecodeError:
@@ -206,13 +214,29 @@ class RelationshipHistoryManager:
                     print(f"Error processing {file}: {e}")
                     continue
                     
-        # Update total stats
-        self.history["total_stats"]["gritz_messages"] = total_gritz_messages
-        self.history["total_stats"]["gritz_words"] = total_gritz_words
-        self.history["total_stats"]["claude_messages"] = total_claude_messages
-        self.history["total_stats"]["claude_words"] = total_claude_words
-        self.history["total_stats"]["total_interactions"] = total_gritz_messages + total_claude_messages
-        self.history["total_stats"]["emotional_moments"] = sum(all_emotions.values())
+        # Update total stats - ADD to existing totals, don't replace!
+        # Store existing totals before scan
+        existing_gritz = self.history["total_stats"].get("gritz_messages", 0)
+        existing_claude = self.history["total_stats"].get("claude_messages", 0)
+        existing_gritz_words = self.history["total_stats"].get("gritz_words", 0)
+        existing_claude_words = self.history["total_stats"].get("claude_words", 0)
+        existing_emotions = self.history["total_stats"].get("emotional_moments", 0)
+        
+        # Only add NEW messages (not already counted)
+        new_gritz_messages = max(0, total_gritz_messages)  # From this scan
+        new_claude_messages = max(0, total_claude_messages)  # From this scan
+        new_emotions = max(0, sum(all_emotions.values()))
+        
+        # ADD to existing totals
+        self.history["total_stats"]["gritz_messages"] = existing_gritz + new_gritz_messages
+        self.history["total_stats"]["gritz_words"] = existing_gritz_words + total_gritz_words
+        self.history["total_stats"]["claude_messages"] = existing_claude + new_claude_messages
+        self.history["total_stats"]["claude_words"] = existing_claude_words + total_claude_words
+        self.history["total_stats"]["total_interactions"] = self.history["total_stats"]["gritz_messages"] + self.history["total_stats"]["claude_messages"]
+        self.history["total_stats"]["emotional_moments"] = existing_emotions + new_emotions
+        
+        print(f"📊 Updated totals - Gritz: {existing_gritz} → {self.history['total_stats']['gritz_messages']} (+{new_gritz_messages})")
+        print(f"📊 Updated totals - Claude: {existing_claude} → {self.history['total_stats']['claude_messages']} (+{new_claude_messages})")
         
         # Update emotional journey
         self.history["emotional_journey"]["emotions_expressed"] = dict(all_emotions)
@@ -302,9 +326,9 @@ class RelationshipHistoryManager:
         if speaker == 'Gritz' and self.emotion_analyzer:
             # Use full emotion analysis for Gritz
             try:
-                emotion_data = self.emotion_analyzer.analyze_text(content)
-                if emotion_data and 'primary_emotion' in emotion_data:
-                    return emotion_data['primary_emotion']
+                emotion_data = self.emotion_analyzer.analyze(content)
+                if emotion_data and 'emotion' in emotion_data:
+                    return emotion_data['emotion']
             except:
                 pass
                 
@@ -483,14 +507,35 @@ class RelationshipHistoryManager:
         
     def get_dashboard_data(self):
         """Get all data needed for dashboard display"""
-        # Ensure LLM activity exists
-        if "llm_activity" not in self.history:
-            self.history["llm_activity"] = {
-                "organizing_memories": [],
-                "clustering_by_emotion": [],
-                "temporal_patterns": []
-            }
-            
+        # Load LLM activity history if available
+        llm_activity_data = {"organizing_memories": [], "clustering_by_emotion": [], "temporal_patterns": []}
+        llm_recent_activities = []
+        llm_history_file = Path("llm_activity_history.json")
+        if llm_history_file.exists():
+            try:
+                with open(llm_history_file, 'r') as f:
+                    llm_history = json.load(f)
+                    llm_activity_data = {
+                        "organizing_memories": [llm_history["total_activities"]["memory_organization"]],
+                        "clustering_by_emotion": [llm_history["total_activities"]["emotion_clustering"]],
+                        "temporal_patterns": [llm_history["total_activities"]["pattern_recognition"]]
+                    }
+                    # Include recent activities if available
+                    if "recent_activities" in llm_history:
+                        llm_recent_activities = llm_history["recent_activities"]
+            except Exception as e:
+                print(f"Error loading LLM history: {e}")
+        
+        # Load file monitor history if available
+        file_monitor_data = {}
+        file_monitor_file = Path("file_monitor_history.json")
+        if file_monitor_file.exists():
+            try:
+                with open(file_monitor_file, 'r') as f:
+                    file_monitor_data = json.load(f)
+            except Exception as e:
+                print(f"Error loading file monitor history: {e}")
+                
         return {
             "total_stats": self.history["total_stats"],
             "memory_consolidations": self.get_memory_consolidation_timeline(),
@@ -499,7 +544,9 @@ class RelationshipHistoryManager:
             "debug_console": self.history["debug_console_history"]["last_24_hours"][-100:],  # Last 100 entries
             "processing_console": self.history["processing_console_history"]["last_24_hours"][-100:],
             "milestones": self.history["milestones"][-10:],  # Last 10 milestones
-            "llm_activity": self.history.get("llm_activity", {})
+            "llm_activity": llm_activity_data,
+            "llm_recent_activities": llm_recent_activities,  # Add recent LLM activities
+            "file_monitor_history": file_monitor_data
         }
 
 if __name__ == "__main__":

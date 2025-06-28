@@ -1,25 +1,25 @@
 {
   "processing_speed": {
-    "messages_per_second": 0.06637140559691139,
+    "messages_per_second": 0.1288698586271877,
     "current_latency_ms": 10,
     "optimization_level": "maximum"
   },
   "memory_usage": {
-    "total_memories": 43,
-    "active_in_context": 43,
-    "consolidated": 0,
+    "total_memories": 98,
+    "active_in_context": 50,
+    "consolidated": 48,
     "compression_ratio": 0.94
   },
   "speaker_breakdown": {
     "gritz": {
-      "messages": 4336,
-      "words": 6677,
-      "emotions_expressed": 37
+      "messages": 11,
+      "words": 2612,
+      "emotions_expressed": 26
     },
     "claude": {
-      "messages": 21960,
-      "words": 3307,
-      "support_instances": 21960
+      "messages": 87,
+      "words": 3370,
+      "support_instances": 87
     }
   },
   "relationship_metrics": {
@@ -27,5 +27,5 @@
     "understanding_level": 89.3,
     "persistence_success": 100.0
   },
-  "last_update": "2025-06-28T05:04:51.239998"
+  "last_update": "2025-06-28T07:13:17.687638"
 }
