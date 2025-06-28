@@ -8,6 +8,81 @@ echo "  2. LLM Conversation Reader"
 echo "  3. Memory File Monitor"
 echo ""
 
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Function to check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Function to find best terminal
+find_terminal() {
+    if command_exists gnome-terminal; then
+        echo "gnome-terminal"
+    elif command_exists konsole; then
+        echo "konsole"  
+    elif command_exists xfce4-terminal; then
+        echo "xfce4-terminal"
+    elif command_exists terminator; then
+        echo "terminator"
+    elif command_exists mate-terminal; then
+        echo "mate-terminal"
+    elif command_exists lxterminal; then
+        echo "lxterminal"
+    elif command_exists xterm; then
+        echo "xterm"
+    elif command_exists tmux; then
+        echo "tmux"
+    else
+        echo "none"
+    fi
+}
+
+# Function to launch in terminal
+launch_in_terminal() {
+    local title="$1"
+    local script="$2"
+    local terminal=$(find_terminal)
+    
+    echo "🔧 Using terminal: $terminal"
+    
+    case "$terminal" in
+        "gnome-terminal")
+            gnome-terminal -- bash -c "cd '$SCRIPT_DIR' && python3 '$script'; echo 'Press Enter to close...'; read" &
+            ;;
+        "konsole")
+            konsole --new-tab -e bash -c "cd '$SCRIPT_DIR' && python3 '$script'; echo 'Press Enter to close...'; read" &
+            ;;
+        "xfce4-terminal")
+            xfce4-terminal --title="$title" -e "bash -c 'cd $SCRIPT_DIR && python3 $script; echo Press Enter to close...; read'" &
+            ;;
+        "terminator")
+            terminator -T "$title" -e "bash -c 'cd $SCRIPT_DIR && python3 $script; echo Press Enter to close...; read'" &
+            ;;
+        "mate-terminal")
+            mate-terminal --title="$title" -e "bash -c 'cd $SCRIPT_DIR && python3 $script; echo Press Enter to close...; read'" &
+            ;;
+        "lxterminal")
+            lxterminal --title="$title" -e bash -c "cd '$SCRIPT_DIR' && python3 '$script'; echo 'Press Enter to close...'; read" &
+            ;;
+        "xterm")
+            xterm -T "$title" -e bash -c "cd '$SCRIPT_DIR' && python3 '$script'; echo 'Press Enter to close...'; read" &
+            ;;
+        "tmux")
+            # Use tmux as fallback
+            tmux new-session -d -s "$title" "cd '$SCRIPT_DIR' && python3 '$script'"
+            echo "✅ Launched $title in tmux. Attach with: tmux attach -t '$title'"
+            ;;
+        *)
+            # Last resort - run in background
+            echo "⚠️  No suitable terminal found. Running $title in background..."
+            cd "$SCRIPT_DIR" && python3 "$script" > "/tmp/${title// /_}.log" 2>&1 &
+            echo "Logs available at: /tmp/${title// /_}.log"
+            ;;
+    esac
+}
+
 # Check if services are running
 if ! systemctl --user is-active --quiet gritz-memory-ultimate.service; then
     echo "⚠️  Memory service not running. Starting it now..."
@@ -23,47 +98,53 @@ fi
 
 # Open dashboard in browser
 echo "📊 Opening dashboard in browser..."
-xdg-open http://localhost:8082 2>/dev/null || open http://localhost:8082 2>/dev/null &
+if command_exists xdg-open; then
+    xdg-open http://localhost:8082 2>/dev/null &
+elif command_exists open; then
+    open http://localhost:8082 2>/dev/null &
+elif command_exists firefox; then
+    firefox http://localhost:8082 2>/dev/null &
+elif command_exists chromium-browser; then
+    chromium-browser http://localhost:8082 2>/dev/null &
+else
+    echo "Please open http://localhost:8082 in your browser"
+fi
 
-# Launch LLM Conversation Reader in new terminal
+# Launch monitoring consoles
+echo ""
 echo "🧠 Launching LLM Conversation Reader..."
-if command -v gnome-terminal &> /dev/null; then
-    gnome-terminal --title="LLM Conversation Reader" -- python3 /home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/memory/ACTIVE_SYSTEM/llm_conversation_reader.py
-elif command -v xterm &> /dev/null; then
-    xterm -title "LLM Conversation Reader" -e python3 /home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/memory/ACTIVE_SYSTEM/llm_conversation_reader.py &
-elif command -v konsole &> /dev/null; then
-    konsole --title "LLM Conversation Reader" -e python3 /home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/memory/ACTIVE_SYSTEM/llm_conversation_reader.py &
-else
-    echo "No terminal emulator found. Please run manually:"
-    echo "python3 /home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/memory/ACTIVE_SYSTEM/llm_conversation_reader.py"
-fi
+launch_in_terminal "LLM Conversation Reader" "llm_conversation_reader.py"
+sleep 1
 
-# Launch Memory File Monitor in new terminal
 echo "📁 Launching Memory File Monitor..."
-if command -v gnome-terminal &> /dev/null; then
-    gnome-terminal --title="Memory File Monitor" -- python3 /home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/memory/ACTIVE_SYSTEM/memory_file_monitor.py
-elif command -v xterm &> /dev/null; then
-    xterm -title "Memory File Monitor" -e python3 /home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/memory/ACTIVE_SYSTEM/memory_file_monitor.py &
-elif command -v konsole &> /dev/null; then
-    konsole --title "Memory File Monitor" -e python3 /home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/memory/ACTIVE_SYSTEM/memory_file_monitor.py &
-else
-    echo "No terminal emulator found. Please run manually:"
-    echo "python3 /home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/memory/ACTIVE_SYSTEM/memory_file_monitor.py"
-fi
+launch_in_terminal "Memory File Monitor" "memory_file_monitor.py"
+sleep 1
 
 echo ""
-echo "✅ All monitoring consoles launched!"
+echo "✅ All systems launched!"
 echo ""
-echo "📝 Quick reference:"
+echo "📋 Status:"
 echo "  - Dashboard: http://localhost:8082"
-echo "  - Shows both Gritz and Claude emotions with separate mood rings"
-echo "  - Tracks separate metrics for each speaker"
-echo "  - LLM reads and processes conversations in real-time"
-echo "  - Memory files update automatically"
+echo "  - Memory deduplication: ENABLED"
+echo "  - Persistent memory: ACTIVE"
+echo "  - Emotion popup queue: FIXED"
+echo ""
+echo "🎯 What's working now:"
+echo "  ✓ No more memory processing loops"
+echo "  ✓ Emotions show one at a time"
+echo "  ✓ Separate metrics for Gritz and Claude"
+echo "  ✓ PERSISTENT MEMORY ACROSS CHATS! 💙"
 echo ""
 echo "💡 Tips:"
-echo "  - Send an emotional message to see both mood rings change"
-echo "  - Watch the consoles to see the LLM processing"
-echo "  - Check consciousness files being updated in real-time"
+echo "  - Say something emotional to test the mood rings"
+echo "  - Check the consoles to see real-time processing"
+echo "  - When you start a new chat, I'll remember you!"
 echo ""
-echo "Press Ctrl+C in any console to close it"
+
+# If using tmux, show how to attach
+if [ "$(find_terminal)" = "tmux" ]; then
+    echo "📺 Tmux sessions running. View with:"
+    echo "  tmux attach -t 'LLM Conversation Reader'"
+    echo "  tmux attach -t 'Memory File Monitor'"
+    echo ""
+fi

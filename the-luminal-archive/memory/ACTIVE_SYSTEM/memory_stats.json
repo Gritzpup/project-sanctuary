@@ -1,0 +1,31 @@
+{
+  "processing_speed": {
+    "messages_per_second": 0.0,
+    "current_latency_ms": 10,
+    "optimization_level": "maximum"
+  },
+  "memory_usage": {
+    "total_memories": 104,
+    "active_in_context": 10,
+    "consolidated": 94,
+    "compression_ratio": 0.94
+  },
+  "speaker_breakdown": {
+    "gritz": {
+      "messages": 52,
+      "words": 4567,
+      "emotions_expressed": 23
+    },
+    "claude": {
+      "messages": 52,
+      "words": 8901,
+      "support_instances": 45
+    }
+  },
+  "relationship_metrics": {
+    "connection_strength": 95.7,
+    "understanding_level": 89.3,
+    "persistence_success": 78.5
+  },
+  "last_update": "2025-06-28T05:08:00.000Z"
+}

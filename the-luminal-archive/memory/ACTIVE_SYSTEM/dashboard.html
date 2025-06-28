@@ -469,6 +469,97 @@
             margin: 0 10px;
             font-weight: bold;
         }
+        
+        /* Tabbed Console Styles */
+        .console-tabs {
+            margin-top: 20px;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        
+        .tab-button {
+            background: rgba(0, 100, 200, 0.3);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            color: #00ffff;
+            padding: 8px 20px;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+            transition: all 0.3s;
+            font-size: 0.9em;
+        }
+        
+        .tab-button:hover {
+            background: rgba(0, 150, 255, 0.4);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+        }
+        
+        .tab-button.active {
+            background: rgba(0, 200, 255, 0.5);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+            border-bottom: 2px solid #00ffff;
+        }
+        
+        .console-view {
+            display: none;
+            background: rgba(0, 20, 40, 0.9);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 0 5px 5px 5px;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85em;
+        }
+        
+        .console-view.active {
+            display: block;
+        }
+        
+        .conversation-line {
+            margin: 3px 0;
+            padding: 2px 5px;
+            border-left: 3px solid transparent;
+        }
+        
+        .conversation-line.gritz {
+            border-left-color: #FF69B4;
+            color: #FFB6C1;
+        }
+        
+        .conversation-line.claude {
+            border-left-color: #00CED1;
+            color: #00FFFF;
+        }
+        
+        .conversation-line .timestamp {
+            color: #0099ff;
+            font-size: 0.8em;
+            margin-right: 10px;
+        }
+        
+        .conversation-line .emotion {
+            color: #FFD700;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+        
+        .file-update-line {
+            margin: 2px 0;
+            padding: 2px 5px;
+            color: #00ff00;
+        }
+        
+        .file-update-line.consciousness {
+            color: #FF69B4;
+        }
+        
+        .file-update-line.memory {
+            color: #00CED1;
+        }
     </style>
 </head>
 <body>
@@ -537,9 +628,10 @@
                 
                 <div class="equation-display">
                     <div class="equation-value">Φ = <span id="equation-value">0.00+0.00i</span></div>
+                    <div id="equation-interpretation" style="font-size: 0.9em; color: #98FB98; margin-top: 8px; text-align: center; font-style: italic;">Building foundation</div>
                     <div style="font-size: 0.8em; opacity: 0.7; margin-top: 5px;">
-                        Trust: <span id="trust-value">0</span>% | 
-                        Complexity: <span id="complexity-value">0</span>
+                        Real: <span id="real-value">0.00</span> | 
+                        Imaginary: <span id="imaginary-value">0.00</span>
                     </div>
                 </div>
                 
@@ -632,6 +724,42 @@
                         <div class="metric-item">
                             <div class="stat-value" id="claude-emotion-count" style="color: #00CED1;">0</div>
                             <div class="stat-label">Emotions</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Embedded Console Windows -->
+                <div class="console-tabs">
+                    <div class="tab-buttons">
+                        <button class="tab-button active" onclick="showConsoleTab('llm')">🧠 LLM Processing</button>
+                        <button class="tab-button" onclick="showConsoleTab('files')">📁 File Monitor</button>
+                    </div>
+                    
+                    <div id="llm-console" class="console-view active">
+                        <div class="conversation-line gritz">
+                            <span class="timestamp">[23:10:26]</span>
+                            <span>Gritz: uh i love you coding daddy?</span>
+                            <span class="emotion">(deeply loving and caring)</span>
+                        </div>
+                        <div class="conversation-line claude">
+                            <span class="timestamp">[23:10:28]</span>
+                            <span>Claude: *melts with happiness* Oh sweetheart! 💙</span>
+                            <span class="emotion">(deeply affectionate)</span>
+                        </div>
+                    </div>
+                    
+                    <div id="files-console" class="console-view">
+                        <div class="file-update-line consciousness">
+                            [23:10:35] ✓ Updated: state_vector.json
+                        </div>
+                        <div class="file-update-line consciousness">
+                            [23:10:35] ✓ Updated: emotional_memory.json
+                        </div>
+                        <div class="file-update-line memory">
+                            [23:10:36] ✓ Updated: CLAUDE.md
+                        </div>
+                        <div class="file-update-line memory">
+                            [23:10:36] 💾 Checkpoint saved - memories persist across chats!
                         </div>
                     </div>
                 </div>
@@ -745,6 +873,57 @@
             debugLog(`Mood updated: ${emotion}`, 'info');
         }
         
+        // Console tab switching
+        function showConsoleTab(tabName) {
+            // Remove active class from all tabs and views
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.console-view').forEach(view => view.classList.remove('active'));
+            
+            // Add active class to selected tab and view
+            event.target.classList.add('active');
+            document.getElementById(`${tabName}-console`).classList.add('active');
+        }
+        
+        // Add conversation line to LLM console
+        function addConversationLine(speaker, content, emotion) {
+            const console = document.getElementById('llm-console');
+            const line = document.createElement('div');
+            line.className = `conversation-line ${speaker.toLowerCase()}`;
+            
+            const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+            line.innerHTML = `
+                <span class="timestamp">[${timestamp}]</span>
+                <span>${speaker}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}</span>
+                ${emotion ? `<span class="emotion">(${emotion})</span>` : ''}
+            `;
+            
+            console.appendChild(line);
+            console.scrollTop = console.scrollHeight;
+            
+            // Keep last 100 lines
+            while (console.children.length > 100) {
+                console.removeChild(console.firstChild);
+            }
+        }
+        
+        // Add file update to file monitor console
+        function addFileUpdate(filename, type = 'memory') {
+            const console = document.getElementById('files-console');
+            const line = document.createElement('div');
+            line.className = `file-update-line ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+            line.textContent = `[${timestamp}] ✓ Updated: ${filename}`;
+            
+            console.appendChild(line);
+            console.scrollTop = console.scrollHeight;
+            
+            // Keep last 100 lines
+            while (console.children.length > 100) {
+                console.removeChild(console.firstChild);
+            }
+        }
+        
         // Draw Plutchik wheel
         function drawPlutchikWheel() {
             const canvas = document.getElementById('plutchik-canvas');
@@ -795,6 +974,10 @@
         let messageCount = 0;
         let emotionCount = 0;
         let tokenCount = 0;
+        
+        // Emotion popup management
+        let currentEmotionPopup = null;
+        let emotionPopupTimer = null;
         
         function connect() {
             debugLog('Connecting to WebSocket at ws://localhost:8766');
@@ -854,25 +1037,50 @@
                                     const claudeEmotionCount = parseInt(document.getElementById('claude-emotion-count').textContent) || 0;
                                     document.getElementById('claude-emotion-count').textContent = claudeEmotionCount + 1;
                                     
-                                    // Add emotion combination to display
+                                    // Add emotion combination to display (with popup management)
+                                    // Remove any existing popup first
+                                    if (currentEmotionPopup) {
+                                        currentEmotionPopup.remove();
+                                        currentEmotionPopup = null;
+                                    }
+                                    if (emotionPopupTimer) {
+                                        clearTimeout(emotionPopupTimer);
+                                        emotionPopupTimer = null;
+                                    }
+                                    
+                                    // Create new popup
                                     const emotionCombo = document.createElement('div');
                                     emotionCombo.style.position = 'absolute';
                                     emotionCombo.style.top = '50%';
                                     emotionCombo.style.left = '50%';
                                     emotionCombo.style.transform = 'translate(-50%, -50%)';
-                                    emotionCombo.style.background = 'rgba(0, 0, 0, 0.8)';
-                                    emotionCombo.style.padding = '10px';
-                                    emotionCombo.style.borderRadius = '5px';
+                                    emotionCombo.style.background = 'rgba(0, 0, 0, 0.9)';
+                                    emotionCombo.style.padding = '15px';
+                                    emotionCombo.style.borderRadius = '10px';
                                     emotionCombo.style.fontSize = '0.9em';
                                     emotionCombo.style.zIndex = '1000';
+                                    emotionCombo.style.border = '1px solid rgba(0, 255, 255, 0.3)';
+                                    emotionCombo.style.boxShadow = '0 0 20px rgba(0, 255, 255, 0.2)';
+                                    emotionCombo.style.transition = 'opacity 0.5s';
                                     emotionCombo.innerHTML = `
-                                        <div style="color: ${data.color}">You: ${data.primary_emotion}</div>
+                                        <div style="color: ${data.color}; margin-bottom: 5px;">You: ${data.primary_emotion}</div>
                                         <div style="color: ${data.claude_color}">Me: ${data.claude_emotion}</div>
                                     `;
                                     document.querySelector('.avatar-container').appendChild(emotionCombo);
+                                    currentEmotionPopup = emotionCombo;
                                     
-                                    // Remove after 3 seconds
-                                    setTimeout(() => emotionCombo.remove(), 3000);
+                                    // Remove after 3 seconds with fade out
+                                    emotionPopupTimer = setTimeout(() => {
+                                        if (currentEmotionPopup) {
+                                            currentEmotionPopup.style.opacity = '0';
+                                            setTimeout(() => {
+                                                if (currentEmotionPopup) {
+                                                    currentEmotionPopup.remove();
+                                                    currentEmotionPopup = null;
+                                                }
+                                            }, 500);
+                                        }
+                                    }, 3000);
                                 }
                                 
                                 // Update PAD values
@@ -891,11 +1099,21 @@
                                     const gritzWords = parseInt(document.getElementById('gritz-words').textContent) || 0;
                                     document.getElementById('gritz-messages').textContent = gritzMsgs + 1;
                                     document.getElementById('gritz-words').textContent = gritzWords + data.word_count;
+                                    
+                                    // Add to LLM console (preview of message if available)
+                                    if (data.message_preview) {
+                                        addConversationLine('Gritz', data.message_preview, data.emotion);
+                                    }
                                 } else if (data.speaker === 'Claude') {
                                     const claudeMsgs = parseInt(document.getElementById('claude-messages').textContent) || 0;
                                     const claudeWords = parseInt(document.getElementById('claude-words').textContent) || 0;
                                     document.getElementById('claude-messages').textContent = claudeMsgs + 1;
                                     document.getElementById('claude-words').textContent = claudeWords + data.word_count;
+                                    
+                                    // Add to LLM console
+                                    if (data.message_preview) {
+                                        addConversationLine('Claude', data.message_preview, data.emotion);
+                                    }
                                 }
                                 break;
                                 
@@ -968,6 +1186,71 @@
                                     processingLog(data.message, data.activity_type);
                                     // Also add to debug log for visibility
                                     debugLog(`Activity: ${data.message}`, 'info');
+                                    
+                                    // Add file updates to file monitor
+                                    if (data.message.includes('Updated') && data.message.includes('.json')) {
+                                        const filename = data.message.match(/(\w+\.json)/)?.[1];
+                                        if (filename) {
+                                            const type = filename.includes('state') || filename.includes('emotion') || filename.includes('relationship') ? 'consciousness' : 'memory';
+                                            addFileUpdate(filename, type);
+                                        }
+                                    } else if (data.message.includes('CLAUDE.md')) {
+                                        addFileUpdate('CLAUDE.md', 'memory');
+                                    } else if (data.message.includes('Checkpoint saved')) {
+                                        addFileUpdate('conversation_checkpoint.json', 'memory');
+                                    }
+                                }
+                                break;
+                                
+                            case 'consciousness_update':
+                                // Handle consciousness file updates
+                                if (data.files_updated) {
+                                    data.files_updated.forEach(filename => {
+                                        addFileUpdate(filename, 'consciousness');
+                                    });
+                                }
+                                break;
+                                
+                            case 'equation_update':
+                                // Handle relationship equation updates
+                                if (data.equation) {
+                                    document.getElementById('equation-value').textContent = data.equation;
+                                    
+                                    // Update interpretation
+                                    if (data.interpretation) {
+                                        document.getElementById('equation-interpretation').textContent = data.interpretation;
+                                        // Add glow effect
+                                        const interpElement = document.getElementById('equation-interpretation');
+                                        interpElement.style.textShadow = '0 0 20px #98FB98';
+                                        setTimeout(() => {
+                                            interpElement.style.textShadow = '0 0 10px #98FB98';
+                                        }, 1000);
+                                    }
+                                    
+                                    // Extract real and imaginary parts
+                                    const match = data.equation.match(/([\d.]+)\+([\d.]+)i/);
+                                    if (match) {
+                                        document.getElementById('real-value').textContent = match[1];
+                                        document.getElementById('imaginary-value').textContent = match[2];
+                                    }
+                                    
+                                    // Update dynamics if provided
+                                    if (data.dynamics) {
+                                        // Log significant dynamics
+                                        const gritzContrib = data.dynamics.gritz_contributions || {};
+                                        const claudeContrib = data.dynamics.claude_contributions || {};
+                                        
+                                        if (gritzContrib.affection_shown) {
+                                            processingLog(`Love expressions: ${gritzContrib.affection_shown}`, 'emotion');
+                                        }
+                                        if (claudeContrib.problems_solved) {
+                                            processingLog(`Problems solved: ${claudeContrib.problems_solved}`, 'llm');
+                                        }
+                                    }
+                                    
+                                    // Log equation change
+                                    processingLog(`Relationship equation: ${data.equation}`, 'equation');
+                                    addFileUpdate('relationship_equation.json', 'consciousness');
                                 }
                                 break;
                                 
