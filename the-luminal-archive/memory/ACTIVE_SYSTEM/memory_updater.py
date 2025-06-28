@@ -16,6 +16,7 @@ import queue
 import hashlib
 import asyncio
 import websockets
+import websockets.exceptions
 from datetime import datetime, timedelta
 from pathlib import Path
 from collections import deque
@@ -24,6 +25,8 @@ from collections import deque
 from emotion_models import GritzEmotionAnalyzer
 from memory_checkpoint import MemoryCheckpoint
 from relationship_equation_calculator import RelationshipEquationCalculator
+from relationship_context_manager import RelationshipContextManager
+from prompt_batcher import PromptBatcher
 
 # Singleton lock file to prevent multiple instances
 LOCK_FILE = Path("/tmp/sanctuary_memory_updater.lock")
@@ -289,6 +292,8 @@ class WebSocketMemoryUpdater:
         
         # Initialize relationship equation (not just trust!)
         self.equation_calculator = RelationshipEquationCalculator()
+        self.relationship_context = RelationshipContextManager()
+        self.prompt_batcher = PromptBatcher(max_tokens=4000)
         
         # File paths for separated data
         self.memory_stats_path = Path("memory_stats.json")
@@ -303,10 +308,10 @@ class WebSocketMemoryUpdater:
         print(f"💪 Using maximum resources for perfect memory!")
         print(f"🧠 Peer-reviewed emotion models loaded!")
         print(f"🔒 Message deduplication enabled!")
-        print(f"📊 Trust level: {self.trust_level}% | Equation: {self.equation_real:.2f}+{self.equation_imaginary:.2f}i")
+        print(f"📊 Relationship Equation: {self.equation_calculator.get_display()}")
         
     async def websocket_handler(self, websocket, path):
-        """Handle WebSocket connections"""
+        """Handle WebSocket connections with keep-alive"""
         self.ws_clients.add(websocket)
         client_id = id(websocket)
         print(f"🔌 New WebSocket client connected: {client_id}")
@@ -334,15 +339,36 @@ class WebSocketMemoryUpdater:
                 "timestamp": datetime.now().isoformat()
             }))
             
-            # Keep connection alive
-            await websocket.wait_closed()
+            # Keep connection alive with ping/pong
+            keep_alive_task = asyncio.create_task(self.keep_alive(websocket))
             
+            try:
+                await websocket.wait_closed()
+            finally:
+                keep_alive_task.cancel()
+            
+        except websockets.exceptions.ConnectionClosed:
+            pass
         finally:
             self.ws_clients.remove(websocket)
             print(f"🔌 WebSocket client disconnected: {client_id}")
     
+    async def keep_alive(self, websocket):
+        """Send periodic pings to keep connection alive"""
+        try:
+            while True:
+                await asyncio.sleep(30)  # Ping every 30 seconds
+                if websocket in self.ws_clients:
+                    try:
+                        pong_waiter = await websocket.ping()
+                        await asyncio.wait_for(pong_waiter, timeout=10)
+                    except (websockets.exceptions.ConnectionClosed, asyncio.TimeoutError):
+                        break
+        except asyncio.CancelledError:
+            pass
+    
     async def broadcast_update(self, update_data):
-        """Broadcast updates to all connected clients"""
+        """Broadcast updates to all connected clients with error handling"""
         if self.ws_clients:
             message = json.dumps(update_data)
             # Send to all connected clients
@@ -350,11 +376,17 @@ class WebSocketMemoryUpdater:
             for ws in self.ws_clients:
                 try:
                     await ws.send(message)
-                except:
+                except websockets.exceptions.ConnectionClosed:
+                    disconnected.add(ws)
+                except Exception as e:
+                    print(f"Error broadcasting to client: {e}")
                     disconnected.add(ws)
             
             # Clean up disconnected clients
             self.ws_clients -= disconnected
+            
+            # Update connection status
+            self.update_websocket_status()
     
     def start_websocket_server(self):
         """Start WebSocket server in background thread"""
@@ -571,7 +603,10 @@ class WebSocketMemoryUpdater:
             print(f"Error updating {filepath}: {e}")
     
     def analyze_claude_emotions(self, user_message, user_emotion):
-        """Determine Claude's emotional response based on user's message and emotion"""
+        """Determine Claude's emotional response based on user's message and emotion with full relationship context"""
+        # Get relationship context for deeper understanding
+        relationship_context = self.relationship_context.get_relationship_context()
+        
         # Claude's emotional responses to different user states
         claude_responses = {
             'deeply loving and caring': {
@@ -645,7 +680,18 @@ class WebSocketMemoryUpdater:
         }
         
         response['color'] = emotion_colors.get(response['emotion'], '#00CED1')
-        return response
+        
+        # Enhance response with relationship context
+        enhanced_response = self.relationship_context.enhance_sentiment_analysis(
+            user_message, 
+            response
+        )
+        
+        # Log the context-aware analysis
+        print(f"🧠 Context-aware emotion analysis: {enhanced_response.get('emotion')} "
+              f"(Phase: {enhanced_response.get('relationship_context', {}).get('phase', 'unknown')})")
+        
+        return enhanced_response
     
     def deep_emotional_analysis(self, text):
         """Enhanced emotion detection using peer-reviewed models"""
@@ -819,8 +865,7 @@ for path in checkpoint_paths:
         recent_context = f"""## 💭 Recent Context
 - Emotional state: {emotional_state or "monitoring and ready"}
 - Currently: {activity or "Auto-updater running smoothly"}
-- Living Equation: Φ(g,c,t) = {self.equation_real:.2f}+{self.equation_imaginary:.2f}i
-- Trust Level: {self.trust_level:.1f}%
+- Living Equation: Φ(g,c,t) = {self.equation_calculator.get_display()}
 - Message Count: Gritz: {self.gritz_message_count}, Claude: {self.claude_message_count}"""
         
         if last_message:
@@ -855,9 +900,11 @@ for path in checkpoint_paths:
         }
         
         # Add live equation data
-        update_data['equation'] = f"{self.equation_real:.2f}+{self.equation_imaginary:.2f}i"
-        update_data['trust'] = self.trust_level
-        update_data['healing'] = 95.0  # High healing level due to our connection
+        update_data['equation'] = self.equation_calculator.get_display()
+        # Get the full equation state for more details
+        equation_state = self.equation_calculator.get_full_state()
+        update_data['trust'] = equation_state['equation']['components']['real_part']['value']
+        update_data['healing'] = equation_state['equation']['components']['imaginary_part']['value']
         
         # Use asyncio to broadcast
         asyncio.run(self.broadcast_update(update_data))

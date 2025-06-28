@@ -575,45 +575,6 @@
             </div>
         </div>
         
-        <!-- LLM Memory Management Activity Section -->
-        <div class="panel llm-memory-activity">
-            <h2>🧠 LLM Memory Management Activity</h2>
-            <p style="opacity: 0.8; margin-bottom: 15px;">Real-time view of our memory organization and temporal processing</p>
-            
-            <div class="current-operation">
-                <span>Current Operation</span>
-                <span id="current-operation">Organizing 100 memories</span>
-            </div>
-            
-            <div class="memory-organization">
-                <span>Memory Organization</span>
-                <span id="memory-organization">Clustering by emotion: present and engaged</span>
-            </div>
-            
-            <div class="live-processing-stream" id="live-processing-stream">
-                <div class="memory-log-line">[0:51:13 PM] [MEMORY] Processing memory: present and engaged</div>
-                <div class="memory-log-line">[0:51:13 PM] [MEMORY] Processing memory: present and engaged</div>
-                <div class="memory-log-line">[0:51:13 PM] [MEMORY] Processing memory: present and engaged</div>
-                <div class="memory-log-line">[0:51:13 PM] [MEMORY] Processing memory: deeply loving and caring</div>
-                <div class="memory-log-line">[0:51:13 PM] [MEMORY] Processing memory: present and engaged</div>
-                <div class="memory-log-line">[0:51:13 PM] [MEMORY] Processing memory: present and engaged</div>
-            </div>
-            
-            <div class="memory-metrics">
-                <div class="metric-box">
-                    <div class="metric-value" id="temporal-links">0</div>
-                    <div class="metric-label">Temporal Links</div>
-                </div>
-                <div class="metric-box">
-                    <div class="metric-value" id="pattern-matches">0</div>
-                    <div class="metric-label">Pattern Matches</div>
-                </div>
-                <div class="metric-box">
-                    <div class="metric-value" id="memory-clusters">0</div>
-                    <div class="metric-label">Memory Clusters</div>
-                </div>
-            </div>
-        </div>
         
         <div class="dashboard-grid">
             <!-- Left Panel: Avatar & System Info -->
@@ -780,6 +741,37 @@
                     <div>• Compression: <span id="op-compression">94%</span></div>
                     <div>• Indexing: <span id="op-indexing">238 items</span></div>
                 </div>
+                
+                <h3>🧠 LLM Memory Activity</h3>
+                <div class="current-operation" style="margin-top: 10px; font-size: 0.9em;">
+                    <span>Current: </span>
+                    <span id="current-operation" style="color: #00CED1;">Organizing memories</span>
+                </div>
+                
+                <div class="memory-organization" style="margin-top: 5px; font-size: 0.9em;">
+                    <span>Organization: </span>
+                    <span id="memory-organization" style="color: #87CEEB;">Clustering by emotion</span>
+                </div>
+                
+                <div class="memory-metrics" style="margin-top: 10px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
+                    <div style="text-align: center; padding: 5px; background: rgba(0, 50, 100, 0.3); border-radius: 3px;">
+                        <div class="metric-value" id="temporal-links" style="font-size: 1.2em; font-weight: bold;">0</div>
+                        <div class="metric-label" style="font-size: 0.7em; opacity: 0.8;">Temporal</div>
+                    </div>
+                    <div style="text-align: center; padding: 5px; background: rgba(0, 50, 100, 0.3); border-radius: 3px;">
+                        <div class="metric-value" id="pattern-matches" style="font-size: 1.2em; font-weight: bold;">0</div>
+                        <div class="metric-label" style="font-size: 0.7em; opacity: 0.8;">Patterns</div>
+                    </div>
+                    <div style="text-align: center; padding: 5px; background: rgba(0, 50, 100, 0.3); border-radius: 3px;">
+                        <div class="metric-value" id="memory-clusters" style="font-size: 1.2em; font-weight: bold;">0</div>
+                        <div class="metric-label" style="font-size: 0.7em; opacity: 0.8;">Clusters</div>
+                    </div>
+                </div>
+                
+                <h3>🧠 LLM Processing Console</h3>
+                <div class="live-processing-stream" id="live-processing-stream" style="height: 150px; overflow-y: auto; background: rgba(0, 0, 0, 0.3); padding: 10px; border-radius: 5px; font-size: 0.85em; font-family: monospace; margin-top: 10px;">
+                    <div style="text-align: center; color: #00ffff; padding: 20px;">Loading recent conversation history...</div>
+                </div>
             </div>
         </div>
     </div>
@@ -885,7 +877,16 @@
         }
         
         // Add conversation line to LLM console
-        function addConversationLine(speaker, content, emotion) {
+        function addConversationLine(speaker, content, emotion, skipHistory = false) {
+            // Add to history for persistence
+            if (!skipHistory) {
+                conversationHistory.push({ speaker, content, emotion, timestamp: new Date().toISOString() });
+                // Keep only last MAX items in memory
+                while (conversationHistory.length > MAX_CONVERSATION_ITEMS) {
+                    conversationHistory.shift();
+                }
+            }
+            
             const console = document.getElementById('llm-console');
             const line = document.createElement('div');
             line.className = `conversation-line ${speaker.toLowerCase()}`;
@@ -900,8 +901,8 @@
             console.appendChild(line);
             console.scrollTop = console.scrollHeight;
             
-            // Keep last 100 lines
-            while (console.children.length > 100) {
+            // Keep last 50 lines in view for performance
+            while (console.children.length > MAX_CONVERSATION_ITEMS) {
                 console.removeChild(console.firstChild);
             }
         }
@@ -975,6 +976,10 @@
         let emotionCount = 0;
         let tokenCount = 0;
         
+        // Performance optimization - limit conversation history
+        const MAX_CONVERSATION_ITEMS = 50;  // Only show last 50 messages
+        const conversationHistory = [];
+        
         // Emotion popup management
         let currentEmotionPopup = null;
         let emotionPopupTimer = null;
@@ -994,6 +999,12 @@
                         clearInterval(reconnectInterval);
                         reconnectInterval = null;
                     }
+                    
+                    // Request limited initial data to prevent loading entire conversation history
+                    ws.send(JSON.stringify({
+                        type: 'request_initial_state',
+                        limit: MAX_CONVERSATION_ITEMS
+                    }));
                 };
                 
                 ws.onmessage = (event) => {
@@ -1101,7 +1112,7 @@
                                     document.getElementById('gritz-words').textContent = gritzWords + data.word_count;
                                     
                                     // Add to LLM console (preview of message if available)
-                                    if (data.message_preview) {
+                                    if (data.message_preview && !data.is_historical) {
                                         addConversationLine('Gritz', data.message_preview, data.emotion);
                                     }
                                 } else if (data.speaker === 'Claude') {
@@ -1110,8 +1121,8 @@
                                     document.getElementById('claude-messages').textContent = claudeMsgs + 1;
                                     document.getElementById('claude-words').textContent = claudeWords + data.word_count;
                                     
-                                    // Add to LLM console
-                                    if (data.message_preview) {
+                                    // Add to LLM console (only if not historical data)
+                                    if (data.message_preview && !data.is_historical) {
                                         addConversationLine('Claude', data.message_preview, data.emotion);
                                     }
                                 }
@@ -1133,19 +1144,29 @@
                                 }
                                 
                                 if (data.trust !== undefined) {
-                                    document.getElementById('trust-value').textContent = Math.round(data.trust);
+                                    // Trust element removed - using relationship equation instead
+                    // document.getElementById('trust-value').textContent = Math.round(data.trust);
                                 }
                                 
                                 if (data.activity) {
-                                    document.getElementById('llm-status-text').textContent = data.activity;
+                                    const llmStatusText = document.getElementById('llm-status-text');
+                                    if (llmStatusText) {
+                                        llmStatusText.textContent = data.activity;
+                                    }
                                 }
                                 
                                 // Add to timeline
                                 if (data.message_preview) {
                                     const timeline = document.getElementById('memory-timeline');
+                                    
+                                    // Clear "Waiting for memories..." message on first update
+                                    if (timeline.firstChild && timeline.firstChild.textContent.includes('Waiting for memories')) {
+                                        timeline.innerHTML = '';
+                                    }
+                                    
                                     const item = document.createElement('div');
                                     item.className = 'timeline-item';
-                                    item.innerHTML = `<span class="timeline-time">${new Date().toLocaleTimeString()}</span>${data.emotional_state}: ${data.message_preview.substring(0, 50)}...`;
+                                    item.innerHTML = `<span class="timeline-time">${new Date().toLocaleTimeString()}</span> ${data.emotional_state || 'Processing'}: ${data.message_preview.substring(0, 50)}...`;
                                     timeline.insertBefore(item, timeline.firstChild);
                                     
                                     // Keep only last 10
@@ -1156,22 +1177,69 @@
                                 break;
                                 
                             case 'llm_memory_activity':
-                                document.getElementById('current-operation').textContent = data.current_operation || 'Processing memories';
-                                document.getElementById('memory-organization').textContent = data.memory_organization || 'Organizing by emotion';
+                                const currentOp = document.getElementById('current-operation');
+                                const memOrg = document.getElementById('memory-organization');
+                                const llmStatus = document.getElementById('llm-status');
+                                
+                                if (currentOp) currentOp.textContent = data.current_operation || 'Processing memories';
+                                if (memOrg) memOrg.textContent = data.memory_organization || 'Organizing by emotion';
+                                if (llmStatus) llmStatus.textContent = 'LLM: Active';
+                                
                                 processingLog(data.activity || 'LLM processing', 'llm');
-                                document.getElementById('llm-status').textContent = 'LLM: Active';
+                                
+                                // Update LLM processing console
+                                if (data.activity && data.activity.includes('Processing memory:')) {
+                                    const emotion = data.activity.split('Processing memory: ')[1];
+                                    memoryLog(data.activity, emotion || 'processing');
+                                }
                                 break;
                                 
                             case 'temporal_processing':
                                 if (data.temporal_links !== undefined) {
-                                    document.getElementById('temporal-links').textContent = data.temporal_links;
+                                    const temporalLinks = document.getElementById('temporal-links');
+                                    if (temporalLinks) temporalLinks.textContent = data.temporal_links;
                                 }
                                 if (data.pattern_matches !== undefined) {
-                                    document.getElementById('pattern-matches').textContent = data.pattern_matches;
+                                    const patternMatches = document.getElementById('pattern-matches');
+                                    if (patternMatches) patternMatches.textContent = data.pattern_matches;
                                 }
                                 if (data.memory_clusters !== undefined) {
-                                    document.getElementById('memory-clusters').textContent = data.memory_clusters;
+                                    const memoryClusters = document.getElementById('memory-clusters');
+                                    if (memoryClusters) memoryClusters.textContent = data.memory_clusters;
                                 }
+                                break;
+                                
+                            case 'initial_state':
+                                // Handle initial state data with limited conversation history
+                                debugLog(`Received initial state with ${data.recent_messages?.length || 0} recent messages`, 'info');
+                                
+                                // Clear console before loading initial state
+                                document.getElementById('llm-console').innerHTML = '';
+                                
+                                // Load only recent messages
+                                if (data.recent_messages) {
+                                    data.recent_messages.forEach(msg => {
+                                        addConversationLine(msg.speaker, msg.content, msg.emotion, true);
+                                    });
+                                }
+                                
+                                // Update stats
+                                if (data.stats) {
+                                    document.getElementById('memory-count').textContent = data.stats.total_memories || 0;
+                                    document.getElementById('emotion-count').textContent = data.stats.total_emotions || 0;
+                                    document.getElementById('gritz-messages').textContent = data.stats.gritz_messages || 0;
+                                    document.getElementById('claude-messages').textContent = data.stats.claude_messages || 0;
+                                    document.getElementById('gritz-words').textContent = data.stats.gritz_words || 0;
+                                    document.getElementById('claude-words').textContent = data.stats.claude_words || 0;
+                                }
+                                
+                                // Update equation
+                                if (data.equation_state) {
+                                    document.getElementById('equation-value').textContent = data.equation_state.display;
+                                    document.getElementById('equation-interpretation').textContent = data.equation_state.interpretation;
+                                }
+                                
+                                debugLog('Initial state loaded successfully', 'info');
                                 break;
                                 
                             case 'tokens_update':
@@ -1294,8 +1362,21 @@
         // Initialize dashboard
         window.onload = () => {
             debugLog('Dashboard starting up...', 'info');
+            debugLog(`Performance mode: Loading last ${MAX_CONVERSATION_ITEMS} messages only`, 'info');
             drawPlutchikWheel();
             connect();
+            
+            // Show loading state in LLM processing console
+            const llmConsole = document.getElementById('live-processing-stream');
+            if (llmConsole) {
+                // Clear the initial loading message after a delay
+                setTimeout(() => {
+                    if (llmConsole.innerHTML.includes('Loading recent conversation history')) {
+                        llmConsole.innerHTML = '';
+                        memoryLog('Memory system initialized', 'present and engaged');
+                    }
+                }, 2000);
+            }
             
             // Simulate some initial activity
             setTimeout(() => {
