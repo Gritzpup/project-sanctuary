@@ -213,6 +213,52 @@ impl HolographicPanel {
         }
     }
     
+    /// Generate background vertices for the panel
+    pub fn generate_background_vertices(&self) -> (Vec<HologramVertex>, Vec<u16>) {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        
+        let pos = self.transform.position;
+        let size = self.size;
+        
+        // Create semi-transparent background color
+        let mut bg_color = self.color_scheme.primary;
+        bg_color.r *= 0.2;
+        bg_color.g *= 0.2;
+        bg_color.b *= 0.2;
+        bg_color.a = 0.3 * self.opacity * self.hologram_flicker;
+        
+        // Add background quad
+        let z_offset = pos.z - 0.01; // Slightly behind the border
+        vertices.extend_from_slice(&[
+            HologramVertex { 
+                position: [pos.x - size.x/2.0, pos.y - size.y/2.0, z_offset], 
+                color: [bg_color.r, bg_color.g, bg_color.b, bg_color.a], 
+                glow: self.glow_intensity * 0.5 
+            },
+            HologramVertex { 
+                position: [pos.x + size.x/2.0, pos.y - size.y/2.0, z_offset], 
+                color: [bg_color.r, bg_color.g, bg_color.b, bg_color.a], 
+                glow: self.glow_intensity * 0.5 
+            },
+            HologramVertex { 
+                position: [pos.x + size.x/2.0, pos.y + size.y/2.0, z_offset], 
+                color: [bg_color.r, bg_color.g, bg_color.b, bg_color.a], 
+                glow: self.glow_intensity * 0.5 
+            },
+            HologramVertex { 
+                position: [pos.x - size.x/2.0, pos.y + size.y/2.0, z_offset], 
+                color: [bg_color.r, bg_color.g, bg_color.b, bg_color.a], 
+                glow: self.glow_intensity * 0.5 
+            },
+        ]);
+        
+        // Add indices for the background quad
+        indices.extend_from_slice(&[0, 1, 2, 2, 3, 0]);
+        
+        (vertices, indices)
+    }
+    
     /// Check if a point intersects with this panel
     pub fn contains_point(&self, point: Vec3) -> bool {
         let pos = self.transform.position;

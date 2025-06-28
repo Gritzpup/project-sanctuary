@@ -77,22 +77,23 @@ fn multiply_color(color: [f32; 3], factor: f32) -> [f32; 3] {
 }
 
 /// Generate enhanced 3D candle vertices with lighting and depth shading
-pub fn generate_enhanced_candle_vertices(candle: &Candle) -> (Vec<EnhancedVertex>, Vec<u16>) {
-    // Get actual price values as f32
-    let open_f32 = candle.open as f32;
-    let close_f32 = candle.close as f32;
-    let high_f32 = candle.high as f32;
-    let low_f32 = candle.low as f32;
+pub fn generate_enhanced_candle_vertices(candle: &Candle, price_min: f64, price_max: f64) -> (Vec<EnhancedVertex>, Vec<u16>) {
+    // Normalize prices to Y positions
+    let normalize_price = |price: f64| -> f32 {
+        let range = price_max - price_min;
+        if range > 0.0 {
+            let normalized = (price - price_min) / range; // 0.0 to 1.0
+            (normalized * 100.0 - 50.0) as f32 // -50 to +50 range
+        } else {
+            0.0
+        }
+    };
     
-    // Scale BTC prices for better visibility
-    let base_price = 107500.0;
-    let price_scale: f32 = 0.2;
-    
-    // Convert actual prices to Y positions (centered around 0)
-    let open_y = (open_f32 - base_price) * price_scale;
-    let close_y = (close_f32 - base_price) * price_scale;
-    let high_y = (high_f32 - base_price) * price_scale;
-    let low_y = (low_f32 - base_price) * price_scale;
+    // Convert actual prices to normalized Y positions
+    let open_y = normalize_price(candle.open);
+    let close_y = normalize_price(candle.close);
+    let high_y = normalize_price(candle.high);
+    let low_y = normalize_price(candle.low);
     
     // Candle body goes from open to close
     let mut body_bottom = open_y.min(close_y);

@@ -193,29 +193,93 @@ impl SidebarManager {
         for panel in &self.panels {
             let (vertices, mut indices) = match panel {
                 PanelWrapper::Portfolio(p) => {
-                    let (mut v, mut i) = p.base_panel.generate_border_vertices();
-                    let (pv, pi) = p.generate_vertices();
+                    // First add background
+                    let (mut v, mut i) = p.base_panel.generate_background_vertices();
+                    
+                    // Then add border (with offset indices)
+                    let (border_v, mut border_i) = p.base_panel.generate_border_vertices();
+                    let border_offset = v.len() as u16;
+                    for idx in &mut border_i {
+                        *idx += border_offset;
+                    }
+                    v.extend(border_v);
+                    i.extend(border_i);
+                    
+                    // Finally add panel-specific content
+                    let (pv, mut pi) = p.generate_vertices();
+                    let panel_offset = v.len() as u16;
+                    for idx in &mut pi {
+                        *idx += panel_offset;
+                    }
                     v.extend(pv);
                     i.extend(pi);
                     (v, i)
                 },
                 PanelWrapper::OrderBook(p) => {
-                    let (mut v, mut i) = p.base_panel.generate_border_vertices();
-                    let (pv, pi) = p.generate_vertices();
+                    // First add background
+                    let (mut v, mut i) = p.base_panel.generate_background_vertices();
+                    
+                    // Then add border (with offset indices)
+                    let (border_v, mut border_i) = p.base_panel.generate_border_vertices();
+                    let border_offset = v.len() as u16;
+                    for idx in &mut border_i {
+                        *idx += border_offset;
+                    }
+                    v.extend(border_v);
+                    i.extend(border_i);
+                    
+                    // Finally add panel-specific content
+                    let (pv, mut pi) = p.generate_vertices();
+                    let panel_offset = v.len() as u16;
+                    for idx in &mut pi {
+                        *idx += panel_offset;
+                    }
                     v.extend(pv);
                     i.extend(pi);
                     (v, i)
                 },
                 PanelWrapper::MarketHeatmap(p) => {
-                    let (mut v, mut i) = p.base_panel.generate_border_vertices();
-                    let (pv, pi) = p.generate_vertices();
+                    // First add background
+                    let (mut v, mut i) = p.base_panel.generate_background_vertices();
+                    
+                    // Then add border (with offset indices)
+                    let (border_v, mut border_i) = p.base_panel.generate_border_vertices();
+                    let border_offset = v.len() as u16;
+                    for idx in &mut border_i {
+                        *idx += border_offset;
+                    }
+                    v.extend(border_v);
+                    i.extend(border_i);
+                    
+                    // Finally add panel-specific content
+                    let (pv, mut pi) = p.generate_vertices();
+                    let panel_offset = v.len() as u16;
+                    for idx in &mut pi {
+                        *idx += panel_offset;
+                    }
                     v.extend(pv);
                     i.extend(pi);
                     (v, i)
                 },
                 PanelWrapper::TradeStream(p) => {
-                    let (mut v, mut i) = p.base_panel.generate_border_vertices();
-                    let (pv, pi) = p.generate_vertices();
+                    // First add background
+                    let (mut v, mut i) = p.base_panel.generate_background_vertices();
+                    
+                    // Then add border (with offset indices)
+                    let (border_v, mut border_i) = p.base_panel.generate_border_vertices();
+                    let border_offset = v.len() as u16;
+                    for idx in &mut border_i {
+                        *idx += border_offset;
+                    }
+                    v.extend(border_v);
+                    i.extend(border_i);
+                    
+                    // Finally add panel-specific content
+                    let (pv, mut pi) = p.generate_vertices();
+                    let panel_offset = v.len() as u16;
+                    for idx in &mut pi {
+                        *idx += panel_offset;
+                    }
                     v.extend(pv);
                     i.extend(pi);
                     (v, i)

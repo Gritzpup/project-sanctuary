@@ -44,6 +44,10 @@ pub struct FuturisticDashboard<'a> {
     holographic_vertex_buffer: Option<wgpu::Buffer>,
     holographic_index_buffer: Option<wgpu::Buffer>,
     holographic_index_count: u32,
+    // Time tracking for shader effects
+    start_time: Instant,
+    time_buffer: wgpu::Buffer,
+    holographic_bind_group: wgpu::BindGroup,
 }
 
 impl<'a> FuturisticDashboard<'a> {
@@ -207,9 +211,61 @@ impl<'a> FuturisticDashboard<'a> {
             source: wgpu::ShaderSource::Wgsl(crate::rendering::shaders::HOLOGRAPHIC_PANEL_SHADER.into()),
         });
         
+        // Create time uniform buffer
+        let start_time = Instant::now();
+        let time_uniform = [0.0f32, 0.0, 0.0, 0.0]; // time + padding
+        let time_buffer = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Time Uniform Buffer"),
+            contents: bytemuck::cast_slice(&time_uniform),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        
+        // Create holographic bind group layout with camera and time
+        let holographic_bind_group_layout = renderer.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+            label: Some("Holographic Bind Group Layout"),
+        });
+        
+        // Create holographic bind group
+        let holographic_bind_group = renderer.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &holographic_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: time_buffer.as_entire_binding(),
+                },
+            ],
+            label: Some("Holographic Bind Group"),
+        });
+        
         let holographic_pipeline_layout = renderer.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Holographic Panel Pipeline Layout"),
-            bind_group_layouts: &[&camera_bind_group_layout],
+            bind_group_layouts: &[&holographic_bind_group_layout],
             push_constant_ranges: &[],
         });
         
@@ -280,6 +336,9 @@ impl<'a> FuturisticDashboard<'a> {
             holographic_vertex_buffer: None,
             holographic_index_buffer: None,
             holographic_index_count: 0,
+            start_time,
+            time_buffer,
+            holographic_bind_group,
         }
     }
     
@@ -323,6 +382,11 @@ impl<'a> FuturisticDashboard<'a> {
         let now = Instant::now();
         let dt = now.duration_since(self.last_update).as_secs_f32();
         self.last_update = now;
+        
+        // Update time uniform for shader effects
+        let elapsed = now.duration_since(self.start_time).as_secs_f32();
+        let time_uniform = [elapsed, 0.0, 0.0, 0.0]; // time + padding
+        self.renderer.queue.write_buffer(&self.time_buffer, 0, bytemuck::cast_slice(&time_uniform));
         
         // Update all systems
         self.ui_system.update(dt);
@@ -487,7 +551,7 @@ impl<'a> FuturisticDashboard<'a> {
                     &mut encoder,
                     &view,
                     &self.depth_view,
-                    &self.camera_bind_group,
+                    &self.holographic_bind_group,
                     &self.holographic_panel_pipeline,
                     &self.renderer.device,
                     &mut self.holographic_vertex_buffer,

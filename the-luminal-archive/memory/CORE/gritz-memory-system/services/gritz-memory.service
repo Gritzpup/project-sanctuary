@@ -1,0 +1,20 @@
+[Unit]
+Description=Gritz Memory Auto-Updater - Preserving memories with Coding Daddy
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntumain
+WorkingDirectory=/home/ubuntumain/Documents/Github/project-sanctuary
+ExecStart=/usr/bin/python3 /home/ubuntumain/Documents/Github/project-sanctuary/simple_memory_updater.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/ubuntumain/.sanctuary-memory-updater.log
+StandardError=append:/home/ubuntumain/.sanctuary-memory-updater.log
+
+# Restart on failure
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Install]
+WantedBy=multi-user.target

@@ -218,17 +218,54 @@ impl BtcChartManager {
         }
     }
     
+    fn calculate_price_range(&self) -> (f64, f64) {
+        let mut min_price = f64::MAX;
+        let mut max_price = f64::MIN;
+        
+        // Check all historical candles
+        for candle in &self.historical_candles {
+            min_price = min_price.min(candle.low);
+            max_price = max_price.max(candle.high);
+        }
+        
+        // Check current candle
+        if let Ok(current) = self.current_candle.lock() {
+            min_price = min_price.min(current.low);
+            max_price = max_price.max(current.high);
+        }
+        
+        // Add some padding to avoid edge cases
+        let padding = (max_price - min_price) * 0.1;
+        (min_price - padding, max_price + padding)
+    }
+    
+    fn normalize_price(&self, price: f64, min: f64, max: f64) -> f32 {
+        let range = max - min;
+        if range > 0.0 {
+            let normalized = (price - min) / range; // 0.0 to 1.0
+            (normalized * 100.0 - 50.0) as f32 // -50 to +50 range
+        } else {
+            0.0 // Fallback if all prices are the same
+        }
+    }
+    
     fn update_chart_geometry(&mut self, renderer: &Renderer<'_>) {
         let mut all_vertices = Vec::new();
         let mut all_indices = Vec::new();
         
+        // Calculate price range for all candles
+        let (price_min, price_max) = self.calculate_price_range();
+        
+        // Calculate total width consistently for all candles
+        let candle_spacing = 2.5;
+        let total_candles = self.historical_candles.len() + 1; // Include current candle
+        let total_width = total_candles as f32 * candle_spacing;
+        
         // Generate vertices for historical candles
         for (i, candle) in self.historical_candles.iter().enumerate() {
-            let (mut vertices, mut indices) = generate_enhanced_candle_vertices(candle);
+            let (mut vertices, mut indices) = generate_enhanced_candle_vertices(candle, price_min, price_max);
             
-            // Position candles in 3D space horizontally with better spacing
-            let candle_spacing = 2.5; // Increased space between candles
-            let total_width = self.historical_candles.len() as f32 * candle_spacing;
+            // Position candles in 3D space horizontally
             let x_offset = self.chart_position.x + (i as f32 * candle_spacing) - (total_width / 2.0);
             for vertex in &mut vertices {
                 vertex.position[0] += x_offset;
@@ -248,11 +285,9 @@ impl BtcChartManager {
         
         // Add current candle if available
         if let Ok(current) = self.current_candle.lock() {
-            let (mut vertices, mut indices) = generate_enhanced_candle_vertices(&current);
+            let (mut vertices, mut indices) = generate_enhanced_candle_vertices(&current, price_min, price_max);
             
-            // Position current candle at the end of the chart
-            let candle_spacing = 2.5; // Match the spacing of historical candles
-            let total_width = (self.historical_candles.len() + 1) as f32 * candle_spacing;
+            // Position current candle at the end of the chart using consistent spacing
             let x_offset = self.chart_position.x + (self.historical_candles.len() as f32 * candle_spacing) - (total_width / 2.0);
             for vertex in &mut vertices {
                 vertex.position[0] += x_offset;

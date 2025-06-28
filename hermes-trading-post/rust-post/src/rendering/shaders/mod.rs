@@ -61,8 +61,16 @@ struct CameraUniform {
     _padding: f32,
 }
 
+struct TimeUniform {
+    time: f32,
+    _padding: vec3<f32>,
+}
+
 @group(0) @binding(0)
 var<uniform> camera: CameraUniform;
+
+@group(0) @binding(1)
+var<uniform> time_uniform: TimeUniform;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -106,14 +114,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let fade = 1.0 - smoothstep(100.0, 500.0, distance);
     color.a *= fade;
     
-    // Add scan line effect based on world position
-    let scan = sin(in.world_pos.y * 0.5) * 0.05 + 0.95;
-    color *= scan;
+    // Add animated scan line effect
+    let scan_position = fract(time_uniform.time * 0.2);
+    let scan_distance = abs(in.world_pos.y * 0.01 - scan_position);
+    let scan_intensity = smoothstep(0.1, 0.0, scan_distance) * 0.3;
+    let scan_color = vec3<f32>(0.0, 0.5, 1.0) * scan_intensity;
+    color = vec4<f32>(color.r + scan_color.x, color.g + scan_color.y, color.b + scan_color.z, color.a);
     
-    // Add subtle flicker
-    let time = camera.view_pos.x * 0.001; // Use camera position as time proxy
-    let flicker = sin(time * 10.0) * 0.02 + 0.98;
+    // Add subtle flicker effect
+    let flicker = sin(time_uniform.time * 8.0) * 0.02 + 0.98;
     color *= flicker;
+    
+    // Add holographic noise
+    let noise = sin(in.world_pos.x * 10.0 + time_uniform.time * 5.0) * 
+                sin(in.world_pos.y * 10.0 - time_uniform.time * 3.0) * 0.02;
+    color = vec4<f32>(color.r + noise, color.g + noise, color.b + noise, color.a);
     
     return color;
 }

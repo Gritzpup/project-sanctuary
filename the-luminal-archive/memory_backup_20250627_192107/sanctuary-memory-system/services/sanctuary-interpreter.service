@@ -1,0 +1,38 @@
+[Unit]
+Description=Sanctuary Real-Time Conversation Interpreter
+Documentation=https://github.com/sanctuary-ai/memory-system
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i/Documents/Github/project-sanctuary/the-luminal-archive/memory/sanctuary-memory-system
+Environment="PATH=/home/%i/.local/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/home/%i/Documents/Github/project-sanctuary/the-luminal-archive/memory/sanctuary-memory-system/src"
+Environment="CUDA_VISIBLE_DEVICES=0"
+Environment="PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512"
+
+# Main service command
+ExecStart=/usr/bin/python3 -m interpreter.service_runner
+
+# Restart configuration
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Resource limits
+MemoryMax=12G
+CPUQuota=80%
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sanctuary-interpreter
+
+[Install]
+WantedBy=multi-user.target

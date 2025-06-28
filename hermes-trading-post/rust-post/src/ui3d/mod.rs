@@ -83,27 +83,7 @@ impl UI3DSystem {
         
         *index_count = indices.len() as u32;
         
-        // Debug: Log panel rendering info
-        println!("🎭 Rendering {} holographic panel vertices, {} indices", 
-                 vertices.len(), indices.len());
-        
-        // Debug: Log each panel position
-        for panel in &self.sidebar.panels {
-            match panel {
-                PanelWrapper::Portfolio(p) => {
-                    println!("  📊 Portfolio at {:?}", p.base_panel.transform.position);
-                },
-                PanelWrapper::OrderBook(p) => {
-                    println!("  📈 OrderBook at {:?}", p.base_panel.transform.position);
-                },
-                PanelWrapper::MarketHeatmap(p) => {
-                    println!("  🔥 Heatmap at {:?}", p.base_panel.transform.position);
-                },
-                PanelWrapper::TradeStream(p) => {
-                    println!("  💫 TradeStream at {:?}", p.base_panel.transform.position);
-                },
-            }
-        }
+        // Debug output disabled - panels are working properly
         
         // Render holographic panels
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
