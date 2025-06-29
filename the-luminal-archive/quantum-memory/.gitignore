@@ -1,0 +1,45 @@
+# Environment variables - NEVER commit!
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Logs
+logs/
+*.log
+
+# Data and checkpoints
+data/checkpoints/
+data/archives/
+data/configs/system_config.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
+
+# Security - Never commit credentials
+*.key
+*.pem
+*.cert
+credentials/
+secrets/

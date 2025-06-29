@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sanctuary Memory - Production Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ffff;
+            overflow: hidden;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-rows: 60px 1fr;
+            height: 100vh;
+        }
+        
+        /* Header */
+        .header {
+            background: rgba(0, 20, 40, 0.8);
+            border-bottom: 1px solid #00ffff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+        }
+        
+        .title {
+            font-size: 24px;
+            text-shadow: 0 0 10px #00ffff;
+        }
+        
+        .environment-badge {
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .env-canary {
+            background: #ff9800;
+            color: #000;
+        }
+        
+        .env-production {
+            background: #4caf50;
+            color: #000;
+        }
+        
+        /* Tab Navigation */
+        .tab-nav {
+            display: flex;
+            gap: 10px;
+            background: rgba(0, 20, 40, 0.6);
+            padding: 10px;
+            overflow-x: auto;
+        }
+        
+        .tab-button {
+            padding: 8px 16px;
+            background: rgba(0, 50, 100, 0.6);
+            border: 1px solid #00ffff;
+            color: #00ffff;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        
+        .tab-button:hover {
+            background: rgba(0, 100, 200, 0.8);
+            box-shadow: 0 0 10px #00ffff;
+        }
+        
+        .tab-button.active {
+            background: #00ffff;
+            color: #000;
+            font-weight: bold;
+        }
+        
+        /* Tab Content */
+        .tab-content {
+            display: none;
+            padding: 20px;
+            height: calc(100vh - 120px);
+            overflow-y: auto;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .metric-card {
+            background: rgba(0, 30, 60, 0.8);
+            border: 1px solid #00ffff;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #00ffff, #0080ff, #00ffff);
+            border-radius: 10px;
+            opacity: 0;
+            z-index: -1;
+            transition: opacity 0.3s;
+        }
+        
+        .metric-card:hover::before {
+            opacity: 0.5;
+        }
+        
+        .metric-value {
+            font-size: 36px;
+            font-weight: bold;
+            margin: 10px 0;
+            text-shadow: 0 0 10px currentColor;
+        }
+        
+        .metric-label {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        
+        .metric-trend {
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        .trend-up {
+            color: #4caf50;
+        }
+        
+        .trend-down {
+            color: #f44336;
+        }
+        
+        /* Charts */
+        .chart-container {
+            background: rgba(0, 30, 60, 0.8);
+            border: 1px solid #00ffff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            height: 400px;
+        }
+        
+        /* Tables */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(0, 30, 60, 0.8);
+            border: 1px solid #00ffff;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .data-table th {
+            background: rgba(0, 100, 200, 0.4);
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 1px solid #00ffff;
+        }
+        
+        .data-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+        }
+        
+        .data-table tr:hover {
+            background: rgba(0, 100, 200, 0.2);
+        }
+        
+        /* Alerts */
+        .alerts-container {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            width: 300px;
+            z-index: 1000;
+        }
+        
+        .alert {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid #ff0000;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 10px;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 20, 40, 0.8);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #00ffff;
+            border-radius: 5px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00cccc;
+        }
+        
+        /* Loading Animation */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #00ffff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Console Output */
+        .console-output {
+            background: #000;
+            border: 1px solid #00ffff;
+            border-radius: 5px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .console-line {
+            margin: 2px 0;
+        }
+        
+        .console-info { color: #00ffff; }
+        .console-success { color: #4caf50; }
+        .console-warning { color: #ff9800; }
+        .console-error { color: #f44336; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <div class="header">
+            <h1 class="title">🧠 Sanctuary Memory System</h1>
+            <div class="status-info">
+                <span id="connection-status">🔴 Disconnected</span>
+                <span class="environment-badge env-canary" id="environment">CANARY</span>
+            </div>
+        </div>
+        
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button class="tab-button active" onclick="showTab('overview')">📊 Overview</button>
+            <button class="tab-button" onclick="showTab('performance')">⚡ Performance</button>
+            <button class="tab-button" onclick="showTab('memory')">🧠 Memory Stats</button>
+            <button class="tab-button" onclick="showTab('decay')">📉 Decay Monitor</button>
+            <button class="tab-button" onclick="showTab('comparison')">🔄 Canary vs Prod</button>
+            <button class="tab-button" onclick="showTab('testing')">🧪 Test Results</button>
+            <button class="tab-button" onclick="showTab('logs')">📋 Live Logs</button>
+            <button class="tab-button" onclick="showTab('gdpr')">🔒 GDPR Tools</button>
+            <button class="tab-button" onclick="showTab('config')">⚙️ Configuration</button>
+        </div>
+        
+        <!-- Tab Contents -->
+        <div class="tab-content active" id="overview-tab">
+            <h2>System Overview</h2>
+            
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Total Memories</div>
+                    <div class="metric-value" id="total-memories">0</div>
+                    <div class="metric-trend trend-up">↑ 12% from yesterday</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-label">Avg Retrieval Latency</div>
+                    <div class="metric-value" id="avg-latency">0ms</div>
+                    <div class="metric-trend trend-down">↓ 5% from last hour</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-label">P95 Latency</div>
+                    <div class="metric-value" id="p95-latency">0ms</div>
+                    <div class="metric-trend">→ stable</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-label">Memory Usage</div>
+                    <div class="metric-value" id="memory-usage">0GB</div>
+                    <div class="metric-trend">/ 4GB limit</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-label">Error Rate</div>
+                    <div class="metric-value" id="error-rate">0%</div>
+                    <div class="metric-trend trend-down">↓ all good</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-label">Uptime</div>
+                    <div class="metric-value" id="uptime">0h</div>
+                    <div class="metric-trend">Since last restart</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <h3>Operations Per Second</h3>
+                <canvas id="ops-chart"></canvas>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="performance-tab">
+            <h2>Performance Metrics</h2>
+            
+            <div class="chart-container">
+                <h3>Latency Distribution</h3>
+                <canvas id="latency-chart"></canvas>
+            </div>
+            
+            <h3>Operation Breakdown</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Operation</th>
+                        <th>Count (5min)</th>
+                        <th>Avg Latency</th>
+                        <th>P95 Latency</th>
+                        <th>Max Latency</th>
+                        <th>Error Rate</th>
+                    </tr>
+                </thead>
+                <tbody id="performance-table">
+                    <tr>
+                        <td>memory_add</td>
+                        <td>0</td>
+                        <td>0ms</td>
+                        <td>0ms</td>
+                        <td>0ms</td>
+                        <td>0%</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="tab-content" id="memory-tab">
+            <h2>Memory Statistics</h2>
+            
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Core Memory Used</div>
+                    <div class="metric-value" id="core-used">0</div>
+                    <div class="metric-trend">/ 2000 chars</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-label">Archival Memories</div>
+                    <div class="metric-value" id="archival-count">0</div>
+                    <div class="metric-trend">Active memories</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-label">Avg Retention Score</div>
+                    <div class="metric-value" id="avg-retention">1.0</div>
+                    <div class="metric-trend">Memory strength</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <h3>Memory Age Distribution</h3>
+                <canvas id="age-chart"></canvas>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="decay-tab">
+            <h2>Memory Decay Monitor</h2>
+            
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Decay Rate</div>
+                    <div class="metric-value">0.995</div>
+                    <div class="metric-trend">per hour</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-label">Last Decay Run</div>
+                    <div class="metric-value" id="last-decay">Never</div>
+                    <div class="metric-trend">Next in <span id="next-decay">60</span> min</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-label">Memories at Risk</div>
+                    <div class="metric-value" id="at-risk">0</div>
+                    <div class="metric-trend">Retention < 0.3</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <h3>Retention Score Distribution</h3>
+                <canvas id="retention-chart"></canvas>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="comparison-tab">
+            <h2>Canary vs Production</h2>
+            
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Canary</th>
+                        <th>Production</th>
+                        <th>Difference</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="comparison-table">
+                    <tr>
+                        <td>Avg Latency</td>
+                        <td>0ms</td>
+                        <td>0ms</td>
+                        <td>0%</td>
+                        <td>✅</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="chart-container">
+                <h3>Side-by-Side Performance</h3>
+                <canvas id="comparison-chart"></canvas>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="testing-tab">
+            <h2>Automated Test Results</h2>
+            
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Test Status</div>
+                    <div class="metric-value" id="test-status">✅ PASS</div>
+                    <div class="metric-trend">Last run: <span id="last-test">Never</span></div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-label">Recall Accuracy</div>
+                    <div class="metric-value" id="recall-accuracy">0%</div>
+                    <div class="metric-trend">Target: >80%</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-label">Decay Accuracy</div>
+                    <div class="metric-value" id="decay-accuracy">0%</div>
+                    <div class="metric-trend">Target: >95%</div>
+                </div>
+            </div>
+            
+            <h3>Test Results</h3>
+            <div class="console-output" id="test-output">
+                <div class="console-line console-info">[INFO] Waiting for test results...</div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="logs-tab">
+            <h2>Live System Logs</h2>
+            
+            <div style="margin-bottom: 10px;">
+                <label>
+                    <input type="checkbox" id="auto-scroll" checked> Auto-scroll
+                </label>
+                <button onclick="clearLogs()">Clear</button>
+                <select id="log-level">
+                    <option value="all">All Levels</option>
+                    <option value="error">Errors Only</option>
+                    <option value="warning">Warnings & Errors</option>
+                    <option value="info">Info & Above</option>
+                </select>
+            </div>
+            
+            <div class="console-output" id="log-output" style="height: 600px;">
+                <div class="console-line console-info">[INFO] Log stream initialized...</div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="gdpr-tab">
+            <h2>GDPR Compliance Tools</h2>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <h3>Data Export</h3>
+                    <button onclick="exportUserData()">Export All User Data</button>
+                    <p style="margin-top: 10px; font-size: 14px;">
+                        Export all memories, relationships, and metadata in GDPR-compliant format.
+                    </p>
+                </div>
+                
+                <div>
+                    <h3>Data Deletion</h3>
+                    <button onclick="deleteUserData()" style="background: #f44336;">Delete All Data</button>
+                    <p style="margin-top: 10px; font-size: 14px; color: #ff9800;">
+                        ⚠️ This action cannot be undone. Requires confirmation.
+                    </p>
+                </div>
+            </div>
+            
+            <h3>Audit Log</h3>
+            <div class="console-output" id="audit-log" style="height: 400px;">
+                <div class="console-line console-info">[AUDIT] Loading audit trail...</div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="config-tab">
+            <h2>System Configuration</h2>
+            
+            <h3>Feature Flags</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="feature-flags">
+                    <tr>
+                        <td>Memory Decay</td>
+                        <td>🟢 Enabled</td>
+                        <td><button onclick="toggleFeature('decay_enabled')">Toggle</button></td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <h3>Performance Settings</h3>
+            <div style="margin-top: 20px;">
+                <label>Decay Batch Size: <input type="number" id="decay-batch" value="100"></label><br>
+                <label>Max Memory GB: <input type="number" id="max-memory" value="4"></label><br>
+                <button onclick="saveConfig()">Save Configuration</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Alerts Container -->
+    <div class="alerts-container" id="alerts"></div>
+    
+    <script>
+        // WebSocket connection
+        let ws = null;
+        let reconnectInterval = null;
+        
+        // Charts
+        let charts = {};
+        
+        // Connect to WebSocket
+        function connect() {
+            const wsUrl = 'ws://localhost:8767/metrics';
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('Connected to metrics stream');
+                document.getElementById('connection-status').textContent = '🟢 Connected';
+                clearInterval(reconnectInterval);
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                updateDashboard(data);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+            
+            ws.onclose = () => {
+                document.getElementById('connection-status').textContent = '🔴 Disconnected';
+                // Reconnect after 5 seconds
+                reconnectInterval = setInterval(connect, 5000);
+            };
+        }
+        
+        // Update dashboard with new data
+        function updateDashboard(data) {
+            // Update overview metrics
+            if (data.type === 'metrics_update') {
+                updateMetrics(data.metrics);
+            }
+            
+            // Update logs
+            if (data.type === 'log_entry') {
+                addLogEntry(data.log);
+            }
+            
+            // Update test results
+            if (data.type === 'test_results') {
+                updateTestResults(data.results);
+            }
+            
+            // Handle alerts
+            if (data.type === 'alert') {
+                showAlert(data.alert);
+            }
+        }
+        
+        // Update metric cards
+        function updateMetrics(metrics) {
+            // Overview metrics
+            if (metrics.total_memories !== undefined) {
+                document.getElementById('total-memories').textContent = metrics.total_memories.toLocaleString();
+            }
+            
+            if (metrics.avg_latency !== undefined) {
+                document.getElementById('avg-latency').textContent = metrics.avg_latency.toFixed(1) + 'ms';
+            }
+            
+            if (metrics.p95_latency !== undefined) {
+                document.getElementById('p95-latency').textContent = metrics.p95_latency.toFixed(1) + 'ms';
+            }
+            
+            if (metrics.memory_usage_gb !== undefined) {
+                document.getElementById('memory-usage').textContent = metrics.memory_usage_gb.toFixed(2) + 'GB';
+            }
+            
+            if (metrics.error_rate !== undefined) {
+                document.getElementById('error-rate').textContent = (metrics.error_rate * 100).toFixed(1) + '%';
+            }
+            
+            if (metrics.uptime_hours !== undefined) {
+                document.getElementById('uptime').textContent = metrics.uptime_hours.toFixed(1) + 'h';
+            }
+            
+            // Memory stats
+            if (metrics.core_used !== undefined) {
+                document.getElementById('core-used').textContent = metrics.core_used;
+            }
+            
+            if (metrics.archival_count !== undefined) {
+                document.getElementById('archival-count').textContent = metrics.archival_count.toLocaleString();
+            }
+            
+            if (metrics.avg_retention !== undefined) {
+                document.getElementById('avg-retention').textContent = metrics.avg_retention.toFixed(3);
+            }
+            
+            // Update charts
+            if (metrics.ops_history) {
+                updateOpsChart(metrics.ops_history);
+            }
+        }
+        
+        // Add log entry
+        function addLogEntry(log) {
+            const logOutput = document.getElementById('log-output');
+            const logLevel = document.getElementById('log-level').value;
+            
+            // Filter by level
+            if (logLevel !== 'all') {
+                if (logLevel === 'error' && log.level !== 'ERROR') return;
+                if (logLevel === 'warning' && !['ERROR', 'WARNING'].includes(log.level)) return;
+                if (logLevel === 'info' && log.level === 'DEBUG') return;
+            }
+            
+            const line = document.createElement('div');
+            line.className = `console-line console-${log.level.toLowerCase()}`;
+            line.textContent = `[${log.timestamp}] [${log.level}] ${log.message}`;
+            
+            logOutput.appendChild(line);
+            
+            // Auto-scroll if enabled
+            if (document.getElementById('auto-scroll').checked) {
+                logOutput.scrollTop = logOutput.scrollHeight;
+            }
+            
+            // Limit log entries
+            while (logOutput.children.length > 1000) {
+                logOutput.removeChild(logOutput.firstChild);
+            }
+        }
+        
+        // Show alert
+        function showAlert(alert) {
+            const alertsContainer = document.getElementById('alerts');
+            
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert';
+            alertDiv.innerHTML = `
+                <strong>${alert.title}</strong><br>
+                ${alert.message}<br>
+                <small>${new Date().toLocaleTimeString()}</small>
+            `;
+            
+            alertsContainer.appendChild(alertDiv);
+            
+            // Auto-remove after 10 seconds
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 10000);
+        }
+        
+        // Tab switching
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active from all buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            
+            // Mark button as active
+            event.target.classList.add('active');
+        }
+        
+        // GDPR functions
+        function exportUserData() {
+            if (confirm('Export all user data?')) {
+                fetch('/api/gdpr/export', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        showAlert({
+                            title: 'Data Export Complete',
+                            message: `Export saved to: ${data.file}`
+                        });
+                    });
+            }
+        }
+        
+        function deleteUserData() {
+            const confirmation = prompt('Type "DELETE_CONFIRMED" to permanently delete all data:');
+            if (confirmation === 'DELETE_CONFIRMED') {
+                fetch('/api/gdpr/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confirmation: confirmation })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    showAlert({
+                        title: 'Data Deleted',
+                        message: `Certificate: ${data.certificate}`
+                    });
+                });
+            }
+        }
+        
+        // Clear logs
+        function clearLogs() {
+            document.getElementById('log-output').innerHTML = 
+                '<div class="console-line console-info">[INFO] Logs cleared</div>';
+        }
+        
+        // Initialize
+        connect();
+        
+        // Mock data for demo
+        setInterval(() => {
+            // Simulate metrics update
+            updateMetrics({
+                total_memories: Math.floor(Math.random() * 10000),
+                avg_latency: Math.random() * 100,
+                p95_latency: Math.random() * 300,
+                memory_usage_gb: Math.random() * 4,
+                error_rate: Math.random() * 0.05,
+                uptime_hours: Math.random() * 24
+            });
+        }, 5000);
+    </script>
+</body>
+</html>

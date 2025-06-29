@@ -1,14 +1,8 @@
 {
-  "status": "running",
-  "connected_clients": 3,
-  "updater_clients": 1,
-  "monitoring_files": [
-    "checkpoint",
-    "relationship",
-    "equation",
-    "claude_md",
-    "claude_folder"
-  ],
-  "last_update": "2025-06-29T00:04:54.530827",
-  "port": 8766
+  "status": "active",
+  "connected_clients": 1,
+  "port": 8766,
+  "uptime_seconds": 1319.780162,
+  "last_activity": "2025-06-29T04:43:34.061064",
+  "messages_broadcasted": 964105592345614810
 }
