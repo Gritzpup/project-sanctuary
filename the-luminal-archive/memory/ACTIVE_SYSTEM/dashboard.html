@@ -594,9 +594,9 @@
         
         /* Plutchik Wheel */
         .plutchik-wheel {
-            width: 180px;
-            height: 180px;
-            margin: 1px auto;
+            width: 200px;
+            height: 200px;
+            margin: 15px auto;
             position: relative;
         }
         
@@ -1086,6 +1086,7 @@
                         <button class="tab-button active" onclick="showConsoleTab('llm')">🧠 LLM Processing</button>
                         <button class="tab-button" onclick="showConsoleTab('chat')">💬 Chat History</button>
                         <button class="tab-button" onclick="showConsoleTab('files')">📁 File Monitor</button>
+                        <button class="tab-button" onclick="showConsoleTab('debug')">🐛 Debug Console</button>
                     </div>
                     
                     <div id="llm-console" class="console-view active">
@@ -1121,31 +1122,21 @@
                             [23:10:36] 💾 Checkpoint saved - memories persist across chats!
                         </div>
                     </div>
+                    
+                    <div id="debug-console-tab" class="console-view">
+                        <div class="debug-console" id="debug-console" style="height: 100%; overflow-y: auto; overflow-x: hidden; font-size: 0.85em;">
+                            <div class="debug-line info">[INFO] Dashboard initialized</div>
+                            <div class="debug-line info">[INFO] Attempting WebSocket connection...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
             
-            <!-- Right Panel: Debug Console -->
-            <div class="panel debug-console" style="height: 100%; display: flex; flex-direction: column;">
-                <h2>Debug Console</h2>
+            <!-- Right Panel: Memory Analytics -->
+            <div class="panel memory-analytics" style="height: 100%; display: flex; flex-direction: column;">
+                <h2>Memory & Emotion Analytics</h2>
                 
-                <!-- Tab buttons ONLY for the console -->
-                <div class="tab-buttons" style="margin-bottom: 5px;">
-                    <button class="tab-button active" onclick="showDebugConsoleTab('debug')">🐛 Debug</button>
-                    <button class="tab-button" onclick="showDebugConsoleTab('llm')">🧠 LLM Processing</button>
-                </div>
-                
-                <!-- Debug logs tab -->
-                <div class="debug-console console-tab" id="debug-console" style="flex: 0 0 25%; height: 25%; overflow-y: auto; overflow-x: hidden; font-size: 0.85em; display: block;">
-                    <div class="debug-line info">[INFO] Dashboard initialized</div>
-                    <div class="debug-line info">[INFO] Attempting WebSocket connection...</div>
-                </div>
-                
-                <!-- LLM Processing logs tab -->
-                <div class="debug-console console-tab" id="llm-console" style="flex: 0 0 25%; height: 25%; overflow-y: auto; overflow-x: hidden; font-size: 0.85em; display: none; background: rgba(0, 20, 40, 0.8); border: 1px solid rgba(0, 255, 255, 0.3); border-radius: 5px; padding: 5px;">
-                    <div class="processing-line llm" style="color: #00ff00;">[LLM] Initializing processing stream...</div>
-                </div>
-                
-                <div style="margin-top: 10px; padding: 10px; flex: 1; overflow-y: auto; border-top: 1px solid rgba(0, 255, 255, 0.2); background: rgba(0, 0, 20, 0.6); border-radius: 5px;">
+                <div style="padding: 10px; flex: 1; overflow-y: auto; background: rgba(0, 0, 20, 0.6); border-radius: 5px;">
                 <h3 style="margin-top: 0;">Claude Memory Operations</h3>
                 <div style="font-size: 0.85em; color: #00ffff; margin-top: 10px;">
                     <div style="margin: 5px 0;">• Consolidation: <span id="op-consolidation" style="color: #00ff00;">4.3/s</span></div>
@@ -1180,7 +1171,7 @@
                     </div>
                 </div>
                 
-                <h3 style="margin-top: 15px; margin-bottom: 8px; font-size: 1em;">🎭 Claude Emotion Distribution</h3>
+                <h3 style="margin-top: 15px; margin-bottom: 8px; font-size: 1.25em;">🎭 Claude Emotion Distribution</h3>
                 <div id="emotion-distribution" style="margin-top: 3px;">
                     <div id="emotion-bars-container" style="font-size: 1.25em; max-height: 200px; overflow-y: auto; overflow-x: hidden; line-height: 1.3;">
                         <!-- Emotion bars will be dynamically populated -->
@@ -1191,7 +1182,7 @@
                 </div>
 
                                 <!-- Plutchik Wheel -->
-                <h3>Claude Emotion Analysis</h3>
+                <h3>Emotion Analysis</h3>
                 <div class="plutchik-wheel">
                     <canvas id="plutchik-canvas"></canvas>
                 </div>
@@ -1391,34 +1382,6 @@
             }
         }
         
-        // Add LLM processing log to LLM console tab
-        function llmProcessingLog(message, type = 'LLM') {
-            const llmConsole = document.getElementById('llm-console');
-            if (!llmConsole) return;
-            
-            const timestamp = new Date().toLocaleTimeString();
-            const line = document.createElement('div');
-            line.className = `processing-line ${type.toLowerCase()}`;
-            line.textContent = `[${timestamp}] [${type}] ${message}`;
-            
-            // Set color based on type
-            if (type === 'LLM') {
-                line.style.color = '#00ff00';
-            } else if (type === 'MEMORY') {
-                line.style.color = '#00CED1';
-            } else if (type === 'EMOTION') {
-                line.style.color = '#FFB6C1';
-            }
-            
-            llmConsole.appendChild(line);
-            llmConsole.scrollTop = llmConsole.scrollHeight;
-            
-            // Keep only last 50 lines
-            while (llmConsole.children.length > 50) {
-                llmConsole.removeChild(llmConsole.firstChild);
-            }
-        }
-        
         // Update mood indicator
         function updateMoodIndicator(emotion, color) {
             const indicator = document.getElementById('mood-indicator');
@@ -1475,33 +1438,13 @@
             
             // Add active class to selected tab and view
             event.target.classList.add('active');
-            document.getElementById(`${tabName}-console`).classList.add('active');
-        }
-        
-        // Debug console tab switching (ONLY for the debug console box)
-        function showDebugConsoleTab(tabName) {
-            // Get the debug panel
-            const debugPanel = document.querySelector('.panel.debug-console');
             
-            // Find and hide all console tabs in the debug panel
-            debugPanel.querySelectorAll('.console-tab').forEach(tab => {
-                tab.style.display = 'none';
-            });
-            
-            // Remove active class from all tab buttons in the debug panel
-            debugPanel.querySelectorAll('.tab-button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            // Show the selected tab
+            // Handle special case for debug tab
             if (tabName === 'debug') {
-                document.getElementById('debug-console').style.display = 'block';
-            } else if (tabName === 'llm') {
-                document.getElementById('llm-console').style.display = 'block';
+                document.getElementById('debug-console-tab').classList.add('active');
+            } else {
+                document.getElementById(`${tabName}-console`).classList.add('active');
             }
-            
-            // Add active class to clicked button
-            event.target.classList.add('active');
         }
         
         // Emotion Distribution Tracker
@@ -1808,18 +1751,6 @@
                     ws.send(JSON.stringify({
                         type: 'request_system_status'
                     }));
-                    
-                    // Set up periodic system status updates
-                    if (window.statusUpdateInterval) {
-                        clearInterval(window.statusUpdateInterval);
-                    }
-                    window.statusUpdateInterval = setInterval(() => {
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({
-                                type: 'request_system_status'
-                            }));
-                        }
-                    }, 5000); // Update every 5 seconds
                 };
                 
                 ws.onmessage = (event) => {
@@ -2374,11 +2305,6 @@
                     debugLog('WebSocket connection closed', 'warn');
                     document.getElementById('ws-status').textContent = 'WebSocket: Disconnected';
                     document.getElementById('ws-status').className = 'status disconnected';
-                    
-                    // Clear status update interval
-                    if (window.statusUpdateInterval) {
-                        clearInterval(window.statusUpdateInterval);
-                    }
                     
                     // Reconnect after 5 seconds
                     if (!reconnectInterval) {
@@ -3083,7 +3009,7 @@
         
         // System Status Panel Functions
         function updateSystemStatus(status) {
-            debugLog(`Updating system status panel - Active connections: ${status.active_connections || 0}`, 'info');
+            debugLog('Updating system status panel', 'info');
             
             // WebSocket Server
             if (status.websocket_server !== undefined) {
@@ -3394,16 +3320,6 @@
         
         // Load data from JSON files on page load
         window.addEventListener('DOMContentLoaded', function() {
-            // Initialize status lights to red (disconnected state)
-            const statusLights = ['ws-server-light', 'ws-connections-light', 'memory-updater-light', 
-                                 'http-server-light', 'data-integrity-light', 'checkpoint-light'];
-            statusLights.forEach(lightId => {
-                const light = document.getElementById(lightId);
-                if (light) {
-                    light.className = 'status-light red';
-                }
-            });
-            
             // Load relationship equation
             fetch('relationship_equation.json')
                 .then(response => response.json())
