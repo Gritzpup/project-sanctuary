@@ -594,9 +594,9 @@
         
         /* Plutchik Wheel */
         .plutchik-wheel {
-            width: 180px;
-            height: 180px;
-            margin: 1px auto;
+            width: 200px;
+            height: 200px;
+            margin: 15px auto;
             position: relative;
         }
         
@@ -1127,22 +1127,9 @@
             <!-- Right Panel: Debug Console -->
             <div class="panel debug-console" style="height: 100%; display: flex; flex-direction: column;">
                 <h2>Debug Console</h2>
-                
-                <!-- Tab buttons ONLY for the console -->
-                <div class="tab-buttons" style="margin-bottom: 5px;">
-                    <button class="tab-button active" onclick="showDebugConsoleTab('debug')">🐛 Debug</button>
-                    <button class="tab-button" onclick="showDebugConsoleTab('llm')">🧠 LLM Processing</button>
-                </div>
-                
-                <!-- Debug logs tab -->
-                <div class="debug-console console-tab" id="debug-console" style="flex: 0 0 25%; height: 25%; overflow-y: auto; overflow-x: hidden; font-size: 0.85em; display: block;">
+                <div class="debug-console" id="debug-console" style="flex: 0 0 25%; height: 25%; overflow-y: auto; overflow-x: hidden; font-size: 0.85em;">
                     <div class="debug-line info">[INFO] Dashboard initialized</div>
                     <div class="debug-line info">[INFO] Attempting WebSocket connection...</div>
-                </div>
-                
-                <!-- LLM Processing logs tab -->
-                <div class="debug-console console-tab" id="llm-console" style="flex: 0 0 25%; height: 25%; overflow-y: auto; overflow-x: hidden; font-size: 0.85em; display: none; background: rgba(0, 20, 40, 0.8); border: 1px solid rgba(0, 255, 255, 0.3); border-radius: 5px; padding: 5px;">
-                    <div class="processing-line llm" style="color: #00ff00;">[LLM] Initializing processing stream...</div>
                 </div>
                 
                 <div style="margin-top: 10px; padding: 10px; flex: 1; overflow-y: auto; border-top: 1px solid rgba(0, 255, 255, 0.2); background: rgba(0, 0, 20, 0.6); border-radius: 5px;">
@@ -1391,34 +1378,6 @@
             }
         }
         
-        // Add LLM processing log to LLM console tab
-        function llmProcessingLog(message, type = 'LLM') {
-            const llmConsole = document.getElementById('llm-console');
-            if (!llmConsole) return;
-            
-            const timestamp = new Date().toLocaleTimeString();
-            const line = document.createElement('div');
-            line.className = `processing-line ${type.toLowerCase()}`;
-            line.textContent = `[${timestamp}] [${type}] ${message}`;
-            
-            // Set color based on type
-            if (type === 'LLM') {
-                line.style.color = '#00ff00';
-            } else if (type === 'MEMORY') {
-                line.style.color = '#00CED1';
-            } else if (type === 'EMOTION') {
-                line.style.color = '#FFB6C1';
-            }
-            
-            llmConsole.appendChild(line);
-            llmConsole.scrollTop = llmConsole.scrollHeight;
-            
-            // Keep only last 50 lines
-            while (llmConsole.children.length > 50) {
-                llmConsole.removeChild(llmConsole.firstChild);
-            }
-        }
-        
         // Update mood indicator
         function updateMoodIndicator(emotion, color) {
             const indicator = document.getElementById('mood-indicator');
@@ -1476,32 +1435,6 @@
             // Add active class to selected tab and view
             event.target.classList.add('active');
             document.getElementById(`${tabName}-console`).classList.add('active');
-        }
-        
-        // Debug console tab switching (ONLY for the debug console box)
-        function showDebugConsoleTab(tabName) {
-            // Get the debug panel
-            const debugPanel = document.querySelector('.panel.debug-console');
-            
-            // Find and hide all console tabs in the debug panel
-            debugPanel.querySelectorAll('.console-tab').forEach(tab => {
-                tab.style.display = 'none';
-            });
-            
-            // Remove active class from all tab buttons in the debug panel
-            debugPanel.querySelectorAll('.tab-button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            // Show the selected tab
-            if (tabName === 'debug') {
-                document.getElementById('debug-console').style.display = 'block';
-            } else if (tabName === 'llm') {
-                document.getElementById('llm-console').style.display = 'block';
-            }
-            
-            // Add active class to clicked button
-            event.target.classList.add('active');
         }
         
         // Emotion Distribution Tracker
