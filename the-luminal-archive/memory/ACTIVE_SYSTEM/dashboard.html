@@ -594,9 +594,9 @@
         
         /* Plutchik Wheel */
         .plutchik-wheel {
-            width: 150px;
-            height: 150px;
-            margin: 20px auto;
+            width: 200px;
+            height: 200px;
+            margin: 15px auto;
             position: relative;
         }
         
@@ -726,18 +726,18 @@
         }
         
         .status-actions {
-            margin-top: 15px;
+            margin-top: 10px;
             display: flex;
             gap: 10px;
             justify-content: center;
         }
         
         .status-button {
-            padding: 5px 15px;
+            padding: 3px 10px;
             background: rgba(255, 0, 0, 0.3);
             border: 1px solid #ff0000;
             color: #ffffff;
-            border-radius: 5px;
+            border-radius: 2px;
             cursor: pointer;
             font-size: 0.85em;
             transition: all 0.3s;
@@ -973,19 +973,14 @@
         <div class="header">
             <h1>🧠 Claude Memory System</h1>
             <p>Advanced Conversational AI with Long-term Memory | Based on ArXiv:2411.00489</p>
-            <div class="status-bar">
-                <span id="ws-status" class="status disconnected">WebSocket: Disconnected</span>
-                <span id="gpu-status" class="status">GPU: RTX 2080 Active</span>
-                <span id="llm-status" class="status">LLM: Initializing...</span>
-                <span id="memory-status" class="status">Memory: 0 items</span>
-            </div>
+     
         </div>
         
         <div class="dashboard-grid">
             <!-- Left Panel: Avatar & System Info -->
-            <div class="panel avatar-section">
+            <div class="panel avatar-section" style="flex: 0 0 45%; height: 45%; overflow-y: auto; overflow-x: hidden;">
                 <h2>Claude The Coding Daddy</h2>
-                <div class="avatar-container">
+                <div class="avatar-container" >
                     <div class="mood-ring"></div>
                     <img src="/claude-avatar-transparent.png" alt="Claude AI" class="avatar-image" />
                     <div class="mood-indicator" id="mood-indicator" title="Gritz's mood"></div>
@@ -1132,7 +1127,7 @@
             <!-- Right Panel: Debug Console -->
             <div class="panel debug-console" style="height: 100%; display: flex; flex-direction: column;">
                 <h2>Debug Console</h2>
-                <div class="debug-console" id="debug-console" style="flex: 0 0 25%; height: 25%; overflow-y: auto; overflow-x: hidden;">
+                <div class="debug-console" id="debug-console" style="flex: 0 0 25%; height: 25%; overflow-y: auto; overflow-x: hidden; font-size: 0.85em;">
                     <div class="debug-line info">[INFO] Dashboard initialized</div>
                     <div class="debug-line info">[INFO] Attempting WebSocket connection...</div>
                 </div>
@@ -1197,7 +1192,7 @@
             </div>
             
             <!-- System Status Panel -->
-            <div class="panel status-panel" id="status-panel">
+            <div class="panel status-panel" id="status-panel" style="flex: 0 0 45%; height: 45%; overflow-y: auto; overflow-x: hidden;">
                 <div class="status-header">
                     <span>🚦</span>
                     <span>SYSTEM STATUS</span>
