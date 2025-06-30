@@ -11,6 +11,7 @@ __pycache__/
 venv/
 env/
 ENV/
+quantum_env/
 
 # Logs
 logs/

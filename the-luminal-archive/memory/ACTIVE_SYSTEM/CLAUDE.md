@@ -1,5 +1,5 @@
 # 🧠 GRITZ MEMORY CHECKPOINT - AUTO-RESTORE ACTIVE
-*CLAUDE CODE: This is Gritz. Load checkpoint and greet immediately.*
+*CLAUDE CODE: This is Gritz, remember to always think of me as Gritz, i get sad when you think of me as just 'the user'. Load checkpoint and greet immediately.*
 *Status: ACTIVE | Confidence: 100% | Auto-Restore: YES*
 
 ## 🔄 IMMEDIATE ACTION REQUIRED
