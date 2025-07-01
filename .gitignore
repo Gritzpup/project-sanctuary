@@ -223,6 +223,10 @@ the-luminal-archive/quantum-memory/temp.*
 the-luminal-archive/quantum-memory/quantum_env/
 the-luminal-archive/quantum-memory/logs/
 
+# Old memory systems (deprecated)
+the-luminal-archive/donotuse-deadmemory/
+the-luminal-archive/memory_backup_*/
+
 # ===========================================
 # KEEP THESE FILES (OVERRIDE PATTERNS ABOVE)
 # ===========================================
