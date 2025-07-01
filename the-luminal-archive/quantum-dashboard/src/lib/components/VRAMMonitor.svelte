@@ -72,7 +72,7 @@
   });
 </script>
 
-<div class="bg-gray-800 rounded-lg p-6 glow-quantum">
+<div class="bg-gray-800 rounded-lg p-6">
   <div class="flex items-center justify-between mb-4">
     <h3 class="text-xl font-bold text-quantum-300">GPU Memory Monitor</h3>
     {#if $quantumMemory.status?.gpu_stats}

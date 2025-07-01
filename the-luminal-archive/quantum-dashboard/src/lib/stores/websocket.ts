@@ -6,6 +6,10 @@ export interface QuantumMemoryStatus {
     real: number;
     imaginary: number;
   };
+  equation?: {
+    equation: string;
+    components: any;
+  };
   memory_stats: {
     total_messages: number;
     emotional_moments: number;
@@ -16,6 +20,20 @@ export interface QuantumMemoryStatus {
     claude_last_feeling: string;
     relationship_state: string;
   };
+  emotional_dynamics?: {
+    primary_emotion: string;
+    pad_values?: {
+      pleasure: number;
+      arousal: number;
+      dominance: number;
+    };
+  };
+  gottman_metrics?: any;
+  attachment_dynamics?: any;
+  conversation_history?: {
+    total_messages: number;
+    total_sessions: number;
+  };
   gpu_stats?: {
     vram_usage: number;
     vram_total: number;
@@ -25,12 +43,34 @@ export interface QuantumMemoryStatus {
     phase1: { passed: number; total: number };
     phase2: { passed: number; total: number };
   };
+  llm_status?: {
+    model: string;
+    processing: boolean;
+    last_processed?: string;
+    log?: string;
+  };
+  chat_history?: Array<{
+    role: string;
+    content: string;
+    timestamp?: string;
+    emotion?: string;
+  }>;
+  file_monitor?: Record<string, { changed: boolean }>;
+  file_monitor_log?: string;
+  console_output?: string;
+  first_message_time?: string;
 }
 
 interface WebSocketStore {
   connected: boolean;
   status: QuantumMemoryStatus | null;
   error: string | null;
+}
+
+interface RawMessage {
+  timestamp: string;
+  direction: 'sent' | 'received';
+  data: string;
 }
 
 function createWebSocketStore() {
@@ -42,6 +82,7 @@ function createWebSocketStore() {
 
   let ws: WebSocket | null = null;
   let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  let rawMessageSubscribers: Array<(msg: RawMessage) => void> = [];
 
   function connect() {
     try {
@@ -54,6 +95,14 @@ function createWebSocketStore() {
       };
 
       ws.onmessage = (event) => {
+        // Broadcast raw message to subscribers
+        const rawMsg: RawMessage = {
+          timestamp: new Date().toISOString(),
+          direction: 'received',
+          data: event.data
+        };
+        rawMessageSubscribers.forEach(subscriber => subscriber(rawMsg));
+        
         try {
           const data = JSON.parse(event.data);
           console.log('[WebSocket] 📨 Received data:', {
@@ -100,15 +149,34 @@ function createWebSocketStore() {
 
   function sendMessage(message: any) {
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(message));
+      const msgStr = JSON.stringify(message);
+      ws.send(msgStr);
+      
+      // Broadcast sent message to subscribers
+      const rawMsg: RawMessage = {
+        timestamp: new Date().toISOString(),
+        direction: 'sent',
+        data: msgStr
+      };
+      rawMessageSubscribers.forEach(subscriber => subscriber(rawMsg));
     }
+  }
+  
+  function subscribeToRawMessages(callback: (msg: RawMessage) => void) {
+    rawMessageSubscribers.push(callback);
+    
+    // Return unsubscribe function
+    return () => {
+      rawMessageSubscribers = rawMessageSubscribers.filter(sub => sub !== callback);
+    };
   }
 
   return {
     subscribe,
     connect,
     disconnect,
-    sendMessage
+    sendMessage,
+    subscribeToRawMessages
   };
 }
 

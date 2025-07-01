@@ -100,7 +100,7 @@
   });
 </script>
 
-<div class="bg-gray-800 rounded-lg p-6 glow-quantum">
+<div class="bg-gray-800 rounded-lg p-6">
   <h3 class="text-xl font-bold text-quantum-300 mb-4">Service Status</h3>
   
   <div class="space-y-4">

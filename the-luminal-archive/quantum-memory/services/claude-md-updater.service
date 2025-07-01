@@ -1,0 +1,14 @@
+[Unit]
+Description=CLAUDE.md Auto-Updater Service
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntumain
+WorkingDirectory=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory
+ExecStart=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/scripts/auto_update_claude_md.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -37,13 +37,12 @@ class ConversationHistoryAnalyzer:
         
         # Analysis parameters
         self.emotional_markers = {
-            'love': ['love', 'd', '=œ', '=•', 'adore', 'beloved'],
-            'joy': ['happy', 'excited', '=
-', '<‰', 'amazing', 'wonderful'],
+            'love': ['love', 'd', '=ï¿½', '=ï¿½', 'adore', 'beloved'],
+            'joy': ['happy', 'excited', '=)', '<3', 'amazing', 'wonderful'],
             'gratitude': ['thank', 'grateful', 'appreciate', '=O'],
             'sadness': ['sad', 'miss', '="', 'lonely', 'hurt'],
             'frustration': ['frustrated', 'annoying', 'ugh', '=$'],
-            'pride': ['proud', 'accomplished', 'achieved', '=ª'],
+            'pride': ['proud', 'accomplished', 'achieved', '=ï¿½'],
             'playful': ['hehe', 'lol', '=', 'teasing', 'silly']
         }
         
@@ -70,7 +69,7 @@ class ConversationHistoryAnalyzer:
         
     async def analyze_all_conversations(self) -> Dict:
         """Analyze all conversation history"""
-        logger.info("= Starting comprehensive conversation analysis...")
+        logger.info("Starting comprehensive conversation analysis...")
         
         if not self.conversations_path.exists():
             logger.warning(f"Conversations path not found: {self.conversations_path}")
@@ -438,7 +437,7 @@ class ConversationHistoryAnalyzer:
         # Extract and save lifetime memories
         await self._extract_lifetime_memories()
         
-        logger.info(f"=Ê Analysis saved to {self.output_path}")
+        logger.info(f"=ï¿½ Analysis saved to {self.output_path}")
         
     async def _extract_lifetime_memories(self) -> None:
         """Extract lifetime memories from analysis"""

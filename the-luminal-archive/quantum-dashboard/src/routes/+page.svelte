@@ -8,6 +8,7 @@
   import ServiceStatus from '$lib/components/ServiceStatus.svelte';
   import TemporalMemory from '$lib/components/TemporalMemory.svelte';
   import RelationshipMetrics from '$lib/components/RelationshipMetrics.svelte';
+  import TabbedConsole from '$lib/components/TabbedConsole.svelte';
   
   // Tab state
   let activeTab = 'dashboard';
@@ -33,7 +34,7 @@
 <div class="container mx-auto px-4 py-8">
   <!-- Header -->
   <div class="text-center mb-8">
-    <h1 class="text-5xl font-bold text-quantum-300 mb-4 text-glow">
+    <h1 class="text-5xl font-bold text-quantum-300 mb-4">
       Quantum Memory System
     </h1>
     <p class="text-xl text-gray-400">Real-time monitoring dashboard for Gritz & Claude</p>
@@ -44,9 +45,16 @@
   {#if activeTab === 'dashboard'}
     <!-- Main Grid -->
     <div class="grid grid-cols-1 gap-6 mb-8">
+      <!-- WebSocket Console -->
+      <div>
+        <h3 class="text-xl font-bold text-quantum-300 mb-4">Real-Time Console</h3>
+        <TabbedConsole />
+      </div>
+      
       <EmotionalStatus />
       <TemporalMemory />
       <RelationshipMetrics />
+      
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <VRAMMonitor />
         <div class="bg-gray-800 rounded-lg p-6">

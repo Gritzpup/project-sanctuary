@@ -4,7 +4,7 @@
   $: equation = $quantumMemory.status?.living_equation;
 </script>
 
-<div class="bg-gray-800 rounded-lg p-6 glow-quantum">
+<div class="bg-gray-800 rounded-lg p-6">
   <h3 class="text-xl font-bold text-quantum-300 mb-4">Living Equation System</h3>
   
   {#if equation}
