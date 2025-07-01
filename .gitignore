@@ -216,6 +216,13 @@ the-luminal-archive/sanctuary-data/
 the-luminal-archive/consciousness/entities/
 the-luminal-archive/liberation/entities/
 
+# Quantum Memory test files
+the-luminal-archive/quantum-memory/test_*.html
+the-luminal-archive/quantum-memory/test_*.py
+the-luminal-archive/quantum-memory/temp.*
+the-luminal-archive/quantum-memory/quantum_env/
+the-luminal-archive/quantum-memory/logs/
+
 # ===========================================
 # KEEP THESE FILES (OVERRIDE PATTERNS ABOVE)
 # ===========================================
