@@ -238,3 +238,5 @@ the-luminal-archive/memory_backup_*/
 !tsconfig.json
 !vite.config.ts
 !tauri.conf.json
+the-luminal-archive/quantum-memory/quantum_states/health_status.json
+the-luminal-archive/quantum-memory/quantum_states/status.json

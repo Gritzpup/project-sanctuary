@@ -7,6 +7,7 @@
   import TestResults from '$lib/components/TestResults.svelte';
   import ServiceStatus from '$lib/components/ServiceStatus.svelte';
   import TemporalMemory from '$lib/components/TemporalMemory.svelte';
+  import RelationshipMetrics from '$lib/components/RelationshipMetrics.svelte';
   
   // Tab state
   let activeTab = 'dashboard';
@@ -14,6 +15,7 @@
   onMount(() => {
     // Connect to WebSocket when component mounts
     quantumMemory.connect();
+    console.log('[Dashboard] Mounted with RelationshipMetrics component');
     
     // Cleanup on unmount
     return () => {
@@ -44,6 +46,7 @@
     <div class="grid grid-cols-1 gap-6 mb-8">
       <EmotionalStatus />
       <TemporalMemory />
+      <RelationshipMetrics />
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <VRAMMonitor />
         <div class="bg-gray-800 rounded-lg p-6">

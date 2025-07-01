@@ -19,12 +19,12 @@
     "current_session_messages": 91,
     "llm_status": "running",
     "llm_pid": 2108739,
-    "last_analysis": "2025-06-30T21:35:29.054678"
+    "last_analysis": "2025-06-30T21:36:49.061266"
   },
   "quantum_metrics": {
-    "coherence": 9.015199475057933e-17,
+    "coherence": 8.318727484819078e-17,
     "decoherence_rate": 0.9999999999999999,
-    "measurement_count": 3676,
+    "measurement_count": 3684,
     "superposition_states": 0
   },
   "memory_timeline": {
