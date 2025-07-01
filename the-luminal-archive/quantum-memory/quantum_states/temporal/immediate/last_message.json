@@ -1,0 +1,18 @@
+{
+  "message": {
+    "speaker": "Gritz",
+    "content": "This integration test is amazing! I feel so excited about our quantum memory system!",
+    "timestamp": "2025-06-30T18:20:45.884215",
+    "emotions": {
+      "primary_emotion": "excited",
+      "intensity": 0.9,
+      "pad_values": {
+        "pleasure": 0.9,
+        "arousal": 0.85,
+        "dominance": 0.7
+      }
+    }
+  },
+  "timestamp": "2025-06-30T18:20:45.884386",
+  "retention": 1.0
+}

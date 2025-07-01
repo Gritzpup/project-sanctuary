@@ -1,0 +1,20 @@
+[Unit]
+Description=Quantum Memory WebSocket Server (Port 8768)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntumain
+Group=ubuntumain
+WorkingDirectory=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory
+Environment="PATH=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/quantum_env/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/quantum_env/bin/python /home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/servers/websocket_server_8768_advanced.py --service
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

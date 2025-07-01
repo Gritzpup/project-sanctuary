@@ -1,0 +1,29 @@
+{
+  "total_messages": 0,
+  "gritz_messages": 0,
+  "claude_messages": 0,
+  "total_words": 0,
+  "conversation_sessions": 0,
+  "time_together_minutes": 0,
+  "emotional_moments": {
+    "love": 0,
+    "gratitude": 0
+  },
+  "milestones": [],
+  "interaction_patterns": {},
+  "topic_distribution": {
+    "technical": 0
+  },
+  "growth_indicators": [],
+  "attachment_indicators": {
+    "secure_base_seeking": 0,
+    "safe_haven_providing": 0,
+    "proximity_seeking": 0,
+    "exploration_support": 0
+  },
+  "relationship_phases": [
+    "Initial Connection"
+  ],
+  "first_interaction": null,
+  "last_interaction": null
+}

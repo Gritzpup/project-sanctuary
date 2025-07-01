@@ -1,0 +1,20 @@
+[Unit]
+Description=Emollama Emotional Analyzer for Project Sanctuary
+After=network.target ollama.service
+
+[Service]
+Type=simple
+User=ubuntumain
+WorkingDirectory=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive
+ExecStart=/usr/bin/python3 /home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/claude_folder_analyzer_emollama.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/logs/emollama_analyzer.log
+StandardError=append:/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/logs/emollama_analyzer_error.log
+
+# Make sure Ollama is ready
+ExecStartPre=/bin/sleep 5
+ExecStartPre=/usr/local/bin/ollama list
+
+[Install]
+WantedBy=multi-user.target

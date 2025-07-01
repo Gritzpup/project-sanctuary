@@ -1,0 +1,18 @@
+[Unit]
+Description=Emollama-Enhanced Claude Folder Analyzer
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntumain
+Group=ubuntumain
+WorkingDirectory=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory
+Environment="PYTHONPATH=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/src"
+ExecStart=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/quantum_env/bin/python /home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/analyzers/run_emollama_analyzer.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -98,25 +98,40 @@ class QuantumEntanglementEncoder:
         
         # Cross-dimensional entanglement (PAD coupling)
         cross_pairs = []
-        strengths = []
         
-        # Pleasure-Arousal coupling
-        for i in range(5):
-            if i < len(self.pleasure_qubits) and i < len(self.arousal_qubits):
-                cross_pairs.append((self.pleasure_qubits[i], self.arousal_qubits[i]))
-                strengths.append(0.7)
-                
-        # Arousal-Dominance coupling
-        for i in range(4):
-            if i < len(self.arousal_qubits) and i < len(self.dominance_qubits):
-                cross_pairs.append((self.arousal_qubits[i], self.dominance_qubits[i]))
-                strengths.append(0.6)
-                
-        patterns['cross_dimensional'] = EntanglementPattern(
-            qubit_pairs=cross_pairs,
-            entanglement_strength=strengths,
-            pattern_type='custom'
-        )
+        return patterns
+    
+    def create_bell_pair(self):
+        """Create a Bell pair (maximally entangled 2-qubit state)"""
+        from qiskit import QuantumCircuit
+        from qiskit.quantum_info import Statevector
+        
+        # Create Bell state |Φ+⟩ = (|00⟩ + |11⟩)/√2
+        qc = QuantumCircuit(2)
+        qc.h(0)  # Hadamard on first qubit
+        qc.cx(0, 1)  # CNOT from first to second
+        
+        return Statevector(qc)
+    
+    def encode_emotion_to_quantum(self, pleasure: float, arousal: float, dominance: float):
+        """Encode PAD emotional values to quantum state"""
+        from qiskit import QuantumCircuit
+        from qiskit.quantum_info import Statevector
+        
+        # Use 3 qubits for simple encoding
+        qc = QuantumCircuit(3)
+        
+        # Encode each emotion dimension as rotation angle
+        qc.ry(pleasure * np.pi, 0)
+        qc.ry(arousal * np.pi, 1)
+        qc.ry(dominance * np.pi, 2)
+        
+        # Add entanglement
+        qc.cx(0, 1)
+        qc.cx(1, 2)
+        qc.cx(2, 0)
+        
+        return Statevector(qc)
         
         # Star pattern (hub qubit entangled with all others)
         hub_qubit = self.n_qubits // 2

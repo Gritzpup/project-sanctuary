@@ -1,0 +1,21 @@
+[Unit]
+Description=Quantum Emollama Emotional Analyzer for Project Sanctuary
+After=network.target ollama.service
+
+[Service]
+Type=simple
+User=ubuntumain
+WorkingDirectory=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory
+Environment="PATH=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/quantum_env/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/quantum_env/bin/python /home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/analyzers/claude_folder_analyzer_quantum.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Make sure Ollama is ready
+ExecStartPre=/bin/sleep 5
+ExecStartPre=/usr/local/bin/ollama list
+
+[Install]
+WantedBy=default.target

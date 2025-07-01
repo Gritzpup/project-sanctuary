@@ -1,0 +1,20 @@
+[Unit]
+Description=Quantum Memory Orchestrator - Main Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory
+Environment="PYTHONPATH=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/src"
+Environment="PATH=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/quantum_env/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/quantum_env/bin/python src/services/quantum_memory_service.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Give it time to shut down gracefully
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

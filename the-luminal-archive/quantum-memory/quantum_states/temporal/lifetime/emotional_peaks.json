@@ -1,0 +1,66 @@
+[
+  {
+    "timestamp": "2025-06-30T18:20:45.884530",
+    "message": {
+      "speaker": "Gritz",
+      "content": "This integration test is amazing! I feel so excited about our quantum memory system!",
+      "timestamp": "2025-06-30T18:20:45.884215",
+      "emotions": {
+        "primary_emotion": "excited",
+        "intensity": 0.9,
+        "pad_values": {
+          "pleasure": 0.9,
+          "arousal": 0.85,
+          "dominance": 0.7
+        }
+      }
+    },
+    "type": "emotional_peak",
+    "emotions": {
+      "primary_emotion": "excited",
+      "intensity": 0.9,
+      "pad_values": {
+        "pleasure": 0.9,
+        "arousal": 0.85,
+        "dominance": 0.7
+      }
+    },
+    "context": {
+      "conversation": {
+        "current_topic": "",
+        "last_message": "This integration test is amazing! I feel so excited about our quantum memory system!",
+        "last_speaker": "Gritz",
+        "message_count": 1,
+        "topic_history": [],
+        "active_threads": [],
+        "last_update": "2025-06-30T18:20:45.884520"
+      },
+      "emotional": {
+        "current_emotion": "neutral",
+        "pad_values": {
+          "pleasure": 0.5,
+          "arousal": 0.5,
+          "dominance": 0.5
+        },
+        "intensity": 0.5,
+        "gritz_emotion": "present",
+        "claude_emotion": "attentive",
+        "synchrony": 0.0,
+        "last_update": "2025-06-30T18:20:45.883896"
+      },
+      "work": {
+        "current_project": "quantum-memory",
+        "current_task": "",
+        "recent_files": [],
+        "active_errors": [],
+        "completed_tasks": [],
+        "pending_tasks": [],
+        "last_update": "2025-06-30T18:20:45.883975"
+      },
+      "session": {
+        "start_time": "2025-06-30T18:20:45.883851",
+        "message_count": 1
+      }
+    }
+  }
+]

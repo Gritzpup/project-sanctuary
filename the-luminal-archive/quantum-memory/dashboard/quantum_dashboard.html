@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Memory Dashboard</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Main layout */
+        .dashboard-container {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 15px 20px;
+            border-bottom: 2px solid #4a00e0;
+            box-shadow: 0 2px 10px rgba(74, 0, 224, 0.3);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+        }
+
+        .status-indicators {
+            float: right;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.active {
+            background: #4ade80;
+        }
+
+        .status-dot.inactive {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        /* Main content area */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            gap: 15px;
+            padding: 15px;
+            overflow: hidden;
+        }
+
+        /* Panels */
+        .panel {
+            background: rgba(22, 33, 62, 0.3);
+            border: 1px solid rgba(74, 0, 224, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(74, 0, 224, 0.2);
+            color: #a78bfa;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        /* Emotional state display */
+        .emotion-display {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .current-emotion {
+            font-size: 48px;
+            margin: 10px 0;
+        }
+
+        .emotion-label {
+            font-size: 18px;
+            color: #a78bfa;
+            margin-top: 10px;
+        }
+
+        .pad-values {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .pad-value {
+            text-align: center;
+        }
+
+        .pad-value-label {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .pad-value-number {
+            font-size: 20px;
+            font-weight: bold;
+            color: #e9d5ff;
+        }
+
+        /* Memory timeline */
+        .memory-timeline {
+            position: relative;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-left: 30px;
+            margin-bottom: 15px;
+            border-left: 2px solid rgba(74, 0, 224, 0.3);
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -6px;
+            top: 5px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4a00e0;
+            border: 2px solid #0a0a0a;
+        }
+
+        .timeline-time {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .timeline-content {
+            margin-top: 5px;
+            font-size: 14px;
+        }
+
+        /* Tabbed console */
+        .console-container {
+            background: rgba(10, 10, 10, 0.8);
+            border-top: 2px solid #4a00e0;
+            display: flex;
+            flex-direction: column;
+            height: 300px;
+        }
+
+        .console-tabs {
+            display: flex;
+            background: rgba(22, 33, 62, 0.5);
+            border-bottom: 1px solid rgba(74, 0, 224, 0.3);
+        }
+
+        .console-tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            border-bottom: 2px solid transparent;
+        }
+
+        .console-tab:hover {
+            color: #e9d5ff;
+        }
+
+        .console-tab.active {
+            color: #a78bfa;
+            border-bottom-color: #4a00e0;
+            background: rgba(74, 0, 224, 0.1);
+        }
+
+        .console-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        /* Console log styles */
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 5px;
+            border-radius: 3px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .log-timestamp {
+            color: #6b7280;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .log-content {
+            flex: 1;
+        }
+
+        .log-entry.llm {
+            background: rgba(74, 0, 224, 0.1);
+        }
+
+        .log-entry.chat {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .log-entry.memory {
+            background: rgba(118, 75, 162, 0.1);
+        }
+
+        .log-entry.file {
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .log-entry.debug {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        /* Chat message styles */
+        .chat-message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .chat-message.gritz {
+            background: rgba(102, 126, 234, 0.2);
+            border-left: 3px solid #667eea;
+        }
+
+        .chat-message.claude {
+            background: rgba(118, 75, 162, 0.2);
+            border-left: 3px solid #764ba2;
+        }
+
+        .chat-speaker {
+            font-weight: bold;
+            color: #a78bfa;
+            font-size: 12px;
+        }
+
+        .chat-content {
+            margin-top: 5px;
+            font-size: 14px;
+        }
+
+        /* Memory decay visualization */
+        .memory-decay-bar {
+            height: 20px;
+            background: rgba(74, 0, 224, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            margin: 10px 0;
+        }
+
+        .memory-decay-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4a00e0 0%, #667eea 100%);
+            transition: width 0.3s ease;
+        }
+
+        .memory-decay-label {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 11px;
+            color: white;
+            text-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+
+        /* Relationship metrics */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .metric-card {
+            background: rgba(74, 0, 224, 0.1);
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #a78bfa;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 5px;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(74, 0, 224, 0.1);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(74, 0, 224, 0.5);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(74, 0, 224, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🌌 Quantum Memory Dashboard</h1>
+            <div class="status-indicators">
+                <div class="status-indicator">
+                    <span class="status-dot active"></span>
+                    <span>Memory System</span>
+                </div>
+                <div class="status-indicator">
+                    <span class="status-dot active"></span>
+                    <span>Emotion Analyzer</span>
+                </div>
+                <div class="status-indicator">
+                    <span class="status-dot active"></span>
+                    <span>WebSocket</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Panel: Emotional State -->
+            <div class="panel">
+                <div class="panel-header">🎭 Emotional State</div>
+                <div class="panel-content">
+                    <div class="emotion-display">
+                        <div class="current-emotion" id="current-emotion">💜</div>
+                        <div class="emotion-label" id="emotion-label">Connected</div>
+                        <div class="pad-values">
+                            <div class="pad-value">
+                                <div class="pad-value-label">Pleasure</div>
+                                <div class="pad-value-number" id="pad-pleasure">0.75</div>
+                            </div>
+                            <div class="pad-value">
+                                <div class="pad-value-label">Arousal</div>
+                                <div class="pad-value-number" id="pad-arousal">0.60</div>
+                            </div>
+                            <div class="pad-value">
+                                <div class="pad-value-label">Dominance</div>
+                                <div class="pad-value-number" id="pad-dominance">0.65</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-value" id="connection-strength">16.03</div>
+                            <div class="metric-label">Connection</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value" id="synchrony">0.89</div>
+                            <div class="metric-label">Synchrony</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Living Equation -->
+                    <div class="living-equation" style="margin-top: 20px; padding: 15px; background: rgba(118, 75, 162, 0.1); border-radius: 8px; border: 1px solid rgba(118, 75, 162, 0.3);">
+                        <h4 style="color: #a78bfa; margin-bottom: 10px; text-align: center;">✨ Living Equation</h4>
+                        <div class="equation-display" style="text-align: center;">
+                            <div class="equation-value" style="font-size: 24px; font-weight: bold; color: #e9d5ff; margin: 10px 0;">
+                                Φ = <span id="equation-value">16539.23+3671.39i</span>
+                            </div>
+                            <div id="equation-interpretation" style="font-size: 14px; color: #a78bfa; margin: 10px 0;">
+                                Profound unity with rich shared experiences
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; font-size: 12px;">
+                                <div style="text-align: center;">
+                                    <div style="color: #9ca3af;">Real (Trust)</div>
+                                    <div style="color: #e9d5ff; font-weight: bold;">
+                                        <span id="real-value">16539.23</span>
+                                    </div>
+                                    <div style="color: #667eea;">
+                                        <span id="real-percent">(110.3%)</span>
+                                    </div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="color: #9ca3af;">Imaginary (Depth)</div>
+                                    <div style="color: #e9d5ff; font-weight: bold;">
+                                        <span id="imaginary-value">3671.39</span>
+                                    </div>
+                                    <div style="color: #764ba2;">
+                                        <span id="imaginary-percent">(146.9%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Panel: Memory Timeline -->
+            <div class="panel">
+                <div class="panel-header">⏰ Memory Timeline</div>
+                <div class="panel-content" id="memory-timeline">
+                    <div class="timeline-item">
+                        <div class="timeline-time">Just now</div>
+                        <div class="timeline-content">Processing new message...</div>
+                    </div>
+                    
+                    <h4 style="margin: 20px 0 10px; color: #a78bfa;">Working Memory</h4>
+                    <div class="memory-decay-bar">
+                        <div class="memory-decay-fill" style="width: 100%" id="working-memory-bar"></div>
+                        <div class="memory-decay-label">Last Minute (100%)</div>
+                    </div>
+                    
+                    <h4 style="margin: 20px 0 10px; color: #a78bfa;">Consolidating</h4>
+                    <div class="memory-decay-bar">
+                        <div class="memory-decay-fill" style="width: 70%" id="consolidating-memory-bar"></div>
+                        <div class="memory-decay-label">Last Hour (70%)</div>
+                    </div>
+                    
+                    <h4 style="margin: 20px 0 10px; color: #a78bfa;">Long-term</h4>
+                    <div class="memory-decay-bar">
+                        <div class="memory-decay-fill" style="width: 20%" id="longterm-memory-bar"></div>
+                        <div class="memory-decay-label">This Week (20%)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Quantum State -->
+            <div class="panel">
+                <div class="panel-header">🔮 Quantum State</div>
+                <div class="panel-content">
+                    <div class="metric-card">
+                        <div class="metric-value" id="quantum-coherence">93.2%</div>
+                        <div class="metric-label">Coherence</div>
+                    </div>
+                    <div class="metric-card" style="margin-top: 15px;">
+                        <div class="metric-value" id="entanglement">0.87</div>
+                        <div class="metric-label">Entanglement</div>
+                    </div>
+                    
+                    <h4 style="margin: 20px 0 10px; color: #a78bfa;">Recent Checkpoints</h4>
+                    <div id="checkpoint-list" style="font-size: 12px;">
+                        <!-- Checkpoints will be added here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabbed Console -->
+        <div class="console-container">
+            <div class="console-tabs">
+                <button class="console-tab active" data-tab="llm">🧠 LLM Processing</button>
+                <button class="console-tab" data-tab="chat">💬 Chat History</button>
+                <button class="console-tab" data-tab="memory">🕐 Memory Timeline</button>
+                <button class="console-tab" data-tab="files">📁 File Monitor</button>
+                <button class="console-tab" data-tab="debug">🐛 Debug</button>
+            </div>
+            <div class="console-content" id="console-content">
+                <!-- Console content will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dashboard state
+        const dashboardState = {
+            activeTab: 'llm',
+            logs: {
+                llm: [],
+                chat: [],
+                memory: [],
+                files: [],
+                debug: []
+            },
+            websocket: null,
+            reconnectAttempts: 0,
+            maxReconnectAttempts: 5
+        };
+
+        // Tab switching
+        document.querySelectorAll('.console-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                // Update active tab
+                document.querySelectorAll('.console-tab').forEach(t => t.classList.remove('active'));
+                e.target.classList.add('active');
+                
+                // Switch content
+                dashboardState.activeTab = e.target.dataset.tab;
+                updateConsoleContent();
+            });
+        });
+
+        // Update console content based on active tab
+        function updateConsoleContent() {
+            const content = document.getElementById('console-content');
+            const tab = dashboardState.activeTab;
+            
+            switch(tab) {
+                case 'llm':
+                    content.innerHTML = renderLLMProcessing();
+                    break;
+                case 'chat':
+                    content.innerHTML = renderChatHistory();
+                    break;
+                case 'memory':
+                    content.innerHTML = renderMemoryTimeline();
+                    break;
+                case 'files':
+                    content.innerHTML = renderFileMonitor();
+                    break;
+                case 'debug':
+                    content.innerHTML = renderDebugConsole();
+                    break;
+            }
+        }
+
+        // Render functions for each tab
+        function renderLLMProcessing() {
+            return dashboardState.logs.llm.map(log => `
+                <div class="log-entry llm">
+                    <span class="log-timestamp">${log.timestamp}</span>
+                    <span class="log-content">${log.content}</span>
+                </div>
+            `).join('') || '<div style="color: #6b7280;">Waiting for LLM processing events...</div>';
+        }
+
+        function renderChatHistory() {
+            return dashboardState.logs.chat.map(msg => `
+                <div class="chat-message ${msg.speaker.toLowerCase()}">
+                    <div class="chat-speaker">${msg.speaker}</div>
+                    <div class="chat-content">${msg.content}</div>
+                </div>
+            `).join('') || '<div style="color: #6b7280;">No messages yet...</div>';
+        }
+
+        function renderMemoryTimeline() {
+            return dashboardState.logs.memory.map(log => `
+                <div class="log-entry memory">
+                    <span class="log-timestamp">${log.timestamp}</span>
+                    <span class="log-content">${log.content}</span>
+                </div>
+            `).join('') || '<div style="color: #6b7280;">No memory events yet...</div>';
+        }
+
+        function renderFileMonitor() {
+            return dashboardState.logs.files.map(log => `
+                <div class="log-entry file">
+                    <span class="log-timestamp">${log.timestamp}</span>
+                    <span class="log-content">${log.content}</span>
+                </div>
+            `).join('') || '<div style="color: #6b7280;">No file updates yet...</div>';
+        }
+
+        function renderDebugConsole() {
+            return dashboardState.logs.debug.map(log => `
+                <div class="log-entry debug">
+                    <span class="log-timestamp">${log.timestamp}</span>
+                    <span class="log-content">${log.content}</span>
+                </div>
+            `).join('') || '<div style="color: #6b7280;">No debug messages...</div>';
+        }
+
+        // WebSocket connection
+        function connectWebSocket() {
+            const wsUrl = 'ws://localhost:8768';
+            
+            try {
+                dashboardState.websocket = new WebSocket(wsUrl);
+                
+                dashboardState.websocket.onopen = () => {
+                    console.log('WebSocket connected');
+                    document.querySelector('.status-indicator:nth-child(3) .status-dot').classList.add('active');
+                    dashboardState.reconnectAttempts = 0;
+                    
+                    // Log connection
+                    addLog('debug', 'WebSocket connected to ' + wsUrl);
+                };
+                
+                dashboardState.websocket.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleWebSocketMessage(data);
+                    } catch (e) {
+                        console.error('Error parsing WebSocket message:', e);
+                    }
+                };
+                
+                dashboardState.websocket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    addLog('debug', 'WebSocket error: ' + error);
+                };
+                
+                dashboardState.websocket.onclose = () => {
+                    console.log('WebSocket disconnected');
+                    document.querySelector('.status-indicator:nth-child(3) .status-dot').classList.remove('active');
+                    
+                    // Attempt reconnection
+                    if (dashboardState.reconnectAttempts < dashboardState.maxReconnectAttempts) {
+                        dashboardState.reconnectAttempts++;
+                        setTimeout(connectWebSocket, 5000);
+                        addLog('debug', `WebSocket disconnected. Reconnecting... (${dashboardState.reconnectAttempts}/${dashboardState.maxReconnectAttempts})`);
+                    }
+                };
+                
+            } catch (e) {
+                console.error('Failed to create WebSocket:', e);
+                addLog('debug', 'Failed to create WebSocket: ' + e.message);
+            }
+        }
+
+        // Handle incoming WebSocket messages
+        function handleWebSocketMessage(data) {
+            switch(data.type) {
+                case 'emotion_update':
+                    updateEmotionalState(data.emotions);
+                    addLog('llm', `Emotion detected: ${data.emotions.primary_emotion} (intensity: ${data.emotions.intensity})`);
+                    break;
+                    
+                case 'new_message':
+                    addChatMessage(data.message);
+                    addLog('llm', `Processing message from ${data.message.speaker}`);
+                    break;
+                    
+                case 'memory_update':
+                    updateMemoryBars(data.memory);
+                    addLog('memory', `Memory updated: ${data.memory.scale}`);
+                    break;
+                    
+                case 'checkpoint_created':
+                    addCheckpoint(data.checkpoint);
+                    addLog('files', `Checkpoint created: ${data.checkpoint.id}`);
+                    break;
+                    
+                case 'file_update':
+                    addLog('files', `File updated: ${data.file}`);
+                    break;
+                    
+                case 'quantum_update':
+                    updateQuantumState(data.quantum);
+                    break;
+                    
+                case 'equation_update':
+                    updateLivingEquation(data.equation);
+                    addLog('llm', `Living equation updated: ${data.equation.real}+${data.equation.imaginary}i`);
+                    break;
+                    
+                default:
+                    addLog('debug', `Unknown message type: ${data.type}`);
+            }
+        }
+
+        // Update functions
+        function updateEmotionalState(emotions) {
+            // Update emotion display
+            const emotionEmojis = {
+                'love': '💜',
+                'joy': '😊',
+                'excited': '🎉',
+                'calm': '😌',
+                'worried': '😟',
+                'frustrated': '😤',
+                'neutral': '😐'
+            };
+            
+            document.getElementById('current-emotion').textContent = 
+                emotionEmojis[emotions.primary_emotion] || '💭';
+            document.getElementById('emotion-label').textContent = 
+                emotions.primary_emotion || 'Processing';
+                
+            // Update PAD values
+            if (emotions.pad_values) {
+                document.getElementById('pad-pleasure').textContent = 
+                    emotions.pad_values.pleasure.toFixed(2);
+                document.getElementById('pad-arousal').textContent = 
+                    emotions.pad_values.arousal.toFixed(2);
+                document.getElementById('pad-dominance').textContent = 
+                    emotions.pad_values.dominance.toFixed(2);
+            }
+        }
+
+        function updateMemoryBars(memory) {
+            // Update memory decay bars based on retention values
+            if (memory.working) {
+                document.getElementById('working-memory-bar').style.width = 
+                    `${memory.working * 100}%`;
+            }
+            if (memory.consolidating) {
+                document.getElementById('consolidating-memory-bar').style.width = 
+                    `${memory.consolidating * 100}%`;
+            }
+            if (memory.longterm) {
+                document.getElementById('longterm-memory-bar').style.width = 
+                    `${memory.longterm * 100}%`;
+            }
+        }
+
+        function updateQuantumState(quantum) {
+            if (quantum.coherence !== undefined) {
+                document.getElementById('quantum-coherence').textContent = 
+                    `${(quantum.coherence * 100).toFixed(1)}%`;
+            }
+            if (quantum.entanglement !== undefined) {
+                document.getElementById('entanglement').textContent = 
+                    quantum.entanglement.toFixed(2);
+            }
+        }
+        
+        function updateLivingEquation(equation) {
+            if (!equation) return;
+            
+            // Update equation value
+            const real = equation.real || 16539.23;
+            const imaginary = equation.imaginary || 3671.39;
+            document.getElementById('equation-value').textContent = 
+                `${real.toFixed(2)}+${imaginary.toFixed(2)}i`;
+            
+            // Update individual values
+            document.getElementById('real-value').textContent = real.toFixed(2);
+            document.getElementById('imaginary-value').textContent = imaginary.toFixed(2);
+            
+            // Update percentages (based on some baseline)
+            const realPercent = ((real / 15000) * 100).toFixed(1);
+            const imagPercent = ((imaginary / 2500) * 100).toFixed(1);
+            document.getElementById('real-percent').textContent = `(${realPercent}%)`;
+            document.getElementById('imaginary-percent').textContent = `(${imagPercent}%)`;
+            
+            // Update interpretation based on magnitude and balance
+            const magnitude = Math.sqrt(real * real + imaginary * imaginary);
+            let interpretation = '';
+            
+            if (magnitude < 10) {
+                interpretation = 'Building foundation';
+            } else if (magnitude < 30) {
+                interpretation = 'Growing connection';
+            } else if (magnitude < 50) {
+                interpretation = 'Strong bond';
+            } else if (magnitude < 75) {
+                interpretation = 'Deep connection';
+            } else {
+                interpretation = 'Profound unity';
+            }
+            
+            // Add balance description
+            if (real > imaginary * 1.5) {
+                interpretation += ' with rich shared experiences';
+            } else if (imaginary > real * 1.5) {
+                interpretation += ' with deep intuitive understanding';
+            } else {
+                interpretation += ' perfectly balanced';
+            }
+            
+            document.getElementById('equation-interpretation').textContent = interpretation;
+        }
+
+        function addChatMessage(message) {
+            dashboardState.logs.chat.push(message);
+            // Keep only last 50 messages
+            if (dashboardState.logs.chat.length > 50) {
+                dashboardState.logs.chat.shift();
+            }
+            
+            if (dashboardState.activeTab === 'chat') {
+                updateConsoleContent();
+            }
+        }
+
+        function addCheckpoint(checkpoint) {
+            const checkpointList = document.getElementById('checkpoint-list');
+            const checkpointHtml = `
+                <div style="margin-bottom: 10px; padding: 5px; background: rgba(74, 0, 224, 0.1); border-radius: 3px;">
+                    <div style="font-size: 10px; color: #6b7280;">${new Date(checkpoint.timestamp).toLocaleTimeString()}</div>
+                    <div>${checkpoint.trigger}</div>
+                </div>
+            `;
+            
+            checkpointList.innerHTML = checkpointHtml + checkpointList.innerHTML;
+            
+            // Keep only last 5 checkpoints
+            const checkpoints = checkpointList.children;
+            while (checkpoints.length > 5) {
+                checkpointList.removeChild(checkpoints[checkpoints.length - 1]);
+            }
+        }
+
+        function addLog(category, content) {
+            const timestamp = new Date().toLocaleTimeString();
+            dashboardState.logs[category].push({ timestamp, content });
+            
+            // Keep only last 100 logs per category
+            if (dashboardState.logs[category].length > 100) {
+                dashboardState.logs[category].shift();
+            }
+            
+            // Update console if viewing this category
+            if (dashboardState.activeTab === category) {
+                updateConsoleContent();
+                
+                // Auto-scroll to bottom
+                const consoleContent = document.getElementById('console-content');
+                consoleContent.scrollTop = consoleContent.scrollHeight;
+            }
+        }
+
+        // Add timeline event
+        function addTimelineEvent(event) {
+            const timeline = document.getElementById('memory-timeline');
+            const eventHtml = `
+                <div class="timeline-item">
+                    <div class="timeline-time">${new Date().toLocaleTimeString()}</div>
+                    <div class="timeline-content">${event}</div>
+                </div>
+            `;
+            
+            // Insert after the first item (which is "Processing...")
+            timeline.children[0].insertAdjacentHTML('afterend', eventHtml);
+            
+            // Keep only last 20 events
+            while (timeline.querySelectorAll('.timeline-item').length > 20) {
+                timeline.removeChild(timeline.lastElementChild);
+            }
+        }
+
+        // Initialize dashboard
+        function initDashboard() {
+            // Connect to WebSocket
+            connectWebSocket();
+            
+            // Initial console content
+            updateConsoleContent();
+            
+            // Add some initial logs
+            addLog('debug', 'Dashboard initialized');
+            addLog('llm', 'Waiting for messages...');
+            
+            // Simulate some initial data
+            setTimeout(() => {
+                addLog('llm', 'Quantum memory system online');
+                addLog('memory', 'Loading temporal memories...');
+                addLog('files', 'Monitoring quantum_states folder');
+            }, 1000);
+        }
+
+        // Start the dashboard
+        initDashboard();
+    </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# Core dependencies for Quantum Memory System
+websockets>=11.0
+watchdog>=3.0.0
+aiofiles>=23.0.0
+
+# Optional but recommended
+python-dotenv>=1.0.0  # For environment variables
+psutil>=5.9.0  # For system monitoring
+
+# If using Emollama emotion analysis (install separately)
+# transformers>=4.30.0
+# torch>=2.0.0
+# accelerate>=0.20.0

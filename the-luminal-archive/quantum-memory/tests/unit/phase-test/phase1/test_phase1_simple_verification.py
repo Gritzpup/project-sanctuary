@@ -78,7 +78,7 @@ def test_all_components():
     print(f"   Compute Capability: {torch.cuda.get_device_capability(0)}")
     
     # Test mixed precision
-    with torch.cuda.amp.autocast():
+    with torch.amp.autocast('cuda'):
         a = torch.randn(512, 512, device='cuda')
         b = torch.randn(512, 512, device='cuda')
         c = torch.matmul(a, b)

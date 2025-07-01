@@ -1,0 +1,23 @@
+[Unit]
+Description=Quantum Memory Dashboard (Port 5174)
+After=network.target quantum-websocket.service
+Wants=quantum-websocket.service
+
+[Service]
+Type=simple
+User=ubuntumain
+Group=ubuntumain
+WorkingDirectory=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-dashboard
+Environment="NODE_ENV=development"
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+ExecStartPre=/usr/bin/npm install
+ExecStart=/usr/bin/npm run dev -- --host
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

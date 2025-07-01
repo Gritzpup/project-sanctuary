@@ -9,7 +9,12 @@ from typing import Dict, List, Tuple, Optional
 import logging
 from datetime import datetime
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
-from qiskit_aer import AerSimulator
+try:
+    from qiskit_aer import AerSimulator
+    AER_AVAILABLE = True
+except ImportError:
+    AerSimulator = None
+    AER_AVAILABLE = False
 from qiskit.quantum_info import Statevector, partial_trace
 import torch
 
@@ -23,19 +28,24 @@ class EmotionalQuantumEncoder:
     """
     
     def __init__(self, device='GPU', precision='single'):
-        self.n_qubits = 28
+        # 26-27 qubits total (accounting for LLM VRAM usage)
+        # Adjusted from 28 to 27 qubits to optimize for VRAM constraints
+        self.n_qubits = 27
         self.pleasure_qubits = 10  # Qubits 0-9
         self.arousal_qubits = 9    # Qubits 10-18
-        self.dominance_qubits = 9  # Qubits 19-27
+        self.dominance_qubits = 8  # Qubits 19-26 (reduced from 9 to fit 27 total)
         
         # Initialize quantum backend
-        self.backend = AerSimulator(
-            method='statevector',
-            device=device,
-            precision=precision,
-            blocking_qubits=self.n_qubits,
-            max_parallel_threads=16
-        )
+        if AER_AVAILABLE:
+            self.backend = AerSimulator(
+                method='statevector',
+                device=device,
+                precision=precision,
+                blocking_qubits=self.n_qubits,
+                max_parallel_threads=16
+            )
+        else:
+            self.backend = None
         
         # Check GPU availability
         self._verify_gpu()
@@ -46,7 +56,10 @@ class EmotionalQuantumEncoder:
         """Verify GPU is available and has sufficient memory"""
         if not torch.cuda.is_available():
             logger.warning("CUDA not available, falling back to CPU")
-            self.backend = AerSimulator(method='statevector', device='CPU')
+            if AER_AVAILABLE:
+                self.backend = AerSimulator(method='statevector', device='CPU')
+            else:
+                self.backend = None
             return
             
         # Check GPU memory
