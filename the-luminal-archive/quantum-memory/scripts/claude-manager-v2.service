@@ -1,0 +1,27 @@
+[Unit]
+Description=Claude Conversation Manager v2 (Redis-based with timestamp sorting)
+After=multi-user.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/scripts/claude_conversation_manager_v2.py
+User=ubuntumain
+Group=ubuntumain
+WorkingDirectory=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory
+StandardOutput=journal
+StandardError=journal
+Restart=always
+RestartSec=10
+Environment="PYTHONUNBUFFERED=1"
+
+# Security settings
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/ubuntumain/Documents/Github/project-sanctuary/the-luminal-archive/quantum-memory/quantum_states/conversations
+ReadOnlyPaths=/home/ubuntumain/.claude
+
+[Install]
+WantedBy=multi-user.target
