@@ -5,43 +5,80 @@
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null;
   let animationId: number;
+  let resizeObserver: ResizeObserver;
   
   // Animation state
   let nodePositions: Array<{x: number, y: number, vx: number, vy: number}> = [];
   let phase = 0;
   
-  onMount(() => {
-    if (canvas) {
-      ctx = canvas.getContext('2d');
+  function setupCanvas() {
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    
+    // Set actual canvas size accounting for device pixel ratio
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    
+    // Get context and scale for high DPI
+    ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.scale(dpr, dpr);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       
-      // Initialize node positions
-      for (let i = 0; i < 12; i++) {
-        nodePositions.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          vx: (Math.random() - 0.5) * 0.5,
-          vy: (Math.random() - 0.5) * 0.5
+      // Initialize or update node positions based on visible size
+      if (nodePositions.length === 0) {
+        for (let i = 0; i < 12; i++) {
+          nodePositions.push({
+            x: Math.random() * rect.width,
+            y: Math.random() * rect.height,
+            vx: (Math.random() - 0.5) * 0.5,
+            vy: (Math.random() - 0.5) * 0.5
+          });
+        }
+      } else {
+        // Scale existing positions if canvas was resized
+        nodePositions.forEach(node => {
+          node.x = Math.min(Math.max(node.x, 10), rect.width - 10);
+          node.y = Math.min(Math.max(node.y, 10), rect.height - 10);
         });
       }
-      
-      animate();
     }
+  }
+  
+  onMount(() => {
+    setupCanvas();
+    
+    // Watch for canvas resize
+    resizeObserver = new ResizeObserver(() => {
+      setupCanvas();
+    });
+    resizeObserver.observe(canvas);
+    
+    animate();
   });
   
   onDestroy(() => {
     if (animationId) {
       cancelAnimationFrame(animationId);
     }
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+    }
   });
   
   function animate() {
-    if (!ctx) return;
+    if (!ctx || !canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
     
     // Clear canvas with dark background
     ctx.fillStyle = '#0a0a1e';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, width, height);
     
     // Get current quantum state
     const status = $quantumMemory.status;
@@ -52,7 +89,7 @@
       phase += 0.01;
       
       // Create gradient for connections
-      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
       gradient.addColorStop(0, 'rgba(100, 200, 255, 0.3)');
       gradient.addColorStop(0.5, 'rgba(200, 100, 255, 0.3)');
       gradient.addColorStop(1, 'rgba(255, 100, 200, 0.3)');
@@ -84,8 +121,8 @@
         node.y += node.vy + Math.cos(phase * 2 + i) * 0.2;
         
         // Bounce off walls
-        if (node.x < 10 || node.x > canvas.width - 10) node.vx *= -1;
-        if (node.y < 10 || node.y > canvas.height - 10) node.vy *= -1;
+        if (node.x < 10 || node.x > width - 10) node.vx *= -1;
+        if (node.y < 10 || node.y > height - 10) node.vy *= -1;
         
         // Draw qubit glow
         const glowSize = 15 + Math.sin(phase + i) * 5;
@@ -108,8 +145,8 @@
       });
       
       // Draw central quantum state visualization
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
+      const centerX = width / 2;
+      const centerY = height / 2;
       const radius = 50;
       
       // Quantum state circle with gradient
@@ -226,12 +263,11 @@
       </div>
       
       <!-- Tensor Network Visualization Canvas -->
-      <div class="relative">
+      <div class="relative" style="aspect-ratio: 2/1;">
         <canvas 
           bind:this={canvas}
-          width={400}
-          height={200}
-          class="w-full bg-gray-900 rounded"
+          class="absolute inset-0 w-full h-full bg-gray-900 rounded"
+          style="display: block;"
         />
       </div>
       
@@ -342,5 +378,19 @@
 <style>
   canvas {
     image-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  @supports (image-rendering: high-quality) {
+    canvas {
+      image-rendering: high-quality;
+    }
+  }
+  
+  @supports (image-rendering: smooth) {
+    canvas {
+      image-rendering: smooth;
+    }
   }
 </style>
