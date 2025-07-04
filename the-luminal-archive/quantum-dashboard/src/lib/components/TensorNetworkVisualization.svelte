@@ -70,16 +70,7 @@
     directionalLight.castShadow = true;
     scene.add(directionalLight);
     
-    // Add quantum field background
-    const fieldGeometry = new THREE.PlaneGeometry(30, 30);
-    const fieldMaterial = new THREE.MeshBasicMaterial({
-      color: 0x000022,
-      transparent: true,
-      opacity: 0.3
-    });
-    const field = new THREE.Mesh(fieldGeometry, fieldMaterial);
-    field.position.z = -10;
-    scene.add(field);
+    // Removed quantum field background - was causing the blue square issue
   }
     
   function createQuantumStructure() {

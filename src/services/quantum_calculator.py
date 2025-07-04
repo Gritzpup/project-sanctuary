@@ -6,10 +6,10 @@ Provides actual quantum state data for the tensor network visualization.
 
 import numpy as np
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
-from qiskit import execute, Aer
-from qiskit.quantum_info import Statevector, DensityMatrix, entanglement_of_formation, partial_trace
+from qiskit_aer import AerSimulator
+from qiskit.quantum_info import Statevector, DensityMatrix, partial_trace
 from qiskit.circuit.library import RYGate, RZGate, CXGate
-from typing import Dict, List, Tuple, Complex
+from typing import Dict, List, Tuple
 import json
 import time
 import logging
@@ -29,7 +29,7 @@ class QuantumTensorNetwork:
         self.qr = QuantumRegister(num_qubits, 'q')
         self.cr = ClassicalRegister(num_qubits, 'c')
         self.circuit = QuantumCircuit(self.qr, self.cr)
-        self.backend = Aer.get_backend('statevector_simulator')
+        self.backend = AerSimulator(method='statevector')
         
         # Initialize quantum state
         self._initialize_tensor_network()
@@ -72,8 +72,9 @@ class QuantumTensorNetwork:
     
     def get_quantum_state(self) -> Dict:
         """Calculate and return the full quantum state information."""
-        # Execute the circuit
-        job = execute(self.circuit, self.backend)
+        # Execute the circuit and get statevector directly
+        self.circuit.save_statevector()
+        job = self.backend.run(self.circuit)
         result = job.result()
         statevector = result.get_statevector()
         

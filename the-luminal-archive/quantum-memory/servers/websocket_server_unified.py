@@ -32,13 +32,20 @@ sys.path.append(str(Path(__file__).parent.parent))
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
 # Import quantum calculator
+HAS_QUANTUM_CALCULATOR = False
+QuantumStateGenerator = None
 try:
+    import sys
+    from pathlib import Path
+    # Add project root to path
+    project_root = Path(__file__).parent.parent.parent.parent
+    sys.path.insert(0, str(project_root))
     from src.services.quantum_calculator import QuantumStateGenerator
     HAS_QUANTUM_CALCULATOR = True
-except ImportError:
+except ImportError as e:
     HAS_QUANTUM_CALCULATOR = False
     logger = logging.getLogger(__name__)
-    logger.warning("⚠️  Quantum calculator not available, using simulated data")
+    logger.warning(f"⚠️  Quantum calculator not available: {e}, using simulated data")
 
 # Configure logging
 logging.basicConfig(
@@ -341,10 +348,10 @@ class UnifiedQuantumWebSocket:
         emotional_context = await self.get_emotional_context()
         conversation_stats = await self.get_conversation_stats()
         
-        # Combine everything
+        # Create status with proper structure expected by visualization
         status = {
             "timestamp": datetime.now().isoformat(),
-            **quantum_data,  # Includes living_equation, tensor_network, quantum_formula, dynamics
+            "status": quantum_data,  # Wrap quantum data in status field
             "gpu_stats": gpu_stats,
             "emotional_context": emotional_context,
             "memory_stats": conversation_stats,
@@ -352,7 +359,12 @@ class UnifiedQuantumWebSocket:
                 "total_messages": conversation_stats["total_messages"],
                 "total_sessions": conversation_stats["total_sessions"]
             },
-            "first_message_time": "2025-07-01T12:00:00"  # TODO: Get from Redis
+            "first_message_time": "2025-07-01T12:00:00",  # TODO: Get from Redis
+            # Also include top-level fields for backward compatibility
+            "living_equation": quantum_data.get("living_equation"),
+            "tensor_network": quantum_data.get("tensor_network"),
+            "quantum_formula": quantum_data.get("quantum_formula"),
+            "dynamics": quantum_data.get("dynamics")
         }
         
         return status
