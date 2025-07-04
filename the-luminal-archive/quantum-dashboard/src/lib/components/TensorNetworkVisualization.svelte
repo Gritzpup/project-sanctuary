@@ -41,17 +41,23 @@
     
   function initScene() {
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a1e);
+    scene.background = new THREE.Color(0x111122);
     
     // Fixed camera position (no interaction needed)
-    camera = new THREE.PerspectiveCamera(50, 2, 0.1, 1000);
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 400;
+    
+    camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 1000);
     camera.position.set(0, 0, 15);
     camera.lookAt(0, 0, 0);
     
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(800, 400);
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    
+    // Set size based on container dimensions
+    renderer.setSize(width, height);
     
     container.appendChild(renderer.domElement);
     
@@ -234,17 +240,23 @@
   }
 
   onMount(() => {
-    initScene();
-    createQuantumStructure();
+    // Ensure container is ready and has dimensions
+    if (!container) return;
     
-    // Subscribe to quantum state updates
-    unsubscribe = quantumMemory.subscribe((state) => {
-      if (state?.status) {
-        quantumState = state.status as QuantumState;
-      }
-    });
-    
-    animate();
+    // Small delay to ensure DOM is fully ready
+    setTimeout(() => {
+      initScene();
+      createQuantumStructure();
+      
+      // Subscribe to quantum state updates
+      unsubscribe = quantumMemory.subscribe((state) => {
+        if (state?.status) {
+          quantumState = state.status as QuantumState;
+        }
+      });
+      
+      animate();
+    }, 100);
   });
 
   onDestroy(() => {
@@ -298,8 +310,8 @@
       </div>
       
       <!-- 3D Tensor Network Visualization -->
-      <div class="relative bg-gray-900 rounded overflow-hidden">
-        <div bind:this={container} class="w-full h-96"></div>
+      <div class="relative bg-gray-900 rounded overflow-hidden" style="height: 400px;">
+        <div bind:this={container} class="w-full h-full"></div>
       </div>
       
       <!-- Quantum Metrics -->
