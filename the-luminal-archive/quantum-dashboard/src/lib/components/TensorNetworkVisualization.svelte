@@ -90,9 +90,9 @@
       
       // Create gradient for connections
       const gradient = ctx.createLinearGradient(0, 0, width, height);
-      gradient.addColorStop(0, 'rgba(100, 200, 255, 0.3)');
-      gradient.addColorStop(0.5, 'rgba(200, 100, 255, 0.3)');
-      gradient.addColorStop(1, 'rgba(255, 100, 200, 0.3)');
+      gradient.addColorStop(0, 'rgba(100, 200, 255, 0.8)');
+      gradient.addColorStop(0.5, 'rgba(200, 100, 255, 0.8)');
+      gradient.addColorStop(1, 'rgba(255, 100, 200, 0.8)');
       
       // Draw connections (quantum entanglement bonds)
       for (let i = 0; i < nodePositions.length; i++) {
@@ -102,14 +102,19 @@
             nodePositions[i].y - nodePositions[j].y
           );
           
-          if (dist < 150) {
-            const opacity = (1 - dist / 150) * tensorData.entanglement;
-            ctx.strokeStyle = `rgba(100, 200, 255, ${opacity * 0.5})`;
-            ctx.lineWidth = 2;
+          if (dist < 200) {
+            const opacity = (1 - dist / 200) * tensorData.entanglement;
+            
+            // Draw glow effect for connections
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = `rgba(100, 200, 255, ${opacity})`;
+            ctx.strokeStyle = `rgba(100, 200, 255, ${Math.min(opacity * 0.8, 0.8)})`;
+            ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.moveTo(nodePositions[i].x, nodePositions[i].y);
             ctx.lineTo(nodePositions[j].x, nodePositions[j].y);
             ctx.stroke();
+            ctx.shadowBlur = 0;
           }
         }
       }
@@ -124,11 +129,25 @@
         if (node.x < 10 || node.x > width - 10) node.vx *= -1;
         if (node.y < 10 || node.y > height - 10) node.vy *= -1;
         
-        // Draw qubit glow
-        const glowSize = 15 + Math.sin(phase + i) * 5;
+        // Draw multiple layers of glow for brightness
+        const glowSize = 30 + Math.sin(phase + i) * 10;
+        
+        // Outer glow layer
+        const outerGlow = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, glowSize * 1.5);
+        outerGlow.addColorStop(0, `rgba(100, 200, 255, ${0.3 * tensorData.coherence})`);
+        outerGlow.addColorStop(0.7, `rgba(100, 200, 255, ${0.1 * tensorData.coherence})`);
+        outerGlow.addColorStop(1, 'rgba(100, 200, 255, 0)');
+        
+        ctx.fillStyle = outerGlow;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, glowSize * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Inner bright glow
         const grd = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, glowSize);
-        grd.addColorStop(0, `rgba(100, 200, 255, ${0.8 * tensorData.coherence})`);
-        grd.addColorStop(0.5, `rgba(100, 200, 255, ${0.3 * tensorData.coherence})`);
+        grd.addColorStop(0, `rgba(150, 220, 255, ${Math.min(1.0, tensorData.coherence * 1.2)})`);
+        grd.addColorStop(0.4, `rgba(100, 200, 255, ${Math.min(0.8, tensorData.coherence)})`);
+        grd.addColorStop(0.7, `rgba(100, 200, 255, ${0.4 * tensorData.coherence})`);
         grd.addColorStop(1, 'rgba(100, 200, 255, 0)');
         
         ctx.fillStyle = grd;
@@ -136,23 +155,31 @@
         ctx.arc(node.x, node.y, glowSize, 0, Math.PI * 2);
         ctx.fill();
         
-        // Draw qubit core
-        const size = 4 + Math.sin(phase * 2 + i) * 2;
+        // Draw qubit core with shadow
+        const size = 6 + Math.sin(phase * 2 + i) * 3;
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = 'rgba(150, 220, 255, 0.8)';
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.arc(node.x, node.y, size, 0, Math.PI * 2);
         ctx.fill();
+        ctx.shadowBlur = 0;
       });
       
       // Draw central quantum state visualization
       const centerX = width / 2;
       const centerY = height / 2;
-      const radius = 50;
+      const radius = 60;
       
-      // Quantum state circle with gradient
+      // Add shadow for depth
+      ctx.shadowBlur = 30;
+      ctx.shadowColor = 'rgba(255, 100, 200, 0.5)';
+      
+      // Quantum state circle with bright gradient
       const stateGrd = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-      stateGrd.addColorStop(0, `rgba(255, 100, 200, ${tensorData.entanglement * 0.3})`);
-      stateGrd.addColorStop(0.7, `rgba(100, 100, 255, ${tensorData.entanglement * 0.2})`);
+      stateGrd.addColorStop(0, `rgba(255, 150, 220, ${Math.min(0.8, tensorData.entanglement * 0.9)})`);
+      stateGrd.addColorStop(0.5, `rgba(200, 100, 255, ${Math.min(0.6, tensorData.entanglement * 0.7)})`);
+      stateGrd.addColorStop(0.8, `rgba(100, 150, 255, ${tensorData.entanglement * 0.4})`);
       stateGrd.addColorStop(1, 'rgba(100, 200, 255, 0)');
       
       ctx.fillStyle = stateGrd;
@@ -160,64 +187,83 @@
       ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
       ctx.fill();
       
-      // Quantum state ring
-      ctx.strokeStyle = `rgba(255, 100, 200, ${tensorData.entanglement * 0.8})`;
-      ctx.lineWidth = 2;
+      // Quantum state ring with glow
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = 'rgba(255, 100, 200, 0.8)';
+      ctx.strokeStyle = `rgba(255, 100, 200, ${Math.min(1.0, tensorData.entanglement * 1.2)})`;
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.shadowBlur = 0;
       
       // Phase indicator (rotating)
       if (status?.living_equation?.phase) {
         const phaseX = centerX + Math.cos(status.living_equation.phase) * radius;
         const phaseY = centerY + Math.sin(status.living_equation.phase) * radius;
         
-        // Phase point glow
-        ctx.shadowBlur = 10;
+        // Phase point outer glow
+        ctx.shadowBlur = 25;
         ctx.shadowColor = '#ffff00';
+        const phaseGlow = ctx.createRadialGradient(phaseX, phaseY, 0, phaseX, phaseY, 15);
+        phaseGlow.addColorStop(0, 'rgba(255, 255, 100, 0.8)');
+        phaseGlow.addColorStop(0.5, 'rgba(255, 255, 0, 0.4)');
+        phaseGlow.addColorStop(1, 'rgba(255, 255, 0, 0)');
+        ctx.fillStyle = phaseGlow;
+        ctx.beginPath();
+        ctx.arc(phaseX, phaseY, 15, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Phase point core
         ctx.fillStyle = '#ffff00';
         ctx.beginPath();
-        ctx.arc(phaseX, phaseY, 6, 0, Math.PI * 2);
+        ctx.arc(phaseX, phaseY, 8, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
         
-        // Phase line
-        ctx.strokeStyle = 'rgba(255, 255, 100, 0.5)';
-        ctx.lineWidth = 1;
+        // Phase line with glow
+        ctx.shadowBlur = 5;
+        ctx.shadowColor = 'rgba(255, 255, 100, 0.8)';
+        ctx.strokeStyle = 'rgba(255, 255, 100, 0.8)';
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(centerX, centerY);
         ctx.lineTo(phaseX, phaseY);
         ctx.stroke();
+        ctx.shadowBlur = 0;
       }
       
-      // Draw quantum state probability cloud
-      for (let i = 0; i < 3; i++) {
-        const cloudRadius = radius * (1.2 + i * 0.2);
-        const cloudOpacity = 0.05 - i * 0.015;
-        ctx.strokeStyle = `rgba(100, 200, 255, ${cloudOpacity * tensorData.coherence})`;
-        ctx.lineWidth = 1;
+      // Draw quantum state probability cloud with more visible rings
+      for (let i = 0; i < 4; i++) {
+        const cloudRadius = radius * (1.3 + i * 0.25);
+        const cloudOpacity = 0.15 - i * 0.03;
+        ctx.strokeStyle = `rgba(100, 200, 255, ${Math.min(0.5, cloudOpacity * tensorData.coherence * 2)})`;
+        ctx.lineWidth = 2 - i * 0.3;
         ctx.beginPath();
-        ctx.arc(centerX, centerY, cloudRadius + Math.sin(phase * 2) * 5, 0, Math.PI * 2);
+        ctx.arc(centerX, centerY, cloudRadius + Math.sin(phase * 2 + i) * 8, 0, Math.PI * 2);
         ctx.stroke();
       }
       
       // Add subtle contextual labels with better anti-aliasing
       ctx.save();
-      ctx.font = '9px Arial, sans-serif';
+      ctx.font = '11px Arial, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(150, 150, 170, 0.6)';
+      ctx.shadowBlur = 3;
+      ctx.shadowColor = 'rgba(100, 200, 255, 0.8)';
+      ctx.fillStyle = 'rgba(200, 200, 220, 0.9)';
       
       // Label for quantum state (scientifically accurate)
-      ctx.fillText('Entangled State', centerX, centerY - radius - 20);
+      ctx.fillText('Entangled State', centerX, centerY - radius - 25);
       
       // Dynamic info in corners
       ctx.textAlign = 'left';
-      ctx.font = '8px Arial, sans-serif';
-      ctx.fillStyle = 'rgba(100, 200, 255, 0.6)';
-      ctx.fillText(`${nodePositions.length} qubits`, 10, canvas.height - 8);
+      ctx.font = '10px Arial, sans-serif';
+      ctx.fillStyle = 'rgba(150, 220, 255, 0.9)';
+      ctx.fillText(`${nodePositions.length} qubits`, 15, height - 15);
       
       ctx.textAlign = 'right';
-      ctx.fillText(`ρ = ${(tensorData.coherence * 100).toFixed(0)}%`, canvas.width - 10, canvas.height - 8);
+      ctx.fillText(`ρ = ${(tensorData.coherence * 100).toFixed(0)}%`, width - 15, height - 15);
+      ctx.shadowBlur = 0;
       ctx.restore();
     }
     
