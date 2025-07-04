@@ -169,7 +169,7 @@
       // Draw central quantum state visualization
       const centerX = width / 2;
       const centerY = height / 2;
-      const radius = 60;
+      const radius = 90;
       
       // Add shadow for depth
       ctx.shadowBlur = 30;
@@ -246,7 +246,7 @@
       
       // Add subtle contextual labels with better anti-aliasing
       ctx.save();
-      ctx.font = '11px Arial, sans-serif';
+      ctx.font = '14px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.shadowBlur = 3;
       ctx.shadowColor = 'rgba(100, 200, 255, 0.8)';
@@ -257,7 +257,7 @@
       
       // Dynamic info in corners
       ctx.textAlign = 'left';
-      ctx.font = '10px Arial, sans-serif';
+      ctx.font = '14px Arial, sans-serif';
       ctx.fillStyle = 'rgba(150, 220, 255, 0.9)';
       ctx.fillText(`${nodePositions.length} qubits`, 15, height - 15);
       
