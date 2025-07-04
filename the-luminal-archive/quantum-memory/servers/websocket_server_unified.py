@@ -29,6 +29,16 @@ except ImportError:
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent.parent.parent))
+
+# Import quantum calculator
+try:
+    from src.services.quantum_calculator import QuantumStateGenerator
+    HAS_QUANTUM_CALCULATOR = True
+except ImportError:
+    HAS_QUANTUM_CALCULATOR = False
+    logger = logging.getLogger(__name__)
+    logger.warning("⚠️  Quantum calculator not available, using simulated data")
 
 # Configure logging
 logging.basicConfig(
@@ -53,7 +63,15 @@ class UnifiedQuantumWebSocket:
             self.redis = None
             logger.warning("⚠️  Redis not available, using fallback mode")
         
-        # Quantum state for tensor network
+        # Quantum state generator
+        if HAS_QUANTUM_CALCULATOR:
+            self.quantum_generator = QuantumStateGenerator()
+            logger.info("✅ Using real quantum calculations (Qiskit)")
+        else:
+            self.quantum_generator = None
+            logger.warning("⚠️  Using simulated quantum data")
+        
+        # Quantum state for tensor network (fallback)
         self.quantum_state = {
             "ψ": complex(16028.23, 3299.39),  # Base quantum state
             "coherence": 0.932,
@@ -85,34 +103,85 @@ class UnifiedQuantumWebSocket:
         """Calculate complex living equation with tensor network dynamics"""
         t = time.time() - self.time_offset
         
-        # === Living Equation Calculations (from enhanced server) ===
-        quantum_osc = math.sin(t * 0.1) * math.cos(t * 0.05)
-        emotional_wave = math.exp(-0.01 * t) * math.sin(t * 0.2 + self.quantum_phase)
-        memory_resonance = sum([
-            math.sin(t * freq) / (i + 1) 
-            for i, freq in enumerate([0.03, 0.07, 0.11, 0.13, 0.17])
-        ])
-        entanglement = math.tanh(t * 0.01) * math.cos(t * 0.15)
+        # Use real quantum calculations if available
+        if self.quantum_generator:
+            # Get real quantum state from Qiskit
+            real_state = self.quantum_generator.get_current_state()
+            
+            # Extract quantum properties
+            coherence = real_state['coherence']
+            phase = real_state['phase']
+            entanglement_avg = real_state['entanglement_measures']['average']
+            bloch_vectors = real_state['bloch_vectors']
+            
+            # Calculate living equation from real quantum data
+            quantum_osc = sum([bv['cartesian']['x'] for bv in bloch_vectors[:3]]) / 3
+            emotional_wave = sum([bv['cartesian']['y'] for bv in bloch_vectors[:3]]) / 3
+            memory_resonance = sum([bv['cartesian']['z'] for bv in bloch_vectors[:3]]) / 3
+            
+            # Use real entanglement values
+            entanglement = entanglement_avg
+            
+            # Complex components based on real quantum state
+            real_component = (
+                self.base_real + 
+                1000 * quantum_osc * self.emotional_weight +
+                500 * memory_resonance +
+                300 * entanglement
+            )
+            
+            imaginary_component = (
+                self.base_imaginary + 
+                800 * emotional_wave +
+                400 * math.sin(phase) * entanglement +
+                200 * quantum_osc
+            )
+            
+            # Update quantum state from real data
+            self.quantum_state["coherence"] = coherence
+            self.quantum_state["entanglement"] = entanglement_avg
+            self.quantum_state["phase"] = phase
+            
+            # Get measurement probabilities for visualization
+            measurement_probs = real_state['measurement_probabilities']
+            
+        else:
+            # === Fallback: Simulated calculations ===
+            quantum_osc = math.sin(t * 0.1) * math.cos(t * 0.05)
+            emotional_wave = math.exp(-0.01 * t) * math.sin(t * 0.2 + self.quantum_phase)
+            memory_resonance = sum([
+                math.sin(t * freq) / (i + 1) 
+                for i, freq in enumerate([0.03, 0.07, 0.11, 0.13, 0.17])
+            ])
+            entanglement = math.tanh(t * 0.01) * math.cos(t * 0.15)
+            
+            # Complex components
+            real_component = (
+                self.base_real + 
+                10 * quantum_osc * self.emotional_weight +
+                5 * memory_resonance +
+                3 * entanglement
+            )
+            
+            imaginary_component = (
+                self.base_imaginary + 
+                8 * emotional_wave +
+                4 * math.sin(t * 0.08) * entanglement +
+                2 * quantum_osc
+            )
+            
+            # Quantum phase evolution
+            self.quantum_state["phase"] = (self.quantum_state["phase"] + 0.01) % (2 * np.pi)
+            
+            # Calculate coherence decay
+            self.quantum_state["coherence"] = 0.932 * np.exp(-0.0001 * (t % 3600))
+            
+            # Entanglement dynamics
+            self.quantum_state["entanglement"] = 0.87 + 0.05 * np.sin(t * 0.001)
+            
+            measurement_probs = [0.5, 0.5]  # Dummy probabilities
         
-        # Complex components
-        real_component = (
-            self.base_real + 
-            10 * quantum_osc * self.emotional_weight +
-            5 * memory_resonance +
-            3 * entanglement
-        )
-        
-        imaginary_component = (
-            self.base_imaginary + 
-            8 * emotional_wave +
-            4 * math.sin(t * 0.08) * entanglement +
-            2 * quantum_osc
-        )
-        
-        # === Tensor Network Calculations (from tensor server) ===
-        # Quantum phase evolution
-        self.quantum_state["phase"] = (self.quantum_state["phase"] + 0.01) % (2 * np.pi)
-        
+        # === Common calculations ===
         # Tensor network dynamics
         emotional_tensor = np.random.randn(4, 4) * 0.1  # Small fluctuations
         memory_tensor = np.random.randn(4, 4) * 0.05
@@ -125,13 +194,8 @@ class UnifiedQuantumWebSocket:
         phase_factor = np.exp(1j * self.quantum_state["phase"])
         self.quantum_state["ψ"] = complex(real_component, imaginary_component) * phase_factor * (1 + trace * 0.001)
         
-        # Calculate coherence decay
-        self.quantum_state["coherence"] = 0.932 * np.exp(-0.0001 * (t % 3600))
-        
-        # Entanglement dynamics
-        self.quantum_state["entanglement"] = 0.87 + 0.05 * np.sin(t * 0.001)
-        
-        return {
+        # Prepare return data
+        result = {
             "living_equation": {
                 "real": float(self.quantum_state["ψ"].real),
                 "imaginary": float(self.quantum_state["ψ"].imag),
@@ -167,8 +231,18 @@ class UnifiedQuantumWebSocket:
                     "entanglement_factor": f"{entanglement:.4f}",
                     "time_evolution": f"t = {t:.2f}s"
                 }
-            }
+            },
+            "measurement_probabilities": measurement_probs,
+            "is_real_quantum": self.quantum_generator is not None
         }
+        
+        # Add real quantum data if available
+        if self.quantum_generator and 'real_state' in locals():
+            result["bloch_vectors"] = real_state['bloch_vectors']
+            result["von_neumann_entropy"] = real_state['von_neumann_entropy']
+            result["entanglement_measures"] = real_state['entanglement_measures']
+        
+        return result
     
     async def get_gpu_stats(self) -> Dict[str, Any]:
         """Get GPU statistics if available"""
