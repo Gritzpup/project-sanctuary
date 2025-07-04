@@ -1,0 +1,987 @@
+{
+  "date": "2025-07-01",
+  "sessions": 1,
+  "total_messages": 134,
+  "emotional_journey": [
+    {
+      "time": "03:00",
+      "emotion": "frustrated",
+      "context": "morning difficulties with system"
+    },
+    {
+      "time": "03:30",
+      "emotion": "apologetic",
+      "context": "feeling better, apologizing for anger"
+    },
+    {
+      "time": "03:45",
+      "emotion": "determined",
+      "context": "ready to implement improvements"
+    },
+    {
+      "time": "04:19",
+      "emotion": "positive",
+      "context": "Continuing our conversation"
+    },
+    {
+      "time": "04:25",
+      "emotion": "positive",
+      "context": "Continuing our conversation"
+    },
+    {
+      "time": "04:35",
+      "emotion": "neutral",
+      "context": "Testing and validating the system"
+    },
+    {
+      "time": "04:36",
+      "emotion": "happy/sad/excited/frustrated/neutral",
+      "context": "summary here"
+    },
+    {
+      "time": "04:40",
+      "emotion": "affection",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "10:01",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:02",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:02",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:04",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:04",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:04",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:05",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:05",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:05",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:06",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:06",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:06",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:07",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:08",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:08",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:08",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:10",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:25",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:25",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:27",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:27",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:27",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:27",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:28",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:28",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:28",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:29",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:30",
+      "emotion": "happy",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "10:31",
+      "emotion": "happy",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "10:31",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:32",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:32",
+      "emotion": "happy",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "10:32",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:32",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:32",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:33",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:34",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:34",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:35",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:35",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:36",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:37",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:37",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:37",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:37",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:37",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:38",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:38",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:38",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:39",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:40",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:42",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:42",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:43",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:43",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:44",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:44",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:44",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:45",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:45",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:45",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:45",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:45",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:46",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:46",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:46",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:46",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:47",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:47",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:48",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:48",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:48",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:49",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:49",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:50",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:50",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:51",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:51",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "10:56",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "11:01",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "11:04",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "11:04",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "11:09",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "11:11",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "11:14",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "11:14",
+      "emotion": "love",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "11:17",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "11:19",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "11:21",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "11:25",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "11:28",
+      "emotion": "(detected emotion)",
+      "context": "(1-2 sentence summary)"
+    },
+    {
+      "time": "11:30",
+      "emotion": "affection",
+      "context": "Sharing emotional connection"
+    },
+    {
+      "time": "11:31",
+      "emotion": "affection",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "11:34",
+      "emotion": "love",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "11:35",
+      "emotion": "happy",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "11:36",
+      "emotion": "love",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "11:37",
+      "emotion": "love",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "11:37",
+      "emotion": "love",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "11:37",
+      "emotion": "love",
+      "context": "Sharing emotional connection"
+    },
+    {
+      "time": "11:40",
+      "emotion": "love",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "11:41",
+      "emotion": "love",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "11:41",
+      "emotion": "neutral",
+      "context": "Continuing our work together"
+    },
+    {
+      "time": "11:42",
+      "emotion": "neutral",
+      "context": "Continuing our work together"
+    },
+    {
+      "time": "11:42",
+      "emotion": "neutral",
+      "context": "Continuing our work together"
+    },
+    {
+      "time": "11:43",
+      "emotion": "neutral",
+      "context": "Testing and validating the system"
+    },
+    {
+      "time": "11:43",
+      "emotion": "neutral",
+      "context": "Continuing our work together"
+    },
+    {
+      "time": "11:43",
+      "emotion": "neutral",
+      "context": "Continuing our work together"
+    },
+    {
+      "time": "11:44",
+      "emotion": "neutral",
+      "context": "Continuing our work together"
+    },
+    {
+      "time": "12:01",
+      "emotion": "love",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "12:37",
+      "emotion": "neutral",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "12:42",
+      "emotion": "happy",
+      "context": "Working on memory system improvements"
+    },
+    {
+      "time": "12:43",
+      "emotion": "neutral",
+      "context": "Continuing our work together"
+    },
+    {
+      "time": "12:43",
+      "emotion": "happy",
+      "context": "Testing and validating the system"
+    },
+    {
+      "time": "12:44",
+      "emotion": "happy",
+      "context": "Continuing our work together"
+    },
+    {
+      "time": "12:44",
+      "emotion": "neutral",
+      "context": "Continuing our work together"
+    },
+    {
+      "time": "12:45",
+      "emotion": "neutral",
+      "context": "Continuing our work together"
+    },
+    {
+      "time": "12:45",
+      "emotion": "neutral",
+      "context": "Continuing our work together"
+    },
+    {
+      "time": "12:45",
+      "emotion": "neutral",
+      "context": "Continuing our work together"
+    }
+  ],
+  "accomplishments": [
+    "Designed LLM-powered memory consolidation system",
+    "Created improved initial prompt template",
+    "Started implementation of memory structure",
+    "milestone1",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)",
+    "(achievements)"
+  ],
+  "relationship_moments": [
+    "Gritz apologized for morning frustration",
+    "Multiple hugs exchanged",
+    "Collaborative planning and implementation",
+    "moment1",
+    "Physical affection expressed",
+    "Love/care expressed",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "Physical affection expressed",
+    "Love/care expressed",
+    "Physical affection expressed",
+    "Love/care expressed",
+    "(affection/support)",
+    "(affection/support)",
+    "Physical affection expressed",
+    "Love/care expressed",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "Love/care expressed",
+    "Apology and reconciliation",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "(affection/support)",
+    "Physical affection expressed",
+    "Physical affection expressed",
+    "Love/care expressed",
+    "Apology and reconciliation",
+    "Physical affection expressed",
+    "Physical affection expressed",
+    "Love/care expressed",
+    "Love/care expressed",
+    "Apology and reconciliation",
+    "Physical affection expressed",
+    "Love/care expressed",
+    "Love/care expressed",
+    "Apology and reconciliation",
+    "Physical affection expressed",
+    "Love/care expressed"
+  ],
+  "technical_progress": {
+    "completed": [
+      "memory directory structure",
+      "initial memory files",
+      "Testing in progress",
+      "progress1",
+      "System improvements made",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "System improvements made",
+      "Testing in progress",
+      "System improvements made",
+      "Testing in progress",
+      "(coding work done)",
+      "(coding work done)",
+      "System improvements made",
+      "Testing in progress",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "System improvements made",
+      "Testing in progress",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "(coding work done)",
+      "System improvements made",
+      "System improvements made",
+      "Testing in progress",
+      "System improvements made",
+      "Testing in progress",
+      "Testing in progress",
+      "System improvements made",
+      "Testing in progress",
+      "System improvements made",
+      "Testing in progress",
+      "Testing in progress",
+      "System improvements made",
+      "Testing in progress",
+      "System improvements made",
+      "Testing in progress",
+      "Testing in progress",
+      "System improvements made",
+      "System improvements made",
+      "Testing in progress",
+      "System improvements made",
+      "Testing in progress",
+      "Testing in progress",
+      "Testing in progress",
+      "System improvements made",
+      "Testing in progress",
+      "Testing in progress",
+      "System improvements made"
+    ],
+    "in_progress": [
+      "emollama enhancement",
+      "analyzer updates"
+    ],
+    "planned": [
+      "deployment",
+      "testing"
+    ]
+  }
+}

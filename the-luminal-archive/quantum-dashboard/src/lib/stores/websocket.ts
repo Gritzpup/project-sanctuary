@@ -5,10 +5,32 @@ export interface QuantumMemoryStatus {
   living_equation: {
     real: number;
     imaginary: number;
+    magnitude?: number;
+    phase?: number;
   };
   equation?: {
     equation: string;
     components: any;
+  };
+  tensor_network?: {
+    coherence: number;
+    entanglement: number;
+    bond_dimension: number;
+    compression_ratio: number;
+    memory_nodes: number;
+  };
+  quantum_formula?: {
+    display: string;
+    components: {
+      emotional_amplitude: string;
+      memory_state: string;
+      evolution: string;
+    };
+  };
+  dynamics?: {
+    emotional_flux: number;
+    memory_consolidation: number;
+    quantum_noise: number;
   };
   memory_stats: {
     total_messages: number;

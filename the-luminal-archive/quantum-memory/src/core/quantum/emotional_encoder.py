@@ -199,10 +199,111 @@ class EmotionalQuantumEncoder:
             )
             circuits.append(circuit)
             
-        # Combine with weights (simplified - full implementation would use amplitude encoding)
-        # For now, return the dominant emotion
-        dominant_idx = np.argmax(weights)
-        return circuits[dominant_idx]
+        # Create TRUE quantum superposition of all emotions
+        # This is the key enhancement - we create |ψ⟩ = Σ√weight_i |emotion_i⟩
+        
+        # First, get statevectors for each emotional state
+        statevectors = []
+        for circuit in circuits:
+            sv_job = self.backend.run(circuit)
+            sv_result = sv_job.result()
+            statevector = sv_result.get_statevector()
+            statevectors.append(np.array(statevector))
+            
+        # Create weighted superposition
+        # Amplitudes are square roots of weights (Born rule)
+        amplitudes = np.sqrt(weights)
+        
+        # Initialize combined state
+        combined_state = np.zeros(2**self.n_qubits, dtype=complex)
+        
+        # Add each emotional state with its amplitude
+        for amplitude, state in zip(amplitudes, statevectors):
+            combined_state += amplitude * state
+            
+        # Normalize the final state
+        norm = np.linalg.norm(combined_state)
+        if norm > 0:
+            combined_state /= norm
+            
+        # Create new circuit with superposition
+        qc_mixed = QuantumCircuit(self.n_qubits)
+        qc_mixed.initialize(combined_state, range(self.n_qubits))
+        
+        # Add barrier to mark mixed state
+        qc_mixed.barrier()
+        
+        logger.info(f"Created mixed emotion superposition with {len(emotions)} emotions")
+        logger.debug(f"Emotion weights: {weights}")
+        
+        return qc_mixed
+    
+    def encode_named_emotions(self, emotion_weights: Dict[str, float]) -> QuantumCircuit:
+        """
+        Encode emotions by name with weights - convenience method
+        
+        Example:
+            encoder.encode_named_emotions({
+                'love': 0.7,
+                'frustration': 0.3,
+                'hope': 0.2
+            })
+            
+        This creates a quantum state representing someone who is
+        primarily loving but also frustrated and hopeful!
+        
+        Args:
+            emotion_weights: Dict mapping emotion names to weights
+            
+        Returns:
+            QuantumCircuit encoding the mixed emotional superposition
+        """
+        # Comprehensive emotion-to-PAD mapping
+        emotion_pad_map = {
+            # Positive emotions
+            'joy': {'pleasure': 0.8, 'arousal': 0.7, 'dominance': 0.6},
+            'happiness': {'pleasure': 0.7, 'arousal': 0.5, 'dominance': 0.5},
+            'love': {'pleasure': 0.9, 'arousal': 0.4, 'dominance': 0.5},
+            'contentment': {'pleasure': 0.5, 'arousal': -0.2, 'dominance': 0.3},
+            'hope': {'pleasure': 0.4, 'arousal': 0.3, 'dominance': 0.6},
+            'excitement': {'pleasure': 0.6, 'arousal': 0.8, 'dominance': 0.4},
+            'affection': {'pleasure': 0.7, 'arousal': 0.3, 'dominance': 0.4},
+            'gratitude': {'pleasure': 0.6, 'arousal': 0.1, 'dominance': 0.3},
+            
+            # Negative emotions
+            'sadness': {'pleasure': -0.7, 'arousal': -0.3, 'dominance': -0.4},
+            'anger': {'pleasure': -0.5, 'arousal': 0.8, 'dominance': 0.7},
+            'fear': {'pleasure': -0.6, 'arousal': 0.6, 'dominance': -0.7},
+            'frustration': {'pleasure': -0.3, 'arousal': 0.5, 'dominance': -0.2},
+            'anxiety': {'pleasure': -0.4, 'arousal': 0.7, 'dominance': -0.5},
+            'melancholy': {'pleasure': -0.3, 'arousal': -0.1, 'dominance': -0.2},
+            'disappointment': {'pleasure': -0.4, 'arousal': -0.2, 'dominance': -0.3},
+            
+            # Complex emotions
+            'curiosity': {'pleasure': 0.2, 'arousal': 0.5, 'dominance': 0.4},
+            'nostalgia': {'pleasure': 0.1, 'arousal': -0.1, 'dominance': 0.0},
+            'bittersweet': {'pleasure': 0.0, 'arousal': 0.2, 'dominance': 0.1},
+            'determination': {'pleasure': 0.1, 'arousal': 0.6, 'dominance': 0.8},
+            
+            # Neutral
+            'neutral': {'pleasure': 0.0, 'arousal': 0.0, 'dominance': 0.0}
+        }
+        
+        # Convert named emotions to PAD format
+        emotions_pad = []
+        for emotion_name, weight in emotion_weights.items():
+            if emotion_name.lower() in emotion_pad_map:
+                pad_values = emotion_pad_map[emotion_name.lower()].copy()
+                pad_values['weight'] = weight
+                emotions_pad.append(pad_values)
+            else:
+                logger.warning(f"Unknown emotion: {emotion_name}, using neutral")
+                emotions_pad.append({
+                    'pleasure': 0.0, 'arousal': 0.0, 'dominance': 0.0,
+                    'weight': weight
+                })
+                
+        return self.encode_mixed_emotion(emotions_pad)
         
     def measure_emotional_state(self, circuit: QuantumCircuit, shots: int = 8192) -> Dict:
         """

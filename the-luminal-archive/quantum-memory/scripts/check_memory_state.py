@@ -1,159 +1,83 @@
 #!/usr/bin/env python3
 """
-Quick script to check current quantum memory state
+Quick check of memory system state and analyzer activity
 """
 
 import json
+import subprocess
 from pathlib import Path
 from datetime import datetime
-import sys
 
-def check_memory_state():
-    """Display current memory state"""
-    quantum_states = Path(__file__).parent / "quantum_states"
+# Colors
+GREEN = '\033[92m'
+YELLOW = '\033[93m'
+RED = '\033[91m'
+BLUE = '\033[94m'
+ENDC = '\033[0m'
+
+print(f"{BLUE}🔍 Memory System State Check{ENDC}")
+print("=" * 50)
+
+# Check service
+print(f"\n{BLUE}Service Status:{ENDC}")
+result = subprocess.run(["systemctl", "--user", "is-active", "quantum-emollama-analyzer.service"], 
+                       capture_output=True, text=True)
+if result.stdout.strip() == "active":
+    print(f"{GREEN}✓ Analyzer service is RUNNING{ENDC}")
+else:
+    print(f"{RED}✗ Analyzer service is {result.stdout.strip()}{ENDC}")
+
+# Check recent logs
+print(f"\n{BLUE}Recent Analyzer Activity:{ENDC}")
+result = subprocess.run(
+    ["journalctl", "--user", "-u", "quantum-emollama-analyzer.service", 
+     "--since", "5 minutes ago", "-n", "20", "--no-pager"],
+    capture_output=True, text=True
+)
+
+if result.stdout:
+    lines = result.stdout.strip().split('\n')
+    file_count = sum(1 for line in lines if "File modified" in line)
+    analysis_count = sum(1 for line in lines if "Analysis complete" in line)
+    print(f"  Files detected: {file_count}")
+    print(f"  Analyses completed: {analysis_count}")
     
-    print("🌌 Quantum Memory State Check")
-    print("=" * 50)
-    print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print()
-    
-    # Check emotional state
-    emotional_path = quantum_states / "realtime" / "EMOTIONAL_STATE.json"
-    if emotional_path.exists():
-        with open(emotional_path, 'r') as f:
-            emotions = json.load(f)
-        
-        print("🎭 Emotional State:")
-        print(f"   Current: {emotions.get('current_emotion', 'unknown')}")
-        print(f"   Intensity: {emotions.get('intensity', 0):.2f}")
-        pad = emotions.get('pad_values', {})
-        print(f"   PAD: P={pad.get('pleasure', 0):.2f}, A={pad.get('arousal', 0):.2f}, D={pad.get('dominance', 0):.2f}")
-        print(f"   Gritz: {emotions.get('gritz_emotion', 'unknown')}")
-        print(f"   Claude: {emotions.get('claude_emotion', 'unknown')}")
-    else:
-        print("❌ No emotional state found")
-    
-    print()
-    
-    # Check conversation context
-    context_path = quantum_states / "realtime" / "CONVERSATION_CONTEXT.json"
-    if context_path.exists():
-        with open(context_path, 'r') as f:
-            context = json.load(f)
-        
-        print("💬 Conversation Context:")
-        print(f"   Topic: {context.get('current_topic', 'none')}")
-        print(f"   Messages: {context.get('message_count', 0)}")
-        print(f"   Last speaker: {context.get('last_speaker', 'unknown')}")
-        print(f"   Last update: {context.get('last_update', 'never')}")
-    else:
-        print("❌ No conversation context found")
-    
-    print()
-    
-    # Check work context
-    work_path = quantum_states / "realtime" / "WORK_CONTEXT.json"
-    if work_path.exists():
-        with open(work_path, 'r') as f:
-            work = json.load(f)
-        
-        print("💻 Work Context:")
-        print(f"   Project: {work.get('current_project', 'none')}")
-        print(f"   Task: {work.get('current_task', 'none')}")
-        print(f"   Pending tasks: {len(work.get('pending_tasks', []))}")
-    else:
-        print("❌ No work context found")
-    
-    print()
-    
-    # Check temporal memories
-    print("🕐 Temporal Memories:")
-    for scale, folder in [
-        ("Immediate", "immediate"),
-        ("Short-term", "short_term"),
-        ("Long-term", "long_term"),
-        ("Lifetime", "lifetime")
-    ]:
-        folder_path = quantum_states / "temporal" / folder
-        if folder_path.exists():
-            files = list(folder_path.glob("*.json"))
-            total_size = sum(f.stat().st_size for f in files) / 1024  # KB
-            print(f"   {scale}: {len(files)} files ({total_size:.1f} KB)")
+    # Show last few file modifications
+    for line in lines[-5:]:
+        if "File modified" in line:
+            print(f"  📄 {line.split()[-1]}")
+
+# Check memory files
+print(f"\n{BLUE}Memory Files:{ENDC}")
+memory_base = Path(__file__).parent.parent / "quantum_states" / "memories"
+
+files = {
+    "current_session.json": memory_base / "current_session.json",
+    f"daily/{datetime.now().strftime('%Y-%m-%d')}.json": memory_base / "daily" / f"{datetime.now().strftime('%Y-%m-%d')}.json",
+    "relationship/context.json": memory_base / "relationship" / "context.json"
+}
+
+for name, path in files.items():
+    if path.exists():
+        mod_time = datetime.fromtimestamp(path.stat().st_mtime)
+        age = datetime.now() - mod_time
+        if age.seconds < 300:  # Modified in last 5 minutes
+            print(f"{GREEN}  ✓ {name} (updated {age.seconds}s ago){ENDC}")
         else:
-            print(f"   {scale}: Not initialized")
-    
-    print()
-    
-    # Check checkpoints
-    checkpoint_path = quantum_states / "checkpoints"
-    if checkpoint_path.exists():
-        checkpoints = list(checkpoint_path.glob("checkpoint_*.json"))
-        print(f"📸 Checkpoints: {len(checkpoints)}")
-        
-        if checkpoints:
-            # Show latest
-            latest = max(checkpoints, key=lambda p: p.stat().st_mtime)
-            print(f"   Latest: {latest.name}")
-            print(f"   Created: {datetime.fromtimestamp(latest.stat().st_mtime)}")
+            print(f"{YELLOW}  • {name} (updated {age.seconds//60}m ago){ENDC}")
     else:
-        print("📸 No checkpoints found")
-    
-    print()
-    
-    # Check CLAUDE.md
-    claude_path = quantum_states / "realtime" / "CLAUDE.md"
-    if claude_path.exists():
-        size = claude_path.stat().st_size / 1024  # KB
-        modified = datetime.fromtimestamp(claude_path.stat().st_mtime)
-        print(f"📝 CLAUDE.md:")
-        print(f"   Size: {size:.1f} KB")
-        print(f"   Last updated: {modified}")
-    else:
-        print("📝 CLAUDE.md not found")
-    
-    print()
-    
-    # Check memory DNA
-    dna_path = quantum_states / "consolidated" / "memory_dna.json"
-    if dna_path.exists():
-        with open(dna_path, 'r') as f:
-            dna = json.load(f)
-        
-        print("🧬 Memory DNA:")
-        print(f"   Fingerprint: {dna.get('memory_fingerprint', 'none')}")
-        print(f"   Dominant emotion: {dna.get('emotional_signature', {}).get('dominant', 'unknown')}")
-        
-        accomplishments = dna.get('accomplishments_summary', [])
-        print(f"   Recent accomplishments: {len(accomplishments)}")
-        if accomplishments:
-            print(f"   Latest: {accomplishments[0][:50]}...")
-    else:
-        print("🧬 Memory DNA not yet generated")
-    
-    print()
-    
-    # Check service status
-    print("🚀 Service Status:")
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["systemctl", "--user", "is-active", "quantum-memory-orchestrator"],
-            capture_output=True,
-            text=True
-        )
-        
-        if result.stdout.strip() == "active":
-            print("   ✅ Quantum Memory Orchestrator is running")
-        else:
-            print("   ❌ Quantum Memory Orchestrator is not running")
-            
-    except Exception:
-        print("   ⚠️  Could not check service status")
-    
-    print()
-    print("=" * 50)
-    print("Use './start_quantum_memory.sh' to start the full system")
+        print(f"{RED}  ✗ {name} (not found){ENDC}")
 
+# Check what directories are being watched
+print(f"\n{BLUE}Monitored Directories:{ENDC}")
+claude_projects = Path.home() / ".claude" / "projects"
+if claude_projects.exists():
+    project_dirs = list(claude_projects.glob("*"))
+    print(f"  Found {len(project_dirs)} project directories")
+    for pdir in project_dirs[-3:]:  # Show last 3
+        print(f"  📁 {pdir.name}")
 
-if __name__ == "__main__":
-    check_memory_state()
+print(f"\n{YELLOW}💡 Tips:{ENDC}")
+print("  • Watch live logs: journalctl --user -u quantum-emollama-analyzer.service -f")
+print("  • View memories: cd quantum-memory && ./view_memories.sh")
+print("  • Run full test: cd quantum-memory && ./run_memory_test.sh")

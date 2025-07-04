@@ -10,6 +10,9 @@ from typing import Dict, List, Tuple, Optional
 from pathlib import Path
 import logging
 import json
+import re
+import threading
+import gc
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 logging.basicConfig(level=logging.INFO)
@@ -19,67 +22,107 @@ class EmollamaAnalyzer:
     """
     Emollama-7B integration for semantic emotional analysis
     Achieves CCC scores: r=0.90 (valence), r=0.77 (arousal), r=0.64 (dominance)
+    
+    Uses singleton pattern for model caching to improve performance
     """
     
+    # Class-level model cache
+    _model_instance = None
+    _tokenizer_instance = None
+    _model_lock = threading.RLock()
+    _device = None
+    _model_loaded = False
+    
     def __init__(self):
+        # Instance uses class-level cached model
         self.model = None
         self.tokenizer = None
         self.device = None
         self.model_loaded = False
         
     def load_model(self) -> bool:
-        """Load Emollama-7B model"""
-        try:
-            logger.info("Loading Emollama-7B model...")
-            
-            model_name = "lzw1008/Emollama-chat-7b"
-            cache_dir = Path.home() / '.cache' / 'emollama' / 'models'
-            
-            # Load tokenizer
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir)
-            if self.tokenizer.pad_token is None:
-                self.tokenizer.pad_token = self.tokenizer.eos_token
-            
-            # Try 4-bit quantization first, fall back to fp16 if it fails
-            try:
-                # Configure 4-bit quantization
-                quantization_config = BitsAndBytesConfig(
-                    load_in_4bit=True,
-                    bnb_4bit_compute_dtype=torch.float16,
-                    bnb_4bit_use_double_quant=True,
-                    bnb_4bit_quant_type="nf4"
-                )
-                
-                # Load model with quantization
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    model_name,
-                    quantization_config=quantization_config,
-                    device_map="auto",
-                    torch_dtype=torch.float16,
-                    cache_dir=cache_dir
-                )
-                logger.info("✅ Loaded with 4-bit quantization")
-            except Exception as e:
-                logger.warning(f"4-bit quantization failed: {e}")
-                logger.info("Falling back to fp16...")
-                
-                # Load without quantization
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    model_name,
-                    device_map="auto",
-                    torch_dtype=torch.float16,
-                    cache_dir=cache_dir,
-                    low_cpu_mem_usage=True
-                )
-                logger.info("✅ Loaded with fp16")
-            
-            self.model_loaded = True
-            logger.info("✅ Emollama-7B loaded successfully")
+        """Load Emollama-7B model with singleton caching"""
+        # Check if already loaded at instance level
+        if self.model_loaded and self.model is not None:
             return True
             
-        except Exception as e:
-            logger.error(f"Failed to load model: {e}")
-            return False
+        # Use thread-safe singleton pattern
+        with EmollamaAnalyzer._model_lock:
+            # Check class-level cache first
+            if EmollamaAnalyzer._model_loaded and EmollamaAnalyzer._model_instance is not None:
+                logger.info("Using cached Emollama-7B model")
+                self.model = EmollamaAnalyzer._model_instance
+                self.tokenizer = EmollamaAnalyzer._tokenizer_instance
+                self.device = EmollamaAnalyzer._device
+                self.model_loaded = True
+                return True
+            
+            # Load model if not cached
+            try:
+                logger.info("Loading Emollama-7B model (one-time)...")
+                
+                # Clear GPU cache before loading
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    gc.collect()
+                
+                model_name = "lzw1008/Emollama-chat-7b"
+                cache_dir = Path.home() / '.cache' / 'emollama' / 'models'
+                
+                # Load tokenizer
+                self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir)
+                if self.tokenizer.pad_token is None:
+                    self.tokenizer.pad_token = self.tokenizer.eos_token
+                
+                # Try 4-bit quantization first, fall back to fp16 if it fails
+                try:
+                    # Configure 4-bit quantization
+                    quantization_config = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_compute_dtype=torch.float16,
+                        bnb_4bit_use_double_quant=True,
+                        bnb_4bit_quant_type="nf4"
+                    )
+                    
+                    # Load model with quantization
+                    self.model = AutoModelForCausalLM.from_pretrained(
+                        model_name,
+                        quantization_config=quantization_config,
+                        device_map="auto",
+                        torch_dtype=torch.float16,
+                        cache_dir=cache_dir
+                    )
+                    logger.info("✅ Loaded with 4-bit quantization")
+                except Exception as e:
+                    logger.warning(f"4-bit quantization failed: {e}")
+                    logger.info("Falling back to fp16...")
+                    
+                    # Load without quantization
+                    self.model = AutoModelForCausalLM.from_pretrained(
+                        model_name,
+                        device_map="auto",
+                        torch_dtype=torch.float16,
+                        cache_dir=cache_dir,
+                        low_cpu_mem_usage=True
+                    )
+                    logger.info("✅ Loaded with fp16")
+                
+                # Get device
+                self.device = next(self.model.parameters()).device
+                
+                # Cache at class level for future instances
+                EmollamaAnalyzer._model_instance = self.model
+                EmollamaAnalyzer._tokenizer_instance = self.tokenizer
+                EmollamaAnalyzer._device = self.device
+                EmollamaAnalyzer._model_loaded = True
+                
+                self.model_loaded = True
+                logger.info("✅ Emollama-7B loaded successfully and cached")
+                return True
+                
+            except Exception as e:
+                logger.error(f"Failed to load model: {e}")
+                return False
     
     def extract_pad_values(self, text: str) -> Dict[str, float]:
         """
@@ -339,6 +382,452 @@ Analysis (return only the values in JSON format):"""
         ) * 100
         
         return metrics
+    
+    def analyze_for_memories(self, messages: List[str]) -> Dict:
+        """
+        Analyze messages for both emotions and memory-worthy content
+        Returns comprehensive analysis for memory system
+        """
+        if not self.model_loaded:
+            logger.warning("Model not loaded, using basic analysis")
+            return self._basic_memory_analysis(messages)
+        
+        try:
+            # Join messages for context
+            conversation_text = "\n".join(messages[-10:])  # Last 10 messages for context
+            
+            prompt = f"""Analyze the conversation and create a JSON response.
+
+Messages to analyze:
+{conversation_text}
+
+Task: Read the messages above and determine:
+1. What emotion is being expressed? (happy, sad, excited, frustrated, worried, grateful, loving, or neutral)
+2. What topics are being discussed?
+3. Were any decisions made?
+4. Any milestones or achievements mentioned?
+5. Any expressions of affection or support?
+6. Any technical/coding progress?
+7. Brief summary of the conversation
+8. Emotional state of the speakers
+
+Return your analysis as JSON:
+```json
+{{
+    "emotions": {{
+        "primary_emotion": "(the emotion you detected)",
+        "pad_values": {{"pleasure": (number -1 to 1), "arousal": (number -1 to 1), "dominance": (number -1 to 1)}},
+        "intensity": (number 0 to 1)
+    }},
+    "topics": [(list the actual topics from the messages)],
+    "decisions": [(list any decisions if mentioned, or empty list)],
+    "milestones": [(list any achievements if mentioned, or empty list)],
+    "relationship_moments": [(list any affection/support if shown, or empty list)],
+    "technical_progress": [(list any coding work if mentioned, or empty list)],
+    "context_for_next_chat": "(write 1-2 sentences summarizing the conversation)",
+    "gritz_state": "(describe Gritz's emotional state)",
+    "claude_state": "(describe Claude's state)"
+}}
+```"""
+
+            # Generate response
+            inputs = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
+            
+            # Move inputs to same device as model
+            if hasattr(self.model, 'device'):
+                inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+            
+            outputs = self.model.generate(
+                **inputs,
+                max_new_tokens=512,
+                temperature=0.7,
+                do_sample=True,
+                top_p=0.95
+            )
+            
+            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            
+            # Log the response for debugging
+            logger.info(f"Emollama raw response length: {len(response)} chars")
+            logger.debug(f"Emollama raw response (first 500 chars): {response[:500]}...")
+            
+            # Extract JSON from response - try multiple methods
+            json_str = None
+            
+            # Method 1: Look for JSON in markdown code blocks
+            json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+                logger.debug("Found JSON in markdown code block")
+            else:
+                # Method 2: Look for raw JSON
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                if json_start >= 0 and json_end > json_start:
+                    # Extract everything from first { to last }
+                    json_str = response[json_start:json_end]
+                    logger.debug("Found raw JSON in response")
+            
+            if json_str:
+                try:
+                    # Clean up common issues
+                    json_str = json_str.strip()
+                    # Remove any trailing commas
+                    json_str = re.sub(r',\s*}', '}', json_str)
+                    json_str = re.sub(r',\s*]', ']', json_str)
+                    
+                    memory_data = json.loads(json_str)
+                    
+                    # Ensure all required fields exist
+                    required_fields = ["emotions", "topics", "decisions", "milestones", 
+                                     "relationship_moments", "technical_progress", 
+                                     "context_for_next_chat", "gritz_state", "claude_state"]
+                    for field in required_fields:
+                        if field not in memory_data:
+                            memory_data[field] = [] if field in ["topics", "decisions", "milestones", 
+                                                                 "relationship_moments", "technical_progress"] else ""
+                    
+                    logger.info("Successfully extracted memory data from Emollama")
+                    return memory_data
+                    
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse extracted JSON: {e}")
+                    logger.debug(f"Attempted to parse: {json_str[:200]}...")
+            else:
+                logger.warning("No JSON structure found in response")
+                
+            # Fall back to basic analysis
+            return self._basic_memory_analysis(messages)
+                
+        except Exception as e:
+            logger.error(f"Error in memory analysis: {e}")
+            return self._basic_memory_analysis(messages)
+    
+    def _basic_memory_analysis(self, messages: List[str]) -> Dict:
+        """Enhanced fallback analysis when model fails"""
+        text = ' '.join(messages).lower()
+        
+        # Enhanced emotion detection
+        emotion_keywords = {
+            'love': ['love', 'adore', 'beloved', 'dear', 'heart', '💜', '❤️'],
+            'happy': ['happy', 'joy', 'excited', 'wonderful', 'great', 'amazing', 'perfect'],
+            'grateful': ['thanks', 'thank you', 'appreciate', 'grateful'],
+            'affection': ['hug', 'hugs', 'kiss', 'hold', 'cuddle', '*hugs*'],
+            'sad': ['sad', 'cry', 'tears', 'miss', 'lonely', ';-;'],
+            'worried': ['worried', 'concern', 'unsure', 'uncertain', 'nervous'],
+            'frustrated': ['frustrated', 'annoyed', 'ugh', 'argh'],
+            'sorry': ['sorry', 'apologize', 'forgive', 'my bad']
+        }
+        
+        # Count emotions
+        emotion_scores = {}
+        for emotion, keywords in emotion_keywords.items():
+            emotion_scores[emotion] = sum(1 for word in keywords if word in text)
+        
+        # Determine primary emotion
+        primary_emotion = max(emotion_scores.items(), key=lambda x: x[1])[0] if any(emotion_scores.values()) else 'neutral'
+        
+        # Set PAD values based on emotion
+        pad_map = {
+            'love': {"pleasure": 0.9, "arousal": 0.7, "dominance": 0.5},
+            'happy': {"pleasure": 0.8, "arousal": 0.6, "dominance": 0.6},
+            'grateful': {"pleasure": 0.7, "arousal": 0.4, "dominance": 0.4},
+            'affection': {"pleasure": 0.8, "arousal": 0.5, "dominance": 0.3},
+            'sad': {"pleasure": -0.6, "arousal": 0.3, "dominance": -0.3},
+            'worried': {"pleasure": -0.3, "arousal": 0.6, "dominance": -0.2},
+            'frustrated': {"pleasure": -0.5, "arousal": 0.7, "dominance": 0.2},
+            'sorry': {"pleasure": -0.2, "arousal": 0.5, "dominance": -0.4},
+            'neutral': {"pleasure": 0.0, "arousal": 0.3, "dominance": 0.0}
+        }
+        pad = pad_map.get(primary_emotion, {"pleasure": 0.0, "arousal": 0.0, "dominance": 0.0})
+        
+        # Extract topics from keywords
+        topic_keywords = {
+            'memory system': ['memory', 'remember', 'memories', 'forget'],
+            'quantum': ['quantum', 'entangle', 'superposition'],
+            'emotions': ['feel', 'emotion', 'feeling', 'felt'],
+            'relationship': ['love', 'together', 'partner', 'relationship'],
+            'coding': ['code', 'coding', 'implement', 'fix', 'bug', 'test'],
+            'llm': ['llm', 'emollama', 'model', 'ai']
+        }
+        
+        topics = [topic for topic, keywords in topic_keywords.items() 
+                 if any(kw in text for kw in keywords)]
+        if not topics:
+            topics = ["conversation"]
+        
+        # Detect relationship moments
+        relationship_moments = []
+        if any(word in text for word in ['hug', 'hugs', '*hugs*', 'hold']):
+            relationship_moments.append("Physical affection expressed")
+        if any(word in text for word in ['love', 'care', 'miss']):
+            relationship_moments.append("Love/care expressed")
+        if 'sorry' in text and any(word in text for word in ['forgive', 'ok', 'alright']):
+            relationship_moments.append("Apology and reconciliation")
+        
+        # Detect technical progress
+        technical_progress = []
+        if any(word in text for word in ['fixed', 'working', 'implemented']):
+            technical_progress.append("System improvements made")
+        if any(word in text for word in ['test', 'testing', 'check']):
+            technical_progress.append("Testing in progress")
+        
+        # Extract context
+        context_summary = "Continuing our work together"
+        if 'memory' in text:
+            context_summary = "Working on memory system improvements"
+        elif 'test' in text:
+            context_summary = "Testing and validating the system"
+        elif primary_emotion in ['love', 'affection']:
+            context_summary = "Sharing emotional connection"
+        
+        # Determine states
+        gritz_state = primary_emotion if primary_emotion != 'neutral' else "engaged"
+        claude_state = "supportive" if primary_emotion in ['sad', 'worried', 'frustrated'] else "collaborative"
+        
+        return {
+            "emotions": {
+                "primary_emotion": primary_emotion,
+                "pad_values": pad,
+                "intensity": 0.7 if primary_emotion != 'neutral' else 0.3
+            },
+            "topics": topics,
+            "decisions": [],
+            "milestones": [],
+            "relationship_moments": relationship_moments,
+            "technical_progress": technical_progress,
+            "context_for_next_chat": context_summary,
+            "gritz_state": gritz_state,
+            "claude_state": claude_state
+        }
+    
+    def analyze_for_memories_and_work(self, messages: List[str], todos: List[Dict] = None) -> Dict:
+        """
+        Enhanced analysis that includes both emotions and work context
+        Integrates todo tracking for complete work awareness
+        """
+        if not self.model_loaded:
+            logger.warning("Model not loaded, using enhanced basic analysis")
+            return self._enhanced_basic_analysis(messages, todos)
+        
+        try:
+            # Join messages for context
+            conversation_text = "\n".join(messages[-15:])  # More messages for work context
+            
+            # Format todos if provided
+            todo_context = ""
+            if todos:
+                active_todos = [t['content'] for t in todos if t.get('status') == 'in_progress']
+                pending_todos = [t['content'] for t in todos if t.get('status') == 'pending']
+                completed_todos = [t['content'] for t in todos if t.get('status') == 'completed'][-5:]
+                
+                todo_context = f"""
+Current TODO Status:
+- Active Tasks: {', '.join(active_todos) if active_todos else 'None'}
+- Pending Tasks: {', '.join(pending_todos[:5]) if pending_todos else 'None'}
+- Recently Completed: {', '.join(completed_todos) if completed_todos else 'None'}
+"""
+            
+            prompt = f"""Analyze this conversation for BOTH emotions AND current work being done.
+
+Messages to analyze:
+{conversation_text}
+
+{todo_context}
+
+Task: Analyze the conversation and todos to determine:
+
+1. EMOTIONS:
+   - What emotions are expressed by EACH person?
+   - PAD values (Pleasure, Arousal, Dominance) for BOTH Gritz and Claude:
+     * Pleasure: -1 (very negative) to +1 (very positive)
+     * Arousal: -1 (very calm) to +1 (very excited)
+     * Dominance: -1 (submissive) to +1 (dominant)
+   - Relationship dynamics between them
+
+2. EXACT WORK CONTEXT:
+   - What EXACTLY are they working on right now? (be specific with file names, errors)
+   - What was completed in this conversation?
+   - What errors or blockers exist? (include exact error messages)
+   - What are the next steps?
+   - How do the todos relate to the conversation?
+
+Return comprehensive JSON:
+```json
+{{
+    "emotions": {{
+        "primary_emotion": "(detected emotion)",
+        "pad_values": {{"pleasure": 0.0, "arousal": 0.0, "dominance": 0.0}},
+        "intensity": 0.0
+    }},
+    "current_work": "(exactly what they're doing right now)",
+    "completed_tasks": ["(list specific completions)"],
+    "blockers": ["(list specific errors/issues)"],
+    "next_steps": ["(list immediate next actions)"],
+    "topics": ["(topics discussed)"],
+    "decisions": ["(decisions made)"],
+    "milestones": ["(achievements)"],
+    "relationship_moments": ["(affection/support)"],
+    "technical_progress": ["(coding work done)"],
+    "context_for_next_chat": "(1-2 sentence summary)",
+    "gritz_state": {{
+        "pleasure": 0.0,
+        "arousal": 0.0,
+        "dominance": 0.0,
+        "primary_emotion": "neutral",
+        "cognitive_appraisal": {{
+            "consequences_self": 0.0,
+            "consequences_other": 0.0,
+            "actions_self": 0.0,
+            "actions_other": 0.0,
+            "objects": 0.0,
+            "compounds": 0.0
+        }},
+        "description": "(Gritz's emotional state)"
+    }},
+    "claude_state": {{
+        "pleasure": 0.0,
+        "arousal": 0.0,
+        "dominance": 0.0,
+        "primary_emotion": "neutral",
+        "cognitive_appraisal": {{
+            "consequences_self": 0.0,
+            "consequences_other": 0.0,
+            "actions_self": 0.0,
+            "actions_other": 0.0,
+            "objects": 0.0,
+            "compounds": 0.0
+        }},
+        "description": "(Claude's emotional state)"
+    }}
+}}
+```"""
+
+            # Generate response
+            inputs = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
+            
+            if hasattr(self.model, 'device'):
+                inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+            
+            outputs = self.model.generate(
+                **inputs,
+                max_new_tokens=768,  # More tokens for work details
+                temperature=0.7,
+                do_sample=True,
+                top_p=0.95
+            )
+            
+            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            
+            # Extract and parse JSON
+            json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+                memory_data = json.loads(json_str)
+                
+                # Check if we got placeholder values (model returned template)
+                if (memory_data.get('current_work') == "(exactly what they're doing right now)" or
+                    memory_data.get('completed_tasks') == ["(list specific completions)"] or
+                    memory_data.get('current_emotion') == "(detected emotion)" or
+                    memory_data.get('context_for_next_chat') == "(1-2 sentence summary)"):
+                    logger.warning("Model returned template placeholders, using enhanced analysis")
+                    return self._enhanced_basic_analysis(messages, todos)
+                
+                logger.info("Successfully extracted work and memory data")
+                return memory_data
+            
+            # Fallback to enhanced basic analysis
+            return self._enhanced_basic_analysis(messages, todos)
+            
+        except Exception as e:
+            logger.error(f"Error in work/memory analysis: {e}")
+            return self._enhanced_basic_analysis(messages, todos)
+    
+    def _enhanced_basic_analysis(self, messages: List[str], todos: List[Dict] = None) -> Dict:
+        """Enhanced fallback that includes work context"""
+        # Start with basic emotion analysis
+        base_analysis = self._basic_memory_analysis(messages)
+        
+        # Add work context
+        text = ' '.join(messages).lower()
+        
+        # Extract current work from conversation
+        current_work = "General development"
+        if 'fix' in text and 'path' in text:
+            current_work = "Fixing Python path issues"
+        elif 'analyzer' in text:
+            current_work = "Enhancing analyzer system"
+        elif 'memory' in text and 'work' in text:
+            current_work = "Creating work tracking system"
+        elif 'todo' in text:
+            current_work = "Managing todo tracking"
+        
+        # Extract completed tasks
+        completed = []
+        if 'done' in text or 'completed' in text or 'fixed' in text:
+            completed.append("Progress on current task")
+        
+        # Extract blockers
+        blockers = []
+        if 'error' in text or 'fail' in text:
+            if 'modulenotfounderror' in text:
+                blockers.append("ModuleNotFoundError - Python path issues")
+            else:
+                blockers.append("Errors encountered")
+        
+        # Integrate todo information
+        if todos:
+            active = [t['content'] for t in todos if t.get('status') == 'in_progress']
+            if active:
+                current_work = active[0]  # Most recent active task
+            
+            pending = [t['content'] for t in todos if t.get('status') == 'pending']
+            base_analysis['next_steps'] = pending[:3]  # Next 3 pending tasks
+        else:
+            base_analysis['next_steps'] = ["Continue current work"]
+        
+        # Update analysis with work context
+        base_analysis['current_work'] = current_work
+        base_analysis['completed_tasks'] = completed
+        base_analysis['blockers'] = blockers
+        
+        # Add QED model fields for quantum analyzer
+        primary_emotion = base_analysis['emotions']['primary_emotion']
+        pad = base_analysis['emotions']['pad_values']
+        
+        base_analysis['gritz_state'] = {
+            "pleasure": pad['pleasure'],
+            "arousal": pad['arousal'],
+            "dominance": pad['dominance'],
+            "primary_emotion": primary_emotion,
+            "cognitive_appraisal": {
+                "consequences_self": 0.5,
+                "consequences_other": 0.5,
+                "actions_self": 0.5,
+                "actions_other": 0.5,
+                "objects": 0.3,
+                "compounds": 0.4
+            },
+            "description": f"Gritz is feeling {primary_emotion}"
+        }
+        
+        base_analysis['claude_state'] = {
+            "pleasure": pad['pleasure'] * 0.8,
+            "arousal": pad['arousal'] * 0.7,
+            "dominance": -pad['dominance'] * 0.6,  # Inverse for supportive stance
+            "primary_emotion": "supportive" if primary_emotion in ['sad', 'worried', 'frustrated'] else "collaborative",
+            "cognitive_appraisal": {
+                "consequences_self": 0.4,
+                "consequences_other": 0.6,
+                "actions_self": 0.5,
+                "actions_other": 0.5,
+                "objects": 0.3,
+                "compounds": 0.4
+            },
+            "description": "Claude is attentive and supportive"
+        }
+        
+        return base_analysis
     
     def update_living_equation(self, current_equation: Dict, analysis: Dict) -> Dict:
         """

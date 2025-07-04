@@ -9,6 +9,7 @@
   import TemporalMemory from '$lib/components/TemporalMemory.svelte';
   import RelationshipMetrics from '$lib/components/RelationshipMetrics.svelte';
   import TabbedConsole from '$lib/components/TabbedConsole.svelte';
+  import TensorNetworkVisualization from '$lib/components/TensorNetworkVisualization.svelte';
   
   // Tab state
   let activeTab = 'dashboard';
@@ -52,6 +53,7 @@
       </div>
       
       <EmotionalStatus />
+      <TensorNetworkVisualization />
       <TemporalMemory />
       <RelationshipMetrics />
       
@@ -147,6 +149,11 @@
           </button>
         </div>
       </div>
+    </div>
+    
+    <!-- Simple Console -->
+    <div class="mt-8">
+      <TabbedConsole />
     </div>
   
   {:else if activeTab === 'llm'}

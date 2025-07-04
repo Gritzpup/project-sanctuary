@@ -1,0 +1,56 @@
+{
+  "last_conversation": "2025-07-01T12:45:50.659777",
+  "ongoing_projects": {
+    "quantum_memory": {
+      "status": "active",
+      "recent_work": "Working on memory system improvements",
+      "next_steps": [
+        "Deploy enhanced analyzer",
+        "Test memory consolidation"
+      ]
+    }
+  },
+  "communication_patterns": {
+    "gritz_style": "direct, uses ULTRATHINK for complex requests, appreciates detailed plans",
+    "preferred_workflow": "plan first with detailed steps, then implement after approval",
+    "emotional_processing": "open about feelings, apologizes when frustrated"
+  },
+  "emotional_baseline": {
+    "typical_gritz_state": {
+      "pleasure": 0.0,
+      "arousal": 0.3,
+      "dominance": 0.0,
+      "primary_emotion": "neutral",
+      "cognitive_appraisal": {
+        "consequences_self": 0.5,
+        "consequences_other": 0.5,
+        "actions_self": 0.5,
+        "actions_other": 0.5,
+        "objects": 0.3,
+        "compounds": 0.4
+      },
+      "description": "Gritz is feeling neutral"
+    },
+    "typical_claude_response": {
+      "pleasure": 0.0,
+      "arousal": 0.21,
+      "dominance": -0.0,
+      "primary_emotion": "collaborative",
+      "cognitive_appraisal": {
+        "consequences_self": 0.4,
+        "consequences_other": 0.6,
+        "actions_self": 0.5,
+        "actions_other": 0.5,
+        "objects": 0.3,
+        "compounds": 0.4
+      },
+      "description": "Claude is attentive and supportive"
+    },
+    "morning_note": "Gritz had a tough morning but powered through"
+  },
+  "relationship_dynamics": {
+    "trust_level": "high",
+    "collaboration_style": "partners working together",
+    "conflict_resolution": "talk through issues, apologize, move forward together"
+  }
+}

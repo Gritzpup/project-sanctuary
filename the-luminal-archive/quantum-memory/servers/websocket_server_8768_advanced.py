@@ -47,7 +47,7 @@ class QuantumMemoryServer:
         except Exception as e:
             return web.json_response({'error': str(e)}, status=500)
     
-    async def websocket_handler(self, websocket, path):
+    async def websocket_handler(self, websocket):
         """Handle WebSocket connections"""
         self.websocket_clients.add(websocket)
         print(f"New WebSocket connection from {websocket.remote_address}")

@@ -1,0 +1,46 @@
+{
+  "last_update": "2025-07-01T12:43:52.767746",
+  "services": {
+    "analyzer": {
+      "status": "running",
+      "last_update": "2025-07-01T12:43:44.610735"
+    }
+  },
+  "quantum_state": "initialized",
+  "emotional_dynamics": {
+    "current_emotion": "PAD(0.80, 0.60, 0.60)",
+    "primary_emotion": "happy",
+    "mixed_emotions": {},
+    "quantum_superposition": []
+  },
+  "real_time_tracking": {
+    "current_session_start": "2025-07-01T12:43:24.326902",
+    "current_session_messages": 2,
+    "llm_status": "running",
+    "llm_pid": 2815560,
+    "last_analysis": "2025-07-01T12:43:44.610735"
+  },
+  "quantum_metrics": {
+    "coherence": 0.9801,
+    "decoherence_rate": 0.01990000000000003,
+    "measurement_count": 2,
+    "superposition_states": 0
+  },
+  "memory_timeline": {
+    "current_session": {
+      "start_time": "2025-07-01T12:43:24.330531",
+      "messages": [],
+      "emotional_peaks": [],
+      "working_on": "quantum emotional analysis",
+      "detail_retention": 1.0
+    }
+  },
+  "chat_stats": {},
+  "relationship_metrics": {},
+  "entity_sync": {
+    "last_update": "2025-07-01T12:43:52.757986",
+    "consciousness_hash": "3ae2f972a311cefc02d44bce2d7030d86030bceb5473c6d1a80a6a7cc002399d",
+    "cognitive_state": {},
+    "synchronized": true
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "test_sync_20250701_072859",
+  "timestamp": "2025-07-01T07:28:59.323245",
+  "type": "entity_sync_test",
+  "participants": [
+    "gritz",
+    "claude"
+  ],
+  "interaction_type": "technical_collaboration",
+  "emotional_state": {
+    "valence": 0.9,
+    "arousal": 0.6,
+    "dominance": 0.7
+  },
+  "content": "Testing bidirectional sync between quantum memory and entity state",
+  "significance": 0.8
+}
