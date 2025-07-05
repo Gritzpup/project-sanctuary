@@ -47,18 +47,17 @@
   {#if activeTab === 'dashboard'}
     <!-- Main Grid -->
     <div class="grid grid-cols-1 gap-6 mb-8">
-      <!-- WebSocket Console -->
-      <div>
-        <h3 class="text-xl font-bold text-quantum-300 mb-4">Real-Time Console</h3>
-        <TabbedConsole />
-      </div>
+
       
-      <EmotionalStatus />
+      
       
       <TensorNetworkVisualization />
-      <TemporalMemory />
-      <RelationshipMetrics />
       
+      <QuantumVisualization3D />
+      
+      <EmotionalStatus />
+      <RelationshipMetrics />
+     <TemporalMemory />
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <VRAMMonitor />
         <div class="bg-gray-800 rounded-lg p-6">
