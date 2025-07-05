@@ -10,7 +10,6 @@
   import RelationshipMetrics from '$lib/components/RelationshipMetrics.svelte';
   import TabbedConsole from '$lib/components/TabbedConsole.svelte';
   import TensorNetworkVisualization from '$lib/components/TensorNetworkVisualization.svelte';
-  import QuantumVisualization3D from '$lib/components/QuantumVisualization3D.svelte';
   
   // Tab state
   let activeTab = 'dashboard';
@@ -52,8 +51,6 @@
       
       
       <TensorNetworkVisualization />
-      
-      <QuantumVisualization3D />
       
       <EmotionalStatus />
       <RelationshipMetrics />

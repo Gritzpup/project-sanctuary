@@ -32,6 +32,22 @@ export interface QuantumMemoryStatus {
     memory_consolidation: number;
     quantum_noise: number;
   };
+  // Quantum state fields
+  bloch_vectors?: Array<{
+    qubit: number;
+    cartesian: { x: number; y: number; z: number; };
+    spherical: { r: number; theta: number; phi: number; };
+  }>;
+  von_neumann_entropy?: number;
+  entanglement_measures?: {
+    pairs: Array<{
+      qubits: number[];
+      entropy: number;
+      strength: number;
+    }>;
+    average: number;
+    network_entanglement: number;
+  };
   memory_stats: {
     total_messages: number;
     emotional_moments: number;
@@ -131,7 +147,9 @@ function createWebSocketStore() {
             messages: data.memory_stats?.total_messages,
             moments: data.memory_stats?.emotional_moments,
             time: data.memory_stats?.time_together,
-            emotion: data.emotional_dynamics?.primary_emotion
+            emotion: data.emotional_dynamics?.primary_emotion,
+            has_entanglement: !!data.entanglement_measures,
+            entanglement_pairs: data.entanglement_measures?.pairs?.length || 0
           });
           update(state => ({ ...state, status: data }));
         } catch (e) {
