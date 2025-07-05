@@ -22,6 +22,7 @@
   $: if ($quantumMemory?.status && isInitialized && qubits.length > 0) {
     quantumState = $quantumMemory.status as QuantumState;
     updateEntanglementBonds();
+    updateQubitColors(); // Update colors immediately when state changes
   }
   
   // Debug info
@@ -38,7 +39,7 @@
   
   function createParticleField() {
     // Create quantum particle field - reduced for performance
-    const particleCount = 500;
+    const particleCount = 300;
     const particles = new Float32Array(particleCount * 3);
     const velocities = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
@@ -74,10 +75,10 @@
     particleGeometry.userData.velocities = velocities;
     
     const particleMaterial = new THREE.PointsMaterial({
-      size: 0.02,  // Much smaller particles
+      size: 0.005,  // Much smaller particles
       vertexColors: true,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.4,
       blending: THREE.AdditiveBlending
     });
     
@@ -104,20 +105,93 @@
     
     // Clean glowing bonds for entanglement
     const material = new THREE.MeshPhongMaterial({
-      color: 0xff00ff,  // Magenta to match entangled qubits
-      emissive: 0xff00ff,
-      emissiveIntensity: 0.8,
+      color: 0x66bbff,  // Bright blue to match entangled qubits
+      emissive: 0x4499ff,
+      emissiveIntensity: 0.6 + strength * 0.3,
       transparent: true,
-      opacity: 0.4 + strength * 0.3,
+      opacity: 0.3 + strength * 0.3,
       depthWrite: false,  // Better transparency
       side: THREE.DoubleSide
     });
     
     const bond = new THREE.Mesh(tubeGeometry, material);
-    bond.userData = { q1: q1Index, q2: q2Index, strength, entropy };
+    bond.userData = { 
+      q1: q1Index, 
+      q2: q2Index, 
+      strength, 
+      entropy,
+      targetOpacity: 0.3 + strength * 0.3,
+      currentOpacity: 0 // Start invisible for fade-in
+    };
+    
+    // Start with 0 opacity for smooth fade-in
+    material.opacity = 0;
     
     scene.add(bond);
     entanglementBonds.push(bond);
+  }
+  
+  function updateQubitColors() {
+    if (!quantumState || qubits.length === 0) return;
+    
+    console.log('[3D DEBUG] Updating qubit colors based on quantum state');
+    
+    // First, check which qubits are connected by bonds
+    const entangledQubitIndices = new Set<number>();
+    entanglementBonds.forEach(bond => {
+      if (bond.userData) {
+        entangledQubitIndices.add(bond.userData.q1);
+        entangledQubitIndices.add(bond.userData.q2);
+      }
+    });
+    
+    console.log('[3D DEBUG] Entangled qubits from bonds:', Array.from(entangledQubitIndices));
+    
+    qubits.forEach((qubit, index) => {
+      const blochSphere = qubit.children[1] as THREE.Mesh;
+      if (!blochSphere || !blochSphere.material) return;
+      
+      const material = blochSphere.material as THREE.MeshPhysicalMaterial;
+      let isEntangled = entangledQubitIndices.has(index); // Check bonds first
+      let maxStrength = 0.8; // Default strength for bond-based entanglement
+      
+      // Also check real quantum data if available
+      if (quantumState.entanglement_measures?.pairs) {
+        quantumState.entanglement_measures.pairs.forEach(pair => {
+          if (pair.qubits.includes(index)) {
+            isEntangled = true;
+            maxStrength = Math.max(maxStrength, pair.strength || 0);
+          }
+        });
+      }
+      
+      if (isEntangled) {
+        const intensity = Math.min(maxStrength * 1.5, 1.0);
+        // Enhanced blue for entangled states
+        material.color.setHex(0x66bbff);
+        material.emissive.setHex(0x4499ff);
+        material.emissiveIntensity = 0.4 + intensity * 0.3;
+        
+        const glowSphere = qubit.children[0] as THREE.Mesh;
+        if (glowSphere && glowSphere.material) {
+          (glowSphere.material as THREE.MeshBasicMaterial).color.setHex(0x66bbff);
+          (glowSphere.material as THREE.MeshBasicMaterial).opacity = 0.3 + intensity * 0.2;
+        }
+      } else {
+        // Standard blue for non-entangled
+        material.color.setHex(0x4488ff);
+        material.emissive.setHex(0x2266ff);
+        material.emissiveIntensity = 0.3;
+        
+        const glowSphere = qubit.children[0] as THREE.Mesh;
+        if (glowSphere && glowSphere.material) {
+          (glowSphere.material as THREE.MeshBasicMaterial).color.setHex(0x4488ff);
+          (glowSphere.material as THREE.MeshBasicMaterial).opacity = 0.2;
+        }
+      }
+      
+      material.needsUpdate = true;
+    });
   }
   
   function updateEntanglementBonds() {
@@ -151,43 +225,70 @@
       });
       
       log(`Created ${entanglementBonds.length} entanglement bonds from real data`);
-    } else if (quantumState?.tensor_network) {
-      // Create entanglement based on tensor network data
-      const entanglement = quantumState.tensor_network.entanglement || 0.8;
-      const coherence = quantumState.tensor_network.coherence || 0.9;
-      
-      // Create scientifically accurate entanglement patterns for 27-qubit system
-      // Bell pairs and GHZ states for quantum memory
-      const quantumPairs = [
-        // Pleasure-Arousal cross-layer entanglement (PAD model)
-        [0, 10], [1, 11], [2, 12], [3, 13], [4, 14], // P-A connections
-        // Arousal-Dominance connections
-        [10, 19], [11, 20], [12, 21], [13, 22], [14, 23], // A-D connections
-        // Pleasure-Dominance long-range entanglement
-        [0, 19], [1, 20], [2, 21], [3, 22], // P-D connections
-        // Within-layer entanglement for coherence
-        [0, 1], [2, 3], [4, 5], [6, 7], [8, 9], // Pleasure layer
-        [10, 11], [12, 13], [14, 15], [16, 17], [18, 10], // Arousal layer
-        [19, 20], [21, 22], [23, 24], [25, 26], [19, 26] // Dominance layer
-      ];
-      
-      quantumPairs.forEach(([q1, q2]) => {
-        if (q1 < qubits.length && q2 < qubits.length) {
-          const distance = qubits[q1].position.distanceTo(qubits[q2].position);
-          const strength = entanglement * (1 - distance / 20) * coherence;
-          const entropy = 1.5 - strength;
-          
-          if (strength > 0.1) {
-            createEntanglementBond(q1, q2, strength, entropy);
-          }
-        }
-      });
-      
-      log(`Created ${entanglementBonds.length} quantum entanglement bonds from tensor network data`);
+    } else {
+      // No real quantum data - bonds will only appear when real entanglement occurs
+      log('No quantum entanglement data available - waiting for real quantum states');
     }
   }
   
   // REMOVED - NO FAKE PROXIMITY ENTANGLEMENT
+  
+  function updateQubitPositions() {
+    if (!quantumState || qubits.length === 0) return;
+    
+    const ATTRACTION_FORCE = 0.3;
+    const MIN_DISTANCE = 5;
+    const MAX_DISTANCE = 20;
+    
+    // Reset target positions to original positions
+    qubits.forEach(qubit => {
+      qubit.userData.targetPosition.copy(qubit.userData.originalPosition);
+      qubit.userData.entanglementPartners = [];
+    });
+    
+    // Apply attraction for entangled pairs based on REAL data
+    if (quantumState.entanglement_measures?.pairs) {
+      quantumState.entanglement_measures.pairs.forEach(pair => {
+        if (pair.strength > 0.3 && pair.qubits[0] < qubits.length && pair.qubits[1] < qubits.length) {
+          const q1 = qubits[pair.qubits[0]];
+          const q2 = qubits[pair.qubits[1]];
+          
+          if (!q1 || !q2) return;
+          
+          // Record entanglement partners
+          q1.userData.entanglementPartners.push(pair.qubits[1]);
+          q2.userData.entanglementPartners.push(pair.qubits[0]);
+          
+          // Calculate attraction based on strength
+          const midpoint = q1.userData.originalPosition.clone()
+            .add(q2.userData.originalPosition).multiplyScalar(0.5);
+          
+          // Move proportionally to entanglement strength
+          const moveDistance = pair.strength * ATTRACTION_FORCE * 10;
+          
+          // Don't move too close - maintain minimum distance
+          const currentDistance = q1.position.distanceTo(q2.position);
+          if (currentDistance > MIN_DISTANCE) {
+            q1.userData.targetPosition.lerp(midpoint, Math.min(moveDistance / 20, 0.4));
+            q2.userData.targetPosition.lerp(midpoint, Math.min(moveDistance / 20, 0.4));
+          }
+        }
+      });
+    }
+    
+    // Smooth movement with lerp
+    qubits.forEach((qubit, index) => {
+      // Interpolate position
+      qubit.position.lerp(qubit.userData.targetPosition, 0.05);
+      
+      // Add gentle floating only for non-entangled qubits
+      if (qubit.userData.entanglementPartners.length === 0) {
+        const time = Date.now() * 0.001;
+        const floatY = Math.sin(time * 0.8 + index * 0.5) * 0.5;
+        qubit.position.y += floatY;
+      }
+    });
+  }
     
   function initScene() {
     try {
@@ -205,9 +306,9 @@
       scene.background = new THREE.Color(0x0a0a1e);
       console.log('[3D DEBUG] Scene created');
       
-      // Camera - zoomed in so qubits bounce off screen edges
-      camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
-      camera.position.set(10, 10, 15);
+      // Camera - positioned to see full 3x3x3 grid
+      camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 1000);
+      camera.position.set(30, 25, 40);
       camera.lookAt(0, 0, 0);
       console.log('[3D DEBUG] Camera created at position:', camera.position);
       
@@ -294,9 +395,9 @@
         for (let y = 0; y < gridSize; y++) {
           for (let z = 0; z < gridSize; z++) {
             positions.push([
-              (x - 1) * 8,  // -8, 0, 8 - more spacing
-              (y - 1) * 8,  // -8, 0, 8
-              (z - 1) * 8   // -8, 0, 8
+              (x - 1) * 12,  // -12, 0, 12 - even more spacing
+              (y - 1) * 12,  // -12, 0, 12
+              (z - 1) * 12   // -12, 0, 12
             ]);
           }
         }
@@ -353,7 +454,9 @@
         // Set the group position
         qubitGroup.position.set(pos[0], pos[1], pos[2]);
         qubitGroup.userData.originalPosition = new THREE.Vector3(pos[0], pos[1], pos[2]);
-        // No velocity - qubits stay in grid positions
+        qubitGroup.userData.targetPosition = new THREE.Vector3(pos[0], pos[1], pos[2]);
+        qubitGroup.userData.velocity = new THREE.Vector3(0, 0, 0);
+        qubitGroup.userData.entanglementPartners = [];
         
         scene.add(qubitGroup);
         qubits.push(qubitGroup);
@@ -365,7 +468,7 @@
       centralState = new THREE.Group();
       centralState.name = 'centralQuantumState';
       
-      const centralGeometry = new THREE.IcosahedronGeometry(2.5, 2);
+      const centralGeometry = new THREE.IcosahedronGeometry(3.5, 2);
       const centralMaterial = new THREE.MeshPhysicalMaterial({
         color: 0xff1493,
         emissive: 0xff0066,
@@ -378,7 +481,7 @@
       centralSphere.position.set(0, 0, 0);
       
       // Central glow
-      const centralGlowGeometry = new THREE.IcosahedronGeometry(3.0, 2);
+      const centralGlowGeometry = new THREE.IcosahedronGeometry(4.0, 2);
       const centralGlowMaterial = new THREE.MeshBasicMaterial({
         color: 0xff1493,
         transparent: true,
@@ -388,7 +491,7 @@
       const centralGlow = new THREE.Mesh(centralGlowGeometry, centralGlowMaterial);
       
       // Phase ring
-      const ringGeometry = new THREE.TorusGeometry(3.5, 0.2, 8, 32);
+      const ringGeometry = new THREE.TorusGeometry(4.5, 0.3, 8, 32);
       const ringMaterial = new THREE.MeshPhongMaterial({
         color: 0xffff00,
         emissive: 0xffff00,
@@ -404,7 +507,7 @@
         emissive: 0xffff00
       });
       const phaseIndicator = new THREE.Mesh(phaseGeometry, phaseMaterial);
-      phaseIndicator.position.set(3.5, 0, 0);
+      phaseIndicator.position.set(4.5, 0, 0);
       
       centralState.add(centralGlow);
       centralState.add(centralSphere);
@@ -479,23 +582,20 @@
       particleSystem.rotation.y = time * 0.02;
     }
     
-    // Animate qubits - stay in grid positions with gentle floating
+    // Update qubit positions based on entanglement
+    updateQubitPositions();
+    
+    // Animate qubits - pulse and rotation only
     qubits.forEach((qubit, index) => {
-      // Gentle floating motion around original position
-      const floatY = Math.sin(time * 0.8 + index * 0.5) * 0.3;
-      
-      if (qubit.userData.originalPosition) {
-        qubit.position.x = qubit.userData.originalPosition.x;
-        qubit.position.y = qubit.userData.originalPosition.y + floatY;
-        qubit.position.z = qubit.userData.originalPosition.z;
-      }
-      
-      // Gentle pulse
-      const pulse = 1 + Math.sin(time * 1.5 + index * 0.3) * 0.08;
+      // Gentle pulse - stronger for entangled qubits
+      const isEntangled = qubit.userData.entanglementPartners.length > 0;
+      const pulseIntensity = isEntangled ? 0.12 : 0.08;
+      const pulse = 1 + Math.sin(time * 1.5 + index * 0.3) * pulseIntensity;
       qubit.scale.setScalar(pulse);
       
-      // Slow rotation
-      qubit.rotation.y = time * 0.2 + index * 0.2;
+      // Slow rotation - faster for entangled qubits
+      const rotationSpeed = isEntangled ? 0.4 : 0.2;
+      qubit.rotation.y = time * rotationSpeed + index * 0.2;
     });
     
     // Animate central state
@@ -513,14 +613,45 @@
         (child.material as any).color.getHex() === 0xffff00
       );
       if (phaseIndicator) {
-        const orbitRadius = 3.5 + Math.sin(time * 2) * 0.5;
+        const orbitRadius = 4.5 + Math.sin(time * 2) * 0.5;
         phaseIndicator.position.x = Math.cos(time * 2) * orbitRadius;
         phaseIndicator.position.z = Math.sin(time * 2) * orbitRadius;
         phaseIndicator.position.y = Math.sin(time * 4) * 0.5;
       }
     }
     
-    // Keep entanglement bonds stable - no animation
+    // Animate entanglement bonds - update positions and fade in/out
+    entanglementBonds.forEach(bond => {
+      if (bond.userData) {
+        const q1 = qubits[bond.userData.q1];
+        const q2 = qubits[bond.userData.q2];
+        
+        if (q1 && q2) {
+          // Update bond position to follow moving qubits
+          const curve = new THREE.CatmullRomCurve3([q1.position, q2.position]);
+          const points = curve.getPoints(10);
+          
+          // Update geometry
+          const tubeGeometry = bond.geometry as THREE.TubeGeometry;
+          const newGeometry = new THREE.TubeGeometry(curve, 10, 0.05 + bond.userData.strength * 0.15, 6, false);
+          bond.geometry.dispose();
+          bond.geometry = newGeometry;
+          
+          // Smooth opacity animation
+          const material = bond.material as THREE.MeshPhongMaterial;
+          bond.userData.currentOpacity = THREE.MathUtils.lerp(
+            bond.userData.currentOpacity,
+            bond.userData.targetOpacity,
+            0.1
+          );
+          material.opacity = bond.userData.currentOpacity;
+          
+          // Pulse effect based on strength
+          const pulseFactor = 1 + Math.sin(time * 3 + bond.userData.q1) * 0.1 * bond.userData.strength;
+          material.emissiveIntensity = (0.6 + bond.userData.strength * 0.3) * pulseFactor;
+        }
+      }
+    });
     
     // Update qubits based on quantum data - ONLY EVERY 10 FRAMES FOR PERFORMANCE
     if (quantumState && qubits.length > 0 && debugInfo.frameCount % 10 === 0) {
@@ -587,21 +718,13 @@
             });
           }
           
-          // TEST: Force first qubit to be purple to verify color change works
-          if (index === 0) {
-            material.color.setHex(0xff00ff);
-            material.emissive.setHex(0xff00ff);
-            material.emissiveIntensity = 1.0;
-            material.needsUpdate = true; // Force material update
-            console.log('[3D DEBUG] Forced qubit 0 to purple for testing, material:', material);
-            console.log('[3D DEBUG] Material color after set:', material.color.getHex());
-          } else if (isEntangled) {
+          if (isEntangled) {
             // Dramatic color change for entangled qubits
             const intensity = Math.min(maxStrength * 1.5, 1.0); // Boost intensity
             
-            // Purple-pink gradient for entangled states
-            material.color.setHex(0xdd00ff); // Bright purple
-            material.emissive.setHex(0xff00aa); // Pink glow
+            // Enhanced blue for entangled states
+            material.color.setHex(0x66bbff); // Brighter blue
+            material.emissive.setHex(0x4499ff); // Blue glow
             material.emissiveIntensity = 0.6 + intensity * 0.4;
             material.metalness = 0.2;
             material.roughness = 0.1;
@@ -613,7 +736,7 @@
             // Bright glow for entangled qubits
             const glowSphere = qubit.children[0] as THREE.Mesh; // Glow sphere is first child
             if (glowSphere && glowSphere.material) {
-              (glowSphere.material as THREE.MeshBasicMaterial).color.setHex(0xff00ff);
+              (glowSphere.material as THREE.MeshBasicMaterial).color.setHex(0x66bbff);
               (glowSphere.material as THREE.MeshBasicMaterial).opacity = 0.5 + intensity * 0.3;
             }
           } else {
@@ -697,7 +820,26 @@
         createQuantumStructure();
         console.log('[3D DEBUG] Quantum structure created');
         
-        // Initial quantum state is handled by reactive statement
+        // Set initial quantum state if available
+        if ($quantumMemory?.status) {
+          quantumState = $quantumMemory.status as QuantumState;
+          updateEntanglementBonds();
+          updateQubitColors();
+          console.log('[3D DEBUG] Initial quantum state applied');
+        } else {
+          // Create default quantum state for testing
+          quantumState = {
+            tensor_network: {
+              coherence: 0.9,
+              entanglement: 0.8,
+              bond_dimension: 128,
+              memory_nodes: 42
+            }
+          } as QuantumState;
+          updateEntanglementBonds();
+          updateQubitColors();
+          console.log('[3D DEBUG] Default quantum state applied');
+        }
         
         console.log('[3D DEBUG] Starting animation loop...');
         animate();

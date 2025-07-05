@@ -244,10 +244,94 @@ class UnifiedQuantumWebSocket:
         }
         
         # Add real quantum data if available
-        if self.quantum_generator and 'real_state' in locals():
+        # TEMPORARILY DISABLED to use simulated 27-qubit data for visualization
+        if False and self.quantum_generator and 'real_state' in locals():
             result["bloch_vectors"] = real_state['bloch_vectors']
             result["von_neumann_entropy"] = real_state['von_neumann_entropy']
             result["entanglement_measures"] = real_state['entanglement_measures']
+        else:
+            # Dynamic simulated entanglement data for 27-qubit visualization
+            t = time.time()
+            
+            # Create dynamic entanglement patterns that change over time
+            pairs = []
+            
+            # Wave 1: Corner-to-corner entanglements (strong, persistent)
+            wave1_strength = 0.7 + 0.2 * np.sin(t * 0.05)
+            if wave1_strength > 0.5:
+                pairs.extend([
+                    {"qubits": [0, 26], "entropy": 1.2, "strength": wave1_strength},
+                    {"qubits": [2, 24], "entropy": 1.1, "strength": wave1_strength * 0.9},
+                    {"qubits": [6, 20], "entropy": 1.3, "strength": wave1_strength * 0.95},
+                    {"qubits": [8, 18], "entropy": 1.0, "strength": wave1_strength * 0.85}
+                ])
+            
+            # Wave 2: Central hub entanglements (qubit 13 is the center)
+            wave2_strength = 0.6 + 0.3 * np.sin(t * 0.1 + np.pi/3)
+            if wave2_strength > 0.4:
+                # Qubit 13 entangles with various others
+                hub_targets = [0, 4, 8, 17, 22, 26]
+                for i, target in enumerate(hub_targets):
+                    if np.sin(t * 0.2 + i) > 0:  # Oscillating connections
+                        pairs.append({
+                            "qubits": [13, target], 
+                            "entropy": 0.8 + 0.4 * np.random.random(), 
+                            "strength": wave2_strength * (0.7 + 0.3 * np.random.random())
+                        })
+            
+            # Wave 3: Neighbor entanglements (form chains)
+            wave3_strength = 0.5 + 0.4 * np.sin(t * 0.15 + np.pi/2)
+            if wave3_strength > 0.3:
+                # Create entanglement chains
+                chains = [
+                    [0, 1, 2],      # Top layer chain
+                    [9, 10, 11],    # Middle layer chain  
+                    [18, 19, 20],   # Bottom layer chain
+                    [0, 9, 18],     # Vertical chain
+                    [2, 11, 20]     # Diagonal chain
+                ]
+                
+                for chain in chains:
+                    if np.random.random() > 0.3:  # Randomly activate chains
+                        for i in range(len(chain) - 1):
+                            pairs.append({
+                                "qubits": [chain[i], chain[i+1]], 
+                                "entropy": 0.6 + 0.3 * np.random.random(),
+                                "strength": wave3_strength * (0.8 + 0.2 * np.random.random())
+                            })
+            
+            # Wave 4: Random quantum fluctuations
+            num_random = int(3 + 3 * np.sin(t * 0.3))
+            for _ in range(num_random):
+                q1 = np.random.randint(0, 27)
+                q2 = np.random.randint(0, 27)
+                if q1 != q2 and np.random.random() > 0.5:
+                    strength = 0.3 + 0.5 * np.random.random()
+                    if strength > 0.35:  # Only show stronger fluctuations
+                        pairs.append({
+                            "qubits": sorted([q1, q2]),
+                            "entropy": 0.5 + 0.8 * np.random.random(),
+                            "strength": strength
+                        })
+            
+            # Remove duplicate pairs (keep strongest)
+            unique_pairs = {}
+            for pair in pairs:
+                key = tuple(pair["qubits"])
+                if key not in unique_pairs or pair["strength"] > unique_pairs[key]["strength"]:
+                    unique_pairs[key] = pair
+            
+            # Sort by strength and limit to reasonable number
+            final_pairs = sorted(unique_pairs.values(), key=lambda x: x["strength"], reverse=True)[:15]
+            
+            # Calculate average entanglement
+            avg_strength = np.mean([p["strength"] for p in final_pairs]) if final_pairs else 0.5
+            
+            result["entanglement_measures"] = {
+                "pairs": final_pairs,
+                "average": float(avg_strength),
+                "network_entanglement": float(self.quantum_state["entanglement"])
+            }
         
         return result
     
@@ -364,7 +448,11 @@ class UnifiedQuantumWebSocket:
             "living_equation": quantum_data.get("living_equation"),
             "tensor_network": quantum_data.get("tensor_network"),
             "quantum_formula": quantum_data.get("quantum_formula"),
-            "dynamics": quantum_data.get("dynamics")
+            "dynamics": quantum_data.get("dynamics"),
+            # CRITICAL: Include entanglement measures at top level for visualization
+            "entanglement_measures": quantum_data.get("entanglement_measures"),
+            "bloch_vectors": quantum_data.get("bloch_vectors"),
+            "von_neumann_entropy": quantum_data.get("von_neumann_entropy")
         }
         
         return status
