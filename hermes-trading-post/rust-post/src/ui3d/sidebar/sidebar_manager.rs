@@ -36,7 +36,7 @@ impl SidebarManager {
         let mut manager = Self {
             panels: Vec::new(),
             layout: PanelLayout::Circular,
-            camera_distance: 80.0,
+            camera_distance: 50.0, // Distance for panel arrangement
             auto_arrange: true,
             active_panel: None,
             animation_time: 0.0,
@@ -50,8 +50,8 @@ impl SidebarManager {
         // Create portfolio panel
         let portfolio_panel = HolographicPanel::new(
             1,
-            Vec3::new(-30.0, 10.0, -20.0),
-            Vec2::new(20.0, 15.0),
+            Vec3::new(-50.0, 10.0, 0.0),
+            Vec2::new(15.0, 12.0), // Reduced size
             PanelType::PortfolioSphere,
             ColorScheme::cyberpunk_blue(),
         );
@@ -61,8 +61,8 @@ impl SidebarManager {
         // Create order book panel
         let orderbook_panel = HolographicPanel::new(
             2,
-            Vec3::new(30.0, 10.0, -20.0),
-            Vec2::new(20.0, 15.0),
+            Vec3::new(50.0, 10.0, 0.0),
+            Vec2::new(15.0, 12.0), // Reduced size
             PanelType::OrderBookWall,
             ColorScheme::cyberpunk_green(),
         );
@@ -72,8 +72,8 @@ impl SidebarManager {
         // Create market heatmap panel
         let heatmap_panel = HolographicPanel::new(
             3,
-            Vec3::new(-20.0, -10.0, -15.0),
-            Vec2::new(25.0, 20.0),
+            Vec3::new(0.0, 10.0, -50.0),
+            Vec2::new(18.0, 15.0), // Reduced size
             PanelType::MarketHeatmap,
             ColorScheme::cyberpunk_red(),
         );
@@ -83,8 +83,8 @@ impl SidebarManager {
         // Create trade stream panel
         let stream_panel = HolographicPanel::new(
             4,
-            Vec3::new(20.0, -10.0, -15.0),
-            Vec2::new(20.0, 18.0),
+            Vec3::new(0.0, 10.0, 50.0),
+            Vec2::new(15.0, 13.0), // Reduced size
             PanelType::TradeStream,
             ColorScheme::cyberpunk_blue(),
         );
@@ -121,16 +121,18 @@ impl SidebarManager {
     }
     
     fn arrange_semicircle(&mut self) {
-        let radius = self.camera_distance;
+        let radius = 60.0; // Fixed radius
         let panel_count = self.panels.len();
-        let angle_step = std::f32::consts::PI / (panel_count as f32 + 1.0);
-        let start_angle = -std::f32::consts::PI / 2.0;
+        let angle_start = -std::f32::consts::PI * 0.4; // -72 degrees  
+        let angle_end = std::f32::consts::PI * 0.4;    // 72 degrees
+        let angle_range = angle_end - angle_start;
+        let angle_step = angle_range / (panel_count as f32 - 1.0).max(1.0);
         
         for (i, panel) in self.panels.iter_mut().enumerate() {
-            let angle = start_angle + (i as f32 + 1.0) * angle_step;
-            let x = radius * angle.cos();
-            let z = radius * angle.sin() - radius; // Offset to be in front
-            let y = ((i as f32 - panel_count as f32 / 2.0) * 0.5).sin() * 0.5; // Slight vertical variation
+            let angle = angle_start + i as f32 * angle_step;
+            let x = radius * angle.sin();
+            let z = -radius * angle.cos(); // Semicircle behind chart
+            let y = 15.0 + ((i as f32 - panel_count as f32 / 2.0) * 0.3).sin() * 2.0; // Moderate elevation
             
             let position = Vec3::new(x, y, z);
             
@@ -144,15 +146,16 @@ impl SidebarManager {
     }
     
     fn arrange_circular(&mut self) {
-        let radius = self.camera_distance;
+        let radius = 50.0; // Fixed radius around the chart
+        
+        // Create a full circle around the chart
         let angle_step = 2.0 * std::f32::consts::PI / self.panels.len() as f32;
         
         for (i, panel) in self.panels.iter_mut().enumerate() {
             let angle = i as f32 * angle_step;
             let x = radius * angle.cos();
-            // Position panels in a circle around the chart, closer to camera
-            let z = -50.0 + radius * angle.sin() * 0.5; // Panels closer to camera, semicircle depth
-            let y = 0.0; // Keep panels at chart level
+            let z = radius * angle.sin(); // Circle around origin
+            let y = 10.0; // Slightly elevated
             
             let position = Vec3::new(x, y, z);
             
@@ -166,14 +169,14 @@ impl SidebarManager {
     }
     
     fn arrange_linear(&mut self) {
-        let spacing = 2.5;
+        let spacing = 40.0; // Spacing between panels
         let total_width = (self.panels.len() - 1) as f32 * spacing;
         let start_x = -total_width / 2.0;
         
         for (i, panel) in self.panels.iter_mut().enumerate() {
             let x = start_x + i as f32 * spacing;
-            let y = (i as f32 * 0.3).sin() * 0.2; // Slight bobbing
-            let z = -self.camera_distance * 0.7;
+            let y = 15.0 + (i as f32 * 0.5).sin() * 3.0; // Moderate elevation with wave
+            let z = -30.0; // Position panels behind chart
             
             let position = Vec3::new(x, y, z);
             

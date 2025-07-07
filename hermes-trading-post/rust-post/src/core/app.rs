@@ -98,7 +98,7 @@ impl<'a> FuturisticDashboard<'a> {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: Some(std::num::NonZeroU64::new(80).unwrap()), // CameraUniform size
                     },
                     count: None,
                 },
@@ -212,8 +212,9 @@ impl<'a> FuturisticDashboard<'a> {
         });
         
         // Create time uniform buffer
+        // WGSL alignment: TimeUniform { time: f32, _padding: vec3<f32> } = 32 bytes due to vec3 alignment
         let start_time = Instant::now();
-        let time_uniform = [0.0f32, 0.0, 0.0, 0.0]; // time + padding
+        let time_uniform = [0.0f32; 8]; // 8 floats = 32 bytes to match WGSL alignment
         let time_buffer = renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Time Uniform Buffer"),
             contents: bytemuck::cast_slice(&time_uniform),
@@ -229,7 +230,7 @@ impl<'a> FuturisticDashboard<'a> {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: Some(std::num::NonZeroU64::new(80).unwrap()), // CameraUniform size
                     },
                     count: None,
                 },
@@ -239,7 +240,7 @@ impl<'a> FuturisticDashboard<'a> {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: Some(std::num::NonZeroU64::new(32).unwrap()), // TimeUniform size with WGSL alignment
                     },
                     count: None,
                 },
@@ -385,11 +386,11 @@ impl<'a> FuturisticDashboard<'a> {
         
         // Update time uniform for shader effects
         let elapsed = now.duration_since(self.start_time).as_secs_f32();
-        let time_uniform = [elapsed, 0.0, 0.0, 0.0]; // time + padding
+        let time_uniform = [elapsed, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]; // 8 floats = 32 bytes
         self.renderer.queue.write_buffer(&self.time_buffer, 0, bytemuck::cast_slice(&time_uniform));
         
         // Update all systems
-        self.ui_system.update(dt);
+        // self.ui_system.update(dt); // Panels disabled
         self.visualizations.update(dt, &self.renderer);
         self.interaction.update();
         
@@ -546,7 +547,8 @@ impl<'a> FuturisticDashboard<'a> {
                 // Render BTC chart and visualizations with main dashboard camera
                 self.visualizations.render(&mut encoder, &view, &self.depth_view, &self.camera_bind_group);
                 
-                // Render holographic UI panels
+                // Render holographic UI panels - DISABLED
+                /*
                 self.ui_system.render(
                     &mut encoder,
                     &view,
@@ -558,6 +560,7 @@ impl<'a> FuturisticDashboard<'a> {
                     &mut self.holographic_index_buffer,
                     &mut self.holographic_index_count,
                 );
+                */
                 
                 // Submit commands and present
                 self.renderer.queue.submit(std::iter::once(encoder.finish()));

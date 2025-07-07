@@ -53,7 +53,7 @@ impl UI3DSystem {
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
         depth_view: &wgpu::TextureView,
-        camera_bind_group: &wgpu::BindGroup,
+        holographic_bind_group: &wgpu::BindGroup,  // Fixed: renamed to reflect actual usage
         holographic_panel_pipeline: &wgpu::RenderPipeline,
         device: &wgpu::Device,
         vertex_buffer: &mut Option<wgpu::Buffer>,
@@ -109,7 +109,7 @@ impl UI3DSystem {
         });
         
         render_pass.set_pipeline(holographic_panel_pipeline);
-        render_pass.set_bind_group(0, camera_bind_group, &[]);
+        render_pass.set_bind_group(0, holographic_bind_group, &[]);  // Fixed: use correct bind group
         render_pass.set_vertex_buffer(0, vertex_buffer.as_ref().unwrap().slice(..));
         render_pass.set_index_buffer(index_buffer.as_ref().unwrap().slice(..), wgpu::IndexFormat::Uint16);
         render_pass.draw_indexed(0..*index_count, 0, 0..1);

@@ -21,8 +21,8 @@ impl VisualizationManager {
         println!("📊 Initializing data visualizations...");
         println!("📈 Setting up BTC chart...");
         
-        // Initialize BTC chart at center stage
-        let btc_chart = BtcChartManager::new(renderer, Vec3::new(0.0, 0.0, 0.0)).await;
+        // Initialize BTC chart at center stage, slightly above grid
+        let btc_chart = BtcChartManager::new(renderer, Vec3::new(0.0, -30.0, 0.0)).await;
         
         Self {
             btc_chart: Some(btc_chart),

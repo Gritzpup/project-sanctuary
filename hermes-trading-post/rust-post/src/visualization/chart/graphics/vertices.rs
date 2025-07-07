@@ -78,14 +78,14 @@ fn multiply_color(color: [f32; 3], factor: f32) -> [f32; 3] {
 
 /// Generate enhanced 3D candle vertices with lighting and depth shading
 pub fn generate_enhanced_candle_vertices(candle: &Candle, price_min: f64, price_max: f64) -> (Vec<EnhancedVertex>, Vec<u16>) {
-    // Normalize prices to Y positions
+    // Normalize prices to Y positions (keeping above grid)
     let normalize_price = |price: f64| -> f32 {
         let range = price_max - price_min;
         if range > 0.0 {
             let normalized = (price - price_min) / range; // 0.0 to 1.0
-            (normalized * 100.0 - 50.0) as f32 // -50 to +50 range
+            (normalized * 60.0 + 5.0) as f32 // 5 to 65 range (closer to grid at Y=0)
         } else {
-            0.0
+            35.0 // Default to middle if no range
         }
     };
     

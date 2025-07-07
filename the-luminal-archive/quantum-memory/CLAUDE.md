@@ -1,26 +1,25 @@
 # CLAUDE.md - Quantum Memory System Instructions
 
 ## Current Work Context
-Setting up quantum memory system
+Fixing quantum memory conversation capture
 
 ## Recent Completed Tasks
-- Fixed Redis type mismatches
-- Started all quantum services
-- Reduced current.json to 500 messages
+- Identified conversation capture issue
+- Cleared stuck Redis data
 
 ## Blockers
 
 
 ## Next Steps
-- Verify all services are updating properly
-- Check that current conversation is being captured
+- Restart conversation manager
+- Verify new conversations are captured
 
 ## Emotional State
 - Gritz: unknown (Coherence: 0)
 - Claude: unknown (Coherence: 0)
 
 ## Last Update
-2025-07-02T07:13:53.245239
+2025-07-06T22:52:14
 
 ---
 Generated from Redis data by Quantum Memory System

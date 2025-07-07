@@ -114,20 +114,23 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let fade = 1.0 - smoothstep(100.0, 500.0, distance);
     color.a *= fade;
     
-    // Add animated scan line effect
-    let scan_position = fract(time_uniform.time * 0.2);
+    // Calculate effect intensity based on glow (higher glow = stronger effects)
+    let effect_strength = in.glow * 0.5; // Scale effects by glow value
+    
+    // Add animated scan line effect (reduced intensity)
+    let scan_position = fract(time_uniform.time * 0.1); // Slower scan
     let scan_distance = abs(in.world_pos.y * 0.01 - scan_position);
-    let scan_intensity = smoothstep(0.1, 0.0, scan_distance) * 0.3;
+    let scan_intensity = smoothstep(0.1, 0.0, scan_distance) * 0.1 * effect_strength; // Scaled by effect_strength
     let scan_color = vec3<f32>(0.0, 0.5, 1.0) * scan_intensity;
     color = vec4<f32>(color.r + scan_color.x, color.g + scan_color.y, color.b + scan_color.z, color.a);
     
-    // Add subtle flicker effect
-    let flicker = sin(time_uniform.time * 8.0) * 0.02 + 0.98;
+    // Add subtle flicker effect (reduced intensity)
+    let flicker = sin(time_uniform.time * 4.0) * 0.005 * effect_strength + (1.0 - 0.005 * effect_strength);
     color *= flicker;
     
-    // Add holographic noise
-    let noise = sin(in.world_pos.x * 10.0 + time_uniform.time * 5.0) * 
-                sin(in.world_pos.y * 10.0 - time_uniform.time * 3.0) * 0.02;
+    // Add holographic noise (reduced intensity)
+    let noise = sin(in.world_pos.x * 5.0 + time_uniform.time * 2.0) * 
+                sin(in.world_pos.y * 5.0 - time_uniform.time * 1.5) * 0.005 * effect_strength;
     color = vec4<f32>(color.r + noise, color.g + noise, color.b + noise, color.a);
     
     return color;

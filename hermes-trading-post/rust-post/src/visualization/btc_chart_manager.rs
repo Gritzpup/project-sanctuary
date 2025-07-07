@@ -43,9 +43,17 @@ impl BtcChartManager {
         }
         println!("📈 Loaded {} historical candles (limited to 60 for 1hr view)", historical_candles.len());
         
-        // Initialize current candle
+        
+        // Initialize current candle - don't duplicate the last historical candle
         let initial_candle = if let Some(last_candle) = historical_candles.last() {
-            last_candle.clone()
+            // Start new candle at last close price
+            Candle::new(
+                last_candle.close,  // Open at last close
+                last_candle.close,  // High starts at close
+                last_candle.close,  // Low starts at close
+                last_candle.close,  // Current close
+                0.0                 // New volume
+            )
         } else {
             Candle::new(107000.0, 107000.0, 107000.0, 107000.0, 0.0)
         };
@@ -111,7 +119,7 @@ impl BtcChartManager {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: Some(std::num::NonZeroU64::new(80).unwrap()), // Match camera bind group layout
                     },
                     count: None,
                 },
@@ -256,17 +264,27 @@ impl BtcChartManager {
         // Calculate price range for all candles
         let (price_min, price_max) = self.calculate_price_range();
         
-        // Calculate total width consistently for all candles
+        // Calculate total width based on actual candle count and spacing
         let candle_spacing = 2.5;
-        let total_candles = self.historical_candles.len() + 1; // Include current candle
-        let total_width = total_candles as f32 * candle_spacing;
+        let historical_count = self.historical_candles.len();
+        
+        // Always reserve space for current candle to prevent layout shifts
+        let total_candles = historical_count + 1;  // Always include space for current
+        
+        // Calculate width to fit exactly 60 candles (59 historical + 1 current)
+        let max_candles = 60;
+        let chart_width = (max_candles - 1) as f32 * candle_spacing;
+        
         
         // Generate vertices for historical candles
         for (i, candle) in self.historical_candles.iter().enumerate() {
             let (mut vertices, mut indices) = generate_enhanced_candle_vertices(candle, price_min, price_max);
             
-            // Position candles in 3D space horizontally
-            let x_offset = self.chart_position.x + (i as f32 * candle_spacing) - (total_width / 2.0);
+            // Position candles from left edge of chart area
+            let start_x = self.chart_position.x - (chart_width / 2.0);
+            let x_offset = start_x + (i as f32 * candle_spacing);
+            
+            
             for vertex in &mut vertices {
                 vertex.position[0] += x_offset;
                 vertex.position[1] += self.chart_position.y;
@@ -287,8 +305,11 @@ impl BtcChartManager {
         if let Ok(current) = self.current_candle.lock() {
             let (mut vertices, mut indices) = generate_enhanced_candle_vertices(&current, price_min, price_max);
             
-            // Position current candle at the end of the chart using consistent spacing
-            let x_offset = self.chart_position.x + (self.historical_candles.len() as f32 * candle_spacing) - (total_width / 2.0);
+            // Position current candle at the end of the chart
+            let start_x = self.chart_position.x - (chart_width / 2.0);
+            let x_offset = start_x + (self.historical_candles.len() as f32 * candle_spacing);
+            
+            
             for vertex in &mut vertices {
                 vertex.position[0] += x_offset;
                 vertex.position[1] += self.chart_position.y;
@@ -307,6 +328,9 @@ impl BtcChartManager {
             
             all_vertices.extend(vertices);
             all_indices.extend(indices);
+            
+            // Add vertical line at current candle position
+            self.add_current_price_line(&mut all_vertices, &mut all_indices, x_offset, price_min, price_max);
         }
         
         // Create/update vertex buffer
@@ -415,6 +439,52 @@ impl BtcChartManager {
         } else {
             None
         }
+    }
+    
+    fn add_current_price_line(&self, vertices: &mut Vec<EnhancedVertex>, indices: &mut Vec<u16>, x_pos: f32, price_min: f64, price_max: f64) {
+        // Add a vertical line at the current candle position
+        let line_color = [0.0, 1.0, 1.0]; // Cyan color for the line
+        let line_width = 0.1;
+        
+        // Calculate Y range for the line (from bottom to top of chart)
+        let bottom_y = self.normalize_price(price_min, price_min, price_max) + self.chart_position.y;
+        let top_y = self.normalize_price(price_max, price_min, price_max) + self.chart_position.y;
+        
+        let start_idx = vertices.len() as u16;
+        
+        // Create a thin vertical quad for the line
+        vertices.extend_from_slice(&[
+            EnhancedVertex {
+                position: [x_pos - line_width, bottom_y, self.chart_position.z + 0.1],
+                color: line_color,
+                normal: [0.0, 0.0, 1.0],
+                ao: 1.0,
+            },
+            EnhancedVertex {
+                position: [x_pos + line_width, bottom_y, self.chart_position.z + 0.1],
+                color: line_color,
+                normal: [0.0, 0.0, 1.0],
+                ao: 1.0,
+            },
+            EnhancedVertex {
+                position: [x_pos + line_width, top_y, self.chart_position.z + 0.1],
+                color: line_color,
+                normal: [0.0, 0.0, 1.0],
+                ao: 1.0,
+            },
+            EnhancedVertex {
+                position: [x_pos - line_width, top_y, self.chart_position.z + 0.1],
+                color: line_color,
+                normal: [0.0, 0.0, 1.0],
+                ao: 1.0,
+            },
+        ]);
+        
+        // Add indices for the quad
+        indices.extend_from_slice(&[
+            start_idx, start_idx + 1, start_idx + 2,
+            start_idx + 2, start_idx + 3, start_idx,
+        ]);
     }
 }
 

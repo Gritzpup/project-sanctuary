@@ -38,7 +38,37 @@ pub async fn fetch_historical_candles() -> anyhow::Result<Vec<Candle>> {
     }
     // Reverse to get chronological order (API returns newest first)
     candles.reverse();
-    log::info!("📊 Fetched {} candles from Coinbase API", candles.len());
+    
+    // Remove any duplicate candles (by similar prices)
+    let original_count = candles.len();
+    candles.dedup_by(|a, b| {
+        (a.open - b.open).abs() < 0.01 && 
+        (a.close - b.close).abs() < 0.01 &&
+        (a.high - b.high).abs() < 0.01 &&
+        (a.low - b.low).abs() < 0.01
+    });
+    
+    if candles.len() < original_count {
+        log::warn!("⚠️ Removed {} duplicate candles", original_count - candles.len());
+    }
+    
+    // Validate candle data
+    candles.retain(|candle| {
+        let valid = candle.high >= candle.low && 
+                   candle.high >= candle.open && 
+                   candle.high >= candle.close &&
+                   candle.low <= candle.open &&
+                   candle.low <= candle.close &&
+                   candle.open > 0.0 &&
+                   candle.close > 0.0;
+        if !valid {
+            log::warn!("⚠️ Skipping invalid candle: O:{} H:{} L:{} C:{}", 
+                      candle.open, candle.high, candle.low, candle.close);
+        }
+        valid
+    });
+    
+    log::info!("📊 Fetched {} valid candles from Coinbase API", candles.len());
     Ok(candles)
 }
 
