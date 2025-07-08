@@ -110,6 +110,10 @@ async fn websocket_task(tx: mpsc::Sender<CandleUpdate>, mut shutdown_rx: watch::
     
     let (ws_stream, _) = connect_async(url).await?;
     let (mut write, mut read) = ws_stream.split();
+    
+    // Connection lifetime tracking
+    let connection_start = std::time::Instant::now();
+    let max_connection_lifetime = std::time::Duration::from_secs(3600); // Reconnect every hour
 
     // Subscribe to ticker for real-time updates
     let subscribe_msg = serde_json::json!({
@@ -127,8 +131,18 @@ async fn websocket_task(tx: mpsc::Sender<CandleUpdate>, mut shutdown_rx: watch::
     let mut current_candle: Option<Candle> = None;
     let mut candle_start_time = std::time::Instant::now();
     let candle_duration = std::time::Duration::from_secs(60); // 1 minute candles
+    
+    // Heartbeat interval for keeping connection alive
+    let heartbeat_interval = std::time::Duration::from_secs(30);
+    let mut last_heartbeat = std::time::Instant::now();
 
     loop {
+        // Check if connection has exceeded maximum lifetime
+        if connection_start.elapsed() > max_connection_lifetime {
+            log::info!("⏰ Connection lifetime exceeded, initiating graceful reconnection");
+            break;
+        }
+        
         tokio::select! {
             msg = read.next() => {
                 match msg {
@@ -148,11 +162,25 @@ async fn websocket_task(tx: mpsc::Sender<CandleUpdate>, mut shutdown_rx: watch::
                         log::warn!("🔌 WebSocket connection closed by server");
                         break;
                     }
+                    Some(Ok(Message::Pong(_))) => {
+                        log::debug!("🏓 Received pong");
+                    }
                     Some(Err(e)) => {
                         log::error!("❌ WebSocket message error: {}", e);
                         break;
                     }
                     Some(_) => {}
+                }
+            }
+            _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {
+                // Check if we need to send a heartbeat ping
+                if last_heartbeat.elapsed() > heartbeat_interval {
+                    if let Err(e) = write.send(Message::Ping(vec![])).await {
+                        log::error!("❌ Failed to send ping: {}", e);
+                        break;
+                    }
+                    log::debug!("🏓 Sent ping");
+                    last_heartbeat = std::time::Instant::now();
                 }
             }
             _ = shutdown_rx.changed() => {
