@@ -316,9 +316,9 @@ impl BtcChartManager {
                 vertex.position[2] += self.chart_position.z;
                 
                 // Make current candle brighter
-                vertex.color[0] *= 1.2;
-                vertex.color[1] *= 1.2;
-                vertex.color[2] *= 1.2;
+                vertex.color[0] = (vertex.color[0] * 1.2).min(1.0);
+                vertex.color[1] = (vertex.color[1] * 1.2).min(1.0);
+                vertex.color[2] = (vertex.color[2] * 1.2).min(1.0);
             }
             
             let vertex_offset = all_vertices.len() as u16;

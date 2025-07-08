@@ -110,11 +110,11 @@ pub fn generate_enhanced_candle_vertices(candle: &Candle, price_min: f64, price_
     
     // Ultra-enhanced colors with depth and glow effects
     let base_color = if candle.is_bullish() {
-        [0.0, 1.2, 0.5] // Brilliant electric green
+        [0.0, 0.8, 0.4] // Brilliant electric green
     } else if candle.is_bearish() {
-        [1.2, 0.0, 0.2] // Intense hot red
+        [0.8, 0.0, 0.2] // Intense hot red
     } else {
-        [0.9, 0.9, 1.0] // Bright metallic silver
+        [0.7, 0.7, 0.8] // Bright metallic silver
     };
     
     // Face-specific color multipliers for dramatic 3D depth
