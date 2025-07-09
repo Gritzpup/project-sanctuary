@@ -194,3 +194,75 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     return color;
 }
 "#;
+
+pub const CHART_BACKDROP_SHADER: &str = r#"
+// Chart Backdrop Shader
+struct CameraUniform {
+    view_proj: mat4x4<f32>,
+    view_pos: vec3<f32>,
+};
+
+@group(0) @binding(0)
+var<uniform> camera: CameraUniform;
+
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+};
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) world_pos: vec3<f32>,
+};
+
+struct InstanceInput {
+    @location(5) model_matrix_0: vec4<f32>,
+    @location(6) model_matrix_1: vec4<f32>,
+    @location(7) model_matrix_2: vec4<f32>,
+    @location(8) model_matrix_3: vec4<f32>,
+};
+
+@vertex
+fn vs_main(
+    vertex: VertexInput,
+    instance: InstanceInput,
+) -> VertexOutput {
+    let model_matrix = mat4x4<f32>(
+        instance.model_matrix_0,
+        instance.model_matrix_1,
+        instance.model_matrix_2,
+        instance.model_matrix_3,
+    );
+    
+    var out: VertexOutput;
+    let world_pos = (model_matrix * vec4<f32>(vertex.position, 1.0)).xyz;
+    out.world_pos = world_pos;
+    out.clip_position = camera.view_proj * vec4<f32>(world_pos, 1.0);
+    
+    // Calculate UV coordinates from vertex position
+    out.uv = vertex.position.xy * 0.5 + 0.5;
+    
+    return out;
+}
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    // Create gradient from dark at edges to slightly lighter in center
+    let center = vec2<f32>(0.5, 0.5);
+    let dist_from_center = length(in.uv - center) / 0.707; // Normalize to 0-1
+    
+    // Base color - dark blue/black gradient
+    let edge_color = vec3<f32>(0.02, 0.02, 0.04);
+    let center_color = vec3<f32>(0.05, 0.08, 0.12);
+    let base_color = mix(center_color, edge_color, pow(dist_from_center, 2.0));
+    
+    // Add subtle edge glow
+    let edge_glow_strength = pow(1.0 - dist_from_center, 8.0) * 0.2;
+    let edge_glow = vec3<f32>(0.1, 0.3, 0.6) * edge_glow_strength;
+    
+    // Combine effects
+    var final_color = base_color + edge_glow;
+    
+    return vec4<f32>(final_color, 0.9); // Slightly transparent
+}
+"#;

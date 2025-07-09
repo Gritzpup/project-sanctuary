@@ -251,7 +251,7 @@ impl BtcChartManager {
         let range = max - min;
         if range > 0.0 {
             let normalized = (price - min) / range; // 0.0 to 1.0
-            (normalized * 100.0 - 50.0) as f32 // -50 to +50 range
+            (normalized * 150.0 - 75.0) as f32 // -75 to +75 range (scaled up for far distance)
         } else {
             0.0 // Fallback if all prices are the same
         }
@@ -265,7 +265,8 @@ impl BtcChartManager {
         let (price_min, price_max) = self.calculate_price_range();
         
         // Calculate total width based on actual candle count and spacing
-        let candle_spacing = 2.5;
+        let scale_factor = 3.0; // Scale up by 3x for visibility at far back edge
+        let candle_spacing = 2.5 * scale_factor; // 7.5 units between candles
         let historical_count = self.historical_candles.len();
         
         // Always reserve space for current candle to prevent layout shifts
@@ -286,8 +287,9 @@ impl BtcChartManager {
             
             
             for vertex in &mut vertices {
-                vertex.position[0] += x_offset;
-                vertex.position[1] += self.chart_position.y;
+                // Apply scale factor before positioning
+                vertex.position[0] = (vertex.position[0] * scale_factor) + x_offset;
+                vertex.position[1] = (vertex.position[1] * scale_factor) + self.chart_position.y;
                 vertex.position[2] += self.chart_position.z;
             }
             
@@ -303,7 +305,22 @@ impl BtcChartManager {
         
         // Add current candle if available
         if let Ok(current) = self.current_candle.lock() {
-            let (mut vertices, mut indices) = generate_enhanced_candle_vertices(&current, price_min, price_max);
+            // Create an extended candle that includes the previous close price
+            let mut extended_candle = current.clone();
+            
+            // Extend the candle to include the gap from previous close
+            if let Some(last_historical) = self.historical_candles.last() {
+                let prev_close = last_historical.close;
+                
+                // Extend high/low to include the previous close price
+                extended_candle.high = extended_candle.high.max(prev_close);
+                extended_candle.low = extended_candle.low.min(prev_close);
+                
+                // If there's a gap, the open should visually connect to previous close
+                // but we keep the actual open price for the candle body
+            }
+            
+            let (mut vertices, mut indices) = generate_enhanced_candle_vertices(&extended_candle, price_min, price_max);
             
             // Position current candle at the end of the chart
             let start_x = self.chart_position.x - (chart_width / 2.0);
@@ -311,8 +328,9 @@ impl BtcChartManager {
             
             
             for vertex in &mut vertices {
-                vertex.position[0] += x_offset;
-                vertex.position[1] += self.chart_position.y;
+                // Apply scale factor before positioning
+                vertex.position[0] = (vertex.position[0] * scale_factor) + x_offset;
+                vertex.position[1] = (vertex.position[1] * scale_factor) + self.chart_position.y;
                 vertex.position[2] += self.chart_position.z;
                 
                 // Make current candle brighter
@@ -330,7 +348,7 @@ impl BtcChartManager {
             all_indices.extend(indices);
             
             // Add vertical line at current candle position
-            self.add_current_price_line(&mut all_vertices, &mut all_indices, x_offset, price_min, price_max);
+            self.add_current_price_line(&mut all_vertices, &mut all_indices, x_offset, price_min, price_max, scale_factor);
         }
         
         // Create/update vertex buffer
@@ -441,39 +459,39 @@ impl BtcChartManager {
         }
     }
     
-    fn add_current_price_line(&self, vertices: &mut Vec<EnhancedVertex>, indices: &mut Vec<u16>, x_pos: f32, price_min: f64, price_max: f64) {
+    fn add_current_price_line(&self, vertices: &mut Vec<EnhancedVertex>, indices: &mut Vec<u16>, x_pos: f32, price_min: f64, price_max: f64, scale_factor: f32) {
         // Add a vertical line at the current candle position
         let line_color = [0.0, 1.0, 1.0]; // Cyan color for the line
-        let line_width = 0.1;
+        let line_width = 0.1 * scale_factor; // Scale line width
         
         // Calculate Y range for the line (from bottom to top of chart)
-        let bottom_y = self.normalize_price(price_min, price_min, price_max) + self.chart_position.y;
-        let top_y = self.normalize_price(price_max, price_min, price_max) + self.chart_position.y;
+        let bottom_y = self.normalize_price(price_min, price_min, price_max) * scale_factor + self.chart_position.y;
+        let top_y = self.normalize_price(price_max, price_min, price_max) * scale_factor + self.chart_position.y;
         
         let start_idx = vertices.len() as u16;
         
         // Create a thin vertical quad for the line
         vertices.extend_from_slice(&[
             EnhancedVertex {
-                position: [x_pos - line_width, bottom_y, self.chart_position.z + 0.1],
+                position: [x_pos - line_width, bottom_y, self.chart_position.z + 2.0],
                 color: line_color,
                 normal: [0.0, 0.0, 1.0],
                 ao: 1.0,
             },
             EnhancedVertex {
-                position: [x_pos + line_width, bottom_y, self.chart_position.z + 0.1],
+                position: [x_pos + line_width, bottom_y, self.chart_position.z + 2.0],
                 color: line_color,
                 normal: [0.0, 0.0, 1.0],
                 ao: 1.0,
             },
             EnhancedVertex {
-                position: [x_pos + line_width, top_y, self.chart_position.z + 0.1],
+                position: [x_pos + line_width, top_y, self.chart_position.z + 2.0],
                 color: line_color,
                 normal: [0.0, 0.0, 1.0],
                 ao: 1.0,
             },
             EnhancedVertex {
-                position: [x_pos - line_width, top_y, self.chart_position.z + 0.1],
+                position: [x_pos - line_width, top_y, self.chart_position.z + 2.0],
                 color: line_color,
                 normal: [0.0, 0.0, 1.0],
                 ao: 1.0,
@@ -486,6 +504,7 @@ impl BtcChartManager {
             start_idx + 2, start_idx + 3, start_idx,
         ]);
     }
+    
 }
 
 impl Drop for BtcChartManager {
