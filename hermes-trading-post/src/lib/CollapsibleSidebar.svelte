@@ -13,8 +13,9 @@
     { icon: '📊', label: 'Dashboard', active: true },
     { icon: '💼', label: 'Portfolio', active: false },
     { icon: '📈', label: 'Trading', active: false },
+    { icon: '📝', label: 'Paper Trading', active: false },
+    { icon: '📉', label: 'Backtesting', active: false },
     { icon: '📰', label: 'News', active: false },
-    { icon: '⚙️', label: 'Settings', active: false },
   ];
 </script>
 
@@ -34,9 +35,15 @@
     {/each}
   </nav>
   
-  <button class="toggle-btn" on:click={toggle}>
-    <span class="toggle-icon">{sidebarCollapsed ? '→' : '←'}</span>
-  </button>
+  <div class="sidebar-footer">
+    <button class="settings-btn">
+      <span class="nav-icon">⚙️</span>
+    </button>
+    
+    <button class="toggle-btn" on:click={toggle}>
+      <span class="toggle-icon">{sidebarCollapsed ? '→' : '←'}</span>
+    </button>
+  </div>
 </aside>
 
 <style>
@@ -112,9 +119,6 @@
   }
   
   .toggle-btn {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
     width: 40px;
     height: 40px;
     background: rgba(74, 0, 224, 0.2);
@@ -132,7 +136,36 @@
     background: rgba(74, 0, 224, 0.3);
   }
   
-  .collapsed .toggle-btn {
-    right: 20px;
+  .sidebar-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px;
+    border-top: 1px solid rgba(74, 0, 224, 0.2);
+    position: relative;
+  }
+  
+  .settings-btn {
+    width: 40px;
+    height: 40px;
+    background: none;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: all 0.2s;
+    font-size: 20px;
+  }
+  
+  .settings-btn:hover {
+    background: rgba(74, 0, 224, 0.1);
+    color: #d1d4dc;
+  }
+  
+  .sidebar.collapsed .settings-btn {
+    margin: 0 auto;
   }
 </style>
