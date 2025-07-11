@@ -10,7 +10,7 @@ export class ChartDataFeed {
   private cache = getIndexedDBCache();
   public loader = getHistoricalDataLoader();
   private historicalData: CandleData[] = [];
-  private subscribers: Map<string, (data: CandleData) => void> = new Map();
+  private subscribers: Map<string, (data: CandleData, isNew?: boolean) => void> = new Map();
   private currentCandles: Map<number, CandleData> = new Map(); // Per-granularity current candles
   private activeGranularity: number = 60; // Default to 1m
   private loaderStarted = false;
@@ -38,9 +38,44 @@ export class ChartDataFeed {
     // Coinbase WebSocket only provides ticker data, not candles
     // We'll use price updates to update the current candle's close price
     this.ws.onPrice((price) => {
-      // Only update the current candle for the active granularity
+      // Calculate what the current candle time should be
+      const now = Math.floor(Date.now() / 1000);
+      const expectedCandleTime = Math.floor(now / this.activeGranularity) * this.activeGranularity;
+      
       const currentCandle = this.currentCandles.get(this.activeGranularity);
-      if (currentCandle) {
+      
+      // Check if we need to create a new candle
+      if (!currentCandle || currentCandle.time < expectedCandleTime) {
+        // Move old candle to historical if it exists
+        if (currentCandle) {
+          this.historicalData.push(currentCandle);
+          if (this.historicalData.length > 10000) {
+            this.historicalData.shift();
+          }
+          console.log(`New candle period started: ${new Date(expectedCandleTime * 1000).toISOString()}`);
+        }
+        
+        // Create new candle
+        const newCandle: CandleData = {
+          time: expectedCandleTime,
+          open: price,
+          high: price,
+          low: price,
+          close: price,
+          volume: 0
+        };
+        
+        this.currentCandles.set(this.activeGranularity, newCandle);
+        
+        // Cache the new candle
+        this.cache.updateLatestCandle(this.activeGranularity, newCandle);
+        
+        // Notify subscribers about the new candle
+        console.log(`New candle created: ${new Date(newCandle.time * 1000).toISOString()}`);
+        this.subscribers.forEach(callback => {
+          callback(newCandle, true); // Pass true to indicate this is a new candle
+        });
+      } else if (currentCandle.time === expectedCandleTime) {
         // Update current candle with latest price
         const updatedCandle = {
           ...currentCandle,
@@ -52,7 +87,7 @@ export class ChartDataFeed {
         
         // Notify all subscribers
         this.subscribers.forEach(callback => {
-          callback(updatedCandle);
+          callback(updatedCandle, false); // Pass false for price updates (not a new candle)
         });
       }
     });
@@ -89,6 +124,7 @@ export class ChartDataFeed {
     const interval = setInterval(async () => {
       // Only fetch if this is still the active granularity
       if (this.activeGranularity === granularity) {
+        console.log(`Fetch interval triggered for ${granularity}s granularity`);
         await this.fetchLatestCandle(granularity);
       }
     }, intervalMs);
@@ -348,15 +384,45 @@ export class ChartDataFeed {
         const latestCandle = candles[candles.length - 1];
         const currentCandle = this.currentCandles.get(targetGranularity);
         
-        // Check if this is a new candle
-        if (!currentCandle || latestCandle.time > currentCandle.time) {
-          if (currentCandle) {
+        // Calculate what the current candle time should be
+        const now = Math.floor(Date.now() / 1000);
+        const expectedCandleTime = Math.floor(now / targetGranularity) * targetGranularity;
+        
+        // Only update if the API candle is newer than our current candle
+        // AND it's not older than the expected current candle time
+        if (!currentCandle || (latestCandle.time > currentCandle.time && latestCandle.time >= expectedCandleTime - targetGranularity)) {
+          if (currentCandle && latestCandle.time > currentCandle.time) {
             this.historicalData.push(currentCandle);
             if (this.historicalData.length > 10000) {
               this.historicalData.shift();
             }
           }
-          this.currentCandles.set(targetGranularity, latestCandle);
+          
+          // If the API candle is for the current period, use it
+          if (latestCandle.time === expectedCandleTime) {
+            this.currentCandles.set(targetGranularity, latestCandle);
+            
+            // Cache the new candle
+            console.log(`Caching new candle for ${targetGranularity}s granularity`);
+            await this.cache.updateLatestCandle(targetGranularity, latestCandle);
+            
+            // Notify subscribers about the new candle if it's for the active granularity
+            if (targetGranularity === this.activeGranularity) {
+              console.log(`New candle detected: ${new Date(latestCandle.time * 1000).toISOString()}`);
+              this.subscribers.forEach(callback => {
+                callback(latestCandle, true); // Pass true to indicate this is a new candle
+              });
+            }
+          } else if (latestCandle.time === expectedCandleTime - targetGranularity) {
+            // This is the previous completed candle, store it but don't overwrite current
+            if (!this.historicalData.some(c => c.time === latestCandle.time)) {
+              this.historicalData.push(latestCandle);
+              this.historicalData.sort((a, b) => a.time - b.time);
+              if (this.historicalData.length > 10000) {
+                this.historicalData.shift();
+              }
+            }
+          }
         }
       }
     } catch (error) {
@@ -388,7 +454,7 @@ export class ChartDataFeed {
     return Array.from(uniqueData.values()).sort((a, b) => a.time - b.time);
   }
 
-  subscribe(id: string, callback: (data: CandleData) => void) {
+  subscribe(id: string, callback: (data: CandleData, isNew?: boolean) => void) {
     this.subscribers.set(id, callback);
   }
 

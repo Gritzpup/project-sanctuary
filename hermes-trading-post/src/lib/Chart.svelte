@@ -22,6 +22,7 @@
   let isChangingPeriod = false; // Flag to prevent range changes during period switches
   let isAutoPeriod = true; // Flag for automatic period switching
   let currentPeriod: string = period;
+  let cacheUpdateTimeout: any = null; // For flashing cache status
   
   // Clock and countdown state
   let currentTime = '';
@@ -527,11 +528,62 @@
       await loadChartData();
 
       // Subscribe to real-time updates
-      dataFeed.subscribe('chart', (candle: CandleData) => {
-        candleSeries?.update({
-          ...candle,
-          time: candle.time as Time
+      dataFeed.subscribe('chart', (candle: CandleData, isNew?: boolean) => {
+        if (!candleSeries || !dataFeed) return;
+        
+        console.log('Chart subscription received:', {
+          time: new Date(candle.time * 1000).toISOString(),
+          isNew: isNew
         });
+        
+        if (isNew) {
+          // This is a new candle - need to refresh all data
+          console.log('New candle detected, refreshing chart data...');
+          
+          // Flash cache status to show update
+          cacheStatus = 'updating';
+          clearTimeout(cacheUpdateTimeout);
+          cacheUpdateTimeout = setTimeout(() => {
+            cacheStatus = 'ready';
+          }, 1000);
+          
+          const chartData = dataFeed.getAllData().map(c => ({
+            ...c,
+            time: c.time as Time
+          }));
+          candleSeries.setData(chartData);
+          
+          // Auto-scroll to show the new candle if we're at the right edge
+          const timeScale = chart?.timeScale();
+          if (timeScale) {
+            const visibleRange = timeScale.getVisibleRange();
+            if (visibleRange) {
+              const visibleTo = Number(visibleRange.to);
+              // Get all data again after update to find previous last candle
+              const allDataBeforeNew = dataFeed.getAllData();
+              const lastDataTime = allDataBeforeNew[allDataBeforeNew.length - 2]?.time || 0; // Previous last candle
+              
+              // If we were showing the last candle, shift to show the new one
+              if (Math.abs(visibleTo - lastDataTime) < granularityToSeconds[currentGranularity] * 2) {
+                const visibleFrom = Number(visibleRange.from);
+                const rangeSize = visibleTo - visibleFrom;
+                
+                // Shift the visible range to include the new candle with some padding
+                const padding = granularityToSeconds[currentGranularity] * 0.1; // 10% of one candle
+                timeScale.setVisibleRange({
+                  from: (candle.time - rangeSize + padding) as Time,
+                  to: (candle.time + padding) as Time
+                });
+              }
+            }
+          }
+        } else {
+          // This is an update to existing candle
+          candleSeries.update({
+            ...candle,
+            time: candle.time as Time
+          });
+        }
       });
 
       // Update status based on WebSocket connection
@@ -541,20 +593,20 @@
 
       // Configure time scale for better zoom experience with large datasets
       chart.timeScale().applyOptions({
-        rightOffset: 5, // Add some offset to keep latest candle visible
+        rightOffset: 10, // Increased offset to keep latest candle visible
         barSpacing: 6,
         minBarSpacing: 0.1,
         fixLeftEdge: false, // Allow scrolling
         fixRightEdge: false, // Allow scrolling
         lockVisibleTimeRangeOnResize: true,
-        rightBarStaysOnScroll: true, // Keep right bar visible when scrolling
+        rightBarStaysOnScroll: false, // Don't force right bar to stay visible
         borderVisible: false,
         borderColor: '#2a2a2a',
         visible: true,
         timeVisible: true,
         secondsVisible: granularityToSeconds[granularity] < 3600, // Show seconds for < 1h granularity
         allowBoldLabels: true,
-        shiftVisibleRangeOnNewBar: true, // Shift view when new candle arrives
+        shiftVisibleRangeOnNewBar: false, // We handle this manually
       });
 
       // Don't use fitContent - we want to respect the period constraints
@@ -584,6 +636,9 @@
       // Start clock interval
       updateClock(); // Initial update
       clockInterval = setInterval(updateClock, 1000);
+      
+      // Set cache status to ready after initial load
+      cacheStatus = 'ready';
     } catch (error) {
       console.error('Error loading chart data:', error);
       console.error('Error stack:', (error as any).stack);
@@ -607,6 +662,9 @@
   onDestroy(() => {
     if (rangeChangeTimeout) {
       clearTimeout(rangeChangeTimeout);
+    }
+    if (cacheUpdateTimeout) {
+      clearTimeout(cacheUpdateTimeout);
     }
     if (clockInterval) {
       clearInterval(clockInterval);
@@ -720,6 +778,11 @@
   
   .status-dot.ready {
     background: #10b981;
+  }
+  
+  .status-dot.updating {
+    background: #3b82f6;
+    animation: pulse 0.5s infinite;
   }
   
   .cache-btn {
