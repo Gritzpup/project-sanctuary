@@ -545,7 +545,7 @@
           clearTimeout(cacheUpdateTimeout);
           cacheUpdateTimeout = setTimeout(() => {
             cacheStatus = 'ready';
-          }, 1000);
+          }, 2000); // Increased duration to 2 seconds for better visibility
           
           const chartData = dataFeed.getAllData().map(c => ({
             ...c,
@@ -626,11 +626,13 @@
       // Subscribe to visible range changes for batch loading
       // Add a delay to prevent immediate triggering from initial range set
       setTimeout(() => {
-        chart.timeScale().subscribeVisibleTimeRangeChange(() => {
-          // Debounce the range change handler
-          clearTimeout(rangeChangeTimeout);
-          rangeChangeTimeout = setTimeout(handleVisibleRangeChange, 300);
-        });
+        if (chart) {
+          chart.timeScale().subscribeVisibleTimeRangeChange(() => {
+            // Debounce the range change handler
+            clearTimeout(rangeChangeTimeout);
+            rangeChangeTimeout = setTimeout(handleVisibleRangeChange, 300);
+          });
+        }
       }, 1000);
       
       // Start clock interval
@@ -782,7 +784,8 @@
   
   .status-dot.updating {
     background: #3b82f6;
-    animation: pulse 0.5s infinite;
+    animation: pulse-scale 0.5s infinite;
+    box-shadow: 0 0 10px #3b82f6;
   }
   
   .cache-btn {
@@ -808,6 +811,24 @@
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
+  }
+  
+  @keyframes pulse-scale {
+    0% { 
+      transform: scale(1);
+      opacity: 1;
+      box-shadow: 0 0 5px #3b82f6;
+    }
+    50% { 
+      transform: scale(1.5);
+      opacity: 0.8;
+      box-shadow: 0 0 15px #3b82f6;
+    }
+    100% { 
+      transform: scale(1);
+      opacity: 1;
+      box-shadow: 0 0 5px #3b82f6;
+    }
   }
   
   .clock-container {
