@@ -177,6 +177,21 @@
       }
     }
     
+    // Check if current granularity is severely mismatched with visible range
+    // This re-enables auto-granularity if user zooms out significantly
+    if (!isAutoGranularity && !manualGranularityLock) {
+      const optimalGranularity = getOptimalGranularityForRange(visibleRangeSeconds);
+      const currentGranularitySeconds = granularityToSeconds[currentGranularity];
+      const optimalGranularitySeconds = granularityToSeconds[optimalGranularity];
+      
+      // Re-enable auto-granularity if current is 10x+ different from optimal
+      if (currentGranularitySeconds * 10 < optimalGranularitySeconds || 
+          currentGranularitySeconds > optimalGranularitySeconds * 10) {
+        console.log('Re-enabling auto-granularity due to significant zoom change');
+        isAutoGranularity = true;
+      }
+    }
+    
     // Check if we need to switch granularity (auto-granularity mode)
     if (isAutoGranularity) {
       const optimalGranularity = getOptimalGranularityForRange(visibleRangeSeconds);
@@ -185,6 +200,7 @@
         console.log(`Switching granularity from ${currentGranularity} to ${optimalGranularity}`);
         loadingNewGranularity = true;
         currentGranularity = optimalGranularity;
+        granularity = optimalGranularity; // Update the UI
         
         // Set the active granularity in the data feed
         dataFeed.setActiveGranularity(granularityToSeconds[optimalGranularity]);
@@ -255,6 +271,7 @@
     // Map seconds back to string format
     for (const [key, value] of Object.entries(granularityToSeconds)) {
       if (value === optimal) {
+        console.log(`Optimal granularity for ${rangeSeconds}s range: ${key} (${value}s)`);
         return key;
       }
     }
