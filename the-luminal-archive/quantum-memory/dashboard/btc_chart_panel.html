@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC Trading Chart Panel</title>
+    <script src="https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0f0f0f;
+            color: #d1d4dc;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .trading-panel {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a0f2e 100%);
+            border: 1px solid rgba(74, 0, 224, 0.3);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .trading-header {
+            padding: 15px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(74, 0, 224, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .trading-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #a78bfa;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .price-display {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .current-price {
+            font-size: 24px;
+            font-weight: bold;
+            color: #26a69a;
+        }
+
+        .price-change {
+            font-size: 14px;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .price-up {
+            color: #26a69a;
+            background: rgba(38, 166, 154, 0.1);
+        }
+
+        .price-down {
+            color: #ef5350;
+            background: rgba(239, 83, 80, 0.1);
+        }
+
+        .chart-container {
+            flex: 1;
+            position: relative;
+            background: #0d0d0d;
+        }
+
+        .timeframe-selector {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            display: flex;
+            gap: 5px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 5px;
+            border-radius: 8px;
+            border: 1px solid rgba(74, 0, 224, 0.3);
+        }
+
+        .timeframe-btn {
+            padding: 5px 10px;
+            background: rgba(74, 0, 224, 0.1);
+            border: 1px solid rgba(74, 0, 224, 0.3);
+            color: #a78bfa;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .timeframe-btn:hover {
+            background: rgba(74, 0, 224, 0.3);
+        }
+
+        .timeframe-btn.active {
+            background: rgba(74, 0, 224, 0.5);
+            color: #e9d5ff;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #26a69a;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="trading-panel">
+        <div class="trading-header">
+            <div class="trading-title">
+                📈 BTC/USD Trading Chart
+            </div>
+            <div class="price-display">
+                <div class="current-price" id="current-price">$0.00</div>
+                <div class="price-change price-up" id="price-change">+0.00%</div>
+                <div class="status-indicator">
+                    <span class="status-dot"></span>
+                    <span id="status-text">Connecting...</span>
+                </div>
+            </div>
+        </div>
+        <div class="chart-container" id="chart-container">
+            <div class="timeframe-selector">
+                <button class="timeframe-btn" data-days="1">1D</button>
+                <button class="timeframe-btn" data-days="7">1W</button>
+                <button class="timeframe-btn" data-days="30">1M</button>
+                <button class="timeframe-btn" data-days="90">3M</button>
+                <button class="timeframe-btn active" data-days="365">1Y</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize chart
+        const chartContainer = document.getElementById('chart-container');
+        const { createChart, CandlestickSeries, ColorType } = LightweightCharts;
+        
+        const chart = createChart(chartContainer, {
+            width: chartContainer.clientWidth,
+            height: chartContainer.clientHeight,
+            layout: {
+                background: { type: ColorType.Solid, color: '#0d0d0d' },
+                textColor: '#d1d4dc',
+            },
+            grid: {
+                vertLines: { color: 'rgba(74, 0, 224, 0.1)' },
+                horzLines: { color: 'rgba(74, 0, 224, 0.1)' },
+            },
+            crosshair: {
+                mode: 1,
+            },
+            rightPriceScale: {
+                borderColor: 'rgba(74, 0, 224, 0.2)',
+            },
+            timeScale: {
+                borderColor: 'rgba(74, 0, 224, 0.2)',
+                timeVisible: true,
+                secondsVisible: false,
+            },
+        });
+
+        const candleSeries = chart.addSeries(CandlestickSeries, {
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+            borderVisible: false,
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
+        });
+
+        // Handle resize
+        const resizeObserver = new ResizeObserver(entries => {
+            if (entries.length > 0) {
+                const { width, height } = entries[0].contentRect;
+                chart.applyOptions({ width, height });
+            }
+        });
+        resizeObserver.observe(chartContainer);
+
+        // Load data function
+        async function loadChartData(days = 365) {
+            try {
+                document.getElementById('status-text').textContent = 'Loading...';
+                
+                // Calculate granularity based on days
+                let granularity;
+                if (days <= 1) {
+                    granularity = 300; // 5 minutes
+                } else if (days <= 7) {
+                    granularity = 900; // 15 minutes
+                } else if (days <= 30) {
+                    granularity = 3600; // 1 hour
+                } else if (days <= 90) {
+                    granularity = 21600; // 6 hours
+                } else {
+                    granularity = 86400; // 1 day
+                }
+
+                const endTime = new Date();
+                const startTime = new Date(endTime.getTime() - (days * 24 * 60 * 60 * 1000));
+                
+                // Fetch from Coinbase API via proxy
+                const params = new URLSearchParams({
+                    granularity: granularity.toString(),
+                    start: startTime.toISOString(),
+                    end: endTime.toISOString()
+                });
+                
+                const response = await fetch(`/api/coinbase/products/BTC-USD/candles?${params}`);
+                if (!response.ok) throw new Error('Failed to fetch data');
+                
+                const data = await response.json();
+                
+                // Convert to chart format
+                const chartData = data.reverse().map(candle => ({
+                    time: candle[0],
+                    open: candle[3],
+                    high: candle[2],
+                    low: candle[1],
+                    close: candle[4]
+                }));
+                
+                candleSeries.setData(chartData);
+                chart.timeScale().fitContent();
+                
+                // Update current price
+                if (chartData.length > 0) {
+                    const lastCandle = chartData[chartData.length - 1];
+                    updatePrice(lastCandle.close, chartData[0].open);
+                }
+                
+                document.getElementById('status-text').textContent = 'Connected';
+            } catch (error) {
+                console.error('Error loading chart data:', error);
+                document.getElementById('status-text').textContent = 'Error';
+            }
+        }
+
+        // Update price display
+        function updatePrice(currentPrice, openPrice) {
+            const priceElement = document.getElementById('current-price');
+            const changeElement = document.getElementById('price-change');
+            
+            priceElement.textContent = `$${currentPrice.toLocaleString('en-US', { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 2 
+            })}`;
+            
+            const change = ((currentPrice - openPrice) / openPrice) * 100;
+            const isUp = change >= 0;
+            
+            changeElement.textContent = `${isUp ? '+' : ''}${change.toFixed(2)}%`;
+            changeElement.className = `price-change ${isUp ? 'price-up' : 'price-down'}`;
+        }
+
+        // Timeframe selector
+        document.querySelectorAll('.timeframe-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                const days = parseInt(e.target.dataset.days);
+                loadChartData(days);
+            });
+        });
+
+        // Initial load
+        loadChartData(365);
+
+        // Refresh data every minute
+        setInterval(() => {
+            const activeBtn = document.querySelector('.timeframe-btn.active');
+            const days = parseInt(activeBtn.dataset.days);
+            loadChartData(days);
+        }, 60000);
+    </script>
+</body>
+</html>

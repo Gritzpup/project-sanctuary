@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Coinbase API</title>
+</head>
+<body>
+    <h1>Testing Coinbase API</h1>
+    <div id="results"></div>
+    
+    <script>
+        const results = document.getElementById('results');
+        
+        // Test API call
+        fetch('https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=60')
+            .then(res => res.json())
+            .then(data => {
+                results.innerHTML += '<h2>Candles Response:</h2>';
+                results.innerHTML += '<pre>' + JSON.stringify(data.slice(0, 5), null, 2) + '</pre>';
+                results.innerHTML += '<p>Total candles: ' + data.length + '</p>';
+            })
+            .catch(err => {
+                results.innerHTML += '<h2>Error:</h2>';
+                results.innerHTML += '<pre>' + err + '</pre>';
+            });
+            
+        // Test WebSocket
+        const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+        
+        ws.onopen = () => {
+            results.innerHTML += '<h2>WebSocket Connected</h2>';
+            ws.send(JSON.stringify({
+                type: 'subscribe',
+                product_ids: ['BTC-USD'],
+                channels: ['ticker']
+            }));
+        };
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'ticker') {
+                results.innerHTML += '<p>Price update: $' + data.price + '</p>';
+            }
+        };
+        
+        ws.onerror = (error) => {
+            results.innerHTML += '<h2>WebSocket Error:</h2>';
+            results.innerHTML += '<pre>' + error + '</pre>';
+        };
+    </script>
+</body>
+</html>
