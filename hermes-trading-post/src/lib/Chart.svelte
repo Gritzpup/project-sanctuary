@@ -20,6 +20,8 @@
   let cacheStatus = 'initializing';
   let loadProgress = 0;
   let isChangingPeriod = false; // Flag to prevent range changes during period switches
+  let isAutoPeriod = true; // Flag for automatic period switching
+  let currentPeriod: string = period;
   
   // Cleanup handlers
   let resizeHandler: (() => void) | null = null;
@@ -46,6 +48,10 @@
     '6h': 21600,
     '1D': 86400
   };
+  
+  // Ordered arrays for easier navigation
+  const periodOrder = ['1H', '4H', '5D', '1M', '3M', '6M', '1Y', '5Y'];
+  const granularityOrder = ['1m', '5m', '15m', '1h', '6h', '1D'];
   
   // Function to load data based on granularity and period
   async function loadChartData(useGranularity?: string) {
@@ -112,7 +118,7 @@
   // Function to handle zoom events and load more data
   let isLoadingMore = false;
   async function handleVisibleRangeChange() {
-    if (!chart || !dataFeed || !candleSeries || isLoadingMore || loadingNewGranularity || manualGranularityLock || isChangingPeriod) {
+    if (!chart || !dataFeed || !candleSeries || isLoadingMore || loadingNewGranularity || manualGranularityLock || manualPeriodLock || isChangingPeriod) {
       if (isChangingPeriod) {
         console.log('Skipping handleVisibleRangeChange - period is changing');
       }
@@ -127,6 +133,43 @@
     const visibleFrom = Number(visibleRange.from);
     const visibleTo = Number(visibleRange.to);
     const visibleRangeSeconds = visibleTo - visibleFrom;
+    
+    // Check if we need to switch period (auto-period mode)
+    if (isAutoPeriod) {
+      const optimalPeriod = getOptimalPeriodForRange(visibleRangeSeconds);
+      
+      if (optimalPeriod !== currentPeriod) {
+        console.log(`Auto-switching period from ${currentPeriod} to ${optimalPeriod}`);
+        currentPeriod = optimalPeriod;
+        period = optimalPeriod; // Update the exported prop
+        
+        // Also switch granularity when period changes
+        const optimalGranularity = getOptimalGranularityForRange(visibleRangeSeconds);
+        if (optimalGranularity !== currentGranularity) {
+          currentGranularity = optimalGranularity;
+          granularity = optimalGranularity; // Update the exported prop
+        }
+        
+        isChangingPeriod = true;
+        loadingNewGranularity = true;
+        
+        // Set the active granularity in the data feed
+        dataFeed.setActiveGranularity(granularityToSeconds[currentGranularity]);
+        
+        // Load data for the new period and granularity
+        await loadChartData(currentGranularity);
+        
+        // Restore the view to the same range
+        timeScale.setVisibleRange(visibleRange);
+        
+        setTimeout(() => {
+          isChangingPeriod = false;
+          loadingNewGranularity = false;
+        }, 500);
+        
+        return;
+      }
+    }
     
     // Check if we need to switch granularity (auto-granularity mode)
     if (isAutoGranularity) {
@@ -212,6 +255,21 @@
     return '1D';
   }
   
+  // Get optimal period for a time range
+  function getOptimalPeriodForRange(rangeSeconds: number): string {
+    const rangeDays = rangeSeconds / 86400;
+    
+    // Find the smallest period that can contain the visible range
+    // We want the period to be at least 1.5x the visible range for good context
+    for (const period of periodOrder) {
+      const periodDays = periodToDays[period];
+      if (periodDays >= rangeDays * 0.5) {
+        return period;
+      }
+    }
+    return '5Y'; // Default to max if range is very large
+  }
+  
   // Load data for a specific time range
   async function loadChartDataForRange(startTime: number, endTime: number, granularityStr: string) {
     if (!candleSeries || !dataFeed || !chart) return;
@@ -246,6 +304,7 @@
   
   // Track previous values to detect changes
   let manualGranularityLock = false;
+  let manualPeriodLock = false;
   let previousGranularity = granularity;
   let previousPeriod = period;
   
@@ -288,7 +347,18 @@
   
   function handlePeriodChange() {
     console.log('Period changed to:', period, 'days:', periodToDays[period]);
+    
+    // Check if this was a manual change or auto change
+    const wasManualChange = period !== currentPeriod;
+    
     previousPeriod = period;
+    currentPeriod = period;
+    
+    if (wasManualChange) {
+      console.log('Manual period change detected');
+      isAutoPeriod = false;
+      manualPeriodLock = true;
+    }
     
     // Re-enable auto-granularity on period change unless manually locked
     if (!manualGranularityLock) {
@@ -303,6 +373,9 @@
       // Reset flag after a delay to ensure range is set
       setTimeout(() => {
         isChangingPeriod = false;
+        if (wasManualChange) {
+          manualPeriodLock = false;
+        }
       }, 500);
     });
   }
@@ -508,9 +581,14 @@
 </script>
 
 <div class="chart-container" bind:this={chartContainer}>
+  {#if isAutoPeriod && currentPeriod !== period}
+    <div class="auto-period-indicator">
+      Auto Period: {currentPeriod}
+    </div>
+  {/if}
   {#if isAutoGranularity && currentGranularity !== granularity}
     <div class="auto-granularity-indicator">
-      Auto: {currentGranularity}
+      Auto Granularity: {currentGranularity}
     </div>
   {/if}
   
@@ -538,9 +616,21 @@
     background-color: #1a1a1a;
   }
 
-  .auto-granularity-indicator {
+  .auto-period-indicator {
     position: absolute;
     top: 10px;
+    right: 10px;
+    background: rgba(74, 0, 224, 0.6);
+    color: #a78bfa;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 5;
+  }
+  
+  .auto-granularity-indicator {
+    position: absolute;
+    top: 35px;
     right: 10px;
     background: rgba(74, 0, 224, 0.6);
     color: #a78bfa;
