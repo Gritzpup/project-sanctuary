@@ -23,6 +23,11 @@
   let isAutoPeriod = true; // Flag for automatic period switching
   let currentPeriod: string = period;
   
+  // Clock and countdown state
+  let currentTime = '';
+  let countdown = '';
+  let clockInterval: any = null;
+  
   // Cleanup handlers
   let resizeHandler: (() => void) | null = null;
   let rangeChangeTimeout: any = null;
@@ -270,6 +275,37 @@
     return '5Y'; // Default to max if range is very large
   }
   
+  // Update clock and countdown
+  function updateClock() {
+    const now = new Date();
+    const nowSeconds = Math.floor(now.getTime() / 1000);
+    
+    // Format current time
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const seconds = now.getSeconds().toString().padStart(2, '0');
+    currentTime = `${hours}:${minutes}:${seconds}`;
+    
+    // Calculate countdown to next candle
+    const granularitySeconds = granularityToSeconds[currentGranularity] || 60;
+    const secondsIntoCurrentCandle = nowSeconds % granularitySeconds;
+    const secondsUntilNextCandle = granularitySeconds - secondsIntoCurrentCandle;
+    
+    // Format countdown
+    if (secondsUntilNextCandle >= 3600) {
+      const h = Math.floor(secondsUntilNextCandle / 3600);
+      const m = Math.floor((secondsUntilNextCandle % 3600) / 60);
+      const s = secondsUntilNextCandle % 60;
+      countdown = `${h}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+    } else if (secondsUntilNextCandle >= 60) {
+      const m = Math.floor(secondsUntilNextCandle / 60);
+      const s = secondsUntilNextCandle % 60;
+      countdown = `${m}m ${s.toString().padStart(2, '0')}s`;
+    } else {
+      countdown = `${secondsUntilNextCandle}s`;
+    }
+  }
+  
   // Load data for a specific time range
   async function loadChartDataForRange(startTime: number, endTime: number, granularityStr: string) {
     if (!candleSeries || !dataFeed || !chart) return;
@@ -505,20 +541,20 @@
 
       // Configure time scale for better zoom experience with large datasets
       chart.timeScale().applyOptions({
-        rightOffset: 0, // No offset to show exact range
+        rightOffset: 5, // Add some offset to keep latest candle visible
         barSpacing: 6,
         minBarSpacing: 0.1,
-        fixLeftEdge: true, // Fix edges to show exact period
-        fixRightEdge: true, // Fix edges to show exact period
+        fixLeftEdge: false, // Allow scrolling
+        fixRightEdge: false, // Allow scrolling
         lockVisibleTimeRangeOnResize: true,
-        rightBarStaysOnScroll: false, // Don't keep right bar on scroll
+        rightBarStaysOnScroll: true, // Keep right bar visible when scrolling
         borderVisible: false,
         borderColor: '#2a2a2a',
         visible: true,
         timeVisible: true,
         secondsVisible: granularityToSeconds[granularity] < 3600, // Show seconds for < 1h granularity
         allowBoldLabels: true,
-        shiftVisibleRangeOnNewBar: false, // Don't shift on new bar to maintain exact period
+        shiftVisibleRangeOnNewBar: true, // Shift view when new candle arrives
       });
 
       // Don't use fitContent - we want to respect the period constraints
@@ -544,6 +580,10 @@
           rangeChangeTimeout = setTimeout(handleVisibleRangeChange, 300);
         });
       }, 1000);
+      
+      // Start clock interval
+      updateClock(); // Initial update
+      clockInterval = setInterval(updateClock, 1000);
     } catch (error) {
       console.error('Error loading chart data:', error);
       console.error('Error stack:', (error as any).stack);
@@ -567,6 +607,9 @@
   onDestroy(() => {
     if (rangeChangeTimeout) {
       clearTimeout(rangeChangeTimeout);
+    }
+    if (clockInterval) {
+      clearInterval(clockInterval);
     }
     if (resizeHandler) {
       window.removeEventListener('resize', resizeHandler);
@@ -604,6 +647,14 @@
         Load 5Y Data
       </button>
     {/if}
+  </div>
+  
+  <div class="clock-container">
+    <div class="clock-time">{currentTime}</div>
+    <div class="clock-countdown">
+      <span class="countdown-label">Next {currentGranularity}:</span>
+      <span class="countdown-value">{countdown}</span>
+    </div>
   </div>
 </div>
 
@@ -694,5 +745,42 @@
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
+  }
+  
+  .clock-container {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #d1d4dc;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 5;
+    text-align: right;
+  }
+  
+  .clock-time {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-family: 'Monaco', 'Consolas', monospace;
+  }
+  
+  .clock-countdown {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+  }
+  
+  .countdown-label {
+    color: #9ca3af;
+  }
+  
+  .countdown-value {
+    color: #26a69a;
+    font-weight: 600;
+    font-family: 'Monaco', 'Consolas', monospace;
   }
 </style>
