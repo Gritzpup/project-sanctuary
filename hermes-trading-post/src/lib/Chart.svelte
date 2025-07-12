@@ -15,7 +15,8 @@
   
   // Internal state for auto-granularity
   let currentGranularity: string = granularity;
-  let isAutoGranularity = true;
+  // Start with auto-granularity disabled since Dashboard provides manual selection
+  let isAutoGranularity = false;
   let loadingNewGranularity = false;
   let cacheStatus = 'initializing';
   let loadProgress = 0;
@@ -160,6 +161,8 @@
       return;
     }
     
+    console.log(`handleVisibleRangeChange - isAutoGranularity: ${isAutoGranularity}, currentGranularity: ${currentGranularity}, manualGranularityLock: ${manualGranularityLock}`);
+    
     const timeScale = chart.timeScale();
     const visibleRange = timeScale.getVisibleRange();
     
@@ -206,31 +209,32 @@
       }
     }
     
-    // Check if current granularity is severely mismatched with visible range
-    // This re-enables auto-granularity if user zooms out significantly
-    // BUT: Don't re-enable if we're in the middle of loading or if a candle just updated
-    if (!isAutoGranularity && !manualGranularityLock && !loadingNewGranularity && !isChangingPeriod) {
-      const optimalGranularity = getOptimalGranularityForRange(visibleRangeSeconds);
-      const currentGranularitySeconds = granularityToSeconds[currentGranularity];
-      const optimalGranularitySeconds = granularityToSeconds[optimalGranularity];
-      
-      // Re-enable auto-granularity only if current is 20x+ different from optimal (was 10x)
-      // This prevents switching from 5m to 1m when viewing ~1 hour of data
-      if (currentGranularitySeconds * 20 < optimalGranularitySeconds || 
-          currentGranularitySeconds > optimalGranularitySeconds * 20) {
-        console.log('Re-enabling auto-granularity due to significant zoom change');
-        isAutoGranularity = true;
-      }
-    }
+    // DISABLED: Auto-granularity re-enabling logic
+    // When using the Dashboard component, granularity is managed externally
+    // We should never automatically re-enable auto-granularity
+    //
+    // if (!isAutoGranularity && !manualGranularityLock && !loadingNewGranularity && !isChangingPeriod) {
+    //   const optimalGranularity = getOptimalGranularityForRange(visibleRangeSeconds);
+    //   const currentGranularitySeconds = granularityToSeconds[currentGranularity];
+    //   const optimalGranularitySeconds = granularityToSeconds[optimalGranularity];
+    //   
+    //   if (currentGranularitySeconds * 20 < optimalGranularitySeconds || 
+    //       currentGranularitySeconds > optimalGranularitySeconds * 20) {
+    //     console.log('Re-enabling auto-granularity due to significant zoom change');
+    //     isAutoGranularity = true;
+    //   }
+    // }
     
     // Check if we need to switch granularity (auto-granularity mode)
-    if (isAutoGranularity) {
+    // IMPORTANT: This should rarely happen since we start with auto-granularity disabled
+    if (isAutoGranularity && !loadingNewGranularity && !isChangingPeriod) {
       const optimalGranularity = getOptimalGranularityForRange(visibleRangeSeconds);
       
       if (optimalGranularity !== currentGranularity) {
         console.log(`Auto-granularity active: Switching from ${currentGranularity} to ${optimalGranularity}`);
         console.log(`Visible range: ${visibleRangeSeconds}s, Current: ${granularityToSeconds[currentGranularity]}s, Optimal: ${granularityToSeconds[optimalGranularity]}s`);
         loadingNewGranularity = true;
+        console.log(`WARNING: Auto-granularity is changing currentGranularity from ${currentGranularity} to ${optimalGranularity}`);
         currentGranularity = optimalGranularity;
         granularity = optimalGranularity; // Update the UI
         
@@ -395,9 +399,16 @@
   let previousGranularity = granularity;
   let previousPeriod = period;
   
-  // Watch for granularity changes
+  // Watch for granularity changes from parent component
   $: if (candleSeries && dataFeed && chart && granularity !== previousGranularity) {
+    console.log(`Granularity prop changed from ${previousGranularity} to ${granularity}`);
     handleGranularityChange();
+  }
+  
+  // Ensure currentGranularity stays in sync with granularity prop
+  $: if (granularity !== currentGranularity && !isAutoGranularity) {
+    console.log(`Syncing currentGranularity (${currentGranularity}) with granularity prop (${granularity})`);
+    currentGranularity = granularity;
   }
   
   // Watch for period changes
@@ -413,6 +424,9 @@
     manualGranularityLock = true;
     currentGranularity = granularity;
     isChangingPeriod = true;
+    
+    // Ensure the data feed uses the correct granularity
+    dataFeed.setActiveGranularity(granularityToSeconds[granularity]);
     
     loadChartData().then(() => {
       // Maintain visible range after manual granularity change
@@ -448,10 +462,11 @@
       manualPeriodLock = true;
     }
     
-    // Re-enable auto-granularity on period change unless manually locked
-    if (!manualGranularityLock) {
-      isAutoGranularity = true;
-    }
+    // Don't re-enable auto-granularity on period change
+    // The Dashboard component manages granularity selection
+    // if (!manualGranularityLock) {
+    //   isAutoGranularity = true;
+    // }
     
     // Set flag to prevent handleVisibleRangeChange from interfering
     isChangingPeriod = true;
@@ -568,8 +583,10 @@
     console.log('Initializing data feed...');
     dataFeed = new ChartDataFeed();
     
-    // Set initial active granularity
+    // Sync currentGranularity with the prop and set initial active granularity
+    currentGranularity = granularity;
     dataFeed.setActiveGranularity(granularityToSeconds[currentGranularity] || 60);
+    console.log(`Initial granularity: ${currentGranularity}, isAutoGranularity: ${isAutoGranularity}`);
     
     // Set loading status
     status = 'loading';
@@ -584,7 +601,9 @@
         
         console.log('Chart subscription received:', {
           time: new Date(candle.time * 1000).toISOString(),
-          isNew: isNew
+          isNew: isNew,
+          currentGranularity: currentGranularity,
+          isAutoGranularity: isAutoGranularity
         });
         
         if (isNew) {
