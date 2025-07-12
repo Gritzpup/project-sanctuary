@@ -209,9 +209,10 @@
       normalizedDeltaY = event.deltaY * 800;
     }
     
-    // Invert zoom direction - positive deltaY (scroll down) should zoom IN (show less data)
-    // This matches typical chart behavior where scrolling down zooms into the chart
-    const isZoomingOut = normalizedDeltaY < 0;
+    // Standard zoom direction for charts:
+    // - Scroll DOWN (positive deltaY) = zoom OUT (show more data)
+    // - Scroll UP (negative deltaY) = zoom IN (show less data)
+    const isZoomingOut = normalizedDeltaY > 0;
     
     console.log('Zoom data:', {
       currentRange,
@@ -229,8 +230,8 @@
     const zoomIntensity = Math.min(Math.abs(normalizedDeltaY) * baseZoomSpeed, 0.3); // Max 30% change per wheel event
     
     // Zoom factor calculation:
-    // - Zoom out (scroll up): increase range to show more data
-    // - Zoom in (scroll down): decrease range to show less data
+    // - Zoom out (scroll down): increase range to show more data
+    // - Zoom in (scroll up): decrease range to show less data
     const zoomFactor = isZoomingOut 
       ? 1 + zoomIntensity     // Zoom out: increase range gradually
       : 1 - zoomIntensity;    // Zoom in: decrease range gradually
@@ -240,19 +241,32 @@
     console.log('Zoom calculation:', {
       deltaY: event.deltaY,
       normalizedDeltaY,
-      zoomIntensity,
+      scrollDirection: normalizedDeltaY > 0 ? 'DOWN' : 'UP',
+      isZoomingOut,
+      action: isZoomingOut ? 'ZOOM OUT' : 'ZOOM IN',
+      zoomIntensity: (zoomIntensity * 100).toFixed(1) + '%',
       zoomFactor,
       currentRange: currentRange / 3600 + ' hours',
-      newRange: newRange / 3600 + ' hours'
+      newRange: newRange / 3600 + ' hours',
+      expectedChange: isZoomingOut ? 'range should increase' : 'range should decrease'
     });
     
-    // Limit zoom range (min 3 candles, max 5 years)
-    const minRange = (granularityToSeconds[currentGranularity] || 60) * 3; // At least 3 candles
+    // Limit zoom range (min 10 candles, max 5 years)
+    const minRange = (granularityToSeconds[currentGranularity] || 60) * 10; // At least 10 candles for better visibility
     const maxRange = 5 * 365 * 24 * 60 * 60; // 5 years
     const clampedRange = Math.max(minRange, Math.min(maxRange, newRange));
     
+    console.log('Range constraints:', {
+      minRange: minRange / 3600 + ' hours (' + (minRange / (granularityToSeconds[currentGranularity] || 60)) + ' candles)',
+      maxRange: maxRange / (365 * 24 * 3600) + ' years',
+      newRange: newRange / 3600 + ' hours',
+      clampedRange: clampedRange / 3600 + ' hours',
+      wasClampedMin: newRange < minRange,
+      wasClampedMax: newRange > maxRange
+    });
+    
     // Check if we're trying to zoom out but being limited
-    if (normalizedDeltaY > 0 && newRange > currentRange && clampedRange <= currentRange) {
+    if (isZoomingOut && newRange > currentRange && clampedRange <= currentRange) {
       console.warn('Zoom out blocked by range limits!', {
         currentRange: currentRange / 3600 + ' hours',
         requestedRange: newRange / 3600 + ' hours',
@@ -260,12 +274,8 @@
       });
     }
     
-    console.log('Range limits:', {
-      minRange: minRange / 3600 + ' hours',
-      maxRange: maxRange / (365 * 24 * 60 * 60) + ' years',
-      clampedRange: clampedRange / 3600 + ' hours',
-      wasClamped: clampedRange !== newRange
-    });
+    // This log is now redundant since we have better logging above
+    // Removed to reduce console clutter
     
     let newFrom: number;
     let newTo: number;
@@ -367,6 +377,19 @@
     
     // Store the range for future comparison
     previousVisibleRange = { from: newFrom, to: newTo };
+    
+    // Verify the range was actually set
+    const verifyRange = timeScale.getVisibleRange();
+    if (verifyRange) {
+      const actualFrom = Number(verifyRange.from);
+      const actualTo = Number(verifyRange.to);
+      const actualRange = actualTo - actualFrom;
+      console.log('Range verification:', {
+        requested: clampedRange / 3600 + ' hours',
+        actual: actualRange / 3600 + ' hours',
+        matches: Math.abs(actualRange - clampedRange) < 1
+      });
+    }
     
     // Reset zooming flag after a delay
     setTimeout(() => {
