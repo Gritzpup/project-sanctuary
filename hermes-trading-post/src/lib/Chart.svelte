@@ -189,7 +189,8 @@
     const currentTime = Math.floor(Date.now() / 1000);
     const allData = dataFeed.getAllData();
     const latestDataTime = allData.length > 0 ? allData[allData.length - 1].time : currentTime;
-    const isNearRightEdge = currentTo >= latestDataTime - (granularityToSeconds[currentGranularity] || 60) * 2;
+    // Improved detection: within 1 candle of the latest data
+    const isNearRightEdge = currentTo >= latestDataTime - (granularityToSeconds[currentGranularity] || 60);
     
     // Normalize deltaY based on deltaMode
     // deltaMode: 0 = pixels, 1 = lines, 2 = pages
@@ -215,20 +216,20 @@
       normalizedDeltaY
     });
     
-    // Smoother zoom factor based on wheel delta
-    // Handle different deltaY scales (some browsers use 1-3, others use 100+)
-    const normalizedDelta = Math.abs(normalizedDeltaY) < 10 ? Math.abs(normalizedDeltaY) * 50 : Math.abs(normalizedDeltaY);
-    const deltaFactor = normalizedDelta / 100;
-    // Make zoom out more aggressive than zoom in
-    const zoomIntensity = normalizedDeltaY > 0 
-      ? Math.min(deltaFactor * 0.5, 0.8)  // Zoom out: up to 80% change
-      : Math.min(deltaFactor * 0.3, 0.5); // Zoom in: up to 50% change
-    const zoomFactor = normalizedDeltaY > 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
+    // More gradual zoom factors for smoother experience
+    const baseZoomSpeed = 0.0015; // Reduced base zoom speed
+    const zoomIntensity = Math.min(Math.abs(normalizedDeltaY) * baseZoomSpeed, 0.3); // Max 30% change per wheel event
+    
+    // More gradual zoom factor
+    const zoomFactor = isZoomingOut 
+      ? 1 + zoomIntensity     // Zoom out: increase range gradually
+      : 1 - zoomIntensity;    // Zoom in: decrease range gradually
+    
     const newRange = currentRange * zoomFactor;
     
     console.log('Zoom calculation:', {
       deltaY: event.deltaY,
-      normalizedDelta,
+      normalizedDeltaY,
       zoomIntensity,
       zoomFactor,
       currentRange: currentRange / 3600 + ' hours',
@@ -260,13 +261,18 @@
     let newTo: number;
     const rightPadding = granularityToSeconds[currentGranularity] || 60;
     
-    if (isNearRightEdge || event.shiftKey || isZoomingOut) {
-      // When near the right edge OR shift key is held OR zooming out, keep right edge anchored
-      // Always use current time as the right edge to prevent gaps
+    // Only anchor to right edge when:
+    // 1. Already viewing near the right edge (isNearRightEdge)
+    // 2. Shift key is pressed (manual override to anchor)
+    // 3. Alt key is NOT pressed (Alt allows free zoom even at right edge)
+    const shouldAnchorRight = (isNearRightEdge || event.shiftKey) && !event.altKey;
+    
+    if (shouldAnchorRight) {
+      // Keep right edge anchored when already viewing recent data
       const rightEdge = currentTime + rightPadding;
       newTo = rightEdge;
       newFrom = rightEdge - clampedRange;
-      console.log('Anchoring to right edge:', new Date(rightEdge * 1000).toISOString());
+      console.log('Anchoring to right edge (already at edge or shift pressed)');
     } else {
       // When viewing historical data, zoom around mouse position
       // Ensure we have the canvas element
@@ -313,30 +319,12 @@
       clampedRange: clampedRange / 3600 + ' hours'
     });
     
-    // Check if we have enough data for the new range
-    // allData is already declared above
+    // Simply clamp to available data without adjustments that cause jumping
     const firstDataTime = allData.length > 0 ? allData[0].time : newFrom;
-    
     if (newFrom < firstDataTime) {
-      console.log('Need to load more historical data, adjusting range...');
-      // When zooming out and hitting data limits, maintain the range size
-      // but shift it to start from available data
-      const adjustment = firstDataTime - newFrom;
       newFrom = firstDataTime;
-      
-      // IMPORTANT: When zooming out, maintain the new (larger) range
-      // Don't let the adjustment shrink the range back
-      if (isZoomingOut) {
-        // Keep the expanded range size
-        newTo = newFrom + clampedRange;
-        console.log('Zoom out: Maintaining expanded range size', {
-          clampedRange: clampedRange / 3600 + ' hours',
-          newTo: new Date(newTo * 1000).toISOString()
-        });
-      } else {
-        // For zoom in or panning, adjust normally
-        newTo = Math.min(newTo + adjustment, currentTime + rightPadding);
-      }
+      // Keep the zoom behavior consistent - maintain the requested range size
+      newTo = newFrom + clampedRange;
     }
     
     // Check if the range actually changed
@@ -348,28 +336,6 @@
       console.warn('Range did not change!', {
         prev: previousVisibleRange,
         new: { from: newFrom, to: newTo }
-      });
-    }
-    
-    // Final sanity check: ensure zoom out actually increases range
-    const finalRange = newTo - newFrom;
-    if (isZoomingOut && previousVisibleRange && finalRange < currentRange) {
-      console.error('ZOOM INVERSION DETECTED!', {
-        isZoomingOut,
-        currentRange: currentRange / 3600 + ' hours',
-        finalRange: finalRange / 3600 + ' hours',
-        'should increase': true,
-        'actually decreased': true
-      });
-      // Force the range to be larger
-      const centerTime = (newFrom + newTo) / 2;
-      const halfNewRange = clampedRange / 2;
-      newFrom = centerTime - halfNewRange;
-      newTo = centerTime + halfNewRange;
-      console.log('Corrected range:', {
-        from: new Date(newFrom * 1000).toISOString(),
-        to: new Date(newTo * 1000).toISOString(),
-        range: clampedRange / 3600 + ' hours'
       });
     }
     
