@@ -165,7 +165,14 @@
     event.stopPropagation();
     event.stopImmediatePropagation();
     
-    console.log('Custom zoom handler triggered');
+    console.log('=== ZOOM EVENT START ===');
+    console.log('Raw wheel event:', {
+      deltaY: event.deltaY,
+      deltaMode: event.deltaMode,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey,
+      metaKey: event.metaKey
+    });
     
     // Set zooming flag to prevent range change handler from interfering
     isZooming = true;
@@ -183,7 +190,19 @@
     const allData = dataFeed.getAllData();
     const latestDataTime = allData.length > 0 ? allData[allData.length - 1].time : currentTime;
     const isNearRightEdge = currentTo >= latestDataTime - (granularityToSeconds[currentGranularity] || 60) * 2;
-    const isZoomingOut = event.deltaY > 0;
+    
+    // Normalize deltaY based on deltaMode
+    // deltaMode: 0 = pixels, 1 = lines, 2 = pages
+    let normalizedDeltaY = event.deltaY;
+    if (event.deltaMode === 1) {
+      // Lines mode: multiply by 40 (typical line height)
+      normalizedDeltaY = event.deltaY * 40;
+    } else if (event.deltaMode === 2) {
+      // Pages mode: multiply by 800 (typical page height)
+      normalizedDeltaY = event.deltaY * 800;
+    }
+    
+    const isZoomingOut = normalizedDeltaY > 0;
     
     console.log('Zoom data:', {
       currentRange,
@@ -191,19 +210,51 @@
       isZoomingOut,
       latestDataTime: new Date(latestDataTime * 1000).toISOString(),
       currentTo: new Date(currentTo * 1000).toISOString(),
-      deltaY: event.deltaY
+      deltaY: event.deltaY,
+      deltaMode: event.deltaMode,
+      normalizedDeltaY
     });
     
     // Smoother zoom factor based on wheel delta
-    const deltaFactor = Math.abs(event.deltaY) / 100;
-    const zoomIntensity = Math.min(deltaFactor * 0.1, 0.3); // Cap zoom speed
-    const zoomFactor = event.deltaY > 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
+    // Handle different deltaY scales (some browsers use 1-3, others use 100+)
+    const normalizedDelta = Math.abs(normalizedDeltaY) < 10 ? Math.abs(normalizedDeltaY) * 50 : Math.abs(normalizedDeltaY);
+    const deltaFactor = normalizedDelta / 100;
+    // Make zoom out more aggressive than zoom in
+    const zoomIntensity = normalizedDeltaY > 0 
+      ? Math.min(deltaFactor * 0.5, 0.8)  // Zoom out: up to 80% change
+      : Math.min(deltaFactor * 0.3, 0.5); // Zoom in: up to 50% change
+    const zoomFactor = normalizedDeltaY > 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
     const newRange = currentRange * zoomFactor;
     
-    // Limit zoom range (min 10 candles, max 5 years)
-    const minRange = (granularityToSeconds[currentGranularity] || 60) * 10; // At least 10 candles
+    console.log('Zoom calculation:', {
+      deltaY: event.deltaY,
+      normalizedDelta,
+      zoomIntensity,
+      zoomFactor,
+      currentRange: currentRange / 3600 + ' hours',
+      newRange: newRange / 3600 + ' hours'
+    });
+    
+    // Limit zoom range (min 3 candles, max 5 years)
+    const minRange = (granularityToSeconds[currentGranularity] || 60) * 3; // At least 3 candles
     const maxRange = 5 * 365 * 24 * 60 * 60; // 5 years
     const clampedRange = Math.max(minRange, Math.min(maxRange, newRange));
+    
+    // Check if we're trying to zoom out but being limited
+    if (normalizedDeltaY > 0 && newRange > currentRange && clampedRange <= currentRange) {
+      console.warn('Zoom out blocked by range limits!', {
+        currentRange: currentRange / 3600 + ' hours',
+        requestedRange: newRange / 3600 + ' hours',
+        clampedRange: clampedRange / 3600 + ' hours'
+      });
+    }
+    
+    console.log('Range limits:', {
+      minRange: minRange / 3600 + ' hours',
+      maxRange: maxRange / (365 * 24 * 60 * 60) + ' years',
+      clampedRange: clampedRange / 3600 + ' hours',
+      wasClamped: clampedRange !== newRange
+    });
     
     let newFrom: number;
     let newTo: number;
@@ -218,26 +269,40 @@
       console.log('Anchoring to right edge:', new Date(rightEdge * 1000).toISOString());
     } else {
       // When viewing historical data, zoom around mouse position
-      const rect = chartCanvasElement!.getBoundingClientRect();
-      const mouseX = event.clientX - rect.left;
-      const chartWidth = rect.width;
-      const mouseRatio = mouseX / chartWidth;
+      // Ensure we have the canvas element
+      if (!chartCanvasElement) {
+        chartCanvasElement = chartContainer.querySelector('canvas');
+      }
       
-      // Calculate the time at mouse position
-      const mouseTime = currentFrom + (currentRange * mouseRatio);
+      if (chartCanvasElement) {
+        const rect = chartCanvasElement.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const chartWidth = rect.width;
+        const mouseRatio = mouseX / chartWidth;
       
-      // Zoom around the mouse position
-      const leftRatio = (mouseTime - currentFrom) / currentRange;
-      const rightRatio = (currentTo - mouseTime) / currentRange;
-      
-      newFrom = mouseTime - (clampedRange * leftRatio);
-      newTo = mouseTime + (clampedRange * rightRatio);
-      
-      // Ensure we don't go beyond current time
-      if (newTo > currentTime + rightPadding) {
-        const shift = newTo - (currentTime + rightPadding);
-        newTo = currentTime + rightPadding;
-        newFrom -= shift;
+        // Calculate the time at mouse position
+        const mouseTime = currentFrom + (currentRange * mouseRatio);
+        
+        // Zoom around the mouse position
+        const leftRatio = (mouseTime - currentFrom) / currentRange;
+        const rightRatio = (currentTo - mouseTime) / currentRange;
+        
+        newFrom = mouseTime - (clampedRange * leftRatio);
+        newTo = mouseTime + (clampedRange * rightRatio);
+        
+        // Ensure we don't go beyond current time
+        if (newTo > currentTime + rightPadding) {
+          const shift = newTo - (currentTime + rightPadding);
+          newTo = currentTime + rightPadding;
+          newFrom -= shift;
+        }
+      } else {
+        // Fallback if we can't find the canvas - zoom from center
+        console.warn('Canvas element not found, zooming from center');
+        const center = (currentFrom + currentTo) / 2;
+        const halfRange = clampedRange / 2;
+        newFrom = center - halfRange;
+        newTo = center + halfRange;
       }
     }
     
@@ -246,6 +311,76 @@
       from: new Date(newFrom * 1000).toISOString(),
       to: new Date(newTo * 1000).toISOString(),
       clampedRange: clampedRange / 3600 + ' hours'
+    });
+    
+    // Check if we have enough data for the new range
+    // allData is already declared above
+    const firstDataTime = allData.length > 0 ? allData[0].time : newFrom;
+    
+    if (newFrom < firstDataTime) {
+      console.log('Need to load more historical data, adjusting range...');
+      // When zooming out and hitting data limits, maintain the range size
+      // but shift it to start from available data
+      const adjustment = firstDataTime - newFrom;
+      newFrom = firstDataTime;
+      
+      // IMPORTANT: When zooming out, maintain the new (larger) range
+      // Don't let the adjustment shrink the range back
+      if (isZoomingOut) {
+        // Keep the expanded range size
+        newTo = newFrom + clampedRange;
+        console.log('Zoom out: Maintaining expanded range size', {
+          clampedRange: clampedRange / 3600 + ' hours',
+          newTo: new Date(newTo * 1000).toISOString()
+        });
+      } else {
+        // For zoom in or panning, adjust normally
+        newTo = Math.min(newTo + adjustment, currentTime + rightPadding);
+      }
+    }
+    
+    // Check if the range actually changed
+    const rangeChanged = !previousVisibleRange || 
+      Math.abs(previousVisibleRange.from - newFrom) > 1 || 
+      Math.abs(previousVisibleRange.to - newTo) > 1;
+    
+    if (!rangeChanged) {
+      console.warn('Range did not change!', {
+        prev: previousVisibleRange,
+        new: { from: newFrom, to: newTo }
+      });
+    }
+    
+    // Final sanity check: ensure zoom out actually increases range
+    const finalRange = newTo - newFrom;
+    if (isZoomingOut && previousVisibleRange && finalRange < currentRange) {
+      console.error('ZOOM INVERSION DETECTED!', {
+        isZoomingOut,
+        currentRange: currentRange / 3600 + ' hours',
+        finalRange: finalRange / 3600 + ' hours',
+        'should increase': true,
+        'actually decreased': true
+      });
+      // Force the range to be larger
+      const centerTime = (newFrom + newTo) / 2;
+      const halfNewRange = clampedRange / 2;
+      newFrom = centerTime - halfNewRange;
+      newTo = centerTime + halfNewRange;
+      console.log('Corrected range:', {
+        from: new Date(newFrom * 1000).toISOString(),
+        to: new Date(newTo * 1000).toISOString(),
+        range: clampedRange / 3600 + ' hours'
+      });
+    }
+    
+    console.log('=== ZOOM EVENT END ===');
+    console.log('Final range being set:', {
+      from: new Date(newFrom * 1000).toISOString(),
+      to: new Date(newTo * 1000).toISOString(),
+      range: (newTo - newFrom) / 3600 + ' hours',
+      previousRange: currentRange / 3600 + ' hours',
+      isZoomingOut,
+      expectedBehavior: isZoomingOut ? 'range should increase' : 'range should decrease'
     });
     
     timeScale.setVisibleRange({
@@ -835,8 +970,17 @@
         secondsVisible: granularityToSeconds[granularity] < 3600, // Show seconds for < 1h granularity
         allowBoldLabels: true,
         shiftVisibleRangeOnNewBar: false, // We handle this manually
-        handleScroll: false, // Disable built-in scroll handling
-        handleScale: false // Disable built-in scale handling
+        handleScroll: {
+          mouseWheel: false,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: false
+        }, // Disable mouse wheel but keep other scroll
+        handleScale: {
+          axisPressedMouseMove: true,
+          mouseWheel: false,
+          pinch: true
+        } // Disable mouse wheel scaling but keep other scale
       });
 
       // Don't use fitContent - we want to respect the period constraints
