@@ -28,6 +28,7 @@
   let currentTime = '';
   let countdown = '';
   let clockInterval: any = null;
+  let dataCheckInterval: any = null; // For periodic data freshness checks
   
   // Cleanup handlers
   let resizeHandler: (() => void) | null = null;
@@ -89,13 +90,29 @@
         return;
       }
       
+      // Force fetch the latest candle to ensure we have real-time data
+      console.log('Fetching latest candle to ensure up-to-date data...');
+      await dataFeed.fetchLatestCandle();
+      
+      // Get all data including the latest candle
+      const allData = dataFeed.getAllData();
+      console.log('Total data after fetching latest:', allData.length, 'candles');
+      
       // Convert time to proper format for lightweight-charts
-      const chartData = historicalData.map(candle => ({
+      const chartData = allData.map(candle => ({
         ...candle,
         time: candle.time as Time
       }));
       
       candleSeries.setData(chartData);
+      
+      // Debug: Log the actual data time range
+      if (chartData.length > 0) {
+        const firstCandle = chartData[0];
+        const lastCandle = chartData[chartData.length - 1];
+        console.log(`Loaded data range: ${new Date(firstCandle.time * 1000).toISOString()} to ${new Date(lastCandle.time * 1000).toISOString()}`);
+        console.log(`Last candle time: ${new Date(lastCandle.time * 1000).toISOString()}, Current time: ${new Date().toISOString()}`);
+      }
       
       // Set visible range to show only the selected period
       if (!loadingNewGranularity) {
@@ -105,12 +122,23 @@
         
         // Set the visible range to show exactly the selected period with padding
         const padding = granularityToSeconds[granularityToUse] || 60; // Add one candle width as padding
-        chart.timeScale().setVisibleRange({
-          from: startTime as Time,
-          to: (now + padding) as Time
-        });
         
-        console.log(`Set visible range: ${new Date(startTime * 1000).toISOString()} to ${new Date(now * 1000).toISOString()}`);
+        // If we have data, use the actual data range to set visible range
+        if (chartData.length > 0) {
+          const lastCandleTime = chartData[chartData.length - 1].time;
+          const visibleEndTime = Math.max(lastCandleTime + padding, now + padding);
+          chart.timeScale().setVisibleRange({
+            from: startTime as Time,
+            to: visibleEndTime as Time
+          });
+          console.log(`Set visible range: ${new Date(startTime * 1000).toISOString()} to ${new Date(visibleEndTime * 1000).toISOString()}`);
+        } else {
+          chart.timeScale().setVisibleRange({
+            from: startTime as Time,
+            to: (now + padding) as Time
+          });
+          console.log(`Set visible range: ${new Date(startTime * 1000).toISOString()} to ${new Date(now * 1000).toISOString()}`);
+        }
       }
       
       status = 'connected';
@@ -578,20 +606,31 @@
             const visibleRange = timeScale.getVisibleRange();
             if (visibleRange) {
               const visibleTo = Number(visibleRange.to);
+              const currentTime = Math.floor(Date.now() / 1000);
+              
               // Get all data again after update to find previous last candle
               const allDataBeforeNew = dataFeed.getAllData();
               const lastDataTime = allDataBeforeNew[allDataBeforeNew.length - 2]?.time || 0; // Previous last candle
               
-              // If we were showing the last candle, shift to show the new one
-              if (Math.abs(visibleTo - lastDataTime) < granularityToSeconds[currentGranularity] * 2) {
+              console.log(`Auto-scroll check: visibleTo=${new Date(visibleTo * 1000).toISOString()}, lastDataTime=${new Date(lastDataTime * 1000).toISOString()}, currentTime=${new Date(currentTime * 1000).toISOString()}`);
+              
+              // If we were showing near the last candle OR near current time, shift to show the new one
+              const isNearLastCandle = Math.abs(visibleTo - lastDataTime) < granularityToSeconds[currentGranularity] * 2;
+              const isNearCurrentTime = Math.abs(visibleTo - currentTime) < granularityToSeconds[currentGranularity] * 2;
+              
+              if (isNearLastCandle || isNearCurrentTime) {
                 const visibleFrom = Number(visibleRange.from);
                 const rangeSize = visibleTo - visibleFrom;
                 
-                // Shift the visible range to include the new candle with some padding
-                const padding = granularityToSeconds[currentGranularity] * 0.1; // 10% of one candle
+                // Ensure we show up to current time with the new candle
+                const newVisibleTo = Math.max(candle.time, currentTime) + (granularityToSeconds[currentGranularity] * 0.5); // Add half candle padding
+                const newVisibleFrom = newVisibleTo - rangeSize;
+                
+                console.log(`Auto-scrolling to show new candle: ${new Date(newVisibleFrom * 1000).toISOString()} to ${new Date(newVisibleTo * 1000).toISOString()}`);
+                
                 timeScale.setVisibleRange({
-                  from: (candle.time - rangeSize + padding) as Time,
-                  to: (candle.time + padding) as Time
+                  from: newVisibleFrom as Time,
+                  to: newVisibleTo as Time
                 });
               }
             }
@@ -675,6 +714,31 @@
       updateClock(); // Initial update
       clockInterval = setInterval(updateClock, 1000);
       
+      // Periodically check if we need to fetch latest data (every 30 seconds)
+      dataCheckInterval = setInterval(async () => {
+        if (dataFeed && candleSeries) {
+          const allData = dataFeed.getAllData();
+          if (allData.length > 0) {
+            const lastDataTime = allData[allData.length - 1].time;
+            const currentTime = Math.floor(Date.now() / 1000);
+            const timeDiff = currentTime - lastDataTime;
+            
+            // If last data is more than 2 candle periods old, fetch latest
+            if (timeDiff > granularityToSeconds[currentGranularity] * 2) {
+              console.log(`Data is ${timeDiff}s old, fetching latest...`);
+              await dataFeed.fetchLatestCandle();
+              
+              // Refresh chart with latest data
+              const updatedData = dataFeed.getAllData().map(c => ({
+                ...c,
+                time: c.time as Time
+              }));
+              candleSeries.setData(updatedData);
+            }
+          }
+        }
+      }, 30000);
+      
       // Set cache status to ready after initial load
       cacheStatus = 'ready';
     } catch (error) {
@@ -706,6 +770,9 @@
     }
     if (clockInterval) {
       clearInterval(clockInterval);
+    }
+    if (dataCheckInterval) {
+      clearInterval(dataCheckInterval);
     }
     if (resizeHandler) {
       window.removeEventListener('resize', resizeHandler);

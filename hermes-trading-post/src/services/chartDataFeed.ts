@@ -382,7 +382,7 @@ export class ChartDataFeed {
     }
   }
 
-  private async fetchLatestCandle(granularity?: number) {
+  async fetchLatestCandle(granularity?: number) {
     const targetGranularity = granularity || this.activeGranularity;
     try {
       console.log(`Fetching latest candle for ${targetGranularity}s granularity...`);
