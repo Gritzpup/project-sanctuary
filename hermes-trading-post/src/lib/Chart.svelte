@@ -38,6 +38,7 @@
   // Track previous visible range for zoom detection
   let previousVisibleRange: { from: number; to: number } | null = null;
   let chartCanvasElement: HTMLCanvasElement | null = null;
+  let isZooming = false;
   
   // Map periods to days
   const periodToDays: Record<string, number> = {
@@ -156,15 +157,22 @@
   }
   
   // Custom zoom handler to keep right edge anchored
-  function handleZoom(event: WheelEvent) {
-    if (!chart || !dataFeed) return;
+  function handleZoom(event: WheelEvent): boolean {
+    if (!chart || !dataFeed) return false;
     
     // Prevent default zoom behavior
     event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    
+    console.log('Custom zoom handler triggered');
+    
+    // Set zooming flag to prevent range change handler from interfering
+    isZooming = true;
     
     const timeScale = chart.timeScale();
     const visibleRange = timeScale.getVisibleRange();
-    if (!visibleRange) return;
+    if (!visibleRange) return false;
     
     const currentFrom = Number(visibleRange.from);
     const currentTo = Number(visibleRange.to);
@@ -175,6 +183,16 @@
     const allData = dataFeed.getAllData();
     const latestDataTime = allData.length > 0 ? allData[allData.length - 1].time : currentTime;
     const isNearRightEdge = currentTo >= latestDataTime - (granularityToSeconds[currentGranularity] || 60) * 2;
+    const isZoomingOut = event.deltaY > 0;
+    
+    console.log('Zoom data:', {
+      currentRange,
+      isNearRightEdge,
+      isZoomingOut,
+      latestDataTime: new Date(latestDataTime * 1000).toISOString(),
+      currentTo: new Date(currentTo * 1000).toISOString(),
+      deltaY: event.deltaY
+    });
     
     // Smoother zoom factor based on wheel delta
     const deltaFactor = Math.abs(event.deltaY) / 100;
@@ -191,11 +209,13 @@
     let newTo: number;
     const rightPadding = granularityToSeconds[currentGranularity] || 60;
     
-    if (isNearRightEdge || event.shiftKey) {
-      // When near the right edge OR shift key is held, keep right edge anchored
-      const rightEdge = Math.max(latestDataTime, currentTime) + rightPadding;
+    if (isNearRightEdge || event.shiftKey || isZoomingOut) {
+      // When near the right edge OR shift key is held OR zooming out, keep right edge anchored
+      // Always use current time as the right edge to prevent gaps
+      const rightEdge = currentTime + rightPadding;
       newTo = rightEdge;
       newFrom = rightEdge - clampedRange;
+      console.log('Anchoring to right edge:', new Date(rightEdge * 1000).toISOString());
     } else {
       // When viewing historical data, zoom around mouse position
       const rect = chartCanvasElement!.getBoundingClientRect();
@@ -222,6 +242,12 @@
     }
     
     // Apply the new range with smooth animation
+    console.log('Setting visible range:', {
+      from: new Date(newFrom * 1000).toISOString(),
+      to: new Date(newTo * 1000).toISOString(),
+      clampedRange: clampedRange / 3600 + ' hours'
+    });
+    
     timeScale.setVisibleRange({
       from: newFrom as Time,
       to: newTo as Time
@@ -229,14 +255,24 @@
     
     // Store the range for future comparison
     previousVisibleRange = { from: newFrom, to: newTo };
+    
+    // Reset zooming flag after a delay
+    setTimeout(() => {
+      isZooming = false;
+    }, 100);
+    
+    return false;
   }
   
   // Function to handle zoom events and load more data
   let isLoadingMore = false;
   async function handleVisibleRangeChange() {
-    if (!chart || !dataFeed || !candleSeries || isLoadingMore || loadingNewGranularity || manualGranularityLock || manualPeriodLock || isChangingPeriod) {
+    if (!chart || !dataFeed || !candleSeries || isLoadingMore || loadingNewGranularity || manualGranularityLock || manualPeriodLock || isChangingPeriod || isZooming) {
       if (isChangingPeriod) {
         console.log('Skipping handleVisibleRangeChange - period is changing');
+      }
+      if (isZooming) {
+        console.log('Skipping handleVisibleRangeChange - zooming in progress');
       }
       return;
     }
@@ -799,6 +835,8 @@
         secondsVisible: granularityToSeconds[granularity] < 3600, // Show seconds for < 1h granularity
         allowBoldLabels: true,
         shiftVisibleRangeOnNewBar: false, // We handle this manually
+        handleScroll: false, // Disable built-in scroll handling
+        handleScale: false // Disable built-in scale handling
       });
 
       // Don't use fitContent - we want to respect the period constraints
@@ -826,10 +864,28 @@
           });
           
           // Add custom zoom handler to keep right edge anchored
-          chartCanvasElement = chartContainer.querySelector('canvas');
-          if (chartCanvasElement) {
-            chartCanvasElement.addEventListener('wheel', handleZoom, { passive: false });
-          }
+          // Wait a bit for chart to fully render then attach handlers
+          setTimeout(() => {
+            // Try multiple selectors to ensure we get the right element
+            chartCanvasElement = chartContainer.querySelector('canvas');
+            const chartWrapper = chartContainer.querySelector('.tv-lightweight-charts');
+            const allCanvases = chartContainer.querySelectorAll('canvas');
+            
+            console.log('Found canvases:', allCanvases.length);
+            console.log('Attaching wheel handler to container and all canvases');
+            
+            // Attach to all possible elements
+            chartContainer.addEventListener('wheel', handleZoom, { passive: false, capture: true });
+            
+            allCanvases.forEach((canvas, index) => {
+              console.log(`Attaching to canvas ${index}`);
+              canvas.addEventListener('wheel', handleZoom, { passive: false });
+            });
+            
+            if (chartWrapper) {
+              chartWrapper.addEventListener('wheel', handleZoom, { passive: false });
+            }
+          }, 500);
         }
       }, 1000);
       
@@ -916,6 +972,19 @@
     }
     if (chartCanvasElement) {
       chartCanvasElement.removeEventListener('wheel', handleZoom);
+    }
+    if (chartContainer) {
+      chartContainer.removeEventListener('wheel', handleZoom, { capture: true });
+      
+      const allCanvases = chartContainer.querySelectorAll('canvas');
+      allCanvases.forEach(canvas => {
+        canvas.removeEventListener('wheel', handleZoom);
+      });
+      
+      const chartWrapper = chartContainer.querySelector('.tv-lightweight-charts');
+      if (chartWrapper) {
+        chartWrapper.removeEventListener('wheel', handleZoom);
+      }
     }
     if (dataFeed) {
       dataFeed.disconnect();
