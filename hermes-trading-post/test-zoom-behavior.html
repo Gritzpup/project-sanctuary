@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart Zoom Behavior Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #d1d4dc;
+        }
+        #chart-container {
+            width: 800px;
+            height: 400px;
+            border: 2px solid #4a00e0;
+            margin: 20px auto;
+            position: relative;
+            background: #2a2a2a;
+            overflow: hidden;
+        }
+        #log {
+            background: #000;
+            padding: 20px;
+            margin: 20px auto;
+            width: 800px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            border: 1px solid #444;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px;
+        }
+        button {
+            background: #4a00e0;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #6a00ff;
+        }
+        .info {
+            background: #333;
+            padding: 10px;
+            margin: 10px auto;
+            width: 800px;
+            border-radius: 4px;
+        }
+        .range-display {
+            text-align: center;
+            font-size: 18px;
+            margin: 10px;
+        }
+        #visual-range {
+            width: 100%;
+            height: 50px;
+            background: #333;
+            position: relative;
+            margin-top: 10px;
+        }
+        #range-bar {
+            position: absolute;
+            height: 100%;
+            background: #4a00e0;
+            left: 50%;
+            transform: translateX(-50%);
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <h1>Chart Zoom Behavior Test</h1>
+    
+    <div class="info">
+        <p><strong>Instructions:</strong></p>
+        <ul>
+            <li>Use mouse wheel over the chart area to test zoom</li>
+            <li>Or use the buttons to simulate scroll events</li>
+            <li>Watch the log to see how the zoom calculations work</li>
+        </ul>
+    </div>
+
+    <div class="controls">
+        <button onclick="simulateScrollDown()">Simulate Scroll Down (Should Zoom IN)</button>
+        <button onclick="simulateScrollUp()">Simulate Scroll Up (Should Zoom OUT)</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div class="range-display">
+        Current Range: <span id="current-range">1 hour</span>
+        <div id="visual-range">
+            <div id="range-bar" style="width: 10%"></div>
+        </div>
+    </div>
+
+    <div id="chart-container">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24px;">
+            Scroll here to test zoom
+        </div>
+    </div>
+
+    <div id="log"></div>
+
+    <script>
+        // Simulated chart state
+        let currentRange = 3600; // 1 hour in seconds
+        let currentGranularity = '1m';
+        const granularityToSeconds = {
+            '1m': 60,
+            '5m': 300,
+            '15m': 900,
+            '1h': 3600,
+            '6h': 21600,
+            '1D': 86400
+        };
+
+        const chartContainer = document.getElementById('chart-container');
+        const logDiv = document.getElementById('log');
+        const rangeDisplay = document.getElementById('current-range');
+        const rangeBar = document.getElementById('range-bar');
+
+        function log(message, data = null) {
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            let logEntry = `[${timestamp}] ${message}`;
+            if (data) {
+                logEntry += '\n' + JSON.stringify(data, null, 2);
+            }
+            logDiv.innerHTML = `<div style="margin-bottom: 10px; border-bottom: 1px solid #444; padding-bottom: 5px;">${logEntry}</div>` + logDiv.innerHTML;
+        }
+
+        function updateRangeDisplay() {
+            let displayText;
+            if (currentRange < 3600) {
+                displayText = `${Math.round(currentRange / 60)} minutes`;
+            } else if (currentRange < 86400) {
+                displayText = `${(currentRange / 3600).toFixed(1)} hours`;
+            } else {
+                displayText = `${(currentRange / 86400).toFixed(1)} days`;
+            }
+            rangeDisplay.textContent = displayText;
+            
+            // Update visual bar (logarithmic scale for better visualization)
+            const minRange = 180; // 3 minutes
+            const maxRange = 5 * 365 * 86400; // 5 years
+            const logMin = Math.log(minRange);
+            const logMax = Math.log(maxRange);
+            const logCurrent = Math.log(currentRange);
+            const percentage = ((logCurrent - logMin) / (logMax - logMin)) * 100;
+            rangeBar.style.width = percentage + '%';
+        }
+
+        function handleZoom(event) {
+            event.preventDefault();
+            
+            log('=== ZOOM EVENT START ===');
+            log('Raw wheel event:', {
+                deltaY: event.deltaY,
+                deltaMode: event.deltaMode,
+                ctrlKey: event.ctrlKey,
+                shiftKey: event.shiftKey,
+                metaKey: event.metaKey
+            });
+
+            // Normalize deltaY based on deltaMode
+            let normalizedDeltaY = event.deltaY;
+            if (event.deltaMode === 1) {
+                normalizedDeltaY = event.deltaY * 40;
+            } else if (event.deltaMode === 2) {
+                normalizedDeltaY = event.deltaY * 800;
+            }
+
+            // THIS IS THE KEY PART - Which direction should zoom?
+            // Current code (after my "fix"):
+            const isZoomingOut = normalizedDeltaY < 0;
+            
+            log('Direction detection:', {
+                normalizedDeltaY,
+                wheelDirection: normalizedDeltaY > 0 ? 'DOWN' : 'UP',
+                isZoomingOut,
+                expectedBehavior: isZoomingOut ? 'Show MORE data' : 'Show LESS data'
+            });
+
+            // Zoom calculation
+            const baseZoomSpeed = 0.0015;
+            const zoomIntensity = Math.min(Math.abs(normalizedDeltaY) * baseZoomSpeed, 0.3);
+            
+            const zoomFactor = isZoomingOut 
+                ? 1 + zoomIntensity     // Zoom out: increase range
+                : 1 - zoomIntensity;    // Zoom in: decrease range
+            
+            const newRange = currentRange * zoomFactor;
+            
+            log('Zoom calculation:', {
+                currentRange: currentRange / 3600 + ' hours',
+                zoomIntensity: (zoomIntensity * 100).toFixed(1) + '%',
+                zoomFactor: zoomFactor.toFixed(3),
+                newRange: newRange / 3600 + ' hours',
+                rangeChange: ((newRange - currentRange) / currentRange * 100).toFixed(1) + '%'
+            });
+
+            // Apply limits
+            const minRange = 180; // 3 minutes
+            const maxRange = 5 * 365 * 86400; // 5 years
+            const clampedRange = Math.max(minRange, Math.min(maxRange, newRange));
+            
+            if (clampedRange !== newRange) {
+                log('Range clamped!', {
+                    requested: newRange / 3600 + ' hours',
+                    clamped: clampedRange / 3600 + ' hours'
+                });
+            }
+
+            currentRange = clampedRange;
+            updateRangeDisplay();
+            
+            log('=== ZOOM EVENT END ===');
+            log('Final result:', {
+                wheelDirection: normalizedDeltaY > 0 ? 'DOWN' : 'UP',
+                action: isZoomingOut ? 'ZOOMED OUT' : 'ZOOMED IN',
+                newRange: currentRange / 3600 + ' hours'
+            });
+        }
+
+        function simulateScrollDown() {
+            const event = new WheelEvent('wheel', {
+                deltaY: 100,
+                deltaMode: 0,
+                bubbles: true,
+                cancelable: true
+            });
+            log('Simulating scroll DOWN (deltaY: 100)');
+            handleZoom(event);
+        }
+
+        function simulateScrollUp() {
+            const event = new WheelEvent('wheel', {
+                deltaY: -100,
+                deltaMode: 0,
+                bubbles: true,
+                cancelable: true
+            });
+            log('Simulating scroll UP (deltaY: -100)');
+            handleZoom(event);
+        }
+
+        function clearLog() {
+            logDiv.innerHTML = '';
+            log('Log cleared');
+        }
+
+        // Attach event listener
+        chartContainer.addEventListener('wheel', handleZoom, { passive: false });
+
+        // Initial log
+        log('Test page ready. Try scrolling on the chart or use the buttons.');
+        updateRangeDisplay();
+    </script>
+</body>
+</html>

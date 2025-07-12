@@ -40,6 +40,14 @@
   let chartCanvasElement: HTMLCanvasElement | null = null;
   let isZooming = false;
   
+  // Multi-granularity data storage
+  let dailyData: CandleData[] = [];
+  let hourlyData: CandleData[] = [];
+  let fiveMinuteData: CandleData[] = [];
+  let oneMinuteData: CandleData[] = [];
+  let currentDataset: 'daily' | 'hourly' | '5min' | '1min' = '1min';
+  let visibleRangeSubscription: any = null;
+  
   // Map periods to days
   const periodToDays: Record<string, number> = {
     '1H': 1/24,
@@ -66,7 +74,7 @@
   const periodOrder = ['1H', '4H', '5D', '1M', '3M', '6M', '1Y', '5Y'];
   const granularityOrder = ['1m', '5m', '15m', '1h', '6h', '1D'];
   
-  // Function to load data based on granularity and period
+  // Function to load multiple granularities for seamless zooming
   async function loadChartData(useGranularity?: string) {
     if (!candleSeries || !dataFeed || !chart) return;
     
@@ -74,43 +82,89 @@
       if (!loadingNewGranularity) {
         status = 'loading';
       }
-      const days = periodToDays[period] || 30;
-      const granularityToUse = useGranularity || currentGranularity;
-      const seconds = granularityToSeconds[granularityToUse] || 86400;
       
-      // Set the active granularity in the data feed
-      dataFeed.setActiveGranularity(seconds);
+      console.log('Loading multi-granularity data for seamless zoom...');
       
-      // Load more data than visible period to allow scrolling
-      // For short periods, load at least 7 days; for longer periods, load 3x the period
-      const daysToLoad = Math.max(days * 3, 7); // Load 3x period or minimum 7 days
-      console.log(`Loading ${daysToLoad} days of data with ${granularityToUse} candles (${period} period)`);
-      console.log(`Granularity: ${granularityToUse} (${seconds}s), Expected candles: ~${Math.floor(daysToLoad * 24 * 3600 / seconds)}`);
+      // Load data at multiple granularities
+      // This allows smooth transitions when zooming
+      const loadPromises = [];
       
-      const historicalData = await dataFeed.loadHistoricalDataWithGranularity(seconds, daysToLoad);
-      console.log('Historical data loaded:', historicalData.length, 'candles');
+      // 1. Load 5 years of daily data (for zoomed out view)
+      loadPromises.push(
+        dataFeed.loadHistoricalDataWithGranularity(86400, 1825).then(data => {
+          dailyData = data;
+          console.log(`Loaded ${data.length} daily candles (5 years)`);
+        })
+      );
       
-      if (historicalData.length === 0) {
-        console.error('No historical data received!');
-        status = 'error';
-        return;
-      }
+      // 2. Load 6 months of hourly data (for medium zoom)
+      loadPromises.push(
+        dataFeed.loadHistoricalDataWithGranularity(3600, 180).then(data => {
+          hourlyData = data;
+          console.log(`Loaded ${data.length} hourly candles (6 months)`);
+        })
+      );
+      
+      // 3. Load 30 days of 5-minute data (for detailed view)
+      loadPromises.push(
+        dataFeed.loadHistoricalDataWithGranularity(300, 30).then(data => {
+          fiveMinuteData = data;
+          console.log(`Loaded ${data.length} 5-minute candles (30 days)`);
+        })
+      );
+      
+      // 4. Load 7 days of 1-minute data (for extreme detail)
+      loadPromises.push(
+        dataFeed.loadHistoricalDataWithGranularity(60, 7).then(data => {
+          oneMinuteData = data;
+          console.log(`Loaded ${data.length} 1-minute candles (7 days)`);
+        })
+      );
+      
+      // Wait for all data to load
+      await Promise.all(loadPromises);
       
       // Force fetch the latest candle to ensure we have real-time data
-      console.log('Fetching latest candle to ensure up-to-date data...');
+      console.log('Fetching latest candle...');
       await dataFeed.fetchLatestCandle();
       
-      // Get all data including the latest candle
-      const allData = dataFeed.getAllData();
-      console.log('Total data after fetching latest:', allData.length, 'candles');
+      // Start with the appropriate dataset based on current period
+      const days = periodToDays[period] || 1;
+      let initialData: CandleData[];
+      
+      if (days > 180) {
+        initialData = dailyData;
+        currentDataset = 'daily';
+      } else if (days > 7) {
+        initialData = hourlyData;
+        currentDataset = 'hourly';
+      } else if (days > 1) {
+        initialData = fiveMinuteData;
+        currentDataset = '5min';
+      } else {
+        initialData = oneMinuteData;
+        currentDataset = '1min';
+      }
+      
+      console.log(`Starting with ${currentDataset} dataset for ${period} period`);
       
       // Convert time to proper format for lightweight-charts
-      const chartData = allData.map(candle => ({
+      const chartData = initialData.map(candle => ({
         ...candle,
         time: candle.time as Time
       }));
       
+      // Store current range before setData
+      const currentRange = chart.timeScale().getVisibleRange();
+      
       candleSeries.setData(chartData);
+      
+      // Restore range to prevent reset
+      if (currentRange && loadingNewGranularity) {
+        setTimeout(() => {
+          chart.timeScale().setVisibleRange(currentRange);
+        }, 0);
+      }
       
       // Debug: Log the actual data time range
       if (chartData.length > 0) {
@@ -149,6 +203,7 @@
       
       status = 'connected';
       loadingNewGranularity = false;
+      cacheStatus = 'ready'; // Reset cache status after preloading
     } catch (error) {
       console.error('Error loading chart data:', error);
       status = 'error';
@@ -156,9 +211,61 @@
     }
   }
   
+  // Function to switch datasets based on visible range
+  function switchDatasetForRange(visibleSeconds: number) {
+    if (!candleSeries || !chart) return;
+    
+    let targetDataset: 'daily' | 'hourly' | '5min' | '1min';
+    let targetData: CandleData[];
+    
+    // Determine optimal dataset based on visible time range
+    if (visibleSeconds > 180 * 86400) { // > 6 months
+      targetDataset = 'daily';
+      targetData = dailyData;
+    } else if (visibleSeconds > 7 * 86400) { // > 1 week
+      targetDataset = 'hourly';
+      targetData = hourlyData;
+    } else if (visibleSeconds > 86400) { // > 1 day
+      targetDataset = '5min';
+      targetData = fiveMinuteData;
+    } else {
+      targetDataset = '1min';
+      targetData = oneMinuteData;
+    }
+    
+    // Only switch if dataset changed
+    if (targetDataset !== currentDataset && targetData.length > 0) {
+      console.log(`Switching from ${currentDataset} to ${targetDataset} dataset`);
+      currentDataset = targetDataset;
+      
+      // Store current visible range
+      const visibleRange = chart.timeScale().getVisibleRange();
+      
+      // Update chart data
+      const chartData = targetData.map(candle => ({
+        ...candle,
+        time: candle.time as Time
+      }));
+      
+      candleSeries.setData(chartData);
+      
+      // Restore visible range immediately
+      if (visibleRange) {
+        // Use requestAnimationFrame to ensure chart has updated
+        requestAnimationFrame(() => {
+          chart.timeScale().setVisibleRange(visibleRange);
+        });
+      }
+    }
+  }
+  
   // Custom zoom handler to keep right edge anchored
   function handleZoom(event: WheelEvent): boolean {
-    if (!chart || !dataFeed) return false;
+    console.log('handleZoom called');
+    if (!chart || !dataFeed) {
+      console.error('Chart or dataFeed not initialized', { chart: !!chart, dataFeed: !!dataFeed });
+      return false;
+    }
     
     // Prevent default zoom behavior
     event.preventDefault();
@@ -167,17 +274,14 @@
     
     // Skip zoom if chart is updating to prevent interference
     if (cacheStatus === 'updating' || loadingNewGranularity) {
-      console.log('Skipping zoom - chart is updating');
+      console.log('Skipping zoom - chart is updating', { cacheStatus, loadingNewGranularity });
       return false;
     }
     
     console.log('=== ZOOM EVENT START ===');
     console.log('Raw wheel event:', {
       deltaY: event.deltaY,
-      deltaMode: event.deltaMode,
-      ctrlKey: event.ctrlKey,
-      shiftKey: event.shiftKey,
-      metaKey: event.metaKey
+      deltaMode: event.deltaMode
     });
     
     // Set zooming flag to prevent range change handler from interfering
@@ -191,12 +295,8 @@
     const currentTo = Number(visibleRange.to);
     const currentRange = currentTo - currentFrom;
     
-    // Check if we're near the right edge
     const currentTime = Math.floor(Date.now() / 1000);
     const allData = dataFeed.getAllData();
-    const latestDataTime = allData.length > 0 ? allData[allData.length - 1].time : currentTime;
-    // Improved detection: within 1 candle of the latest data
-    const isNearRightEdge = currentTo >= latestDataTime - (granularityToSeconds[currentGranularity] || 60);
     
     // Normalize deltaY based on deltaMode
     // deltaMode: 0 = pixels, 1 = lines, 2 = pages
@@ -216,18 +316,16 @@
     
     console.log('Zoom data:', {
       currentRange,
-      isNearRightEdge,
       isZoomingOut,
-      latestDataTime: new Date(latestDataTime * 1000).toISOString(),
       currentTo: new Date(currentTo * 1000).toISOString(),
       deltaY: event.deltaY,
       deltaMode: event.deltaMode,
       normalizedDeltaY
     });
     
-    // More gradual zoom factors for smoother experience
-    const baseZoomSpeed = 0.0015; // Reduced base zoom speed
-    const zoomIntensity = Math.min(Math.abs(normalizedDeltaY) * baseZoomSpeed, 0.3); // Max 30% change per wheel event
+    // More responsive zoom
+    const baseZoomSpeed = 0.005; // Increased zoom speed for better responsiveness
+    const zoomIntensity = Math.min(Math.abs(normalizedDeltaY) * baseZoomSpeed, 0.5); // Max 50% change per wheel event
     
     // Zoom factor calculation:
     // - Zoom out (scroll down): increase range to show more data
@@ -254,15 +352,32 @@
     // Limit zoom range (min 10 candles, max 5 years)
     const minRange = (granularityToSeconds[currentGranularity] || 60) * 10; // At least 10 candles for better visibility
     const maxRange = 5 * 365 * 24 * 60 * 60; // 5 years
-    const clampedRange = Math.max(minRange, Math.min(maxRange, newRange));
+    
+    // Special handling when current range is below minimum
+    let clampedRange;
+    if (currentRange < minRange) {
+      if (!isZoomingOut) {
+        // When zooming in while already below minimum, don't change the range
+        clampedRange = currentRange;
+        console.log('Zoom in blocked: already below minimum range');
+      } else {
+        // When zooming out while below minimum, allow expanding to at least minimum
+        clampedRange = Math.max(minRange, Math.min(maxRange, newRange));
+      }
+    } else {
+      // Normal clamping when above minimum
+      clampedRange = Math.max(minRange, Math.min(maxRange, newRange));
+    }
     
     console.log('Range constraints:', {
       minRange: minRange / 3600 + ' hours (' + (minRange / (granularityToSeconds[currentGranularity] || 60)) + ' candles)',
       maxRange: maxRange / (365 * 24 * 3600) + ' years',
+      currentRange: currentRange / 3600 + ' hours',
       newRange: newRange / 3600 + ' hours',
       clampedRange: clampedRange / 3600 + ' hours',
       wasClampedMin: newRange < minRange,
-      wasClampedMax: newRange > maxRange
+      wasClampedMax: newRange > maxRange,
+      belowMinimum: currentRange < minRange
     });
     
     // Check if we're trying to zoom out but being limited
@@ -281,55 +396,36 @@
     let newTo: number;
     const rightPadding = granularityToSeconds[currentGranularity] || 60;
     
-    // Only anchor to right edge when:
-    // 1. Already viewing near the right edge (isNearRightEdge)
-    // 2. Shift key is pressed (manual override to anchor)
-    // 3. Alt key is NOT pressed (Alt allows free zoom even at right edge)
-    const shouldAnchorRight = (isNearRightEdge || event.shiftKey) && !event.altKey;
+    // Always zoom around mouse position - this is the most intuitive behavior
+    // Ensure we have the canvas element
+    if (!chartCanvasElement) {
+      chartCanvasElement = chartContainer.querySelector('canvas');
+    }
     
-    if (shouldAnchorRight) {
-      // Keep right edge anchored when already viewing recent data
-      const rightEdge = currentTime + rightPadding;
-      newTo = rightEdge;
-      newFrom = rightEdge - clampedRange;
-      console.log('Anchoring to right edge (already at edge or shift pressed)');
+    if (chartCanvasElement) {
+      const rect = chartCanvasElement.getBoundingClientRect();
+      const mouseX = event.clientX - rect.left;
+      const chartWidth = rect.width;
+      const mouseRatio = mouseX / chartWidth;
+    
+      // Calculate the time at mouse position
+      const mouseTime = currentFrom + (currentRange * mouseRatio);
+      
+      // Zoom around the mouse position
+      const leftRatio = (mouseTime - currentFrom) / currentRange;
+      const rightRatio = (currentTo - mouseTime) / currentRange;
+      
+      newFrom = mouseTime - (clampedRange * leftRatio);
+      newTo = mouseTime + (clampedRange * rightRatio);
+      
+      // Don't constrain the zoom - let users zoom freely
     } else {
-      // When viewing historical data, zoom around mouse position
-      // Ensure we have the canvas element
-      if (!chartCanvasElement) {
-        chartCanvasElement = chartContainer.querySelector('canvas');
-      }
-      
-      if (chartCanvasElement) {
-        const rect = chartCanvasElement.getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-        const chartWidth = rect.width;
-        const mouseRatio = mouseX / chartWidth;
-      
-        // Calculate the time at mouse position
-        const mouseTime = currentFrom + (currentRange * mouseRatio);
-        
-        // Zoom around the mouse position
-        const leftRatio = (mouseTime - currentFrom) / currentRange;
-        const rightRatio = (currentTo - mouseTime) / currentRange;
-        
-        newFrom = mouseTime - (clampedRange * leftRatio);
-        newTo = mouseTime + (clampedRange * rightRatio);
-        
-        // Ensure we don't go beyond current time
-        if (newTo > currentTime + rightPadding) {
-          const shift = newTo - (currentTime + rightPadding);
-          newTo = currentTime + rightPadding;
-          newFrom -= shift;
-        }
-      } else {
-        // Fallback if we can't find the canvas - zoom from center
-        console.warn('Canvas element not found, zooming from center');
-        const center = (currentFrom + currentTo) / 2;
-        const halfRange = clampedRange / 2;
-        newFrom = center - halfRange;
-        newTo = center + halfRange;
-      }
+      // Fallback if we can't find the canvas - zoom from center
+      console.warn('Canvas element not found, zooming from center');
+      const center = (currentFrom + currentTo) / 2;
+      const halfRange = clampedRange / 2;
+      newFrom = center - halfRange;
+      newTo = center + halfRange;
     }
     
     // Apply the new range with smooth animation
@@ -339,13 +435,8 @@
       clampedRange: clampedRange / 3600 + ' hours'
     });
     
-    // Simply clamp to available data without adjustments that cause jumping
-    const firstDataTime = allData.length > 0 ? allData[0].time : newFrom;
-    if (newFrom < firstDataTime) {
-      newFrom = firstDataTime;
-      // Keep the zoom behavior consistent - maintain the requested range size
-      newTo = newFrom + clampedRange;
-    }
+    // Don't clamp to data bounds - let the user zoom freely
+    // The progressive loader will fetch more data as needed
     
     // Check if the range actually changed
     const rangeChanged = !previousVisibleRange || 
@@ -355,7 +446,9 @@
     if (!rangeChanged) {
       console.warn('Range did not change!', {
         prev: previousVisibleRange,
-        new: { from: newFrom, to: newTo }
+        new: { from: newFrom, to: newTo },
+        clampedRange: clampedRange,
+        dataRange: { from: firstDataTime, to: lastDataTime }
       });
     }
     
@@ -370,10 +463,20 @@
       expectedBehavior: isZoomingOut ? 'range should increase (see more data)' : 'range should decrease (see less data)'
     });
     
-    timeScale.setVisibleRange({
-      from: newFrom as Time,
-      to: newTo as Time
-    });
+    try {
+      timeScale.setVisibleRange({
+        from: newFrom as Time,
+        to: newTo as Time
+      });
+      console.log('setVisibleRange called successfully');
+    } catch (error) {
+      console.error('Error setting visible range:', error, {
+        from: newFrom,
+        to: newTo,
+        fromDate: new Date(newFrom * 1000).toISOString(),
+        toDate: new Date(newTo * 1000).toISOString()
+      });
+    }
     
     // Store the range for future comparison
     previousVisibleRange = { from: newFrom, to: newTo };
@@ -505,50 +608,7 @@
       }
     }
     
-    // Check if we need to load more historical data
-    const allData = dataFeed.getAllData();
-    if (allData.length > 0) {
-      const firstDataTime = allData[0].time;
-      const lastDataTime = allData[allData.length - 1].time;
-      
-      // Load more data if we're near the left edge
-      if (visibleFrom < firstDataTime + (granularityToSeconds[currentGranularity] * 10)) {
-        console.log('Near left edge, loading more historical data...');
-        isLoadingMore = true;
-        
-        try {
-          // Calculate how many days to load based on visible range
-          const visibleDays = Math.ceil(visibleRangeSeconds / 86400);
-          const daysToLoad = Math.max(visibleDays * 3, 30); // Load at least 30 days or 3x visible range
-          
-          const moreData = await dataFeed.loadMoreHistoricalData(
-            granularityToSeconds[currentGranularity],
-            daysToLoad
-          );
-          
-          if (moreData.length > 0) {
-            // Refresh all data from the feed
-            const updatedData = dataFeed.getAllData().map(candle => ({
-              ...candle,
-              time: candle.time as Time
-            }));
-            
-            // Remember current visible range
-            const currentRange = timeScale.getVisibleRange();
-            
-            // Update data
-            candleSeries.setData(updatedData);
-            
-            // Restore visible range
-            if (currentRange) {
-              timeScale.setVisibleRange(currentRange);
-            }
-          }
-        } finally {
-          isLoadingMore = false;
-        }
-      }
-    }
+    // No need for progressive loading - we have all data loaded upfront
   }
   
   // Get optimal granularity for a time range
@@ -669,33 +729,12 @@
   
   function handleGranularityChange() {
     console.log(`Manual granularity change: ${previousGranularity} -> ${granularity}`);
-    console.log('Disabling auto-granularity due to manual selection');
     previousGranularity = granularity;
     isAutoGranularity = false;
-    manualGranularityLock = true;
     currentGranularity = granularity;
-    isChangingPeriod = true;
     
-    // Ensure the data feed uses the correct granularity
-    dataFeed.setActiveGranularity(granularityToSeconds[granularity]);
-    
-    loadChartData().then(() => {
-      // Maintain visible range after manual granularity change
-      const now = Math.floor(Date.now() / 1000);
-      const days = periodToDays[period] || 1/24;
-      const periodSeconds = days * 24 * 60 * 60;
-      const startTime = now - periodSeconds;
-      
-      chart?.timeScale().setVisibleRange({
-        from: startTime as Time,
-        to: now as Time
-      });
-      manualGranularityLock = false;
-      
-      setTimeout(() => {
-        isChangingPeriod = false;
-      }, 500);
-    });
+    // Data switching is now handled automatically by visible range subscription
+    // Just update the UI to reflect the change
   }
   
   function handlePeriodChange() {
@@ -722,16 +761,27 @@
     // Set flag to prevent handleVisibleRangeChange from interfering
     isChangingPeriod = true;
     
-    // Force reload with new period
-    loadChartData().then(() => {
-      // Reset flag after a delay to ensure range is set
-      setTimeout(() => {
-        isChangingPeriod = false;
-        if (wasManualChange) {
-          manualPeriodLock = false;
-        }
-      }, 500);
-    });
+    // Calculate new visible range based on period
+    const now = Math.floor(Date.now() / 1000);
+    const days = periodToDays[period] || 1;
+    const periodSeconds = days * 24 * 60 * 60;
+    const startTime = now - periodSeconds;
+    
+    // Set visible range to match the new period
+    if (chart) {
+      chart.timeScale().setVisibleRange({
+        from: startTime as Time,
+        to: now as Time
+      });
+    }
+    
+    // Reset flags
+    setTimeout(() => {
+      isChangingPeriod = false;
+      if (wasManualChange) {
+        manualPeriodLock = false;
+      }
+    }, 500);
   }
 
   // Force initial data load
@@ -888,46 +938,66 @@
           }
           
           // Auto-scroll to show the new candle if we're at the right edge
-          const timeScale = chart?.timeScale();
-          if (timeScale) {
-            const visibleRange = timeScale.getVisibleRange();
-            if (visibleRange) {
-              const visibleTo = Number(visibleRange.to);
-              const currentTime = Math.floor(Date.now() / 1000);
-              
-              // Get all data again after update to find previous last candle
-              const allDataBeforeNew = dataFeed.getAllData();
-              const lastDataTime = allDataBeforeNew[allDataBeforeNew.length - 2]?.time || 0; // Previous last candle
-              
-              console.log(`Auto-scroll check: visibleTo=${new Date(visibleTo * 1000).toISOString()}, lastDataTime=${new Date(lastDataTime * 1000).toISOString()}, currentTime=${new Date(currentTime * 1000).toISOString()}`);
-              
-              // If we were showing near the last candle OR near current time, shift to show the new one
-              const isNearLastCandle = Math.abs(visibleTo - lastDataTime) < granularityToSeconds[currentGranularity] * 2;
-              const isNearCurrentTime = Math.abs(visibleTo - currentTime) < granularityToSeconds[currentGranularity] * 2;
-              
-              if (isNearLastCandle || isNearCurrentTime) {
-                const visibleFrom = Number(visibleRange.from);
-                const rangeSize = visibleTo - visibleFrom;
+          // Skip auto-scroll if we're currently zooming
+          if (!isZooming) {
+            const timeScale = chart?.timeScale();
+            if (timeScale) {
+              const visibleRange = timeScale.getVisibleRange();
+              if (visibleRange) {
+                const visibleTo = Number(visibleRange.to);
+                const currentTime = Math.floor(Date.now() / 1000);
                 
-                // Ensure we show up to current time with the new candle
-                const newVisibleTo = Math.max(candle.time, currentTime) + (granularityToSeconds[currentGranularity] * 0.5); // Add half candle padding
-                const newVisibleFrom = newVisibleTo - rangeSize;
+                // Get all data again after update to find previous last candle
+                const allDataBeforeNew = dataFeed.getAllData();
+                const lastDataTime = allDataBeforeNew[allDataBeforeNew.length - 2]?.time || 0; // Previous last candle
                 
-                console.log(`Auto-scrolling to show new candle: ${new Date(newVisibleFrom * 1000).toISOString()} to ${new Date(newVisibleTo * 1000).toISOString()}`);
+                console.log(`Auto-scroll check: visibleTo=${new Date(visibleTo * 1000).toISOString()}, lastDataTime=${new Date(lastDataTime * 1000).toISOString()}, currentTime=${new Date(currentTime * 1000).toISOString()}`);
                 
-                timeScale.setVisibleRange({
-                  from: newVisibleFrom as Time,
-                  to: newVisibleTo as Time
-                });
+                // If we were showing near the last candle OR near current time, shift to show the new one
+                const isNearLastCandle = Math.abs(visibleTo - lastDataTime) < granularityToSeconds[currentGranularity] * 2;
+                const isNearCurrentTime = Math.abs(visibleTo - currentTime) < granularityToSeconds[currentGranularity] * 2;
+                
+                if (isNearLastCandle || isNearCurrentTime) {
+                  const visibleFrom = Number(visibleRange.from);
+                  const rangeSize = visibleTo - visibleFrom;
+                  
+                  // Ensure we show up to current time with the new candle
+                  const newVisibleTo = Math.max(candle.time, currentTime) + (granularityToSeconds[currentGranularity] * 0.5); // Add half candle padding
+                  const newVisibleFrom = newVisibleTo - rangeSize;
+                  
+                  console.log(`Auto-scrolling to show new candle: ${new Date(newVisibleFrom * 1000).toISOString()} to ${new Date(newVisibleTo * 1000).toISOString()}`);
+                  
+                  timeScale.setVisibleRange({
+                    from: newVisibleFrom as Time,
+                    to: newVisibleTo as Time
+                  });
+                }
               }
             }
+          } else {
+            console.log('Skipping auto-scroll - zoom in progress');
           }
         } else {
           // This is an update to existing candle
-          candleSeries.update({
-            ...candle,
-            time: candle.time as Time
-          });
+          try {
+            // Check if this candle is within the current data range to prevent "Cannot update oldest data" error
+            const allData = dataFeed.getAllData();
+            if (allData.length > 0) {
+              const oldestTime = allData[0].time;
+              const newestTime = allData[allData.length - 1].time;
+              
+              if (candle.time >= oldestTime && candle.time <= newestTime) {
+                candleSeries.update({
+                  ...candle,
+                  time: candle.time as Time
+                });
+              } else {
+                console.warn(`Skipping update for candle outside data range: ${new Date(candle.time * 1000).toISOString()} (range: ${new Date(oldestTime * 1000).toISOString()} to ${new Date(newestTime * 1000).toISOString()})`);
+              }
+            }
+          } catch (error) {
+            console.error('Error updating candle:', error, candle);
+          }
         }
       });
 
@@ -971,16 +1041,16 @@
         allowBoldLabels: true,
         shiftVisibleRangeOnNewBar: false, // We handle this manually
         handleScroll: {
-          mouseWheel: false,
+          mouseWheel: false, // Disable native scroll - we handle with custom zoom
           pressedMouseMove: true,
           horzTouchDrag: true,
           vertTouchDrag: false
-        }, // Disable mouse wheel but keep other scroll
+        },
         handleScale: {
           axisPressedMouseMove: true,
-          mouseWheel: false,
+          mouseWheel: false, // Disable native zoom - we handle with custom zoom
           pinch: true
-        } // Disable mouse wheel scaling but keep other scale
+        }
       });
 
       // Don't use fitContent - we want to respect the period constraints
@@ -1001,8 +1071,17 @@
       // Add a delay to prevent immediate triggering from initial range set
       setTimeout(() => {
         if (chart) {
-          chart.timeScale().subscribeVisibleTimeRangeChange(() => {
-            // Debounce the range change handler
+          // Subscribe to visible range changes for data switching
+          visibleRangeSubscription = chart.timeScale().subscribeVisibleTimeRangeChange((range) => {
+            if (!range) return;
+            
+            // Calculate visible time span
+            const visibleSeconds = range.to - range.from;
+            
+            // Switch datasets based on zoom level
+            switchDatasetForRange(visibleSeconds);
+            
+            // Also handle the original range change logic (debounced)
             clearTimeout(rangeChangeTimeout);
             rangeChangeTimeout = setTimeout(handleVisibleRangeChange, 300);
           });
@@ -1111,6 +1190,9 @@
     if (dataCheckInterval) {
       clearInterval(dataCheckInterval);
     }
+    if (visibleRangeSubscription) {
+      visibleRangeSubscription();
+    }
     if (resizeHandler) {
       window.removeEventListener('resize', resizeHandler);
     }
@@ -1154,15 +1236,6 @@
   <div class="cache-status">
     <span class="status-dot {cacheStatus}"></span>
     Cache: {cacheStatus}
-    {#if cacheStatus === 'loading'}
-      <button class="cache-btn" on:click={forceLoadHistoricalData} disabled>
-        Loading...
-      </button>
-    {:else}
-      <button class="cache-btn" on:click={forceLoadHistoricalData}>
-        Load 5Y Data
-      </button>
-    {/if}
   </div>
   
   <div class="clock-container">
@@ -1243,6 +1316,7 @@
     animation: pulse-scale 0.5s infinite;
     box-shadow: 0 0 10px #3b82f6;
   }
+  
   
   .cache-btn {
     background: rgba(74, 0, 224, 0.6);
