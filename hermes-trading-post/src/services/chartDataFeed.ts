@@ -511,9 +511,10 @@ export class ChartDataFeed {
   // Get optimal granularity for a time range
   getOptimalGranularity(visibleRangeSeconds: number): number {
     // Adjusted to prevent too many candles on screen
-    if (visibleRangeSeconds < 3600) { // < 1 hour
+    // Modified thresholds to better respect manual granularity choices
+    if (visibleRangeSeconds < 7200) { // < 2 hours (was 1 hour)
       return 60; // 1m
-    } else if (visibleRangeSeconds < 14400) { // < 4 hours
+    } else if (visibleRangeSeconds < 28800) { // < 8 hours (was 4 hours)
       return 300; // 5m
     } else if (visibleRangeSeconds < 172800) { // < 2 days
       return 900; // 15m

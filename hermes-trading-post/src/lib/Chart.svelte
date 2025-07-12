@@ -208,14 +208,16 @@
     
     // Check if current granularity is severely mismatched with visible range
     // This re-enables auto-granularity if user zooms out significantly
-    if (!isAutoGranularity && !manualGranularityLock) {
+    // BUT: Don't re-enable if we're in the middle of loading or if a candle just updated
+    if (!isAutoGranularity && !manualGranularityLock && !loadingNewGranularity && !isChangingPeriod) {
       const optimalGranularity = getOptimalGranularityForRange(visibleRangeSeconds);
       const currentGranularitySeconds = granularityToSeconds[currentGranularity];
       const optimalGranularitySeconds = granularityToSeconds[optimalGranularity];
       
-      // Re-enable auto-granularity if current is 10x+ different from optimal
-      if (currentGranularitySeconds * 10 < optimalGranularitySeconds || 
-          currentGranularitySeconds > optimalGranularitySeconds * 10) {
+      // Re-enable auto-granularity only if current is 20x+ different from optimal (was 10x)
+      // This prevents switching from 5m to 1m when viewing ~1 hour of data
+      if (currentGranularitySeconds * 20 < optimalGranularitySeconds || 
+          currentGranularitySeconds > optimalGranularitySeconds * 20) {
         console.log('Re-enabling auto-granularity due to significant zoom change');
         isAutoGranularity = true;
       }
@@ -226,7 +228,8 @@
       const optimalGranularity = getOptimalGranularityForRange(visibleRangeSeconds);
       
       if (optimalGranularity !== currentGranularity) {
-        console.log(`Switching granularity from ${currentGranularity} to ${optimalGranularity}`);
+        console.log(`Auto-granularity active: Switching from ${currentGranularity} to ${optimalGranularity}`);
+        console.log(`Visible range: ${visibleRangeSeconds}s, Current: ${granularityToSeconds[currentGranularity]}s, Optimal: ${granularityToSeconds[optimalGranularity]}s`);
         loadingNewGranularity = true;
         currentGranularity = optimalGranularity;
         granularity = optimalGranularity; // Update the UI
@@ -404,6 +407,7 @@
   
   function handleGranularityChange() {
     console.log(`Manual granularity change: ${previousGranularity} -> ${granularity}`);
+    console.log('Disabling auto-granularity due to manual selection');
     previousGranularity = granularity;
     isAutoGranularity = false;
     manualGranularityLock = true;
@@ -594,11 +598,24 @@
             cacheStatus = 'ready';
           }, 2000); // Increased duration to 2 seconds for better visibility
           
+          // Temporarily disable auto-granularity during data update
+          const prevAutoGranularity = isAutoGranularity;
+          if (!prevAutoGranularity) {
+            manualGranularityLock = true;
+          }
+          
           const chartData = dataFeed.getAllData().map(c => ({
             ...c,
             time: c.time as Time
           }));
           candleSeries.setData(chartData);
+          
+          // Restore auto-granularity state after a brief delay
+          if (!prevAutoGranularity) {
+            setTimeout(() => {
+              manualGranularityLock = false;
+            }, 1000);
+          }
           
           // Auto-scroll to show the new candle if we're at the right edge
           const timeScale = chart?.timeScale();
@@ -726,6 +743,13 @@
             // If last data is more than 2 candle periods old, fetch latest
             if (timeDiff > granularityToSeconds[currentGranularity] * 2) {
               console.log(`Data is ${timeDiff}s old, fetching latest...`);
+              
+              // Preserve manual granularity selection during refresh
+              const prevAutoGranularity = isAutoGranularity;
+              if (!prevAutoGranularity) {
+                manualGranularityLock = true;
+              }
+              
               await dataFeed.fetchLatestCandle();
               
               // Refresh chart with latest data
@@ -734,6 +758,13 @@
                 time: c.time as Time
               }));
               candleSeries.setData(updatedData);
+              
+              // Restore state after refresh
+              if (!prevAutoGranularity) {
+                setTimeout(() => {
+                  manualGranularityLock = false;
+                }, 500);
+              }
             }
           }
         }
