@@ -165,6 +165,12 @@
     event.stopPropagation();
     event.stopImmediatePropagation();
     
+    // Skip zoom if chart is updating to prevent interference
+    if (cacheStatus === 'updating' || loadingNewGranularity) {
+      console.log('Skipping zoom - chart is updating');
+      return false;
+    }
+    
     console.log('=== ZOOM EVENT START ===');
     console.log('Raw wheel event:', {
       deltaY: event.deltaY,
@@ -203,7 +209,9 @@
       normalizedDeltaY = event.deltaY * 800;
     }
     
-    const isZoomingOut = normalizedDeltaY > 0;
+    // Invert zoom direction - positive deltaY (scroll down) should zoom IN (show less data)
+    // This matches typical chart behavior where scrolling down zooms into the chart
+    const isZoomingOut = normalizedDeltaY < 0;
     
     console.log('Zoom data:', {
       currentRange,
@@ -220,7 +228,9 @@
     const baseZoomSpeed = 0.0015; // Reduced base zoom speed
     const zoomIntensity = Math.min(Math.abs(normalizedDeltaY) * baseZoomSpeed, 0.3); // Max 30% change per wheel event
     
-    // More gradual zoom factor
+    // Zoom factor calculation:
+    // - Zoom out (scroll up): increase range to show more data
+    // - Zoom in (scroll down): decrease range to show less data
     const zoomFactor = isZoomingOut 
       ? 1 + zoomIntensity     // Zoom out: increase range gradually
       : 1 - zoomIntensity;    // Zoom in: decrease range gradually
@@ -346,7 +356,8 @@
       range: (newTo - newFrom) / 3600 + ' hours',
       previousRange: currentRange / 3600 + ' hours',
       isZoomingOut,
-      expectedBehavior: isZoomingOut ? 'range should increase' : 'range should decrease'
+      wheelDirection: normalizedDeltaY > 0 ? 'down' : 'up',
+      expectedBehavior: isZoomingOut ? 'range should increase (see more data)' : 'range should decrease (see less data)'
     });
     
     timeScale.setVisibleRange({

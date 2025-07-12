@@ -101,6 +101,11 @@ start_all_services() {
     fi
     print_status $? "Redis server"
     
+    # Clean up any stuck conversation manager processes
+    echo "Cleaning up stuck processes..."
+    pkill -f "claude_conversation_manager" 2>/dev/null
+    sleep 1
+    
     # Start quantum memory services
     echo ""
     echo "Starting Quantum Memory Services..."
@@ -130,8 +135,8 @@ start_all_services() {
         
         # Try to start conversation manager
         if [ -f "scripts/claude_conversation_manager_v2.py.DISABLED" ]; then
-            cp scripts/claude_conversation_manager_v2.py.DISABLED /tmp/conversation_manager_active.py
-            python3 /tmp/conversation_manager_active.py > /tmp/quantum_conversation.log 2>&1 &
+            cp scripts/claude_conversation_manager_v2.py.DISABLED /tmp/claude_conversation_manager_v2_active.py
+            python3 /tmp/claude_conversation_manager_v2_active.py > /tmp/quantum_conversation.log 2>&1 &
             PIDS+=($!)
         elif [ -f "scripts/claude_conversation_manager_v2.backup.py" ]; then
             python3 scripts/claude_conversation_manager_v2.backup.py > /tmp/quantum_conversation.log 2>&1 &
@@ -310,9 +315,10 @@ quick_fix() {
     echo "2) Clear old conversation data"
     echo "3) Reset service configurations"
     echo "4) Install missing dependencies"
-    echo "5) Back to main menu"
+    echo "5) Clear stuck Redis conversation manager data"
+    echo "6) Back to main menu"
     echo ""
-    read -p "Select fix (1-5): " fix_choice
+    read -p "Select fix (1-6): " fix_choice
     
     case $fix_choice in
         1)
@@ -344,6 +350,13 @@ quick_fix() {
             cd "$DASHBOARD_DIR"
             npm install
             echo "✅ Dependencies installed"
+            ;;
+        5)
+            echo "Clearing stuck Redis conversation manager data..."
+            redis-cli DEL "processing:*" > /dev/null 2>&1
+            redis-cli DEL "conversations:lock:*" > /dev/null 2>&1
+            echo "✅ Cleared stuck Redis data"
+            echo "You may need to restart the conversation manager"
             ;;
     esac
     
