@@ -35,6 +35,10 @@
   let resizeHandler: (() => void) | null = null;
   let rangeChangeTimeout: any = null;
   
+  // Track previous visible range for zoom detection
+  let previousVisibleRange: { from: number; to: number } | null = null;
+  let chartCanvasElement: HTMLCanvasElement | null = null;
+  
   // Map periods to days
   const periodToDays: Record<string, number> = {
     '1H': 1/24,
@@ -149,6 +153,82 @@
       status = 'error';
       loadingNewGranularity = false;
     }
+  }
+  
+  // Custom zoom handler to keep right edge anchored
+  function handleZoom(event: WheelEvent) {
+    if (!chart || !dataFeed) return;
+    
+    // Prevent default zoom behavior
+    event.preventDefault();
+    
+    const timeScale = chart.timeScale();
+    const visibleRange = timeScale.getVisibleRange();
+    if (!visibleRange) return;
+    
+    const currentFrom = Number(visibleRange.from);
+    const currentTo = Number(visibleRange.to);
+    const currentRange = currentTo - currentFrom;
+    
+    // Check if we're near the right edge
+    const currentTime = Math.floor(Date.now() / 1000);
+    const allData = dataFeed.getAllData();
+    const latestDataTime = allData.length > 0 ? allData[allData.length - 1].time : currentTime;
+    const isNearRightEdge = currentTo >= latestDataTime - (granularityToSeconds[currentGranularity] || 60) * 2;
+    
+    // Smoother zoom factor based on wheel delta
+    const deltaFactor = Math.abs(event.deltaY) / 100;
+    const zoomIntensity = Math.min(deltaFactor * 0.1, 0.3); // Cap zoom speed
+    const zoomFactor = event.deltaY > 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
+    const newRange = currentRange * zoomFactor;
+    
+    // Limit zoom range (min 10 candles, max 5 years)
+    const minRange = (granularityToSeconds[currentGranularity] || 60) * 10; // At least 10 candles
+    const maxRange = 5 * 365 * 24 * 60 * 60; // 5 years
+    const clampedRange = Math.max(minRange, Math.min(maxRange, newRange));
+    
+    let newFrom: number;
+    let newTo: number;
+    const rightPadding = granularityToSeconds[currentGranularity] || 60;
+    
+    if (isNearRightEdge || event.shiftKey) {
+      // When near the right edge OR shift key is held, keep right edge anchored
+      const rightEdge = Math.max(latestDataTime, currentTime) + rightPadding;
+      newTo = rightEdge;
+      newFrom = rightEdge - clampedRange;
+    } else {
+      // When viewing historical data, zoom around mouse position
+      const rect = chartCanvasElement!.getBoundingClientRect();
+      const mouseX = event.clientX - rect.left;
+      const chartWidth = rect.width;
+      const mouseRatio = mouseX / chartWidth;
+      
+      // Calculate the time at mouse position
+      const mouseTime = currentFrom + (currentRange * mouseRatio);
+      
+      // Zoom around the mouse position
+      const leftRatio = (mouseTime - currentFrom) / currentRange;
+      const rightRatio = (currentTo - mouseTime) / currentRange;
+      
+      newFrom = mouseTime - (clampedRange * leftRatio);
+      newTo = mouseTime + (clampedRange * rightRatio);
+      
+      // Ensure we don't go beyond current time
+      if (newTo > currentTime + rightPadding) {
+        const shift = newTo - (currentTime + rightPadding);
+        newTo = currentTime + rightPadding;
+        newFrom -= shift;
+      }
+    }
+    
+    // Apply the new range with smooth animation
+    timeScale.setVisibleRange({
+      from: newFrom as Time,
+      to: newTo as Time
+    });
+    
+    // Store the range for future comparison
+    previousVisibleRange = { from: newFrom, to: newTo };
   }
   
   // Function to handle zoom events and load more data
@@ -694,6 +774,7 @@
         fixRightEdge: false, // Allow scrolling
         lockVisibleTimeRangeOnResize: true,
         timeVisible: true,
+        allowScrollStretching: false, // Disable default wheel stretching since we handle it
         localization: {
           locale: 'en-US',
           timeFormatter: (time: number) => {
@@ -743,6 +824,12 @@
             clearTimeout(rangeChangeTimeout);
             rangeChangeTimeout = setTimeout(handleVisibleRangeChange, 300);
           });
+          
+          // Add custom zoom handler to keep right edge anchored
+          chartCanvasElement = chartContainer.querySelector('canvas');
+          if (chartCanvasElement) {
+            chartCanvasElement.addEventListener('wheel', handleZoom, { passive: false });
+          }
         }
       }, 1000);
       
@@ -826,6 +913,9 @@
     }
     if (resizeHandler) {
       window.removeEventListener('resize', resizeHandler);
+    }
+    if (chartCanvasElement) {
+      chartCanvasElement.removeEventListener('wheel', handleZoom);
     }
     if (dataFeed) {
       dataFeed.disconnect();
