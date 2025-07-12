@@ -103,10 +103,11 @@
         const periodSeconds = days * 24 * 60 * 60;
         const startTime = now - periodSeconds;
         
-        // Set the visible range to show exactly the selected period
+        // Set the visible range to show exactly the selected period with padding
+        const padding = granularityToSeconds[granularityToUse] || 60; // Add one candle width as padding
         chart.timeScale().setVisibleRange({
           from: startTime as Time,
-          to: now as Time
+          to: (now + padding) as Time
         });
         
         console.log(`Set visible range: ${new Date(startTime * 1000).toISOString()} to ${new Date(now * 1000).toISOString()}`);
@@ -305,7 +306,8 @@
     currentTime = `${hours}:${minutes}:${seconds}`;
     
     // Calculate countdown to next candle
-    const granularitySeconds = granularityToSeconds[currentGranularity] || 60;
+    // Use the actual granularity prop instead of currentGranularity for countdown
+    const granularitySeconds = granularityToSeconds[granularity] || 60;
     const secondsIntoCurrentCandle = nowSeconds % granularitySeconds;
     const secondsUntilNextCandle = granularitySeconds - secondsIntoCurrentCandle;
     
@@ -616,6 +618,23 @@
         fixLeftEdge: false, // Allow scrolling
         fixRightEdge: false, // Allow scrolling
         lockVisibleTimeRangeOnResize: true,
+        timeVisible: true,
+        localization: {
+          locale: 'en-US',
+          timeFormatter: (time: number) => {
+            const date = new Date(time * 1000);
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            return `${hours}:${minutes}`;
+          },
+          dateFormatter: (time: number) => {
+            const date = new Date(time * 1000);
+            return date.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric'
+            });
+          }
+        },
         rightBarStaysOnScroll: false, // Don't force right bar to stay visible
         borderVisible: false,
         borderColor: '#2a2a2a',
@@ -729,7 +748,7 @@
   <div class="clock-container">
     <div class="clock-time">{currentTime}</div>
     <div class="clock-countdown">
-      <span class="countdown-label">Next {currentGranularity}:</span>
+      <span class="countdown-label">Next {granularity}:</span>
       <span class="countdown-value">{countdown}</span>
     </div>
   </div>
