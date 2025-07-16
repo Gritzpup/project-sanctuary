@@ -238,17 +238,17 @@ class RealtimeCandleAggregator {
     // Store unsubscribe function
     this.intervals.set(`${symbol}-unsub`, unsubscribe as any);
     
-    // Subscribe to ticker channel for this symbol in WebSocket
-    console.log(`RealtimeCandleAggregator: Subscribing to ticker for ${symbol}`);
-    await coinbaseWebSocket.subscribeTicker(symbol);
-    
-    // Connect WebSocket if not already connected
+    // Connect WebSocket FIRST if not already connected
     if (!coinbaseWebSocket.isConnected()) {
       console.log('RealtimeCandleAggregator: WebSocket not connected, connecting...');
       coinbaseWebSocket.connect();
-    } else {
-      console.log('RealtimeCandleAggregator: WebSocket already connected');
+      // Wait a bit for connection to establish
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
+    
+    // THEN subscribe to ticker channel for this symbol
+    console.log(`RealtimeCandleAggregator: Subscribing to ticker for ${symbol}`);
+    await coinbaseWebSocket.subscribeTicker(symbol);
     
     // Initialize with current price from Redis if available
     const latestPrice = await redisService.getLatestPrice(symbol);

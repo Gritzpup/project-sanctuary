@@ -1,5 +1,4 @@
 import type { WebSocketMessage, TickerMessage, SubscribeMessage } from '../types/coinbase';
-import { redisService } from './redisService';
 
 export class CoinbaseWebSocket {
   private ws: WebSocket | null = null;
@@ -15,16 +14,6 @@ export class CoinbaseWebSocket {
 
   constructor() {
     console.log('CoinbaseWebSocket constructor called');
-    this.initializeRedis();
-  }
-
-  private async initializeRedis() {
-    try {
-      await redisService.connect();
-      console.log('Redis initialized in CoinbaseWebSocket');
-    } catch (error) {
-      console.error('Failed to initialize Redis:', error);
-    }
   }
 
   connect() {
@@ -33,13 +22,9 @@ export class CoinbaseWebSocket {
       this.onStatusCallback?.('loading');
       this.ws = new WebSocket(this.url);
 
-      this.ws.onopen = async () => {
+      this.ws.onopen = () => {
         console.log('WebSocket opened successfully');
         console.log(`WebSocket onopen: subscribedSymbols = ${Array.from(this.subscribedSymbols).join(', ')}`);
-        
-        // Update Redis connection state
-        await redisService.setWebSocketConnected(true);
-        
         // Always subscribe to channels when connection opens
         this.subscribeToChannels();
         this.startHeartbeat();
@@ -56,22 +41,9 @@ export class CoinbaseWebSocket {
           switch (data.type) {
             case 'ticker':
               const tickerData = data as TickerMessage;
-              console.log(`CoinbaseWebSocket: Received ticker for ${tickerData.product_id} - price: ${tickerData.price}`);
+              console.log(`CoinbaseWebSocket: Received ticker for ${tickerData.product_id} - price: ${tickerData.price}, listeners: ${this.messageListeners.size}`);
               
-              // Publish to Redis
-              redisService.publishTicker({
-                product_id: tickerData.product_id,
-                price: parseFloat(tickerData.price),
-                time: new Date(tickerData.time).getTime(),
-                best_bid: tickerData.best_bid,
-                best_ask: tickerData.best_ask,
-                side: tickerData.side || '',
-                last_size: tickerData.last_size || ''
-              }).catch(error => {
-                console.error('Error publishing ticker to Redis:', error);
-              });
-              
-              // Legacy support - notify local listeners
+              // Notify all message listeners
               this.messageListeners.forEach(listener => {
                 try {
                   listener(tickerData);
@@ -110,13 +82,9 @@ export class CoinbaseWebSocket {
         }
       };
 
-      this.ws.onclose = async () => {
+      this.ws.onclose = () => {
         console.log('WebSocket disconnected');
         this.isSubscribed = false; // Reset subscription state
-        
-        // Update Redis connection state
-        await redisService.setWebSocketConnected(false);
-        
         this.onStatusCallback?.('disconnected');
         this.stopHeartbeat();
         this.scheduleReconnect();
@@ -189,11 +157,7 @@ export class CoinbaseWebSocket {
   getLastPrice(): number | null {
     return this.currentPrice || null;
   }
-
-  getCurrentPrice(): number {
-    return this.currentPrice;
-  }
-
+  
   isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
   }
@@ -205,12 +169,9 @@ export class CoinbaseWebSocket {
     };
   }
 
-  async subscribeTicker(symbol: string) {
+  subscribeTicker(symbol: string) {
     console.log(`CoinbaseWebSocket: subscribeTicker called for ${symbol}`);
     this.subscribedSymbols.add(symbol);
-    
-    // Add to Redis subscriptions
-    await redisService.addSubscription(symbol);
     
     // Always try to subscribe immediately if connected
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -229,12 +190,8 @@ export class CoinbaseWebSocket {
     }
   }
 
-  async unsubscribeTicker(symbol: string) {
+  unsubscribeTicker(symbol: string) {
     this.subscribedSymbols.delete(symbol);
-    
-    // Remove from Redis subscriptions
-    await redisService.removeSubscription(symbol);
-    
     if (this.ws?.readyState === WebSocket.OPEN) {
       // Send unsubscribe message
       const unsubscribeMessage = {
