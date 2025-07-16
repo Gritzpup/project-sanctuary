@@ -24,11 +24,27 @@ class RedisService {
   private subscriber: RedisClientType | null = null;
   private isConnected = false;
   private subscriptions: Map<string, Set<(data: any) => void>> = new Map();
+  private connectionPromise: Promise<void> | null = null;
 
   async connect() {
-    if (this.isConnected) return;
+    if (this.isConnected) {
+      console.log('Redis already connected');
+      return;
+    }
 
+    if (this.connectionPromise) {
+      console.log('Redis connection already in progress');
+      return this.connectionPromise;
+    }
+
+    this.connectionPromise = this._connect();
+    return this.connectionPromise;
+  }
+
+  private async _connect() {
     try {
+      console.log('Connecting to Redis...');
+      
       // Create main client for read/write
       this.client = createClient({
         url: 'redis://localhost:6379'
@@ -45,11 +61,9 @@ class RedisService {
       await this.client.connect();
       await this.subscriber.connect();
 
-      this.isConnected = true;
-      console.log('Redis connected successfully');
-
-      // Set up subscription handler
-      this.subscriber.on('message', (channel: string, message: string) => {
+      // Set up message handler for all channels
+      await this.subscriber.pSubscribe('*', (message, channel) => {
+        console.log(`Redis received on channel ${channel}:`, message);
         const callbacks = this.subscriptions.get(channel);
         if (callbacks) {
           try {
@@ -67,8 +81,11 @@ class RedisService {
         }
       });
 
+      this.isConnected = true;
+      console.log('Redis connected successfully');
     } catch (error) {
       console.error('Failed to connect to Redis:', error);
+      this.connectionPromise = null;
       throw error;
     }
   }
@@ -83,17 +100,23 @@ class RedisService {
       this.subscriber = null;
     }
     this.isConnected = false;
+    this.connectionPromise = null;
   }
 
   // Publish ticker data
   async publishTicker(ticker: TickerData) {
-    if (!this.client) throw new Error('Redis not connected');
+    if (!this.client) {
+      console.error('Redis not connected, cannot publish ticker');
+      return;
+    }
 
     const channel = `ticker:${ticker.product_id}`;
     const data = {
       ...ticker,
       timestamp: Date.now()
     };
+
+    console.log(`Publishing to Redis channel ${channel}:`, data);
 
     // Publish to channel
     await this.client.publish(channel, JSON.stringify(data));
@@ -125,15 +148,14 @@ class RedisService {
 
   // Subscribe to ticker updates
   async subscribeTicker(symbol: string, callback: (data: TickerData) => void) {
-    if (!this.subscriber) throw new Error('Redis not connected');
-
+    await this.connect(); // Ensure connected
+    
     const channel = `ticker:${symbol}`;
+    console.log(`Subscribing to Redis channel: ${channel}`);
     
     // Add callback to local map
     if (!this.subscriptions.has(channel)) {
       this.subscriptions.set(channel, new Set());
-      // Actually subscribe to Redis channel
-      await this.subscriber.subscribe(channel);
     }
     
     this.subscriptions.get(channel)!.add(callback);
@@ -145,7 +167,6 @@ class RedisService {
         callbacks.delete(callback);
         if (callbacks.size === 0) {
           this.subscriptions.delete(channel);
-          this.subscriber?.unsubscribe(channel);
         }
       }
     };
@@ -153,7 +174,10 @@ class RedisService {
 
   // Update current candle
   async updateCurrentCandle(symbol: string, granularity: string, candle: CandleData) {
-    if (!this.client) throw new Error('Redis not connected');
+    if (!this.client) {
+      console.error('Redis not connected, cannot update candle');
+      return;
+    }
 
     const key = `candle:${symbol}:${granularity}:current`;
     
@@ -178,13 +202,12 @@ class RedisService {
 
   // Subscribe to candle updates
   async subscribeCandles(symbol: string, granularity: string, callback: (data: CandleData) => void) {
-    if (!this.subscriber) throw new Error('Redis not connected');
-
+    await this.connect(); // Ensure connected
+    
     const channel = `candle:${symbol}:${granularity}`;
     
     if (!this.subscriptions.has(channel)) {
       this.subscriptions.set(channel, new Set());
-      await this.subscriber.subscribe(channel);
     }
     
     this.subscriptions.get(channel)!.add(callback);
@@ -196,7 +219,6 @@ class RedisService {
         callbacks.delete(callback);
         if (callbacks.size === 0) {
           this.subscriptions.delete(channel);
-          this.subscriber?.unsubscribe(channel);
         }
       }
     };
@@ -204,7 +226,10 @@ class RedisService {
 
   // Get current candle
   async getCurrentCandle(symbol: string, granularity: string): Promise<CandleData | null> {
-    if (!this.client) throw new Error('Redis not connected');
+    if (!this.client) {
+      console.error('Redis not connected');
+      return null;
+    }
 
     const key = `candle:${symbol}:${granularity}:current`;
     const data = await this.client.hGetAll(key);
@@ -223,7 +248,10 @@ class RedisService {
 
   // Get latest price
   async getLatestPrice(symbol: string): Promise<{ price: number; time: number } | null> {
-    if (!this.client) throw new Error('Redis not connected');
+    if (!this.client) {
+      console.error('Redis not connected');
+      return null;
+    }
 
     const data = await this.client.hGetAll(`price:${symbol}`);
     
@@ -237,7 +265,10 @@ class RedisService {
 
   // Mark WebSocket as connected
   async setWebSocketConnected(connected: boolean) {
-    if (!this.client) throw new Error('Redis not connected');
+    if (!this.client) {
+      console.error('Redis not connected');
+      return;
+    }
 
     if (connected) {
       await this.client.set('websocket:connected', 'true', { EX: 30 });
@@ -248,7 +279,7 @@ class RedisService {
 
   // Check if WebSocket is connected
   async isWebSocketConnected(): Promise<boolean> {
-    if (!this.client) throw new Error('Redis not connected');
+    if (!this.client) return false;
 
     const result = await this.client.get('websocket:connected');
     return result === 'true';
@@ -256,21 +287,30 @@ class RedisService {
 
   // Add subscribed symbol
   async addSubscription(symbol: string) {
-    if (!this.client) throw new Error('Redis not connected');
+    if (!this.client) {
+      console.error('Redis not connected');
+      return;
+    }
 
     await this.client.sAdd('websocket:subscriptions', symbol);
   }
 
   // Remove subscribed symbol
   async removeSubscription(symbol: string) {
-    if (!this.client) throw new Error('Redis not connected');
+    if (!this.client) {
+      console.error('Redis not connected');
+      return;
+    }
 
     await this.client.sRem('websocket:subscriptions', symbol);
   }
 
   // Get all subscriptions
   async getSubscriptions(): Promise<string[]> {
-    if (!this.client) throw new Error('Redis not connected');
+    if (!this.client) {
+      console.error('Redis not connected');
+      return [];
+    }
 
     return await this.client.sMembers('websocket:subscriptions');
   }

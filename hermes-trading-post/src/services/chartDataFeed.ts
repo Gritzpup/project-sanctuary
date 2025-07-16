@@ -1,6 +1,6 @@
 import type { CandleData } from '../types/coinbase';
 import { CoinbaseAPI } from './coinbaseApi';
-import { CoinbaseWebSocket } from './coinbaseWebSocket';
+import { coinbaseWebSocket } from './coinbaseWebSocket';
 import { IndexedDBCache } from './indexedDBCache';
 import { HistoricalDataLoader } from './historicalDataLoader';
 import { realtimeCandleAggregator } from './realtimeCandleAggregator';
@@ -14,7 +14,6 @@ interface DataRequest {
 
 export class ChartDataFeed {
   private api: CoinbaseAPI;
-  public ws: CoinbaseWebSocket;
   private cache: IndexedDBCache;
   private loader: HistoricalDataLoader;
   private subscribers: Map<string, (data: CandleData, isNew?: boolean) => void> = new Map();
@@ -57,7 +56,6 @@ export class ChartDataFeed {
 
   constructor() {
     this.api = new CoinbaseAPI();
-    this.ws = new CoinbaseWebSocket();
     this.cache = new IndexedDBCache();
     this.loader = new HistoricalDataLoader(this.api, this.cache);
     
@@ -160,7 +158,7 @@ export class ChartDataFeed {
     });
     
     // For other granularities, still use price updates
-    this.ws.onPrice(async (price) => {
+    coinbaseWebSocket.onPrice(async (price) => {
       console.log(`ChartDataFeed: onPrice called - price: ${price}, wsConnected: ${this.wsConnected}, granularity: ${this.currentGranularity}`);
       if (!this.wsConnected || this.currentGranularity === '1m') return;
       
@@ -170,7 +168,7 @@ export class ChartDataFeed {
       await this.updateRealtimeCandle(price, now);
     });
     
-    this.ws.onStatus((status) => {
+    coinbaseWebSocket.onStatus((status) => {
       console.log(`ChartDataFeed: WebSocket status changed to: ${status}`);
       this.wsConnected = status === 'connected';
       // Don't start aggregation here - it's already started in constructor
@@ -735,7 +733,7 @@ export class ChartDataFeed {
   }
   
   disconnect() {
-    this.ws.disconnect();
+    coinbaseWebSocket.disconnect();
     this.loader.stop();
     realtimeCandleAggregator.stopAggregating(this.symbol);
     if (this.realtimeUnsubscribe) {
