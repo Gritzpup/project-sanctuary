@@ -507,7 +507,7 @@ export class ChartDataFeed {
   // Load historical data for a specific period
   async loadHistoricalData(granularity: string, days: number): Promise<void> {
     const endTime = Math.floor(Date.now() / 1000);
-    const startTime = Math.floor(endTime - (days * 86400));
+    const startTime = Math.floor(endTime - Math.floor(days * 86400));
     
     console.log(`Loading ${days} days of ${granularity} data`);
     

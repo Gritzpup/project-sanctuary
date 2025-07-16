@@ -857,6 +857,9 @@
     if (resizeHandler) {
       window.removeEventListener('resize', resizeHandler);
     }
+    if (redisUnsubscribe) {
+      redisUnsubscribe();
+    }
     if (dataFeed) {
       dataFeed.unsubscribe('chart');
       dataFeed.disconnect();

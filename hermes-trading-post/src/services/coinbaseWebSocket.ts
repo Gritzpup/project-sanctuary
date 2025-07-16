@@ -173,9 +173,12 @@ export class CoinbaseWebSocket {
     };
   }
 
-  subscribeTicker(symbol: string) {
+  async subscribeTicker(symbol: string) {
     console.log(`CoinbaseWebSocket: subscribeTicker called for ${symbol}`);
     this.subscribedSymbols.add(symbol);
+    
+    // Add to Redis subscriptions
+    await redisService.addSubscription(symbol);
     
     // Always try to subscribe immediately if connected
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -194,8 +197,12 @@ export class CoinbaseWebSocket {
     }
   }
 
-  unsubscribeTicker(symbol: string) {
+  async unsubscribeTicker(symbol: string) {
     this.subscribedSymbols.delete(symbol);
+    
+    // Remove from Redis subscriptions
+    await redisService.removeSubscription(symbol);
+    
     if (this.ws?.readyState === WebSocket.OPEN) {
       // Send unsubscribe message
       const unsubscribeMessage = {

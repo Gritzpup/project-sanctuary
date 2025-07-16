@@ -179,6 +179,9 @@ class RealtimeCandleAggregator {
         volume: 0 // Default volume since real-time ticker doesn't provide it
       };
       
+      // Update Redis with current candle
+      await redisService.updateCurrentCandle(symbol, '1m', candleData);
+      
       // Get existing candles from cache (cache expects timestamps in seconds, not milliseconds)
       const cached = await indexedDBCache.getCachedCandles(symbol, '1m', candle.time - 86400, candle.time + 86400);
       if (cached && cached.candles) {
@@ -221,12 +224,21 @@ class RealtimeCandleAggregator {
     };
   }
 
-  startAggregating(symbol: string) {
+  async startAggregating(symbol: string) {
     console.log(`RealtimeCandleAggregator: Starting aggregation for ${symbol}`);
     
-    // Subscribe to ticker channel for this symbol
+    // Subscribe to Redis ticker updates for this symbol
+    const unsubscribe = await redisService.subscribeTicker(symbol, (ticker) => {
+      console.log(`RealtimeCandleAggregator: Received ticker from Redis for ${ticker.product_id} - price: ${ticker.price}`);
+      this.processTick(ticker.product_id, ticker.price, ticker.time);
+    });
+    
+    // Store unsubscribe function
+    this.intervals.set(`${symbol}-unsub`, unsubscribe as any);
+    
+    // Subscribe to ticker channel for this symbol in WebSocket
     console.log(`RealtimeCandleAggregator: Subscribing to ticker for ${symbol}`);
-    coinbaseWebSocket.subscribeTicker(symbol);
+    await coinbaseWebSocket.subscribeTicker(symbol);
     
     // Connect WebSocket if not already connected
     if (!coinbaseWebSocket.isConnected()) {
@@ -236,19 +248,19 @@ class RealtimeCandleAggregator {
       console.log('RealtimeCandleAggregator: WebSocket already connected');
     }
     
-    // Initialize with current price if available
-    const currentPrice = this.lastPrices.get(symbol);
-    console.log(`RealtimeCandleAggregator: Current price for ${symbol}: ${currentPrice}`);
-    if (currentPrice) {
+    // Initialize with current price from Redis if available
+    const latestPrice = await redisService.getLatestPrice(symbol);
+    if (latestPrice) {
+      console.log(`RealtimeCandleAggregator: Current price from Redis for ${symbol}: ${latestPrice.price}`);
       const now = Date.now();
       const minuteTime = Math.floor(now / 60000) * 60;
-      this.createNewCandle(symbol, currentPrice, minuteTime);
+      this.createNewCandle(symbol, latestPrice.price, minuteTime);
     } else {
       console.log('RealtimeCandleAggregator: No current price available, waiting for first tick');
     }
   }
 
-  stopAggregating(symbol: string) {
+  async stopAggregating(symbol: string) {
     // Clear timer
     const timer = this.intervals.get(symbol);
     if (timer) {
@@ -256,12 +268,19 @@ class RealtimeCandleAggregator {
       this.intervals.delete(symbol);
     }
     
+    // Unsubscribe from Redis
+    const unsubscribe = this.intervals.get(`${symbol}-unsub`);
+    if (unsubscribe && typeof unsubscribe === 'function') {
+      unsubscribe();
+      this.intervals.delete(`${symbol}-unsub`);
+    }
+    
     // Clear current candle
     this.currentCandles.delete(symbol);
     this.lastPrices.delete(symbol);
     
     // Unsubscribe from ticker
-    coinbaseWebSocket.unsubscribeTicker(symbol);
+    await coinbaseWebSocket.unsubscribeTicker(symbol);
   }
 
   getCurrentCandle(symbol: string): CandlestickData | undefined {
