@@ -9,13 +9,14 @@ export class CoinbaseWebSocket {
   private onStatusCallback: ((status: 'connected' | 'disconnected' | 'error' | 'loading') => void) | null = null;
   private currentPrice: number = 0;
   private isSubscribed: boolean = false;
+  private messageListeners: Set<(data: any) => void> = new Set();
+  private subscribedSymbols: Set<string> = new Set();
 
   constructor() {
     console.log('CoinbaseWebSocket constructor called');
-    this.connect();
   }
 
-  private connect() {
+  connect() {
     try {
       console.log('Connecting to Coinbase WebSocket:', this.url);
       this.onStatusCallback?.('loading');
@@ -23,7 +24,7 @@ export class CoinbaseWebSocket {
 
       this.ws.onopen = () => {
         console.log('WebSocket opened successfully');
-        this.subscribe();
+        this.subscribeToChannels();
         this.startHeartbeat();
       };
 
@@ -37,15 +38,25 @@ export class CoinbaseWebSocket {
           
           switch (data.type) {
             case 'ticker':
-              if (data.product_id === 'BTC-USD') {
-                const tickerData = data as TickerMessage;
-                if (tickerData.price) {
-                  this.currentPrice = parseFloat(tickerData.price);
-                  this.onPriceCallback?.(this.currentPrice);
-                  // Update status to connected when we receive first ticker
-                  if (this.onStatusCallback) {
-                    this.onStatusCallback('connected');
-                  }
+              const tickerData = data as TickerMessage;
+              console.log(`CoinbaseWebSocket: Received ticker for ${tickerData.product_id} - price: ${tickerData.price}, listeners: ${this.messageListeners.size}`);
+              
+              // Notify all message listeners
+              this.messageListeners.forEach(listener => {
+                try {
+                  listener(tickerData);
+                } catch (error) {
+                  console.error('Error in message listener:', error);
+                }
+              });
+              
+              // Legacy support for BTC-USD price callback
+              if (data.product_id === 'BTC-USD' && tickerData.price) {
+                this.currentPrice = parseFloat(tickerData.price);
+                this.onPriceCallback?.(this.currentPrice);
+                // Update status to connected when we receive first ticker
+                if (this.onStatusCallback) {
+                  this.onStatusCallback('connected');
                 }
               }
               break;
@@ -87,23 +98,19 @@ export class CoinbaseWebSocket {
     }
   }
 
-  private subscribe() {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      if (this.isSubscribed) {
-        console.log('Already subscribed to ticker channel, skipping duplicate subscription');
-        return;
-      }
-      
+  private subscribeToChannels() {
+    console.log(`CoinbaseWebSocket: subscribeToChannels called, symbols: ${Array.from(this.subscribedSymbols).join(', ')}, ws state: ${this.ws?.readyState}`);
+    if (this.ws?.readyState === WebSocket.OPEN && this.subscribedSymbols.size > 0) {
       const subscribeMessage: SubscribeMessage = {
         type: 'subscribe',
-        product_ids: ['BTC-USD'],
+        product_ids: Array.from(this.subscribedSymbols),
         channels: ['ticker']
       };
-      console.log('Sending subscribe message:', subscribeMessage);
+      console.log('CoinbaseWebSocket: Sending subscribe message:', JSON.stringify(subscribeMessage));
       this.ws.send(JSON.stringify(subscribeMessage));
       this.isSubscribed = true;
-    } else {
-      console.error('Cannot subscribe - WebSocket not open. ReadyState:', this.ws?.readyState);
+    } else if (this.subscribedSymbols.size === 0) {
+      console.log('CoinbaseWebSocket: No symbols to subscribe to yet');
     }
   }
 
@@ -153,6 +160,47 @@ export class CoinbaseWebSocket {
     return this.currentPrice;
   }
 
+  isConnected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  subscribe(listener: (data: any) => void): () => void {
+    this.messageListeners.add(listener);
+    return () => {
+      this.messageListeners.delete(listener);
+    };
+  }
+
+  subscribeTicker(symbol: string) {
+    console.log(`CoinbaseWebSocket: subscribeTicker called for ${symbol}`);
+    this.subscribedSymbols.add(symbol);
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      // If already connected, send new subscription
+      const subscribeMessage: SubscribeMessage = {
+        type: 'subscribe',
+        product_ids: [symbol],
+        channels: ['ticker']
+      };
+      console.log(`CoinbaseWebSocket: Sending subscribe message for ${symbol}:`, JSON.stringify(subscribeMessage));
+      this.ws.send(JSON.stringify(subscribeMessage));
+    } else {
+      console.log(`CoinbaseWebSocket: WebSocket not open (state: ${this.ws?.readyState}), will subscribe when connected`);
+    }
+  }
+
+  unsubscribeTicker(symbol: string) {
+    this.subscribedSymbols.delete(symbol);
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      // Send unsubscribe message
+      const unsubscribeMessage = {
+        type: 'unsubscribe',
+        product_ids: [symbol],
+        channels: ['ticker']
+      };
+      this.ws.send(JSON.stringify(unsubscribeMessage));
+    }
+  }
+
   disconnect() {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
@@ -164,3 +212,5 @@ export class CoinbaseWebSocket {
     }
   }
 }
+
+export const coinbaseWebSocket = new CoinbaseWebSocket();

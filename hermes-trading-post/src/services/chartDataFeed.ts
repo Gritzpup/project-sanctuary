@@ -3,6 +3,7 @@ import { CoinbaseAPI } from './coinbaseApi';
 import { CoinbaseWebSocket } from './coinbaseWebSocket';
 import { IndexedDBCache } from './indexedDBCache';
 import { HistoricalDataLoader } from './historicalDataLoader';
+import { realtimeCandleAggregator } from './realtimeCandleAggregator';
 
 interface DataRequest {
   symbol: string;
@@ -17,12 +18,15 @@ export class ChartDataFeed {
   private cache: IndexedDBCache;
   private loader: HistoricalDataLoader;
   private subscribers: Map<string, (data: CandleData, isNew?: boolean) => void> = new Map();
+  private realtimeUnsubscribe: (() => void) | null = null;
   
   // Current state
   private symbol = 'BTC-USD';
   private currentGranularity = '1m';
   private visibleRange: { start: number; end: number } | null = null;
   private currentData: CandleData[] = [];
+  private autoUpdateRange = true; // Auto-scroll with new candles
+  private maxCandles = 60; // Maximum candles to keep for 1m view
   
   // Loading state
   private loadingPromises = new Map<string, Promise<void>>();
@@ -59,6 +63,13 @@ export class ChartDataFeed {
     
     this.setupWebSocket();
     this.startBackgroundLoading();
+    
+    // Start real-time aggregation for BTC-USD before connecting
+    console.log('ChartDataFeed: Starting real-time aggregation for BTC-USD');
+    realtimeCandleAggregator.startAggregating(this.symbol);
+    
+    // Connect WebSocket for real-time updates
+    this.ws.connect();
   }
 
   private async startBackgroundLoading() {
@@ -66,9 +77,9 @@ export class ChartDataFeed {
     
     // Only load minimal data on startup to avoid rate limits
     const priorityLoads = [
-      { granularity: '1m', days: 0.25 },    // 6 hours of 1m data (360 candles) - covers 1H and 4H views
+      { granularity: '1m', days: 0.042 },    // 1 hour of 1m data (60 candles) - covers 1H view exactly
       { granularity: '5m', days: 0.5 },     // 12 hours of 5m data (144 candles)
-      { granularity: '1h', days: 7 },       // 7 days of 1h data (168 candles) - covers 1D and 1W views
+      { granularity: '1h', days: 2.5 },     // 2.5 days of 1h data (60 candles) - covers 1H view exactly
       { granularity: '1D', days: 90 }       // 90 days of daily data (90 candles) - covers 1M and 3M views
     ];
     
@@ -94,8 +105,62 @@ export class ChartDataFeed {
   }
 
   private setupWebSocket() {
+    // Use realtimeCandleAggregator for 1-minute candles
+    this.realtimeUnsubscribe = realtimeCandleAggregator.subscribe(async (update) => {
+      if (this.currentGranularity === '1m' && update.symbol === this.symbol) {
+        // Convert CandlestickData to CandleData
+        const candleData: CandleData = {
+          ...update.candle,
+          volume: 0 // Real-time ticker doesn't provide volume
+        };
+        
+        if (update.isNewCandle) {
+          console.log(`ChartDataFeed: Received new candle at ${new Date(candleData.time * 1000).toISOString()}`);
+          // Add new candle to current data
+          this.currentData.push(candleData);
+          
+          // Implement sliding window for 1m candles
+          if (this.currentGranularity === '1m' && this.visibleRange) {
+            // Calculate expected candles based on visible range
+            const visibleMinutes = Math.floor((this.visibleRange.end - this.visibleRange.start) / 60);
+            const maxCandlesToKeep = Math.min(visibleMinutes, this.maxCandles);
+            
+            // Keep only the required number of most recent candles
+            if (this.currentData.length > maxCandlesToKeep) {
+              console.log(`Sliding window: removing ${this.currentData.length - maxCandlesToKeep} old candles`);
+              this.currentData = this.currentData.slice(-maxCandlesToKeep);
+            }
+            
+            // Update visible range to auto-scroll with new data
+            if (this.autoUpdateRange) {
+              const latestTime = candleData.time;
+              const rangeSeconds = this.visibleRange.end - this.visibleRange.start;
+              this.visibleRange = {
+                start: latestTime - rangeSeconds,
+                end: latestTime
+              };
+              console.log(`Updated visible range: ${new Date(this.visibleRange.start * 1000).toISOString()} to ${new Date(this.visibleRange.end * 1000).toISOString()}`);
+            }
+          }
+          
+          console.log(`ChartDataFeed: Total candles after sliding window: ${this.currentData.length}`);
+        } else {
+          // Update existing candle
+          const lastIndex = this.currentData.length - 1;
+          if (lastIndex >= 0 && this.currentData[lastIndex].time === candleData.time) {
+            this.currentData[lastIndex] = candleData;
+          }
+        }
+        
+        // Notify subscribers with the sliding window data
+        const slidingWindowData = this.getVisibleData();
+        this.subscribers.forEach(callback => callback(candleData, update.isNewCandle));
+      }
+    });
+    
+    // For other granularities, still use price updates
     this.ws.onPrice(async (price) => {
-      if (!this.wsConnected) return;
+      if (!this.wsConnected || this.currentGranularity === '1m') return;
       
       const now = Math.floor(Date.now() / 1000);
       
@@ -104,11 +169,9 @@ export class ChartDataFeed {
     });
     
     this.ws.onStatus((status) => {
+      console.log(`ChartDataFeed: WebSocket status changed to: ${status}`);
       this.wsConnected = status === 'connected';
-      // Only log status changes, not every status update
-      if (status !== 'connected' || !this.wsConnected) {
-        console.log(`WebSocket status: ${status}`);
-      }
+      // Don't start aggregation here - it's already started in constructor
     });
   }
 
@@ -485,6 +548,16 @@ export class ChartDataFeed {
   getAllData(): CandleData[] {
     return this.currentData;
   }
+  
+  // Get only visible data based on current view settings
+  getVisibleData(): CandleData[] {
+    if (this.currentGranularity === '1m' && this.visibleRange) {
+      const visibleMinutes = Math.floor((this.visibleRange.end - this.visibleRange.start) / 60);
+      const maxCandles = Math.min(visibleMinutes, this.maxCandles);
+      return this.currentData.slice(-maxCandles);
+    }
+    return this.currentData;
+  }
 
   // Get total available candle count
   async getTotalCandleCount(): Promise<number> {
@@ -518,7 +591,7 @@ export class ChartDataFeed {
     
     // Update cache
     try {
-      await this.cache.setCachedData(this.symbol, this.currentGranularity, this.currentData);
+      await this.cache.setCachedCandles(this.symbol, this.currentGranularity, this.currentData);
     } catch (error) {
       console.error('Error updating cache with new candle:', error);
     }
@@ -628,6 +701,13 @@ export class ChartDataFeed {
     // Keep manual mode active until user changes period or zooms
     // Don't auto-disable it after 2 seconds
     clearTimeout(this.manualModeTimer);
+    
+    // Handle real-time aggregator for 1m candles
+    if (granularity === '1m' && this.wsConnected) {
+      realtimeCandleAggregator.startAggregating(this.symbol);
+    } else {
+      realtimeCandleAggregator.stopAggregating(this.symbol);
+    }
   }
   
   // Re-enable auto-granularity mode
@@ -654,5 +734,10 @@ export class ChartDataFeed {
   disconnect() {
     this.ws.disconnect();
     this.loader.stop();
+    realtimeCandleAggregator.stopAggregating(this.symbol);
+    if (this.realtimeUnsubscribe) {
+      this.realtimeUnsubscribe();
+      this.realtimeUnsubscribe = null;
+    }
   }
 }

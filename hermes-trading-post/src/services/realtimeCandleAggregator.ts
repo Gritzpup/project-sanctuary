@@ -1,6 +1,7 @@
 import type { CandlestickData } from 'lightweight-charts';
 import { coinbaseWebSocket } from './coinbaseWebSocket';
 import { indexedDBCache } from './indexedDBCache';
+import { CoinbaseAPI } from './coinbaseApi';
 
 export interface CandleUpdate {
   symbol: string;
@@ -13,26 +14,38 @@ class RealtimeCandleAggregator {
   private listeners: Set<(update: CandleUpdate) => void> = new Set();
   private intervals: Map<string, NodeJS.Timeout> = new Map();
   private lastPrices: Map<string, number> = new Map();
+  private api: CoinbaseAPI;
 
   constructor() {
+    this.api = new CoinbaseAPI();
+    
     // Subscribe to WebSocket ticker updates
+    console.log('RealtimeCandleAggregator: Setting up WebSocket subscription');
     coinbaseWebSocket.subscribe((data) => {
       if (data.type === 'ticker' && data.price) {
+        console.log(`RealtimeCandleAggregator: Received ticker for ${data.product_id} - price: ${data.price}`);
         this.processTick(data.product_id, parseFloat(data.price), new Date(data.time).getTime());
       }
     });
   }
 
   private processTick(symbol: string, price: number, timestamp: number) {
-    // Calculate the current minute boundary
+    // Calculate the current minute boundary (in seconds for lightweight-charts)
     const minuteTime = Math.floor(timestamp / 60000) * 60;
     const currentCandle = this.currentCandles.get(symbol);
     
+    // Debug logging
+    const debugTime = new Date(timestamp);
+    const debugMinute = new Date(minuteTime * 1000);
+    console.log(`Process tick: ${debugTime.toISOString()} -> Minute boundary: ${debugMinute.toISOString()} (${minuteTime}s)`);
+    
     if (!currentCandle || currentCandle.time !== minuteTime) {
       // Need to create a new candle
+      console.log(`Creating new candle at ${new Date(minuteTime * 1000).toISOString()} (${minuteTime}s)`);
       this.createNewCandle(symbol, price, minuteTime);
     } else {
       // Update existing candle
+      console.log(`Updating existing candle at ${new Date(minuteTime * 1000).toISOString()}`);
       this.updateCandle(symbol, price);
     }
     
@@ -99,35 +112,90 @@ class RealtimeCandleAggregator {
     const nextMinute = Math.ceil(now / 60000) * 60000;
     const timeUntilNext = nextMinute - now;
 
-    // Schedule candle creation
+    console.log(`Scheduling next candle in ${timeUntilNext}ms at ${new Date(nextMinute).toISOString()}`);
+    
+    // Schedule candle creation with small buffer to ensure we're past boundary
     const timer = setTimeout(() => {
       const currentPrice = this.lastPrices.get(symbol);
+      console.log(`Timer fired for new candle at ${new Date(nextMinute).toISOString()}, price: ${currentPrice}`);
       if (currentPrice) {
+        // Force create new candle at exact minute boundary
         this.processTick(symbol, currentPrice, nextMinute);
       }
-    }, timeUntilNext);
+      // Sync with API for accuracy
+      this.syncWithAPI(symbol);
+    }, timeUntilNext + 100); // Add 100ms buffer
 
     this.intervals.set(symbol, timer);
   }
 
+  private async syncWithAPI(symbol: string) {
+    try {
+      // Fetch last 2 minutes from API to ensure accuracy
+      const endTime = new Date();
+      const startTime = new Date(endTime.getTime() - 120000); // 2 minutes ago
+      
+      const candles = await this.api.getCandles(
+        symbol,
+        '60', // 1 minute granularity
+        startTime.toISOString(),
+        endTime.toISOString()
+      );
+      
+      if (candles && candles.length > 0) {
+        // Update the current candle with accurate data from API
+        const latestApiCandle = candles[candles.length - 1];
+        const currentCandle = this.currentCandles.get(symbol);
+        
+        if (currentCandle && currentCandle.time === latestApiCandle.time) {
+          // Update with accurate OHLC from API
+          currentCandle.open = latestApiCandle.open;
+          currentCandle.high = latestApiCandle.high;
+          currentCandle.low = latestApiCandle.low;
+          currentCandle.close = latestApiCandle.close;
+          
+          // Notify listeners of the update
+          this.notifyListeners({
+            symbol,
+            candle: { ...currentCandle },
+            isNewCandle: false
+          });
+          
+          // Save to cache
+          await this.saveCandle(symbol, currentCandle);
+          console.log(`Synced candle with API for ${new Date(currentCandle.time * 1000).toISOString()}`);
+        }
+      }
+    } catch (error) {
+      console.error('API sync failed:', error);
+    }
+  }
+
   private async saveCandle(symbol: string, candle: CandlestickData) {
     try {
-      // Get existing candles from cache
-      const cached = await indexedDBCache.getCachedData(symbol, '1m');
-      if (cached) {
+      // Convert CandlestickData to CandleData (add volume field)
+      const candleData = {
+        ...candle,
+        volume: 0 // Default volume since real-time ticker doesn't provide it
+      };
+      
+      // Get existing candles from cache (cache expects timestamps in seconds, not milliseconds)
+      const cached = await indexedDBCache.getCachedCandles(symbol, '1m', candle.time - 86400, candle.time + 86400);
+      if (cached && cached.candles) {
+        const candles = [...cached.candles];
         // Check if candle already exists
-        const existingIndex = cached.candles.findIndex(c => c.time === candle.time);
+        const existingIndex = candles.findIndex(c => c.time === candle.time);
         if (existingIndex >= 0) {
           // Update existing candle
-          cached.candles[existingIndex] = candle;
+          candles[existingIndex] = candleData;
         } else {
           // Add new candle in correct position
-          cached.candles.push(candle);
-          cached.candles.sort((a, b) => a.time - b.time);
+          candles.push(candleData);
+          candles.sort((a, b) => a.time - b.time);
         }
         
         // Save back to cache
-        await indexedDBCache.setCachedData(symbol, '1m', cached.candles);
+        await indexedDBCache.setCachedCandles(symbol, '1m', candles);
       }
     } catch (error) {
       console.error('Error saving candle to cache:', error);
@@ -154,20 +222,31 @@ class RealtimeCandleAggregator {
   }
 
   startAggregating(symbol: string) {
-    // Connect WebSocket if not already connected
-    if (!coinbaseWebSocket.isConnected()) {
-      coinbaseWebSocket.connect();
-    }
+    console.log(`RealtimeCandleAggregator: Starting aggregation for ${symbol}`);
     
-    // Subscribe to ticker channel for this symbol
+    // Subscribe to ticker channel for this symbol FIRST
+    console.log(`RealtimeCandleAggregator: Subscribing to ticker for ${symbol}`);
     coinbaseWebSocket.subscribeTicker(symbol);
+    
+    // Then connect WebSocket if not already connected
+    if (!coinbaseWebSocket.isConnected()) {
+      console.log('RealtimeCandleAggregator: WebSocket not connected, connecting...');
+      coinbaseWebSocket.connect();
+    } else {
+      console.log('RealtimeCandleAggregator: WebSocket already connected, sending subscription');
+      // Force re-subscription if already connected
+      coinbaseWebSocket.subscribeTicker(symbol);
+    }
     
     // Initialize with current price if available
     const currentPrice = this.lastPrices.get(symbol);
+    console.log(`RealtimeCandleAggregator: Current price for ${symbol}: ${currentPrice}`);
     if (currentPrice) {
       const now = Date.now();
       const minuteTime = Math.floor(now / 60000) * 60;
       this.createNewCandle(symbol, currentPrice, minuteTime);
+    } else {
+      console.log('RealtimeCandleAggregator: No current price available, waiting for first tick');
     }
   }
 

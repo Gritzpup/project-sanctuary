@@ -86,4 +86,21 @@ export class CoinbaseAPI {
       throw error;
     });
   }
+
+  async getRecentCandles(
+    productId: string = 'BTC-USD',
+    granularity: number = 60,
+    minutes: number = 2
+  ): Promise<CandleData[]> {
+    // Fetch recent candles for API synchronization
+    const endTime = new Date();
+    const startTime = new Date(endTime.getTime() - (minutes * 60000));
+    
+    return this.getCandles(
+      productId,
+      granularity,
+      startTime.toISOString(),
+      endTime.toISOString()
+    );
+  }
 }

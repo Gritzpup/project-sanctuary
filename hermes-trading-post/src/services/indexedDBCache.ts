@@ -969,3 +969,5 @@ export class IndexedDBCache {
     }
   }
 }
+
+export const indexedDBCache = new IndexedDBCache();

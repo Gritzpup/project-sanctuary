@@ -4,13 +4,11 @@
   import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
   import { ChartDataFeed } from '../services/chartDataFeed';
   import type { CandleData } from '../types/coinbase';
-  import { realtimeCandleAggregator, type CandleUpdate } from '../services/realtimeCandleAggregator';
 
   let chartContainer: HTMLDivElement;
   let chart: IChartApi | null = null;
   let candleSeries: ISeriesApi<'Candlestick'> | any = null;
   let dataFeed: ChartDataFeed | null = null;
-  let aggregatorUnsubscribe: (() => void) | null = null;
 
   export let status: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   export let granularity: string = '1m';
@@ -282,47 +280,44 @@
         dataFeed.onGranularityChange(onGranularityChange);
       }
       
-      // Start real-time candle aggregation
-      realtimeCandleAggregator.startAggregating('BTC-USD');
-      
-      // Subscribe to real-time candle updates from aggregator
-      aggregatorUnsubscribe = realtimeCandleAggregator.subscribe((update: CandleUpdate) => {
-        if (candleSeries && !isLoadingData && update.symbol === 'BTC-USD') {
+      // Subscribe to real-time updates from dataFeed
+      dataFeed.subscribe('chart', (candle, isNew) => {
+        if (candleSeries && !isLoadingData) {
           const visibleRange = chart?.timeScale().getVisibleRange();
-          if (visibleRange && update.candle.time >= Number(visibleRange.from) && update.candle.time <= Number(visibleRange.to)) {
+          if (visibleRange && candle.time >= Number(visibleRange.from) && candle.time <= Number(visibleRange.to)) {
             
             // Handle based on granularity
             if (effectiveGranularity === '1m') {
               // For 1m granularity, update or append candle directly
-              if (update.isNewCandle) {
-                // Append new candle and update cache
-                try {
-                  candleSeries.update({
-                    ...update.candle,
-                    time: update.candle.time as Time
-                  });
-                  
-                  // Update cache with new candle
-                  dataFeed?.appendCandle(update.candle);
-                  
-                  // Shift view forward if at the right edge
-                  const now = Math.floor(Date.now() / 1000);
-                  if (Number(visibleRange.to) >= now - 120) {
+              if (isNew) {
+                console.log(`Chart: Received new 1m candle at ${new Date(candle.time * 1000).toISOString()}`);
+                // For new candles, we need to reload the data to ensure the chart has all candles
+                console.log('New candle detected, reloading chart data...');
+                
+                // Get current visible range before reload
+                const currentRange = chart?.timeScale().getVisibleRange();
+                
+                // Reload the data
+                debouncedReloadData();
+                
+                // After reload, if we were at the right edge, shift the view to include the new candle
+                setTimeout(() => {
+                  if (currentRange && Number(currentRange.to) >= Math.floor(Date.now() / 1000) - 120) {
                     const newRange = {
-                      from: (Number(visibleRange.from) + 60) as Time,
-                      to: (Number(visibleRange.to) + 60) as Time
+                      from: (Number(currentRange.from) + 60) as Time,
+                      to: Math.floor(Date.now() / 1000) as Time
                     };
                     chart?.timeScale().setVisibleRange(newRange);
                   }
-                } catch (error) {
-                  console.log('New candle created, reloading data...');
-                  debouncedReloadData();
-                }
+                }, 100);
               } else {
                 // Update existing candle
                 candleSeries.update({
-                  ...update.candle,
-                  time: update.candle.time as Time
+                  time: candle.time as Time,
+                  open: candle.open,
+                  high: candle.high,
+                  low: candle.low,
+                  close: candle.close
                 });
               }
             } else {
@@ -424,15 +419,25 @@
       // Calculate exact number of candles for this period and granularity
       const expectedCandles = Math.ceil(periodSeconds / granularitySeconds);
       
+      // For 1H with 1m granularity, enforce exactly 60 candles
+      let adjustedStartTime = visibleStartTime;
+      let adjustedExpectedCandles = expectedCandles;
+      
+      if (period === '1H' && effectiveGranularity === '1m') {
+        adjustedExpectedCandles = 60;
+        adjustedStartTime = alignedNow - (60 * 60); // Exactly 60 minutes back
+        console.log(`Enforcing 60 candles for 1H/1m view: ${new Date(adjustedStartTime * 1000).toISOString()} to ${new Date(alignedNow * 1000).toISOString()}`);
+      }
+      
       // Update date range info
       dateRangeInfo = {
-        expectedFrom: new Date(visibleStartTime * 1000).toLocaleString(),
+        expectedFrom: new Date(adjustedStartTime * 1000).toLocaleString(),
         expectedTo: new Date(alignedNow * 1000).toLocaleString(),
         actualFrom: '',
         actualTo: '',
-        expectedCandles,
+        expectedCandles: adjustedExpectedCandles,
         actualCandles: 0,
-        requestedFrom: visibleStartTime,
+        requestedFrom: adjustedStartTime,
         requestedTo: alignedNow
       };
       
@@ -440,15 +445,15 @@
         periodDays: days,
         periodSeconds,
         granularitySeconds,
-        expectedCandles,
-        visibleRange: `${new Date(visibleStartTime * 1000).toISOString()} to ${new Date(now * 1000).toISOString()}`,
-        visibleStartTime,
+        expectedCandles: adjustedExpectedCandles,
+        visibleRange: `${new Date(adjustedStartTime * 1000).toISOString()} to ${new Date(now * 1000).toISOString()}`,
+        visibleStartTime: adjustedStartTime,
         alignedNow,
-        rangeInSeconds: alignedNow - visibleStartTime
+        rangeInSeconds: alignedNow - adjustedStartTime
       });
       
       // Load exact data for the period - no extra padding
-      const dataStartTime = visibleStartTime;
+      const dataStartTime = adjustedStartTime; // Use adjusted start time
       
       // Ensure we use the selected granularity
       dataFeed.setManualGranularity(effectiveGranularity);
@@ -461,12 +466,18 @@
       console.log('Data received:', data.length > 0 ? `${data.length} candles` : 'NO DATA');
       
       // CRITICAL: Filter data to only include candles within our time range
-      const filteredData = data.filter(candle => 
-        candle.time >= visibleStartTime && candle.time <= alignedNow
+      let filteredData = data.filter(candle => 
+        candle.time >= adjustedStartTime && candle.time <= alignedNow
       );
       
+      // For 1H with 1m granularity, ensure we only keep the last 60 candles
+      if (period === '1H' && effectiveGranularity === '1m' && filteredData.length > 60) {
+        console.log(`Trimming from ${filteredData.length} to last 60 candles for 1H/1m view`);
+        filteredData = filteredData.slice(-60);
+      }
+      
       console.log(`Filtered from ${data.length} to ${filteredData.length} candles within our time range`);
-      console.log(`Loaded ${filteredData.length} candles (expected ${expectedCandles}) for ${period} with ${effectiveGranularity}`);
+      console.log(`Loaded ${filteredData.length} candles (expected ${adjustedExpectedCandles}) for ${period} with ${effectiveGranularity}`);
       
       // Update actual candle count
       dateRangeInfo.actualCandles = filteredData.length;
@@ -518,13 +529,19 @@
         
         // IMPORTANT: Force the visible range to show ONLY the requested period
         console.log('Setting visible range to REQUESTED time period...');
-        console.log(`FORCING visible range: ${visibleStartTime} to ${alignedNow} (${(alignedNow - visibleStartTime)/60} minutes)`);
+        console.log(`FORCING visible range: ${visibleStartTime} to ${alignedNow + 30} (with 30s buffer for last candle)`);
         
         // Use setTimeout to ensure the range is set after the data
         setTimeout(() => {
+          // Use adjusted start time if we have one (for 1H/1m)
+          const rangeStart = period === '1H' && effectiveGranularity === '1m' && filteredData.length > 0 
+            ? filteredData[0].time 
+            : adjustedStartTime;
+          
+          // Add 30 seconds buffer to ensure the last candle is visible
           chart.timeScale().setVisibleRange({
-            from: visibleStartTime as Time,
-            to: alignedNow as Time
+            from: rangeStart as Time,
+            to: (alignedNow + 30) as Time
           });
           
           // Check what happened
@@ -533,11 +550,11 @@
             console.log(`Actual visible range after setting: ${actualRange.from} to ${actualRange.to} (${(actualRange.to - actualRange.from)/60} minutes)`);
             
             // If the range is wrong, try again!
-            if (Math.abs((actualRange.to - actualRange.from) - (alignedNow - visibleStartTime)) > 60) {
+            if (Math.abs((actualRange.to - actualRange.from) - (alignedNow - rangeStart)) > 60) {
               console.log('Range is wrong, forcing it again...');
               chart.timeScale().setVisibleRange({
-                from: visibleStartTime as Time,
-                to: alignedNow as Time
+                from: rangeStart as Time,
+                to: (alignedNow + 30) as Time
               });
             }
           }
@@ -545,7 +562,7 @@
         
         
         // Update visible candle count for the actual visible range
-        updateVisibleCandleCount(visibleStartTime, alignedNow);
+        updateVisibleCandleCount(adjustedStartTime, alignedNow);
         
         // Log what the chart thinks the visible range is and update count
         setTimeout(() => {
@@ -627,7 +644,15 @@
         alignedNow = now;
       }
       
-      const startTime = alignedNow - periodSeconds;
+      let startTime = alignedNow - periodSeconds;
+      
+      // For 1H with 1m granularity, enforce exactly 60 candles
+      let expectedCandles = Math.ceil(periodSeconds / granularitySeconds);
+      if (period === '1H' && effectiveGranularity === '1m') {
+        expectedCandles = 60;
+        startTime = alignedNow - (60 * 60); // Exactly 60 minutes back
+        console.log(`Enforcing 60 candles for 1H/1m view on reload: ${new Date(startTime * 1000).toISOString()} to ${new Date(alignedNow * 1000).toISOString()}`);
+      }
       
       // Force manual mode to ensure our selected granularity is used
       dataFeed.setManualGranularity(effectiveGranularity);
@@ -637,12 +662,15 @@
       const data = await dataFeed.getDataForVisibleRange(startTime, alignedNow);
       
       // CRITICAL: Filter data to only include candles within our time range
-      const filteredData = data.filter(candle => 
+      let filteredData = data.filter(candle => 
         candle.time >= startTime && candle.time <= alignedNow
       );
       
-      // Calculate expected candles
-      const expectedCandles = Math.ceil(periodSeconds / granularitySeconds);
+      // For 1H with 1m granularity, ensure we only keep the last 60 candles
+      if (period === '1H' && effectiveGranularity === '1m' && filteredData.length > 60) {
+        console.log(`Trimming from ${filteredData.length} to last 60 candles for 1H/1m view on reload`);
+        filteredData = filteredData.slice(-60);
+      }
       
       // Update date range info for reload
       dateRangeInfo.expectedFrom = new Date(startTime * 1000).toLocaleString();
@@ -759,11 +787,20 @@
   async function updateTotalCandleCount() {
     if (!dataFeed) return;
     
-    try {
-      totalCandleCount = await dataFeed.getTotalCandleCount();
-    } catch (error) {
-      console.error('Error getting total candle count:', error);
-    }
+    // Use expected counts instead of cache total
+    const expectedCounts: Record<string, Record<string, number>> = {
+      '1H': { '1m': 60, '5m': 12, '15m': 4, '1h': 1 },
+      '4H': { '1m': 240, '5m': 48, '15m': 16, '1h': 4 },
+      '5D': { '1m': 7200, '5m': 1440, '15m': 480, '1h': 120, '6h': 20, '1d': 5 },
+      '1M': { '1h': 720, '6h': 120, '1d': 30 },
+      '3M': { '1h': 2160, '6h': 360, '1d': 90 },
+      '6M': { '1d': 180 },
+      '1Y': { '1d': 365 },
+      '5Y': { '1d': 1825 }
+    };
+    
+    const expected = expectedCounts[period]?.[effectiveGranularity];
+    totalCandleCount = expected || visibleCandleCount;
   }
 
   // Update clock and countdown
@@ -820,10 +857,6 @@
     if (resizeHandler) {
       window.removeEventListener('resize', resizeHandler);
     }
-    if (aggregatorUnsubscribe) {
-      aggregatorUnsubscribe();
-    }
-    realtimeCandleAggregator.stopAggregating('BTC-USD');
     if (dataFeed) {
       dataFeed.unsubscribe('chart');
       dataFeed.disconnect();

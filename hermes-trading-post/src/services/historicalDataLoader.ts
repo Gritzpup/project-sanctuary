@@ -26,7 +26,7 @@ export class HistoricalDataLoader {
     '1m': { initialDays: 1, maxDays: 7, chunkDays: 1 },
     '5m': { initialDays: 7, maxDays: 30, chunkDays: 7 },
     '15m': { initialDays: 30, maxDays: 90, chunkDays: 30 },
-    '1h': { initialDays: 90, maxDays: 365, chunkDays: 30 },
+    '1h': { initialDays: 3, maxDays: 365, chunkDays: 30 },
     '6h': { initialDays: 180, maxDays: 730, chunkDays: 90 },
     '1d': { initialDays: 365, maxDays: 7300, chunkDays: 180 } // 20 years
   };
