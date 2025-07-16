@@ -2,6 +2,7 @@ import type { CandlestickData } from 'lightweight-charts';
 import { coinbaseWebSocket } from './coinbaseWebSocket';
 import { indexedDBCache } from './indexedDBCache';
 import { CoinbaseAPI } from './coinbaseApi';
+import { redisService } from './redisService';
 
 export interface CandleUpdate {
   symbol: string;
@@ -18,15 +19,16 @@ class RealtimeCandleAggregator {
 
   constructor() {
     this.api = new CoinbaseAPI();
-    
-    // Subscribe to WebSocket ticker updates
-    console.log('RealtimeCandleAggregator: Setting up WebSocket subscription');
-    coinbaseWebSocket.subscribe((data) => {
-      if (data.type === 'ticker' && data.price) {
-        console.log(`RealtimeCandleAggregator: Received ticker for ${data.product_id} - price: ${data.price}`);
-        this.processTick(data.product_id, parseFloat(data.price), new Date(data.time).getTime());
-      }
-    });
+    this.initializeRedis();
+  }
+
+  private async initializeRedis() {
+    try {
+      await redisService.connect();
+      console.log('RealtimeCandleAggregator: Redis initialized');
+    } catch (error) {
+      console.error('RealtimeCandleAggregator: Failed to initialize Redis:', error);
+    }
   }
 
   private processTick(symbol: string, price: number, timestamp: number) {

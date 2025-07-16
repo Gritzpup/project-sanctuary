@@ -4,6 +4,7 @@
   import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
   import { ChartDataFeed } from '../services/chartDataFeed';
   import type { CandleData } from '../types/coinbase';
+  import { redisService } from '../services/redisService';
 
   let chartContainer: HTMLDivElement;
   let chart: IChartApi | null = null;
@@ -31,6 +32,9 @@
   let currentTime = '';
   let countdown = '';
   let clockInterval: any = null;
+  
+  // Redis subscription cleanup
+  let redisUnsubscribe: (() => void) | null = null;
   
   // Visible candle count
   let visibleCandleCount = 0;
@@ -280,6 +284,14 @@
         dataFeed.onGranularityChange(onGranularityChange);
       }
       
+      // Initialize Redis connection
+      try {
+        await redisService.connect();
+        console.log('Chart: Redis connected');
+      } catch (error) {
+        console.error('Chart: Failed to connect to Redis:', error);
+      }
+      
       // Subscribe to real-time updates from dataFeed
       dataFeed.subscribe('chart', (candle, isNew) => {
         if (candleSeries && !isLoadingData) {
@@ -344,6 +356,12 @@
       // Start clock
       updateClock();
       clockInterval = setInterval(updateClock, 1000);
+      
+      // Subscribe to Redis ticker updates for real-time price display
+      redisUnsubscribe = await redisService.subscribeTicker('BTC-USD', (ticker) => {
+        console.log(`Chart: Received ticker from Redis - price: ${ticker.price}`);
+        // You can use this for real-time price display if needed
+      });
       
       // Update total candle count
       updateTotalCandleCount();
