@@ -48,8 +48,9 @@ export class CoinbaseAPI {
         granularity
       };
 
-      if (start) params.start = start;
-      if (end) params.end = end;
+      // Ensure timestamps are integers (no decimals)
+      if (start) params.start = Math.floor(parseFloat(start)).toString();
+      if (end) params.end = Math.floor(parseFloat(end)).toString();
 
       const url = `${this.baseUrl}/products/${productId}/candles`;
       

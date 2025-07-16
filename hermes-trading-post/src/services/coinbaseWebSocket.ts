@@ -24,6 +24,8 @@ export class CoinbaseWebSocket {
 
       this.ws.onopen = () => {
         console.log('WebSocket opened successfully');
+        console.log(`WebSocket onopen: subscribedSymbols = ${Array.from(this.subscribedSymbols).join(', ')}`);
+        // Always subscribe to channels when connection opens
         this.subscribeToChannels();
         this.startHeartbeat();
       };
@@ -174,17 +176,21 @@ export class CoinbaseWebSocket {
   subscribeTicker(symbol: string) {
     console.log(`CoinbaseWebSocket: subscribeTicker called for ${symbol}`);
     this.subscribedSymbols.add(symbol);
+    
+    // Always try to subscribe immediately if connected
     if (this.ws?.readyState === WebSocket.OPEN) {
-      // If already connected, send new subscription
+      // If already connected, send subscription immediately
       const subscribeMessage: SubscribeMessage = {
         type: 'subscribe',
         product_ids: [symbol],
         channels: ['ticker']
       };
-      console.log(`CoinbaseWebSocket: Sending subscribe message for ${symbol}:`, JSON.stringify(subscribeMessage));
+      console.log(`CoinbaseWebSocket: Sending immediate subscribe message for ${symbol}:`, JSON.stringify(subscribeMessage));
       this.ws.send(JSON.stringify(subscribeMessage));
+      this.isSubscribed = true;
     } else {
-      console.log(`CoinbaseWebSocket: WebSocket not open (state: ${this.ws?.readyState}), will subscribe when connected`);
+      console.log(`CoinbaseWebSocket: WebSocket not open (state: ${this.ws?.readyState}), symbol added to queue for connection`);
+      // The subscription will be sent when the WebSocket connects
     }
   }
 

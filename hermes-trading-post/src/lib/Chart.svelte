@@ -324,9 +324,9 @@
               // For other granularities, check if we need to reload
               const granularitySeconds = granularityToSeconds[effectiveGranularity] || 60;
               const currentAlignedTime = Math.floor(Date.now() / 1000 / granularitySeconds) * granularitySeconds;
-              const candleAlignedTime = Math.floor(update.candle.time / granularitySeconds) * granularitySeconds;
+              const candleAlignedTime = Math.floor(candle.time / granularitySeconds) * granularitySeconds;
               
-              if (update.isNewCandle && candleAlignedTime === currentAlignedTime) {
+              if (isNew && candleAlignedTime === currentAlignedTime) {
                 console.log(`New ${effectiveGranularity} candle period started, reloading...`);
                 debouncedReloadData();
               }

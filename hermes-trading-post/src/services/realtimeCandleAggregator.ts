@@ -224,18 +224,16 @@ class RealtimeCandleAggregator {
   startAggregating(symbol: string) {
     console.log(`RealtimeCandleAggregator: Starting aggregation for ${symbol}`);
     
-    // Subscribe to ticker channel for this symbol FIRST
+    // Subscribe to ticker channel for this symbol
     console.log(`RealtimeCandleAggregator: Subscribing to ticker for ${symbol}`);
     coinbaseWebSocket.subscribeTicker(symbol);
     
-    // Then connect WebSocket if not already connected
+    // Connect WebSocket if not already connected
     if (!coinbaseWebSocket.isConnected()) {
       console.log('RealtimeCandleAggregator: WebSocket not connected, connecting...');
       coinbaseWebSocket.connect();
     } else {
-      console.log('RealtimeCandleAggregator: WebSocket already connected, sending subscription');
-      // Force re-subscription if already connected
-      coinbaseWebSocket.subscribeTicker(symbol);
+      console.log('RealtimeCandleAggregator: WebSocket already connected');
     }
     
     // Initialize with current price if available

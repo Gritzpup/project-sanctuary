@@ -61,15 +61,16 @@ export class ChartDataFeed {
     this.cache = new IndexedDBCache();
     this.loader = new HistoricalDataLoader(this.api, this.cache);
     
+    console.log(`ChartDataFeed: Initialized with granularity ${this.currentGranularity}`);
+    
     this.setupWebSocket();
     this.startBackgroundLoading();
     
-    // Start real-time aggregation for BTC-USD before connecting
+    // Start real-time aggregation for BTC-USD
     console.log('ChartDataFeed: Starting real-time aggregation for BTC-USD');
     realtimeCandleAggregator.startAggregating(this.symbol);
     
-    // Connect WebSocket for real-time updates
-    this.ws.connect();
+    // The realtimeCandleAggregator will connect the WebSocket if needed
   }
 
   private async startBackgroundLoading() {
@@ -160,6 +161,7 @@ export class ChartDataFeed {
     
     // For other granularities, still use price updates
     this.ws.onPrice(async (price) => {
+      console.log(`ChartDataFeed: onPrice called - price: ${price}, wsConnected: ${this.wsConnected}, granularity: ${this.currentGranularity}`);
       if (!this.wsConnected || this.currentGranularity === '1m') return;
       
       const now = Math.floor(Date.now() / 1000);
@@ -301,6 +303,7 @@ export class ChartDataFeed {
     // Update active granularity
     this.activeGranularity = newGranularity;
     this.currentGranularity = newGranularity;
+    console.log(`ChartDataFeed: Granularity changed to ${newGranularity} (activeGranularity: ${this.activeGranularity}, currentGranularity: ${this.currentGranularity})`);
     
     // Notify UI of granularity change
     this.granularityChangeCallback?.(newGranularity);
@@ -504,7 +507,7 @@ export class ChartDataFeed {
   // Load historical data for a specific period
   async loadHistoricalData(granularity: string, days: number): Promise<void> {
     const endTime = Math.floor(Date.now() / 1000);
-    const startTime = endTime - (days * 86400);
+    const startTime = Math.floor(endTime - (days * 86400));
     
     console.log(`Loading ${days} days of ${granularity} data`);
     
