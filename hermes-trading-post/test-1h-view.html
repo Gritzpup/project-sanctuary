@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test 1H View</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #0a0a0a;
+            color: #d1d4dc;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #info {
+            margin-top: 20px;
+            padding: 20px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #333;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test 1H View - Debug Candle Display</h1>
+    
+    <button onclick="openDashboard()">Open Dashboard</button>
+    <button onclick="checkConsole()">Check Console Logs</button>
+    
+    <div id="info">Click "Open Dashboard" to test the 1H view</div>
+    
+    <iframe id="dashboard" style="display:none;"></iframe>
+    
+    <script>
+        function openDashboard() {
+            const iframe = document.getElementById('dashboard');
+            iframe.src = 'http://localhost:5173';
+            iframe.style.display = 'block';
+            
+            // Wait for it to load
+            setTimeout(() => {
+                document.getElementById('info').textContent = `
+Dashboard loaded.
+
+To debug:
+1. Open browser DevTools (F12)
+2. Look at the Console tab
+3. You should see logs like:
+   - "Initial load for 1H with 1m:"
+   - "Setting visible range: X to Y (60 minutes)"
+   - "Actual visible range after setting: ..."
+
+4. The key issue to look for:
+   - Expected: 60 minutes range (3600 seconds)
+   - If actual range is much smaller, that's the problem
+
+5. Also check for any errors in red
+`;
+            }, 3000);
+        }
+        
+        function checkConsole() {
+            document.getElementById('info').textContent = `
+To see what's happening:
+
+1. Press F12 to open DevTools
+2. Go to Console tab
+3. Look for these key messages:
+
+EXPECTED GOOD BEHAVIOR:
+- "Initial load for 1H with 1m:" should show expectedCandles: 60
+- "Setting visible range:" should show "(60 minutes)"
+- "Actual visible range after setting:" should also show ~60 minutes
+
+POSSIBLE ISSUES:
+- If actual range shows only 2-3 minutes, the range is being constrained
+- If you see "No data received", there's a data loading issue
+- If you see 429 errors, rate limiting is happening
+
+The console logs will tell us exactly what's wrong!
+`;
+        }
+    </script>
+</body>
+</html>

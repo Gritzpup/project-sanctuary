@@ -8,6 +8,7 @@ export class CoinbaseWebSocket {
   private onPriceCallback: ((price: number) => void) | null = null;
   private onStatusCallback: ((status: 'connected' | 'disconnected' | 'error' | 'loading') => void) | null = null;
   private currentPrice: number = 0;
+  private isSubscribed: boolean = false;
 
   constructor() {
     console.log('CoinbaseWebSocket constructor called');
@@ -29,7 +30,10 @@ export class CoinbaseWebSocket {
       this.ws.onmessage = (event) => {
         try {
           const data: WebSocketMessage = JSON.parse(event.data);
-          console.log('WebSocket message type:', data.type, data.product_id || '');
+          // Only log important messages, not ticker updates
+          if (data.type === 'error' || data.type === 'subscriptions') {
+            console.log('WebSocket message:', data.type, data);
+          }
           
           switch (data.type) {
             case 'ticker':
@@ -67,6 +71,7 @@ export class CoinbaseWebSocket {
 
       this.ws.onclose = () => {
         console.log('WebSocket disconnected');
+        this.isSubscribed = false; // Reset subscription state
         this.onStatusCallback?.('disconnected');
         this.stopHeartbeat();
         this.scheduleReconnect();
@@ -84,6 +89,11 @@ export class CoinbaseWebSocket {
 
   private subscribe() {
     if (this.ws?.readyState === WebSocket.OPEN) {
+      if (this.isSubscribed) {
+        console.log('Already subscribed to ticker channel, skipping duplicate subscription');
+        return;
+      }
+      
       const subscribeMessage: SubscribeMessage = {
         type: 'subscribe',
         product_ids: ['BTC-USD'],
@@ -91,6 +101,7 @@ export class CoinbaseWebSocket {
       };
       console.log('Sending subscribe message:', subscribeMessage);
       this.ws.send(JSON.stringify(subscribeMessage));
+      this.isSubscribed = true;
     } else {
       console.error('Cannot subscribe - WebSocket not open. ReadyState:', this.ws?.readyState);
     }
@@ -99,14 +110,12 @@ export class CoinbaseWebSocket {
   private startHeartbeat() {
     this.heartbeatInterval = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
-        // Coinbase doesn't require explicit heartbeat, but we check connection
-        // by re-subscribing to keep the connection alive
-        const subscribeMessage: SubscribeMessage = {
-          type: 'subscribe',
-          product_ids: ['BTC-USD'],
-          channels: ['ticker']
-        };
-        this.ws.send(JSON.stringify(subscribeMessage));
+        // Coinbase WebSocket doesn't require explicit heartbeat messages
+        // Just check if connection is still alive
+        console.log('WebSocket heartbeat check - connection still open');
+      } else {
+        console.log('WebSocket heartbeat check - connection lost, will reconnect');
+        this.ws?.close();
       }
     }, 30000); // Check every 30 seconds
   }
@@ -134,6 +143,10 @@ export class CoinbaseWebSocket {
 
   onStatus(callback: (status: 'connected' | 'disconnected' | 'error' | 'loading') => void) {
     this.onStatusCallback = callback;
+  }
+
+  getLastPrice(): number | null {
+    return this.currentPrice || null;
   }
 
   getCurrentPrice(): number {

@@ -501,6 +501,34 @@ export class ChartDataFeed {
     this.subscribers.delete(id);
   }
 
+  // Append a single candle to the current data
+  async appendCandle(candle: CandleData) {
+    if (!candle || !this.currentGranularity) return;
+    
+    // Update current data array
+    const existingIndex = this.currentData.findIndex(c => c.time === candle.time);
+    if (existingIndex >= 0) {
+      // Update existing candle
+      this.currentData[existingIndex] = candle;
+    } else {
+      // Add new candle and sort
+      this.currentData.push(candle);
+      this.currentData.sort((a, b) => a.time - b.time);
+    }
+    
+    // Update cache
+    try {
+      await this.cache.setCachedData(this.symbol, this.currentGranularity, this.currentData);
+    } catch (error) {
+      console.error('Error updating cache with new candle:', error);
+    }
+    
+    // Notify subscribers
+    this.subscribers.forEach(callback => {
+      callback(candle, existingIndex < 0);
+    });
+  }
+
   // Get granularity in seconds
   private getGranularitySeconds(granularity: string): number {
     const map: { [key: string]: number } = {

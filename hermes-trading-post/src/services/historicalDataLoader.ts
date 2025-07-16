@@ -1,291 +1,298 @@
 import pLimit from 'p-limit';
-import { getIndexedDBCache } from './indexedDBCache';
+import { IndexedDBCache } from './indexedDBCache';
 import { CoinbaseAPI } from './coinbaseApi';
 import type { CandleData } from '../types/coinbase';
 
-interface LoadConfig {
-  granularity: number;
-  days: number;
+interface LoadTask {
+  symbol: string;
+  granularity: string;
+  startTime: number;
+  endTime: number;
   priority: number;
 }
 
 export class HistoricalDataLoader {
   private api: CoinbaseAPI;
-  private cache = getIndexedDBCache();
+  private cache: IndexedDBCache;
   private isLoading = false;
   private loadInterval: number | null = null;
-  private updateInterval: number | null = null;
+  private currentTasks: Set<string> = new Set();
   
   // Concurrent request limiter (3 requests at a time to avoid rate limits)
   private limit = pLimit(3);
   
-  // Loading configuration for different granularities
-  private readonly loadConfigs: LoadConfig[] = [
-    { granularity: 60, days: 7, priority: 1 },      // 1m - last week
-    { granularity: 300, days: 30, priority: 2 },    // 5m - last month
-    { granularity: 900, days: 90, priority: 3 },    // 15m - last 3 months
-    { granularity: 3600, days: 365, priority: 4 },  // 1h - last year
-    { granularity: 21600, days: 730, priority: 5 }, // 6h - last 2 years
-    { granularity: 86400, days: 1825, priority: 6 } // 1D - last 5 years
-  ];
+  // Progressive loading configuration
+  private readonly loadStrategy = {
+    '1m': { initialDays: 1, maxDays: 7, chunkDays: 1 },
+    '5m': { initialDays: 7, maxDays: 30, chunkDays: 7 },
+    '15m': { initialDays: 30, maxDays: 90, chunkDays: 30 },
+    '1h': { initialDays: 90, maxDays: 365, chunkDays: 30 },
+    '6h': { initialDays: 180, maxDays: 730, chunkDays: 90 },
+    '1d': { initialDays: 365, maxDays: 7300, chunkDays: 180 } // 20 years
+  };
 
-  constructor() {
-    this.api = new CoinbaseAPI();
+  constructor(api: CoinbaseAPI, cache: IndexedDBCache) {
+    this.api = api;
+    this.cache = cache;
   }
 
-  // Start the background loader
-  async start(): Promise<void> {
-    console.log('Starting historical data loader...');
+  // Start progressive loading for a symbol
+  async startProgressiveLoad(symbol: string): Promise<void> {
+    if (this.isLoading) {
+      console.log('Progressive load already in progress');
+      return;
+    }
     
-    // Initial load
-    await this.loadAllHistoricalData();
+    this.isLoading = true;
+    console.log(`Starting progressive historical data load for ${symbol}`);
     
-    // Update latest candles every minute
-    this.updateInterval = window.setInterval(() => {
-      this.updateLatestCandles();
-    }, 60000);
+    try {
+      // Load initial data for all granularities
+      await this.loadInitialData(symbol);
+      
+      // Start background progressive loading
+      this.startBackgroundLoading(symbol);
+      
+    } catch (error) {
+      console.error('Error in progressive load:', error);
+      this.isLoading = false;
+    }
+  }
+
+  // Load initial recent data for quick chart display
+  private async loadInitialData(symbol: string): Promise<void> {
+    console.log('Loading initial data for quick display...');
     
-    // Reload historical data every hour to fill any gaps
+    const tasks: LoadTask[] = [];
+    const now = Math.floor(Date.now() / 1000);
+    
+    // Create initial load tasks
+    for (const [granularity, config] of Object.entries(this.loadStrategy)) {
+      const startTime = now - (config.initialDays * 86400);
+      tasks.push({
+        symbol,
+        granularity,
+        startTime,
+        endTime: now,
+        priority: this.getGranularityPriority(granularity)
+      });
+    }
+    
+    // Sort by priority (smaller granularities first)
+    tasks.sort((a, b) => a.priority - b.priority);
+    
+    // Execute initial loads with concurrency limit
+    await Promise.all(
+      tasks.map(task => this.limit(() => this.loadChunk(task)))
+    );
+    
+    console.log('Initial data load complete');
+  }
+
+  // Start background loading of historical data
+  private startBackgroundLoading(symbol: string): void {
+    console.log('Starting background historical loading...');
+    
+    // Load historical data progressively
+    this.loadHistoricalDataProgressively(symbol);
+    
+    // Reload every hour to fill gaps
     this.loadInterval = window.setInterval(() => {
-      this.loadAllHistoricalData();
+      this.loadHistoricalDataProgressively(symbol);
     }, 3600000);
-    
-    // Clean expired cache entries every 30 minutes
-    window.setInterval(() => {
-      this.cache.cleanExpired();
-    }, 1800000);
   }
 
-  // Stop the background loader
+  // Load historical data progressively, going back in time
+  private async loadHistoricalDataProgressively(symbol: string): Promise<void> {
+    const metadata = await this.cache.getMetadata(symbol);
+    const now = Math.floor(Date.now() / 1000);
+    
+    for (const [granularity, config] of Object.entries(this.loadStrategy)) {
+      // Check how far back we have data
+      const granularityData = metadata?.granularityRanges[granularity];
+      const earliestData = granularityData?.startTime || now;
+      const daysCovered = (now - earliestData) / 86400;
+      
+      // If we haven't reached max days, load more
+      if (daysCovered < config.maxDays) {
+        const tasks: LoadTask[] = [];
+        
+        // Calculate chunks to load
+        let currentEnd = earliestData;
+        const targetStart = now - (config.maxDays * 86400);
+        
+        while (currentEnd > targetStart) {
+          const chunkStart = Math.max(currentEnd - (config.chunkDays * 86400), targetStart);
+          
+          tasks.push({
+            symbol,
+            granularity,
+            startTime: chunkStart,
+            endTime: currentEnd,
+            priority: this.getGranularityPriority(granularity) + (now - currentEnd) / 86400
+          });
+          
+          currentEnd = chunkStart;
+        }
+        
+        // Execute loads with concurrency limit
+        console.log(`Loading ${tasks.length} chunks for ${granularity}`);
+        await Promise.all(
+          tasks.map(task => this.limit(() => this.loadChunk(task)))
+        );
+      }
+    }
+  }
+
+  // Load a specific chunk of data
+  private async loadChunk(task: LoadTask): Promise<void> {
+    const taskKey = `${task.symbol}-${task.granularity}-${task.startTime}-${task.endTime}`;
+    
+    // Skip if already loading
+    if (this.currentTasks.has(taskKey)) {
+      return;
+    }
+    
+    this.currentTasks.add(taskKey);
+    
+    try {
+      // Check if we already have this data
+      const cached = await this.cache.getCachedCandles(
+        task.symbol,
+        task.granularity,
+        task.startTime,
+        task.endTime
+      );
+      
+      // Only fetch if we have gaps
+      if (cached.gaps.length > 0) {
+        console.log(`Loading ${task.granularity} data from ${new Date(task.startTime * 1000).toISOString()} to ${new Date(task.endTime * 1000).toISOString()}`);
+        
+        // Fetch data for each gap
+        for (const gap of cached.gaps) {
+          await this.fetchAndStoreGap(task.symbol, task.granularity, gap);
+        }
+      }
+    } catch (error) {
+      console.error(`Error loading chunk ${taskKey}:`, error);
+    } finally {
+      this.currentTasks.delete(taskKey);
+    }
+  }
+
+  // Fetch data for a gap and store it
+  private async fetchAndStoreGap(
+    symbol: string,
+    granularity: string,
+    gap: { start: number; end: number }
+  ): Promise<void> {
+    try {
+      const granularitySeconds = this.getGranularitySeconds(granularity);
+      
+      // Coinbase has a max of 300 candles per request
+      const maxCandles = 300;
+      const maxTimeSpan = maxCandles * granularitySeconds;
+      
+      let currentStart = gap.start;
+      
+      while (currentStart < gap.end) {
+        const currentEnd = Math.min(currentStart + maxTimeSpan, gap.end);
+        
+        const candles = await this.api.getCandles(
+          symbol,
+          granularitySeconds,
+          currentStart.toString(),
+          currentEnd.toString()
+        );
+        
+        if (candles.length > 0) {
+          await this.cache.storeChunk(symbol, granularity, candles);
+          console.log(`Stored ${candles.length} ${granularity} candles`);
+        }
+        
+        currentStart = currentEnd;
+        
+        // Small delay to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    } catch (error) {
+      console.error(`Error fetching gap data:`, error);
+    }
+  }
+
+  // Update latest candles for all granularities
+  async updateLatestCandles(symbol: string): Promise<void> {
+    console.log('Updating latest candles...');
+    
+    const updates = Object.keys(this.loadStrategy).map(async (granularity) => {
+      try {
+        const candles = await this.api.getCandles(
+          symbol,
+          this.getGranularitySeconds(granularity)
+        );
+        
+        if (candles.length > 0) {
+          await this.cache.storeChunk(symbol, granularity, candles);
+        }
+      } catch (error) {
+        console.error(`Error updating ${granularity} candles:`, error);
+      }
+    });
+    
+    await Promise.all(updates);
+  }
+
+  // Get granularity priority (lower number = higher priority)
+  private getGranularityPriority(granularity: string): number {
+    const priorities: { [key: string]: number } = {
+      '1m': 1,
+      '5m': 2,
+      '15m': 3,
+      '1h': 4,
+      '6h': 5,
+      '1d': 6
+    };
+    return priorities[granularity] || 10;
+  }
+
+  // Get granularity in seconds
+  private getGranularitySeconds(granularity: string): number {
+    const map: { [key: string]: number } = {
+      '1m': 60,
+      '5m': 300,
+      '15m': 900,
+      '1h': 3600,
+      '6h': 21600,
+      '1d': 86400
+    };
+    return map[granularity] || 60;
+  }
+
+  // Stop the loader
   stop(): void {
     if (this.loadInterval) {
       window.clearInterval(this.loadInterval);
       this.loadInterval = null;
     }
-    
-    if (this.updateInterval) {
-      window.clearInterval(this.updateInterval);
-      this.updateInterval = null;
-    }
-  }
-
-  // Load all historical data based on priority
-  async loadAllHistoricalData(): Promise<void> {
-    if (this.isLoading) {
-      console.log('Historical data load already in progress, skipping...');
-      return;
-    }
-    
-    this.isLoading = true;
-    console.log('Loading all historical data...');
-    
-    try {
-      // Sort by priority and load
-      const sortedConfigs = [...this.loadConfigs].sort((a, b) => a.priority - b.priority);
-      
-      for (const config of sortedConfigs) {
-        await this.loadHistoricalDataForGranularity(config);
-        
-        // Small delay between granularities
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      
-      console.log('Historical data load complete!');
-    } catch (error) {
-      console.error('Error loading historical data:', error);
-    } finally {
-      this.isLoading = false;
-    }
-  }
-
-  // Load historical data for a specific granularity
-  private async loadHistoricalDataForGranularity(config: LoadConfig): Promise<void> {
-    console.log(`Loading ${config.days} days of ${config.granularity}s data...`);
-    
-    const endTime = new Date();
-    const batchSize = 300; // Coinbase limit
-    const totalSeconds = config.days * 24 * 60 * 60;
-    const totalCandles = Math.ceil(totalSeconds / config.granularity);
-    const batches = Math.ceil(totalCandles / batchSize);
-    
-    // Check what we already have in cache
-    const startTime = new Date(endTime.getTime() - totalSeconds * 1000);
-    const cachedCandles = await this.cache.getCachedCandles(
-      config.granularity,
-      Math.floor(startTime.getTime() / 1000),
-      Math.floor(endTime.getTime() / 1000)
-    );
-    
-    console.log(`Found ${cachedCandles.length} cached candles for ${config.granularity}s`);
-    
-    // Find gaps in the data
-    const gaps = this.findDataGaps(cachedCandles, config.granularity, startTime, endTime);
-    
-    if (gaps.length === 0) {
-      console.log(`No gaps found for ${config.granularity}s data`);
-      return;
-    }
-    
-    console.log(`Found ${gaps.length} gaps to fill for ${config.granularity}s`);
-    
-    // Load data for each gap with concurrency limit
-    const loadPromises = gaps.map(gap => 
-      this.limit(() => this.loadDataForGap(config.granularity, gap.start, gap.end))
-    );
-    
-    await Promise.all(loadPromises);
-    console.log(`Completed loading ${config.granularity}s data`);
-  }
-
-  // Find gaps in cached data
-  private findDataGaps(
-    candles: CandleData[], 
-    granularity: number, 
-    startTime: Date, 
-    endTime: Date
-  ): Array<{start: Date, end: Date}> {
-    const gaps: Array<{start: Date, end: Date}> = [];
-    
-    if (candles.length === 0) {
-      // No data at all
-      gaps.push({ start: startTime, end: endTime });
-      return gaps;
-    }
-    
-    // Sort candles by time
-    const sorted = [...candles].sort((a, b) => a.time - b.time);
-    
-    // Check for gap at the beginning
-    if (sorted[0].time > Math.floor(startTime.getTime() / 1000) + granularity) {
-      gaps.push({
-        start: startTime,
-        end: new Date(sorted[0].time * 1000 - granularity * 1000)
-      });
-    }
-    
-    // Check for gaps in the middle
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const expectedNext = sorted[i].time + granularity;
-      const actualNext = sorted[i + 1].time;
-      
-      // Allow for some wiggle room (5% of granularity)
-      if (actualNext > expectedNext * 1.05) {
-        gaps.push({
-          start: new Date(expectedNext * 1000),
-          end: new Date((actualNext - granularity) * 1000)
-        });
-      }
-    }
-    
-    // Check for gap at the end
-    const lastCandle = sorted[sorted.length - 1];
-    if (lastCandle.time < Math.floor(endTime.getTime() / 1000) - granularity) {
-      gaps.push({
-        start: new Date((lastCandle.time + granularity) * 1000),
-        end: endTime
-      });
-    }
-    
-    // Limit gaps to reasonable sizes (max 300 candles per gap)
-    const splitGaps: Array<{start: Date, end: Date}> = [];
-    
-    for (const gap of gaps) {
-      const gapSeconds = (gap.end.getTime() - gap.start.getTime()) / 1000;
-      const gapCandles = Math.ceil(gapSeconds / granularity);
-      
-      if (gapCandles <= 300) {
-        splitGaps.push(gap);
-      } else {
-        // Split large gaps
-        const numSplits = Math.ceil(gapCandles / 300);
-        const splitSize = gapSeconds / numSplits;
-        
-        for (let i = 0; i < numSplits; i++) {
-          splitGaps.push({
-            start: new Date(gap.start.getTime() + i * splitSize * 1000),
-            end: new Date(Math.min(
-              gap.start.getTime() + (i + 1) * splitSize * 1000,
-              gap.end.getTime()
-            ))
-          });
-        }
-      }
-    }
-    
-    return splitGaps;
-  }
-
-  // Load data for a specific gap
-  private async loadDataForGap(granularity: number, start: Date, end: Date): Promise<void> {
-    try {
-      console.log(`Loading gap: ${start.toISOString()} to ${end.toISOString()} (${granularity}s)`);
-      
-      const candles = await this.api.getCandles(
-        'BTC-USD',
-        granularity,
-        start.toISOString(),
-        end.toISOString()
-      );
-      
-      if (candles.length > 0) {
-        await this.cache.setCachedCandles(granularity, candles);
-        console.log(`Cached ${candles.length} candles for ${granularity}s`);
-      }
-      
-      // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 200));
-    } catch (error) {
-      console.error(`Error loading gap for ${granularity}s:`, error);
-      // Don't throw - continue with other gaps
-    }
-  }
-
-  // Update latest candles for all granularities
-  private async updateLatestCandles(): Promise<void> {
-    console.log('Updating latest candles...');
-    
-    const updatePromises = this.loadConfigs.map(config =>
-      this.limit(async () => {
-        try {
-          // Get the last few candles
-          const candles = await this.api.getCandles(
-            'BTC-USD',
-            config.granularity
-          );
-          
-          if (candles.length > 0) {
-            // Update cache with latest candles
-            await this.cache.setCachedCandles(config.granularity, candles.slice(-10));
-            
-            // Update the latest candle marker
-            const latest = candles[candles.length - 1];
-            await this.cache.updateLatestCandle(config.granularity, latest);
-          }
-        } catch (error) {
-          console.error(`Error updating latest candles for ${config.granularity}s:`, error);
-        }
-      })
-    );
-    
-    await Promise.all(updatePromises);
-    console.log('Latest candles updated');
-  }
-
-  // Get loading status
-  getStatus(): { isLoading: boolean; cacheAvailable: boolean } {
-    return {
-      isLoading: this.isLoading,
-      cacheAvailable: this.cache.isAvailable()
-    };
+    this.isLoading = false;
+    this.currentTasks.clear();
   }
 }
 
 // Singleton instance
-let loaderInstance: HistoricalDataLoader | null = null;
+let instance: HistoricalDataLoader | null = null;
 
 export function getHistoricalDataLoader(): HistoricalDataLoader {
-  if (!loaderInstance) {
-    loaderInstance = new HistoricalDataLoader();
+  if (!instance) {
+    throw new Error('HistoricalDataLoader not initialized');
   }
-  return loaderInstance;
+  return instance;
+}
+
+// This is now called from chartDataFeed
+export function initHistoricalDataLoader(api: CoinbaseAPI, cache: IndexedDBCache): HistoricalDataLoader {
+  if (!instance) {
+    instance = new HistoricalDataLoader(api, cache);
+  }
+  return instance;
 }

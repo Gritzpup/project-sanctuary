@@ -4,11 +4,13 @@
   import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
   import { ChartDataFeed } from '../services/chartDataFeed';
   import type { CandleData } from '../types/coinbase';
+  import { realtimeCandleAggregator, type CandleUpdate } from '../services/realtimeCandleAggregator';
 
   let chartContainer: HTMLDivElement;
   let chart: IChartApi | null = null;
   let candleSeries: ISeriesApi<'Candlestick'> | any = null;
   let dataFeed: ChartDataFeed | null = null;
+  let aggregatorUnsubscribe: (() => void) | null = null;
 
   export let status: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   export let granularity: string = '1m';
@@ -124,25 +126,48 @@
     effectiveGranularity = newGranularity;
     dataFeed.setManualGranularity(newGranularity);
     
-    // Re-subscribe for real-time updates
+    // Re-subscribe for real-time updates (same logic as main subscription)
     dataFeed.subscribe('chart', (candle) => {
       if (candleSeries && !isLoadingData) {
         const visibleRange = chart?.timeScale().getVisibleRange();
         if (visibleRange && candle.time >= Number(visibleRange.from) && candle.time <= Number(visibleRange.to)) {
-          const currentMinute = candle.time;
           const granularitySeconds = granularityToSeconds[effectiveGranularity] || 60;
+          const candleAlignedTime = Math.floor(candle.time / granularitySeconds) * granularitySeconds;
           
-          if (currentMinute % granularitySeconds === 0 || effectiveGranularity === '1m') {
-            if (effectiveGranularity === '1m') {
-              try {
-                candleSeries.update({
-                  ...candle,
-                  time: candle.time as Time
-                });
-              } catch (error) {
-                debouncedReloadData();
-              }
-            } else {
+          if (effectiveGranularity === '1m') {
+            try {
+              candleSeries.update({
+                time: candle.time as Time,
+                open: candle.open,
+                high: candle.high,
+                low: candle.low,
+                close: candle.close,
+                volume: candle.volume || 0
+              });
+            } catch (error) {
+              console.log('New 1m candle detected, reloading data...');
+              debouncedReloadData();
+              
+              setTimeout(() => {
+                const range = chart?.timeScale().getVisibleRange();
+                if (range) {
+                  const now = Math.floor(Date.now() / 1000);
+                  if (Number(range.to) >= now - 120) {
+                    const newRange = {
+                      from: (Number(range.from) + granularitySeconds) as Time,
+                      to: (Number(range.to) + granularitySeconds) as Time
+                    };
+                    chart?.timeScale().setVisibleRange(newRange);
+                  }
+                }
+              }, 150);
+            }
+          } else {
+            const currentAlignedTime = Math.floor(Date.now() / 1000 / granularitySeconds) * granularitySeconds;
+            const isNewCandle = currentAlignedTime > candleAlignedTime;
+            
+            if (isNewCandle || candleAlignedTime === currentAlignedTime) {
+              console.log(`${effectiveGranularity} candle update detected, reloading...`);
               debouncedReloadData();
             }
           }
@@ -257,30 +282,57 @@
         dataFeed.onGranularityChange(onGranularityChange);
       }
       
-      // Subscribe to real-time updates (only updates current minute candle)
-      dataFeed.subscribe('chart', (candle) => {
-        if (candleSeries && !isLoadingData) {
-          // Check if this candle is visible
+      // Start real-time candle aggregation
+      realtimeCandleAggregator.startAggregating('BTC-USD');
+      
+      // Subscribe to real-time candle updates from aggregator
+      aggregatorUnsubscribe = realtimeCandleAggregator.subscribe((update: CandleUpdate) => {
+        if (candleSeries && !isLoadingData && update.symbol === 'BTC-USD') {
           const visibleRange = chart?.timeScale().getVisibleRange();
-          if (visibleRange && candle.time >= Number(visibleRange.from) && candle.time <= Number(visibleRange.to)) {
-            // Only update if current granularity includes this minute
-            const currentMinute = candle.time;
-            const granularitySeconds = granularityToSeconds[effectiveGranularity] || 60;
+          if (visibleRange && update.candle.time >= Number(visibleRange.from) && update.candle.time <= Number(visibleRange.to)) {
             
-            if (currentMinute % granularitySeconds === 0 || effectiveGranularity === '1m') {
-              try {
-                // For 1m, update the candle directly
-                if (effectiveGranularity === '1m') {
+            // Handle based on granularity
+            if (effectiveGranularity === '1m') {
+              // For 1m granularity, update or append candle directly
+              if (update.isNewCandle) {
+                // Append new candle and update cache
+                try {
                   candleSeries.update({
-                    ...candle,
-                    time: candle.time as Time
+                    ...update.candle,
+                    time: update.candle.time as Time
                   });
-                } else {
-                  // For other granularities, reload to get proper aggregation
+                  
+                  // Update cache with new candle
+                  dataFeed?.appendCandle(update.candle);
+                  
+                  // Shift view forward if at the right edge
+                  const now = Math.floor(Date.now() / 1000);
+                  if (Number(visibleRange.to) >= now - 120) {
+                    const newRange = {
+                      from: (Number(visibleRange.from) + 60) as Time,
+                      to: (Number(visibleRange.to) + 60) as Time
+                    };
+                    chart?.timeScale().setVisibleRange(newRange);
+                  }
+                } catch (error) {
+                  console.log('New candle created, reloading data...');
                   debouncedReloadData();
                 }
-              } catch (error) {
-                // New candle, reload data
+              } else {
+                // Update existing candle
+                candleSeries.update({
+                  ...update.candle,
+                  time: update.candle.time as Time
+                });
+              }
+            } else {
+              // For other granularities, check if we need to reload
+              const granularitySeconds = granularityToSeconds[effectiveGranularity] || 60;
+              const currentAlignedTime = Math.floor(Date.now() / 1000 / granularitySeconds) * granularitySeconds;
+              const candleAlignedTime = Math.floor(update.candle.time / granularitySeconds) * granularitySeconds;
+              
+              if (update.isNewCandle && candleAlignedTime === currentAlignedTime) {
+                console.log(`New ${effectiveGranularity} candle period started, reloading...`);
                 debouncedReloadData();
               }
             }
@@ -725,10 +777,20 @@
     const seconds = now.getSeconds().toString().padStart(2, '0');
     currentTime = `${hours}:${minutes}:${seconds}`;
     
-    // Calculate countdown to next candle
-    const granularitySeconds = granularityToSeconds[granularity] || 60;
-    const secondsIntoCurrentCandle = nowSeconds % granularitySeconds;
-    const secondsUntilNextCandle = granularitySeconds - secondsIntoCurrentCandle;
+    // Calculate countdown to next candle using effective granularity
+    const granularitySeconds = granularityToSeconds[effectiveGranularity] || 60;
+    const currentMinuteBoundary = Math.floor(nowSeconds / 60) * 60;
+    const nextMinuteBoundary = currentMinuteBoundary + 60;
+    
+    // For 1m granularity, countdown to next minute boundary
+    let secondsUntilNextCandle;
+    if (effectiveGranularity === '1m') {
+      secondsUntilNextCandle = nextMinuteBoundary - nowSeconds;
+    } else {
+      // For other granularities, calculate based on period boundaries
+      const secondsIntoCurrentCandle = nowSeconds % granularitySeconds;
+      secondsUntilNextCandle = granularitySeconds - secondsIntoCurrentCandle;
+    }
     
     // Format countdown
     if (secondsUntilNextCandle >= 3600) {
@@ -758,6 +820,10 @@
     if (resizeHandler) {
       window.removeEventListener('resize', resizeHandler);
     }
+    if (aggregatorUnsubscribe) {
+      aggregatorUnsubscribe();
+    }
+    realtimeCandleAggregator.stopAggregating('BTC-USD');
     if (dataFeed) {
       dataFeed.unsubscribe('chart');
       dataFeed.disconnect();
@@ -818,7 +884,7 @@
   <div class="clock-container">
     <div class="clock-time">{currentTime}</div>
     <div class="clock-countdown">
-      <span class="countdown-label">Next {granularity}:</span>
+      <span class="countdown-label">Next {effectiveGranularity}:</span>
       <span class="countdown-value">{countdown}</span>
     </div>
   </div>

@@ -1,23 +1,15 @@
 import axios from 'axios';
 import type { CandleData } from '../types/coinbase';
+import { RateLimiter } from './rateLimiter';
 
 export class CoinbaseAPI {
   private baseUrl = import.meta.env.DEV ? '/api/coinbase' : 'https://api.exchange.coinbase.com';
+  private rateLimiter = new RateLimiter(10, 3); // 10 requests per second, max 3 concurrent
   
   constructor() {
-    console.log('CoinbaseAPI initialized with baseUrl:', this.baseUrl);
-    
-    // Add request interceptor for debugging
-    axios.interceptors.request.use(request => {
-      console.log('Starting Request:', request.url);
-      return request;
-    });
-    
+    // Add response error interceptor only
     axios.interceptors.response.use(
-      response => {
-        console.log('Response:', response.status, 'for', response.config.url);
-        return response;
-      },
+      response => response,
       error => {
         console.error('API Error:', error.message);
         if (error.response) {
@@ -35,10 +27,22 @@ export class CoinbaseAPI {
     start?: string,
     end?: string
   ): Promise<CandleData[]> {
-    try {
-      console.log('Fetching candles from Coinbase...');
-      console.log('Product ID:', productId);
-      console.log('Granularity:', granularity);
+    // Create a unique key for this request for rate limiting
+    const key = `candles-${productId}-${granularity}-${start || 'latest'}-${end || 'now'}`;
+    
+    return this.rateLimiter.execute(key, async () => {
+      
+      // Validate time range to prevent future data requests
+      const now = Math.floor(Date.now() / 1000);
+      if (end && parseInt(end) > now) {
+        console.warn(`Attempted to fetch future data. Capping end time at now.`);
+        end = now.toString();
+      }
+      
+      if (start && parseInt(start) > now) {
+        console.warn(`Start time is in the future. Returning empty array.`);
+        return [];
+      }
       
       const params: any = {
         granularity
@@ -48,11 +52,8 @@ export class CoinbaseAPI {
       if (end) params.end = end;
 
       const url = `${this.baseUrl}/products/${productId}/candles`;
-      console.log('Requesting:', url, 'with params:', params);
       
       const response = await axios.get(url, { params });
-      
-      console.log('Coinbase response:', response.data.length, 'candles');
       
       // Coinbase returns candles in reverse chronological order
       // Format: [timestamp, price_low, price_high, price_open, price_close, volume]
@@ -65,27 +66,24 @@ export class CoinbaseAPI {
         volume: candle[5]
       }));
       
-      console.log('Processed candles:', candles.slice(-5)); // Show last 5
       return candles;
-    } catch (error) {
-      console.error('Error fetching Coinbase candles:', error);
-      if (axios.isAxiosError(error)) {
-        console.error('Response:', error.response?.data);
-        console.error('Status:', error.response?.status);
-        console.error('Headers:', error.response?.headers);
-        console.error('Config:', error.config);
+    }).catch(error => {
+      if (axios.isAxiosError(error) && error.response?.status !== 429) {
+        console.error('Coinbase API error:', error.response?.status, error.response?.data);
       }
       throw error;
-    }
+    });
   }
 
   async getTicker(productId: string = 'BTC-USD'): Promise<number> {
-    try {
+    const key = `ticker-${productId}`;
+    
+    return this.rateLimiter.execute(key, async () => {
       const response = await axios.get(`${this.baseUrl}/products/${productId}/ticker`);
       return parseFloat(response.data.price);
-    } catch (error) {
+    }).catch(error => {
       console.error('Error fetching Coinbase ticker:', error);
       throw error;
-    }
+    });
   }
 }
