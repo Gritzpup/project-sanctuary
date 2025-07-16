@@ -1,47 +1,32 @@
-# Zoom Test Instructions
+# Zoom is DISABLED
 
-## What I Fixed
+## Current Status
 
-The zoom behavior was broken - both scroll directions were zooming IN. Now it should work correctly:
+Zoom functionality has been completely disabled per user request.
 
-- **Scroll DOWN** (away from you) → **Zooms OUT** (shows more historical data)
-- **Scroll UP** (toward you) → **Zooms IN** (shows less data, more detail)
+## What's Disabled:
+- Mouse wheel zoom
+- Pinch zoom on touch devices
+- Drag to pan
+- Axis scaling
 
-## How to Test
+## How the Chart Works Now:
+- Chart view is locked to the selected timeframe
+- Use the timeframe buttons (1H, 4H, 1D, 1W, 1M, 3M, 1Y, 5Y) to change the view
+- No scrolling or zooming interactions with the chart itself
 
-1. Make sure the dev server is running (`npm run dev`)
-2. Open the trading dashboard 
-3. Try scrolling on the chart with your mouse wheel
-4. Check the browser console (F12) to see detailed logs
-
-## What to Look For in Console
-
-You should see logs like:
-```
-Zoom calculation: {
-  scrollDirection: "DOWN",
-  action: "ZOOM OUT", 
-  expectedChange: "range should increase"
+## Configuration:
+In `Chart.svelte`, all zoom/scroll handlers are set to `false`:
+```javascript
+handleScroll: {
+  mouseWheel: false,
+  pressedMouseMove: false,
+  horzTouchDrag: false,
+  vertTouchDrag: false,
+},
+handleScale: {
+  mouseWheel: false,
+  pinch: false,
+  axisPressedMouseMove: false,
 }
 ```
-
-And:
-```
-Range verification: {
-  requested: "24 hours",
-  actual: "24 hours",
-  matches: true
-}
-```
-
-## If It's Still Not Working
-
-Check the console for:
-- `wasClampedMin: true` - means you hit the minimum zoom limit
-- `wasClampedMax: true` - means you hit the maximum zoom limit
-- Any range verification mismatches
-
-## Keyboard Modifiers
-
-- Hold **Shift** while scrolling to force right-edge anchoring
-- Hold **Alt** while scrolling to disable right-edge anchoring

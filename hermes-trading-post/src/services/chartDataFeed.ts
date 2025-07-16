@@ -1,70 +1,149 @@
 import type { CandleData } from '../types/coinbase';
 import { CoinbaseAPI } from './coinbaseApi';
 import { CoinbaseWebSocket } from './coinbaseWebSocket';
-import { getIndexedDBCache } from './indexedDBCache';
-import { getHistoricalDataLoader } from './historicalDataLoader';
+import { IndexedDBCache } from './indexedDBCache';
+import { HistoricalDataLoader } from './historicalDataLoader';
+
+interface DataRequest {
+  symbol: string;
+  granularity: string;
+  startTime: number;
+  endTime: number;
+}
 
 export class ChartDataFeed {
   private api: CoinbaseAPI;
   public ws: CoinbaseWebSocket;
-  private cache = getIndexedDBCache();
-  public loader = getHistoricalDataLoader();
-  private historicalData: CandleData[] = [];
+  private cache: IndexedDBCache;
+  private loader: HistoricalDataLoader;
   private subscribers: Map<string, (data: CandleData, isNew?: boolean) => void> = new Map();
-  private currentCandles: Map<number, CandleData> = new Map(); // Per-granularity current candles
-  private activeGranularity: number = 60; // Default to 1m
-  private loaderStarted = false;
-  private fetchIntervals: Map<number, NodeJS.Timeout> = new Map(); // Per-granularity fetch intervals
+  
+  // Current state
+  private symbol = 'BTC-USD';
+  private currentGranularity = '1m';
+  private visibleRange: { start: number; end: number } | null = null;
+  private currentData: CandleData[] = [];
+  
+  // Loading state
+  private loadingPromises = new Map<string, Promise<void>>();
+  private wsConnected = false;
+  
+  // Multi-granularity state management
+  private granularityChangeCallback: ((granularity: string) => void) | null = null;
+  private granularityDebounceTimer: any = null;
+  private pendingGranularity: string | null = null;
+  private isTransitioning = false;
+  private isManualMode = false;
+  private manualModeTimer: any = null;
+  
+  // Preloaded data for smooth transitions
+  private dataByGranularity: Map<string, CandleData[]> = new Map();
+  private activeGranularity: string = '1m';
+  private targetGranularity: string = '1m';
+  
+  // Smart granularity thresholds with overlap
+  private granularityThresholds = [
+    { granularity: '1m', minHours: 0, maxHours: 6, preloadNext: '5m' },
+    { granularity: '5m', minHours: 2, maxHours: 48, preloadNext: '15m' },
+    { granularity: '15m', minHours: 12, maxHours: 168, preloadNext: '1h' },
+    { granularity: '1h', minHours: 48, maxHours: 720, preloadNext: '6h' },
+    { granularity: '6h', minHours: 360, maxHours: 4380, preloadNext: '1D' },
+    { granularity: '1D', minHours: 2160, maxHours: Infinity, preloadNext: null }
+  ];
 
   constructor() {
     this.api = new CoinbaseAPI();
     this.ws = new CoinbaseWebSocket();
+    this.cache = new IndexedDBCache();
+    this.loader = new HistoricalDataLoader(this.api, this.cache);
+    
     this.setupWebSocket();
-    this.startHistoricalLoader();
+    this.startBackgroundLoading();
   }
 
-  private async startHistoricalLoader() {
-    if (!this.loaderStarted) {
-      this.loaderStarted = true;
-      console.log('Starting historical data loader...');
-      // Start loader after a short delay to ensure chart is ready
-      setTimeout(() => {
-        this.loader.start();
-      }, 1000);
-    }
+  private async startBackgroundLoading() {
+    // Start loading historical data in the background
+    
+    // Only load minimal data on startup to avoid rate limits
+    const priorityLoads = [
+      { granularity: '1m', days: 0.25 },    // 6 hours of 1m data (360 candles) - covers 1H and 4H views
+      { granularity: '5m', days: 0.5 },     // 12 hours of 5m data (144 candles)
+      { granularity: '1h', days: 7 },       // 7 days of 1h data (168 candles) - covers 1D and 1W views
+      { granularity: '1D', days: 90 }       // 90 days of daily data (90 candles) - covers 1M and 3M views
+    ];
+    
+    // Load priority data sequentially to avoid rate limits
+    const loadSequentially = async () => {
+      for (const load of priorityLoads) {
+        try {
+          await this.loadHistoricalData(load.granularity, load.days);
+          // Small delay between different granularities
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+          console.error(`Failed to load ${load.days} days of ${load.granularity} data:`, error);
+        }
+      }
+      
+      // Don't start progressive loader - only load on demand
+      // this.loader.startProgressiveLoad(this.symbol);
+      console.log('Priority data loading complete');
+    };
+    
+    // Start loading in background (don't await)
+    loadSequentially().catch(console.error);
   }
 
   private setupWebSocket() {
-    // WebSocket provides real-time price updates and handles new candle creation
     this.ws.onPrice(async (price) => {
-      // Calculate what the current candle time should be
+      if (!this.wsConnected) return;
+      
       const now = Math.floor(Date.now() / 1000);
-      const expectedCandleTime = Math.floor(now / this.activeGranularity) * this.activeGranularity;
       
-      console.log(`[WebSocket] Price update: ${price} at ${new Date(now * 1000).toISOString()}`);
-      console.log(`[WebSocket] Expected candle time: ${new Date(expectedCandleTime * 1000).toISOString()}`);
+      // Update real-time candle for current granularity
+      await this.updateRealtimeCandle(price, now);
+    });
+    
+    this.ws.onStatus((status) => {
+      this.wsConnected = status === 'connected';
+      // Only log status changes, not every status update
+      if (status !== 'connected' || !this.wsConnected) {
+        console.log(`WebSocket status: ${status}`);
+      }
+    });
+  }
+
+  private async updateRealtimeCandle(price: number, timestamp: number) {
+    const granularitySeconds = this.getGranularitySeconds(this.currentGranularity);
+    const candleTime = Math.floor(timestamp / granularitySeconds) * granularitySeconds;
+    
+    // Get the current candle from data
+    const currentIndex = this.currentData.findIndex(c => c.time === candleTime);
+    
+    if (currentIndex >= 0) {
+      // Update existing candle
+      const candle = this.currentData[currentIndex];
+      const updated = {
+        ...candle,
+        high: Math.max(candle.high, price),
+        low: Math.min(candle.low, price),
+        close: price,
+        volume: candle.volume // Volume updates come from API
+      };
       
-      const currentCandle = this.currentCandles.get(this.activeGranularity);
+      this.currentData[currentIndex] = updated;
       
-      // Check if we need to create a new candle
-      if (!currentCandle || currentCandle.time < expectedCandleTime) {
-        console.log(`[WebSocket] Creating new candle at ${new Date(expectedCandleTime * 1000).toISOString()}`);
-        console.log(`[WebSocket] Previous candle was: ${currentCandle ? new Date(currentCandle.time * 1000).toISOString() : 'none'}`);
-        
-        // If we have a current candle, move it to historical data
-        if (currentCandle) {
-          if (!this.historicalData.some(c => c.time === currentCandle.time)) {
-            this.historicalData.push(currentCandle);
-            this.historicalData.sort((a, b) => a.time - b.time);
-            if (this.historicalData.length > 10000) {
-              this.historicalData.shift();
-            }
-          }
-        }
-        
+      // Update cache
+      await this.cache.updateLatestCandle(this.symbol, this.currentGranularity, updated);
+      
+      // Notify subscribers
+      this.subscribers.forEach(callback => callback(updated, false));
+    } else if (this.currentData.length > 0) {
+      // Check if this is a new candle
+      const lastCandle = this.currentData[this.currentData.length - 1];
+      if (candleTime > lastCandle.time) {
         // Create new candle
         const newCandle: CandleData = {
-          time: expectedCandleTime,
+          time: candleTime,
           open: price,
           high: price,
           low: price,
@@ -72,421 +151,348 @@ export class ChartDataFeed {
           volume: 0
         };
         
-        this.currentCandles.set(this.activeGranularity, newCandle);
+        this.currentData.push(newCandle);
         
-        // Cache the new candle
-        console.log(`[WebSocket] Caching new candle for ${this.activeGranularity}s granularity`);
-        await this.cache.updateLatestCandle(this.activeGranularity, newCandle);
+        // Update cache
+        await this.cache.updateLatestCandle(this.symbol, this.currentGranularity, newCandle);
         
-        // Notify subscribers about the new candle
-        this.subscribers.forEach(callback => {
-          callback(newCandle, true); // true = new candle
-        });
-      } else if (currentCandle.time === expectedCandleTime) {
-        // Update the current candle
-        const updatedCandle = {
-          ...currentCandle,
-          high: Math.max(currentCandle.high, price),
-          low: Math.min(currentCandle.low, price),
-          close: price
-        };
-        this.currentCandles.set(this.activeGranularity, updatedCandle);
-        
-        // Update cache with the updated candle
-        console.log(`[WebSocket] Updating cache for existing candle at ${new Date(currentCandle.time * 1000).toISOString()}`);
-        await this.cache.updateLatestCandle(this.activeGranularity, updatedCandle);
-        
-        // Notify subscribers of the price update
-        this.subscribers.forEach(callback => {
-          callback(updatedCandle, false); // false = price update only
-        });
+        // Notify subscribers about new candle
+        this.subscribers.forEach(callback => callback(newCandle, true));
       }
-    });
+    }
+  }
 
-    // Fetch initial candle immediately
-    this.fetchLatestCandle();
+  // Get optimal granularity for a time range
+  getOptimalGranularity(visibleRangeSeconds: number): string {
+    const hours = visibleRangeSeconds / 3600;
     
-    // Set up interval for the default granularity
-    this.setupFetchInterval(this.activeGranularity);
+    if (hours < 4) return '1m';        // < 4 hours: 1-minute
+    if (hours < 24) return '5m';       // < 1 day: 5-minute
+    if (hours < 168) return '1h';      // < 1 week: 1-hour
+    if (hours < 2160) return '6h';     // < 3 months: 6-hour
+    return '1D';                       // > 3 months: daily
+  }
+
+  // Get data for visible range with smooth transitions
+  async getDataForVisibleRange(startTime: number, endTime: number): Promise<CandleData[]> {
+    
+    this.visibleRange = { start: startTime, end: endTime };
+    
+    const rangeHours = (endTime - startTime) / 3600;
+    
+    // Skip auto-granularity if in manual mode
+    if (!this.isManualMode) {
+      // Find optimal granularity with hysteresis
+      const newGranularity = this.getOptimalGranularityWithHysteresis(rangeHours, this.activeGranularity);
+      
+      // Debounce granularity changes
+      if (newGranularity !== this.activeGranularity) {
+        this.scheduleGranularityChange(newGranularity);
+      }
+    }
+    
+    // Return current data immediately (no jarring transitions)
+    const data = await this.getCurrentDataForRange(startTime, endTime);
+    return data;
   }
   
-  private setupFetchInterval(granularity: number) {
-    // Clear existing interval for this granularity if any
-    const existingInterval = this.fetchIntervals.get(granularity);
-    if (existingInterval) {
-      clearInterval(existingInterval);
+  // Get optimal granularity with hysteresis to prevent oscillation
+  private getOptimalGranularityWithHysteresis(rangeHours: number, currentGranularity: string): string {
+    const current = this.granularityThresholds.find(t => t.granularity === currentGranularity);
+    
+    if (!current) return this.getOptimalGranularity(rangeHours * 3600);
+    
+    // Stay with current if within overlapping zone
+    if (rangeHours >= current.minHours && rangeHours <= current.maxHours) {
+      return currentGranularity;
     }
     
-    // Set up new interval based on granularity
-    // Poll more frequently to catch new candles
-    let intervalMs: number;
-    if (granularity === 60) { // 1m
-      intervalMs = 10000; // 10 seconds
-    } else if (granularity <= 300) { // 5m
-      intervalMs = 20000; // 20 seconds
-    } else if (granularity <= 900) { // 15m
-      intervalMs = 30000; // 30 seconds
-    } else if (granularity <= 3600) { // 1h
-      intervalMs = 60000; // 1 minute
+    // Find new optimal granularity
+    for (const threshold of this.granularityThresholds) {
+      if (rangeHours >= threshold.minHours && rangeHours <= threshold.maxHours) {
+        return threshold.granularity;
+      }
+    }
+    
+    return '1D'; // Fallback
+  }
+  
+  // Schedule granularity change with debouncing
+  private scheduleGranularityChange(newGranularity: string) {
+    clearTimeout(this.granularityDebounceTimer);
+    this.pendingGranularity = newGranularity;
+    
+    this.granularityDebounceTimer = setTimeout(() => {
+      this.performSmoothTransition(this.pendingGranularity!);
+    }, 300); // Wait 300ms for zoom to stabilize
+  }
+  
+  // Perform smooth transition to new granularity
+  private async performSmoothTransition(newGranularity: string) {
+    if (this.isTransitioning || this.isManualMode) return;
+    
+    console.log(`Transitioning from ${this.activeGranularity} to ${newGranularity}`);
+    this.isTransitioning = true;
+    this.targetGranularity = newGranularity;
+    
+    // Update active granularity
+    this.activeGranularity = newGranularity;
+    this.currentGranularity = newGranularity;
+    
+    // Notify UI of granularity change
+    this.granularityChangeCallback?.(newGranularity);
+    
+    // Preload adjacent granularities in background
+    this.preloadAdjacentGranularities(newGranularity);
+    
+    this.isTransitioning = false;
+  }
+  
+  // Get current data for the visible range
+  private async getCurrentDataForRange(startTime: number, endTime: number): Promise<CandleData[]> {
+    console.log(`Requested range: ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
+    
+    // Validate time range
+    const validatedRange = this.validateTimeRange(startTime, endTime);
+    
+    console.log(`Validated range: ${new Date(validatedRange.start * 1000).toISOString()} to ${new Date(validatedRange.end * 1000).toISOString()}, isValid: ${validatedRange.isValid}`);
+    
+    if (!validatedRange.isValid) {
+      return [];
+    }
+    
+    startTime = validatedRange.start;
+    endTime = validatedRange.end;
+    
+    // For very long time ranges (1Y, 5Y), ensure we have the data loaded
+    const rangeInDays = (endTime - startTime) / 86400;
+    if (rangeInDays > 180 && this.activeGranularity === '1D') {
+      await this.loadHistoricalData('1D', Math.ceil(rangeInDays));
+    }
+    
+    // Get data from cache
+    console.log(`Fetching data from cache: ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}, granularity: ${this.activeGranularity}`);
+    
+    const cacheResult = await this.cache.getCachedCandles(
+      this.symbol,
+      this.activeGranularity,
+      startTime,
+      endTime
+    );
+    
+    console.log(`Cache returned ${cacheResult.candles.length} candles, ${cacheResult.gaps.length} gaps`);
+    
+    // Fill gaps if any
+    if (cacheResult.gaps.length > 0) {
+      await this.fillGaps(cacheResult.gaps, this.activeGranularity);
+      
+      // Re-fetch from cache after filling gaps
+      const updatedResult = await this.cache.getCachedCandles(
+        this.symbol,
+        this.activeGranularity,
+        startTime,
+        endTime
+      );
+      
+      this.currentData = updatedResult.candles;
     } else {
-      intervalMs = 120000; // 2 minutes for larger granularities
+      this.currentData = cacheResult.candles;
     }
     
-    console.log(`Setting up fetch interval for ${granularity}s granularity: polling every ${intervalMs/1000}s`);
+    return this.currentData;
+  }
+  
+  // Preload adjacent granularities for smooth transitions
+  private async preloadAdjacentGranularities(currentGranularity: string) {
+    const threshold = this.granularityThresholds.find(t => t.granularity === currentGranularity);
     
-    const interval = setInterval(async () => {
-      // Only fetch if this is still the active granularity
-      if (this.activeGranularity === granularity) {
-        console.log(`Fetch interval triggered for ${granularity}s granularity`);
-        await this.fetchLatestCandle(granularity);
-      }
-    }, intervalMs);
+    if (!threshold?.preloadNext || !this.visibleRange) return;
     
-    this.fetchIntervals.set(granularity, interval);
+    // Preload next coarser granularity in background
+    setTimeout(() => {
+      this.loadHistoricalData(threshold.preloadNext!, 7);
+    }, 1000);
+    
+    // Also preload previous finer granularity
+    const currentIndex = this.granularityThresholds.findIndex(t => t.granularity === currentGranularity);
+    
+    if (currentIndex > 0) {
+      const prevGranularity = this.granularityThresholds[currentIndex - 1].granularity;
+      setTimeout(() => {
+        this.loadHistoricalData(prevGranularity, 7);
+      }, 1500);
+    }
   }
 
-  async loadHistoricalDataWithGranularity(granularitySeconds: number, days: number): Promise<CandleData[]> {
-    try {
-      const endTime = Math.floor(Date.now() / 1000);
-      const startTime = endTime - (days * 24 * 60 * 60);
+  // Fill gaps in data
+  private async fillGaps(gaps: Array<{ start: number; end: number }>, granularity: string): Promise<void> {
+    console.log(`Filling ${gaps.length} gaps for ${granularity}`);
+    
+    // Filter out future gaps first
+    const now = Math.floor(Date.now() / 1000);
+    const validGaps = gaps.filter(gap => gap.start <= now && gap.end <= now);
+    
+    if (validGaps.length === 0) {
+      console.log('All gaps are in the future, skipping');
+      return;
+    }
+    
+    // Log if we filtered out any gaps
+    if (validGaps.length < gaps.length) {
+      console.log(`Filtered out ${gaps.length - validGaps.length} future gaps`);
+    }
+    
+    // For large numbers of gaps, process in batches to avoid overwhelming the API
+    const batchSize = 5; // Process 5 gaps at a time
+    
+    for (let i = 0; i < validGaps.length; i += batchSize) {
+      const batch = validGaps.slice(i, i + batchSize);
       
-      console.log(`Loading ${days} days of data with ${granularitySeconds}s candles from cache...`);
-      
-      // First try to get from cache
-      const cachedCandles = await this.cache.getCachedCandles(
-        granularitySeconds,
-        startTime,
-        endTime
-      );
-      
-      if (cachedCandles.length > 0) {
-        console.log(`Found ${cachedCandles.length} candles in cache`);
-        this.historicalData = cachedCandles;
+      const fetchPromises = batch.map(async (gap) => {
+        const key = `${gap.start}-${gap.end}-${granularity}`;
         
-        // Set current candle for this granularity
-        if (cachedCandles.length > 0) {
-          this.currentCandles.set(granularitySeconds, cachedCandles[cachedCandles.length - 1]);
+        // Check if we're already loading this gap
+        if (this.loadingPromises.has(key)) {
+          return this.loadingPromises.get(key);
         }
         
-        return this.historicalData;
-      }
-      
-      // If no cache, fall back to API (this should rarely happen with background loader)
-      console.log('No cached data found, loading from API...');
-      
-      const endTimeDate = new Date(endTime * 1000);
-      const totalSeconds = days * 24 * 60 * 60;
-      const candlesNeeded = Math.ceil(totalSeconds / granularitySeconds);
-      const batchSize = 300;
-      const batches = Math.ceil(candlesNeeded / batchSize);
-      
-      let allCandles: CandleData[] = [];
-      
-      for (let i = 0; i < batches; i++) {
-        const batchEndTime = new Date(endTimeDate.getTime() - (i * batchSize * granularitySeconds * 1000));
-        const batchStartTime = new Date(batchEndTime.getTime() - (Math.min(batchSize, candlesNeeded - (i * batchSize)) * granularitySeconds * 1000));
+        const promise = this.fetchGapData(gap, granularity);
+        this.loadingPromises.set(key, promise);
         
         try {
-          const candles = await this.api.getCandles(
-            'BTC-USD',
-            granularitySeconds,
-            batchStartTime.toISOString(),
-            batchEndTime.toISOString()
-          );
-          
-          if (candles.length > 0) {
-            allCandles = [...candles, ...allCandles];
-            // Cache the data as we load it
-            await this.cache.setCachedCandles(granularitySeconds, candles);
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await promise;
         } catch (error) {
-          console.error(`Error loading batch ${i + 1}:`, error);
+          console.error(`Failed to fetch gap data:`, error);
+        } finally {
+          this.loadingPromises.delete(key);
         }
+      });
+      
+      // Wait for this batch to complete before starting the next
+      await Promise.all(fetchPromises);
+      
+      // Add a small delay between batches to be nice to the API
+      if (i + batchSize < validGaps.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
-      
-      const uniqueCandles = Array.from(new Map(allCandles.map(c => [c.time, c])).values())
-        .sort((a, b) => a.time - b.time);
-      
-      this.historicalData = uniqueCandles;
-      
-      if (uniqueCandles.length > 0) {
-        this.currentCandles.set(granularitySeconds, uniqueCandles[uniqueCandles.length - 1]);
-      }
-      
-      console.log(`Loaded ${uniqueCandles.length} unique candles`);
-      return this.historicalData;
-    } catch (error) {
-      console.error('Error loading historical data:', error);
-      throw error;
     }
   }
 
-  async loadHistoricalData(interval: string = '1d', days: number = 1825): Promise<CandleData[]> {
+  private async fetchGapData(gap: { start: number; end: number }, granularity: string): Promise<void> {
     try {
-      // Calculate appropriate granularity based on requested time range
-      let granularity: number;
-      let actualDays = days;
-      
-      // Coinbase granularities: 60 (1m), 300 (5m), 900 (15m), 3600 (1h), 21600 (6h), 86400 (1d)
-      // Max 300 candles per request
-      if (days <= 0.2) { // Less than 5 hours
-        granularity = 60; // 1 minute
-      } else if (days <= 1) { // 1 day
-        granularity = 300; // 5 minutes
-      } else if (days <= 3) { // 3 days
-        granularity = 900; // 15 minutes
-      } else if (days <= 12) { // 12 days
-        granularity = 3600; // 1 hour
-      } else if (days <= 75) { // 75 days
-        granularity = 21600; // 6 hours
-      } else { // More than 75 days
-        granularity = 86400; // 1 day
-        // For 5 years, we can only get ~300 days max
-        actualDays = Math.min(days, 300);
+      // Validate time range
+      const validatedRange = this.validateTimeRange(gap.start, gap.end);
+      if (!validatedRange.isValid) {
+        return;
       }
       
-      const endTime = new Date();
-      const startTime = new Date(endTime.getTime() - (actualDays * 24 * 60 * 60 * 1000));
+      const gapStart = validatedRange.start;
+      const gapEnd = validatedRange.end;
       
-      console.log(`Loading ${actualDays} days of data with ${granularity}s candles`);
-      console.log('From:', startTime.toISOString(), 'To:', endTime.toISOString());
+      const granularitySeconds = this.getGranularitySeconds(granularity);
+      const maxCandlesPerRequest = 300; // Coinbase limit
+      const maxTimeRange = maxCandlesPerRequest * granularitySeconds;
       
-      const candles = await this.api.getCandles(
-        'BTC-USD',
-        granularity,
-        startTime.toISOString(),
-        endTime.toISOString()
-      );
-
-      this.historicalData = candles;
+      let currentStart = gapStart;
       
-      // Set current candle for the default granularity
-      if (candles.length > 0) {
-        this.currentCandles.set(granularity, candles[candles.length - 1]);
-      }
-
-      return this.historicalData;
-    } catch (error) {
-      console.error('Error loading historical data:', error);
-      throw error;
-    }
-  }
-
-  async loadMoreHistoricalData(granularitySeconds: number, days: number = 30): Promise<CandleData[]> {
-    try {
-      if (this.historicalData.length === 0) {
-        return this.loadHistoricalDataWithGranularity(granularitySeconds, days);
-      }
-
-      const earliestTime = this.historicalData[0].time;
-      const endTime = earliestTime - 1;
-      const startTime = endTime - (days * 24 * 60 * 60);
-      
-      console.log(`Loading more data from cache: ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
-      
-      // Try cache first
-      const cachedCandles = await this.cache.getCachedCandles(
-        granularitySeconds,
-        startTime,
-        endTime
-      );
-      
-      if (cachedCandles.length > 0) {
-        console.log(`Found ${cachedCandles.length} more candles in cache`);
+      // If the gap is too large, split it into smaller requests
+      while (currentStart < gapEnd) {
+        const currentEnd = Math.min(currentStart + maxTimeRange, gapEnd);
         
-        // Merge with existing data - use Map to ensure uniqueness
-        const dataMap = new Map<number, CandleData>();
+        console.log(`Fetching data chunk: ${new Date(currentStart * 1000).toISOString()} to ${new Date(currentEnd * 1000).toISOString()}`);
         
-        // Add existing data first
-        this.historicalData.forEach(candle => dataMap.set(candle.time, candle));
+        const candles = await this.api.getCandles(
+          this.symbol,
+          granularitySeconds,
+          currentStart.toString(),
+          currentEnd.toString()
+        );
         
-        // Add new data (will overwrite if duplicate timestamps exist)
-        let newCandleCount = 0;
-        cachedCandles.forEach(candle => {
-          if (!dataMap.has(candle.time)) {
-            newCandleCount++;
+        if (candles.length > 0) {
+          console.log(`Fetched ${candles.length} candles for chunk`);
+          await this.cache.storeChunk(this.symbol, granularity, candles);
+          
+          // If we got fewer candles than expected, data might not exist that far back
+          const expectedCandles = Math.floor((currentEnd - currentStart) / granularitySeconds);
+          if (candles.length < expectedCandles * 0.8) { // Allow 20% missing for weekends/holidays
+            console.warn(`Got ${candles.length} candles but expected ~${expectedCandles}. Data may not exist before ${new Date(candles[0].time * 1000).toISOString()}`);
+            break; // Stop trying to fetch older data
           }
-          dataMap.set(candle.time, candle);
-        });
-        
-        // Convert back to sorted array
-        const allData = Array.from(dataMap.values()).sort((a, b) => a.time - b.time);
-        
-        // Keep reasonable amount in memory
-        if (allData.length > 50000) {
-          this.historicalData = allData.slice(allData.length - 50000);
         } else {
-          this.historicalData = allData;
+          console.warn(`No candles returned for range ${new Date(currentStart * 1000).toISOString()} to ${new Date(currentEnd * 1000).toISOString()}`);
+          break; // No point continuing if we get empty results
         }
         
-        console.log(`Added ${newCandleCount} new candles, total: ${this.historicalData.length}`);
-        return cachedCandles; // Return all cached candles for the UI
-      }
-      
-      // If no cache, try API (should be rare)
-      console.log('No cached data for range, loading from API...');
-      
-      const totalSeconds = days * 24 * 60 * 60;
-      const candlesNeeded = Math.ceil(totalSeconds / granularitySeconds);
-      const batchSize = 300;
-      const batches = Math.ceil(candlesNeeded / batchSize);
-      
-      let allNewCandles: CandleData[] = [];
-      
-      for (let i = 0; i < batches; i++) {
-        const batchEndTime = new Date(endTime * 1000 - (i * batchSize * granularitySeconds * 1000));
-        const batchStartTime = new Date(batchEndTime.getTime() - (Math.min(batchSize, candlesNeeded - (i * batchSize)) * granularitySeconds * 1000));
+        currentStart = currentEnd;
         
-        try {
-          const candles = await this.api.getCandles(
-            'BTC-USD',
-            granularitySeconds,
-            batchStartTime.toISOString(),
-            batchEndTime.toISOString()
-          );
-          
-          if (candles.length > 0) {
-            allNewCandles = [...candles, ...allNewCandles];
-            // Cache the data
-            await this.cache.setCachedCandles(granularitySeconds, candles);
-          }
-          
+        // Add small delay between chunks to be nice to the API
+        if (currentStart < gapEnd) {
           await new Promise(resolve => setTimeout(resolve, 100));
-        } catch (error) {
-          console.error(`Error loading batch ${i + 1}:`, error);
         }
       }
-
-      if (allNewCandles.length > 0) {
-        const existingTimes = new Set(this.historicalData.map(c => c.time));
-        const uniqueNewData = allNewCandles.filter(c => !existingTimes.has(c.time));
-        
-        const allData = [...uniqueNewData, ...this.historicalData]
-          .sort((a, b) => a.time - b.time);
-        
-        if (allData.length > 50000) {
-          this.historicalData = allData.slice(allData.length - 50000);
-        } else {
-          this.historicalData = allData;
-        }
-        
-        console.log(`Added ${uniqueNewData.length} new candles, total: ${this.historicalData.length}`);
+    } catch (error: any) {
+      console.error('Error fetching gap data:', error);
+      if (error?.response?.data?.message) {
+        console.error('Coinbase API error message:', error.response.data.message);
       }
-
-      return allNewCandles;
-    } catch (error) {
-      console.error('Error loading more historical data:', error);
-      throw error;
     }
   }
 
-  async fetchLatestCandle(granularity?: number) {
-    const targetGranularity = granularity || this.activeGranularity;
-    try {
-      console.log(`Fetching latest candle for ${targetGranularity}s granularity...`);
-      
-      // Get the most recent candles from the API
-      const candles = await this.api.getCandles(
-        'BTC-USD',
-        targetGranularity
-      );
-
-      if (candles.length > 0) {
-        // Get the last 2 candles to handle both current and previous period
-        const latestCandles = candles.slice(-2);
-        const currentStoredCandle = this.currentCandles.get(targetGranularity);
-        
-        // Calculate what the current candle time should be
-        const now = Math.floor(Date.now() / 1000);
-        const expectedCandleTime = Math.floor(now / targetGranularity) * targetGranularity;
-        
-        let hasNewCandle = false;
-        
-        for (const apiCandle of latestCandles) {
-          // Check if this is a new candle we haven't seen
-          const isNewCandle = !currentStoredCandle || apiCandle.time > currentStoredCandle.time;
-          
-          if (isNewCandle) {
-            // Move the previous current candle to historical if it exists
-            if (currentStoredCandle && apiCandle.time > currentStoredCandle.time) {
-              if (!this.historicalData.some(c => c.time === currentStoredCandle.time)) {
-                this.historicalData.push(currentStoredCandle);
-                this.historicalData.sort((a, b) => a.time - b.time);
-                if (this.historicalData.length > 10000) {
-                  this.historicalData.shift();
-                }
-              }
-            }
-            
-            // Check if this is the current period candle or a completed candle
-            if (apiCandle.time === expectedCandleTime) {
-              // This is the current period - use it as current candle
-              this.currentCandles.set(targetGranularity, apiCandle);
-              hasNewCandle = true;
-              
-              // Cache the new candle
-              console.log(`Caching current candle for ${targetGranularity}s granularity`);
-              await this.cache.updateLatestCandle(targetGranularity, apiCandle);
-              
-            } else if (apiCandle.time < expectedCandleTime) {
-              // This is a completed candle - add to historical
-              if (!this.historicalData.some(c => c.time === apiCandle.time)) {
-                this.historicalData.push(apiCandle);
-                this.historicalData.sort((a, b) => a.time - b.time);
-                if (this.historicalData.length > 10000) {
-                  this.historicalData.shift();
-                }
-                hasNewCandle = true;
-                
-                // Cache the completed candle
-                await this.cache.updateLatestCandle(targetGranularity, apiCandle);
-              }
-            }
-          }
-        }
-        
-        // Notify subscribers if we detected new candles for the active granularity
-        if (hasNewCandle && targetGranularity === this.activeGranularity) {
-          const currentCandle = this.currentCandles.get(targetGranularity);
-          if (currentCandle) {
-            console.log(`New candle detected: ${new Date(currentCandle.time * 1000).toISOString()}`);
-            this.subscribers.forEach(callback => {
-              callback(currentCandle, true); // Pass true to indicate this is a new candle
-            });
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching latest candle:', error);
+  // Load historical data for a specific period
+  async loadHistoricalData(granularity: string, days: number): Promise<void> {
+    const endTime = Math.floor(Date.now() / 1000);
+    const startTime = endTime - (days * 86400);
+    
+    console.log(`Loading ${days} days of ${granularity} data`);
+    
+    // Check cache first
+    const cacheResult = await this.cache.getCachedCandles(
+      this.symbol,
+      granularity,
+      startTime,
+      endTime
+    );
+    
+    // Only fetch if we have significant gaps
+    const totalTimeRange = endTime - startTime;
+    const gapTime = cacheResult.gaps.reduce((sum, gap) => sum + (gap.end - gap.start), 0);
+    const gapPercentage = (gapTime / totalTimeRange) * 100;
+    
+    console.log(`Cache coverage: ${(100 - gapPercentage).toFixed(1)}% (${cacheResult.candles.length} candles, ${cacheResult.gaps.length} gaps)`);
+    
+    // Only fetch if we're missing more than 10% of data
+    if (cacheResult.gaps.length > 0 && gapPercentage > 10) {
+      await this.fillGaps(cacheResult.gaps, granularity);
     }
   }
 
-  getHistoricalData(): CandleData[] {
-    return this.historicalData;
+  // Set active granularity (for compatibility)
+  setActiveGranularity(seconds: number) {
+    const granularityMap: { [key: number]: string } = {
+      60: '1m',
+      300: '5m',
+      900: '15m',
+      3600: '1h',
+      21600: '6h',
+      86400: '1D'
+    };
+    
+    this.currentGranularity = granularityMap[seconds] || '1m';
+    console.log(`Active granularity set to: ${this.currentGranularity}`);
   }
 
-  getCurrentCandle(): CandleData | null {
-    return this.currentCandles.get(this.activeGranularity) || null;
-  }
-
+  // Get all current data
   getAllData(): CandleData[] {
-    const all = [...this.historicalData];
-    const currentCandle = this.currentCandles.get(this.activeGranularity);
-    
-    // Only add current candle if it's not already in historical data
-    if (currentCandle && !all.some(c => c.time === currentCandle.time)) {
-      all.push(currentCandle);
-    }
-    
-    // Sort by time and remove any remaining duplicates
-    const uniqueData = new Map<number, CandleData>();
-    all.forEach(candle => uniqueData.set(candle.time, candle));
-    
-    return Array.from(uniqueData.values()).sort((a, b) => a.time - b.time);
+    return this.currentData;
   }
 
+  // Get total available candle count
+  async getTotalCandleCount(): Promise<number> {
+    const metadata = await this.cache.getMetadata(this.symbol);
+    return metadata?.totalCandles || 0;
+  }
+
+  // Subscribe to updates
   subscribe(id: string, callback: (data: CandleData, isNew?: boolean) => void) {
     this.subscribers.set(id, callback);
   }
@@ -495,61 +501,130 @@ export class ChartDataFeed {
     this.subscribers.delete(id);
   }
 
-  disconnect() {
-    // Clear all fetch intervals
-    this.fetchIntervals.forEach((interval, _) => {
-      clearInterval(interval);
-    });
-    this.fetchIntervals.clear();
-    
-    // Disconnect WebSocket
-    this.ws.disconnect();
-    this.subscribers.clear();
-    this.loader.stop();
+  // Get granularity in seconds
+  private getGranularitySeconds(granularity: string): number {
+    const map: { [key: string]: number } = {
+      '1m': 60,
+      '5m': 300,
+      '15m': 900,
+      '1h': 3600,
+      '6h': 21600,
+      '1d': 86400,  // Legacy support
+      '1D': 86400  // Support both lowercase and uppercase
+    };
+    return map[granularity] || 60;
   }
 
-  // Get optimal granularity for a time range
-  getOptimalGranularity(visibleRangeSeconds: number): number {
-    // Adjusted to prevent too many candles on screen
-    // Modified thresholds to better respect manual granularity choices
-    if (visibleRangeSeconds < 7200) { // < 2 hours (was 1 hour)
-      return 60; // 1m
-    } else if (visibleRangeSeconds < 28800) { // < 8 hours (was 4 hours)
-      return 300; // 5m
-    } else if (visibleRangeSeconds < 172800) { // < 2 days
-      return 900; // 15m
-    } else if (visibleRangeSeconds < 604800) { // < 1 week
-      return 3600; // 1h
-    } else if (visibleRangeSeconds < 7776000) { // < 3 months
-      return 21600; // 6h
-    } else {
-      return 86400; // 1D
+  // Central time range validation method
+  private validateTimeRange(startTime: number, endTime: number): { start: number; end: number; isValid: boolean } {
+    // For crypto data, we can't get data beyond the current time
+    const currentTime = Math.floor(Date.now() / 1000);
+    
+    // Cap the end time to current time (no future data)
+    const validEnd = Math.min(endTime, currentTime);
+    
+    // If the requested start time is after current time, we can't provide any data
+    if (startTime > currentTime) {
+      // Adjust start time to be within valid range
+      const adjustedStart = currentTime - 86400; // Go back 1 day from current time
+      return { start: adjustedStart, end: validEnd, isValid: true };
+    }
+    
+    // If after capping end time, start >= end, adjust the range
+    if (startTime >= validEnd) {
+      // Create a valid range by going back from the valid end
+      const adjustedStart = validEnd - 86400; // 1 day range
+      return { start: adjustedStart, end: validEnd, isValid: true };
+    }
+    
+    // Normal case: start is before end and within valid range
+    return { start: startTime, end: validEnd, isValid: true };
+  }
+
+  // Legacy methods for compatibility
+  async loadHistoricalDataWithGranularity(granularitySeconds: number, days: number): Promise<CandleData[]> {
+    const granularityMap: { [key: number]: string } = {
+      60: '1m',
+      300: '5m',
+      900: '15m',
+      3600: '1h',
+      21600: '6h',
+      86400: '1D'  // Use uppercase to match Dashboard
+    };
+    
+    const granularity = granularityMap[granularitySeconds] || '1m';
+    await this.loadHistoricalData(granularity, days);
+    
+    const endTime = Math.floor(Date.now() / 1000);
+    const startTime = endTime - (days * 86400);
+    
+    const result = await this.cache.getCachedCandles(this.symbol, granularity, startTime, endTime);
+    return result.candles;
+  }
+
+  async fetchLatestCandle(): Promise<CandleData | null> {
+    try {
+      const candles = await this.api.getCandles(
+        this.symbol,
+        this.getGranularitySeconds(this.currentGranularity)
+      );
+      
+      if (candles.length > 0) {
+        await this.cache.updateLatestCandle(this.symbol, this.currentGranularity, candles[0]);
+        return candles[0];
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error fetching latest candle:', error);
+      return null;
     }
   }
 
-  // Set the active granularity for WebSocket updates
-  setActiveGranularity(granularity: number) {
-    console.log(`Setting active granularity to ${granularity}s`);
-    
-    // Clear all existing intervals before setting new granularity
-    this.fetchIntervals.forEach((interval, _) => {
-      clearInterval(interval);
-    });
-    this.fetchIntervals.clear();
-    
+  // Public method to set granularity change callback
+  onGranularityChange(callback: (granularity: string) => void) {
+    this.granularityChangeCallback = callback;
+  }
+  
+  // Set manual granularity (disables auto for 2 seconds)
+  setManualGranularity(granularity: string) {
+    console.log(`Manual granularity set to: ${granularity}`);
+    this.isManualMode = true;
     this.activeGranularity = granularity;
+    this.currentGranularity = granularity;
     
-    // Set up fetch interval for this granularity
-    this.setupFetchInterval(granularity);
+    // Clear any pending transitions
+    clearTimeout(this.granularityDebounceTimer);
+    this.pendingGranularity = null;
     
-    // If we don't have a current candle for this granularity, fetch it
-    if (!this.currentCandles.has(granularity)) {
-      this.fetchLatestCandle(granularity);
+    // Keep manual mode active until user changes period or zooms
+    // Don't auto-disable it after 2 seconds
+    clearTimeout(this.manualModeTimer);
+  }
+  
+  // Re-enable auto-granularity mode
+  enableAutoGranularity() {
+    console.log('Auto-granularity mode enabled');
+    this.isManualMode = false;
+    this.pendingGranularity = null;
+    clearTimeout(this.manualModeTimer);
+  }
+  
+  // Set manual mode
+  setManualMode(enabled: boolean) {
+    this.isManualMode = enabled;
+    if (enabled) {
+      clearTimeout(this.manualModeTimer);
     }
   }
-
-  // Get current candle for a specific granularity
-  getCurrentCandleForGranularity(granularity: number): CandleData | null {
-    return this.currentCandles.get(granularity) || null;
+  
+  // Set granularity
+  setGranularity(granularity: string) {
+    this.setManualGranularity(granularity);
+  }
+  
+  disconnect() {
+    this.ws.disconnect();
+    this.loader.stop();
   }
 }
