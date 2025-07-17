@@ -34,16 +34,41 @@ export class WebSocketManager {
       }
     });
 
-    // Poll connection status
-    setInterval(() => {
-      const connected = this.ws.isConnected();
-      if (connected && !this.isConnected) {
+    // Monitor connection status more aggressively
+    this.ws.onStatus((status) => {
+      console.log('WebSocketManager: Connection status changed to:', status);
+      
+      if (status === 'connected' && !this.isConnected) {
+        console.log('WebSocketManager: WebSocket connected, resubscribing to symbols');
         this.isConnected = true;
         this.resubscribeAll();
-      } else if (!connected && this.isConnected) {
+      } else if (status !== 'connected' && this.isConnected) {
+        console.log('WebSocketManager: WebSocket disconnected');
         this.isConnected = false;
       }
-    }, 1000);
+      
+      // If disconnected or error, try to reconnect
+      if (status === 'disconnected' || status === 'error') {
+        console.log('WebSocketManager: Attempting to reconnect in 2 seconds');
+        setTimeout(() => {
+          if (!this.ws.isConnected()) {
+            console.log('WebSocketManager: Reconnecting...');
+            this.connect();
+          }
+        }, 2000);
+      }
+    });
+
+    // Also poll connection status as backup
+    setInterval(() => {
+      const connected = this.ws.isConnected();
+      if (!connected && this.isConnected) {
+        console.log('WebSocketManager: Connection lost detected via polling');
+        this.isConnected = false;
+        // Attempt reconnection
+        this.connect();
+      }
+    }, 5000); // Check every 5 seconds
   }
 
   private broadcastTicker(data: TickerData) {
@@ -65,11 +90,32 @@ export class WebSocketManager {
   }
 
   async connect(): Promise<void> {
-    console.log('WebSocketManager: connect() called, isConnected:', this.isConnected);
-    if (!this.isConnected) {
-      this.ws.connect();
-      // Wait a bit for connection to establish
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    console.log('WebSocketManager: connect() called, isConnected:', this.isConnected, 'ws.isConnected:', this.ws.isConnected());
+    
+    // Check if WebSocket is already connected or connecting
+    if (this.ws.isConnected()) {
+      console.log('WebSocketManager: WebSocket already connected');
+      this.isConnected = true;
+      return;
+    }
+    
+    console.log('WebSocketManager: Initiating WebSocket connection');
+    this.ws.connect();
+    
+    // Wait for connection to establish (up to 5 seconds)
+    let attempts = 0;
+    while (!this.ws.isConnected() && attempts < 50) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+    
+    if (this.ws.isConnected()) {
+      console.log('WebSocketManager: Connection established successfully');
+      this.isConnected = true;
+      // Resubscribe to all symbols
+      await this.resubscribeAll();
+    } else {
+      console.error('WebSocketManager: Failed to establish connection after 5 seconds');
     }
   }
 

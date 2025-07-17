@@ -22,6 +22,22 @@
   let cacheCleared = false;
   let chartComponent: Chart;
   
+  // Debug variables from Chart component
+  let chartDateRangeInfo = {
+    expectedFrom: '',
+    expectedTo: '',
+    actualFrom: '',
+    actualTo: '',
+    expectedCandles: 0,
+    actualCandles: 0,
+    requestedFrom: 0,
+    requestedTo: 0,
+    dataDebug: ''
+  };
+  let chartVisibleCandleCount = 0;
+  let chartTotalCandleCount = 0;
+  let chartCacheStatus = 'initializing';
+  
   // Define valid granularities for each period - ONLY Coinbase supported values
   const validGranularities: Record<string, string[]> = {
     '1H': ['1m', '5m', '15m'],
@@ -146,7 +162,17 @@
           </div>
         </div>
         <div class="panel-content">
-          <Chart bind:this={chartComponent} bind:status={connectionStatus} granularity={selectedGranularity} period={selectedPeriod} onGranularityChange={handleChartGranularityChange} />
+          <Chart 
+            bind:this={chartComponent} 
+            bind:status={connectionStatus} 
+            bind:dateRangeInfo={chartDateRangeInfo}
+            bind:visibleCandleCount={chartVisibleCandleCount}
+            bind:totalCandleCount={chartTotalCandleCount}
+            bind:cacheStatus={chartCacheStatus}
+            granularity={selectedGranularity} 
+            period={selectedPeriod} 
+            onGranularityChange={handleChartGranularityChange} 
+          />
           <div class="period-buttons">
             <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
             <button class="period-btn" class:active={selectedPeriod === '4H'} on:click={() => selectPeriod('4H')}>4H</button>
@@ -173,6 +199,63 @@
                 Clear Cache
               {/if}
             </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Debug Section -->
+      <div class="panel debug-panel">
+        <div class="panel-header">
+          <h2>Debug Information</h2>
+          <button 
+            class="clear-cache-btn" 
+            on:click={clearCache}
+            disabled={isClearingCache}
+          >
+            {#if isClearingCache}
+              Clearing Cache...
+            {:else}
+              Clear Cache
+            {/if}
+          </button>
+        </div>
+        <div class="panel-content">
+          <div class="debug-content">
+            <div class="debug-info-panel">
+              <h4>Date Range</h4>
+              <div class="debug-row">
+                <span class="debug-label">Expected:</span>
+                <span class="debug-value">{chartDateRangeInfo.expectedFrom} - {chartDateRangeInfo.expectedTo}</span>
+              </div>
+              <div class="debug-row">
+                <span class="debug-label">Actual:</span>
+                <span class="debug-value">{chartDateRangeInfo.actualFrom} - {chartDateRangeInfo.actualTo}</span>
+              </div>
+              <div class="debug-row">
+                <span class="debug-label">Candles:</span>
+                <span class="debug-value">
+                  {chartDateRangeInfo.actualCandles} / {chartDateRangeInfo.expectedCandles}
+                  <span class="debug-candles" class:error={Math.abs(chartDateRangeInfo.actualCandles - chartDateRangeInfo.expectedCandles) > 1}>
+                    {Math.abs(chartDateRangeInfo.actualCandles - chartDateRangeInfo.expectedCandles) <= 1 ? '✅' : '❌'}
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div class="debug-info-panel">
+              <h4>Chart Status</h4>
+              <div class="debug-row">
+                <span class="debug-label">Visible:</span>
+                <span class="debug-value">{chartVisibleCandleCount} candles</span>
+              </div>
+              <div class="debug-row">
+                <span class="debug-label">Total:</span>
+                <span class="debug-value">{chartTotalCandleCount} candles</span>
+              </div>
+              <div class="debug-row">
+                <span class="debug-label">Cache:</span>
+                <span class="debug-value">{chartCacheStatus}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -316,6 +399,7 @@
     gap: 20px;
     padding: 20px;
     overflow: auto;
+    min-height: 0; /* Allow flexbox to shrink properly */
   }
   
   /* Panels */
@@ -374,7 +458,6 @@
   .chart-panel {
     min-height: 400px;
     flex: 1;
-    max-height: 600px;
   }
   
   .chart-panel .panel-content {
@@ -382,6 +465,7 @@
     height: calc(100% - 60px); /* Subtract header height */
     display: flex;
     flex-direction: column;
+    overflow: hidden; /* Prevent scrollbars */
   }
   
   .chart-panel .panel-content > :global(.chart-container) {
@@ -550,5 +634,96 @@
     background: rgba(16, 185, 129, 0.2);
     border-color: rgba(16, 185, 129, 0.4);
     color: #10b981;
+  }
+  
+  /* Debug Panel Styles */
+  .debug-panel {
+    margin-bottom: 20px;
+  }
+  
+  .debug-panel .panel-content {
+    padding: 15px 20px;
+  }
+  
+  .clear-cache-btn {
+    background: #ef5350;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .clear-cache-btn:hover:not(:disabled) {
+    background: #d32f2f;
+  }
+  
+  .clear-cache-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .debug-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .debug-info-panel {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.2);
+    border-radius: 4px;
+    padding: 15px;
+  }
+
+  .debug-info-panel h4 {
+    color: #26a69a;
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    font-family: monospace;
+  }
+
+  .debug-row {
+    display: flex;
+    gap: 10px;
+    margin: 8px 0;
+    align-items: center;
+    font-family: monospace;
+    font-size: 12px;
+  }
+
+  .debug-label {
+    color: #758696;
+    width: 80px;
+    flex-shrink: 0;
+  }
+
+  .debug-value {
+    color: #d1d4dc;
+    flex: 1;
+  }
+  
+  .debug-value.error {
+    color: #ef5350;
+  }
+
+  .debug-candles {
+    color: #26a69a;
+    font-weight: bold;
+    margin-left: 5px;
+  }
+  
+  .debug-candles.error {
+    color: #ef5350;
+  }
+
+  @media (max-width: 768px) {
+    .debug-content {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

@@ -19,7 +19,7 @@
   $: console.log('Chart props changed:', { period, granularity, isInitialized });
   
   // Cache and loading state
-  let cacheStatus = 'initializing';
+  export let cacheStatus = 'initializing';
   let isLoadingData = false;
   
   // Granularity state
@@ -35,15 +35,15 @@
   // Redis subscription cleanup
   // let redisUnsubscribe: (() => void) | null = null;
   
-  // Visible candle count
-  let visibleCandleCount = 0;
-  let totalCandleCount = 0;
+  // Visible candle count - exported for debug
+  export let visibleCandleCount = 0;
+  export let totalCandleCount = 0;
   
   // Error handling
   let errorMessage = '';
   
-  // Date range display
-  let dateRangeInfo = {
+  // Date range display - exported for debug
+  export let dateRangeInfo = {
     expectedFrom: '',
     expectedTo: '',
     actualFrom: '',
@@ -868,6 +868,36 @@
     }
   }
 
+  async function clearCache() {
+    console.log('Clearing cache...');
+    try {
+      // Clear IndexedDB
+      const databases = await indexedDB.databases();
+      for (const db of databases) {
+        if (db.name?.includes('coinbase') || db.name?.includes('chart')) {
+          await indexedDB.deleteDatabase(db.name);
+          console.log(`Deleted database: ${db.name}`);
+        }
+      }
+      
+      // Clear localStorage
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('coinbase') || key.includes('chart'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // Reload the page
+      window.location.reload();
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+      errorMessage = 'Failed to clear cache: ' + error.message;
+    }
+  }
+
   onDestroy(() => {
     if (clockInterval) {
       clearInterval(clockInterval);
@@ -909,33 +939,6 @@
     {visibleCandleCount} / {totalCandleCount} candles
   </div>
   
-  <!-- Date Range Debug Info -->
-  <div class="date-range-debug">
-    <div class="debug-header">Date Range Debug ({period} with {effectiveGranularity})</div>
-    <div class="debug-row">
-      <span class="debug-label">Expected:</span>
-      <span class="debug-value">{dateRangeInfo.expectedFrom} → {dateRangeInfo.expectedTo}</span>
-      <span class="debug-candles">({dateRangeInfo.expectedCandles} candles)</span>
-    </div>
-    <div class="debug-row">
-      <span class="debug-label">Actual:</span>
-      <span class="debug-value" class:error={dateRangeInfo.actualCandles !== dateRangeInfo.expectedCandles}>
-        {dateRangeInfo.actualFrom || 'Loading...'} → {dateRangeInfo.actualTo || 'Loading...'}
-      </span>
-      <span class="debug-candles" class:error={dateRangeInfo.actualCandles !== dateRangeInfo.expectedCandles}>
-        ({dateRangeInfo.actualCandles} candles)
-      </span>
-    </div>
-    <div class="debug-row">
-      <span class="debug-label">Unix Time:</span>
-      <span class="debug-value">{dateRangeInfo.requestedFrom} → {dateRangeInfo.requestedTo}</span>
-    </div>
-    <div class="debug-row">
-      <span class="debug-label">Data Debug:</span>
-      <span class="debug-value">{dateRangeInfo.dataDebug}</span>
-    </div>
-  </div>
-  
   <div class="cache-status">
     <span class="status-dot {cacheStatus}"></span>
     Cache: {cacheStatus}
@@ -954,7 +957,6 @@
   .chart-container {
     width: 100%;
     height: 100%;
-    min-height: 400px;
     position: relative;
     background-color: #1a1a1a;
   }
@@ -1111,57 +1113,5 @@
   
   .error-retry:hover {
     background-color: #2db67f;
-  }
-  
-  .date-range-debug {
-    position: absolute;
-    top: 60px;
-    left: 10px;
-    background: rgba(0, 0, 0, 0.9);
-    border: 1px solid #2a2a2a;
-    border-radius: 4px;
-    padding: 10px;
-    font-size: 11px;
-    font-family: monospace;
-    z-index: 10;
-    min-width: 500px;
-  }
-
-  .debug-header {
-    color: #26a69a;
-    font-weight: bold;
-    margin-bottom: 8px;
-    font-size: 12px;
-  }
-
-  .debug-row {
-    display: flex;
-    gap: 10px;
-    margin: 4px 0;
-    align-items: center;
-  }
-
-  .debug-label {
-    color: #758696;
-    width: 80px;
-    flex-shrink: 0;
-  }
-
-  .debug-value {
-    color: #d1d4dc;
-    flex: 1;
-  }
-  
-  .debug-value.error {
-    color: #ef5350;
-  }
-
-  .debug-candles {
-    color: #26a69a;
-    font-weight: bold;
-  }
-  
-  .debug-candles.error {
-    color: #ef5350;
   }
 </style>
