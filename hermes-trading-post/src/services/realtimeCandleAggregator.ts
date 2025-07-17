@@ -13,7 +13,7 @@ export interface CandleUpdate {
 class RealtimeCandleAggregator {
   private currentCandles: Map<string, CandlestickData> = new Map();
   private listeners: Set<(update: CandleUpdate) => void> = new Set();
-  private intervals: Map<string, NodeJS.Timeout> = new Map();
+  private intervals: Map<string, number> = new Map();
   private lastPrices: Map<string, number> = new Map();
   private api: CoinbaseAPI;
   private unregisterWebSocket: (() => void) | null = null;
@@ -105,12 +105,19 @@ class RealtimeCandleAggregator {
       candle: { ...candle },
       isNewCandle: false
     });
+
+    // Safety check: ensure we have a timer scheduled
+    if (!this.intervals.has(symbol)) {
+      console.warn(`No timer found for ${symbol} during update, scheduling one now`);
+      this.scheduleNextCandle(symbol);
+    }
   }
 
   private scheduleNextCandle(symbol: string) {
     // Clear existing timer
     const existingTimer = this.intervals.get(symbol);
     if (existingTimer) {
+      console.log(`Clearing existing timer ${existingTimer} for ${symbol}`);
       clearTimeout(existingTimer);
     }
 
@@ -119,12 +126,17 @@ class RealtimeCandleAggregator {
     const nextMinute = Math.ceil(now / 60000) * 60000;
     const timeUntilNext = nextMinute - now;
 
-    console.log(`Scheduling next candle in ${timeUntilNext}ms at ${new Date(nextMinute).toISOString()}`);
+    console.log(`Current time: ${new Date(now).toISOString()}, Next minute: ${new Date(nextMinute).toISOString()}, Wait: ${timeUntilNext}ms`);
     
     // Schedule candle creation with small buffer to ensure we're past boundary
     const timer = setTimeout(() => {
+      console.log(`Timer fired for ${symbol} at ${new Date().toISOString()}`);
       const currentPrice = this.lastPrices.get(symbol);
-      console.log(`Timer fired for new candle at ${new Date(nextMinute).toISOString()}, price: ${currentPrice}`);
+      console.log(`Creating new candle at ${new Date(nextMinute).toISOString()}, current price: ${currentPrice}`);
+      
+      // Remove timer from map since it fired
+      this.intervals.delete(symbol);
+      
       if (currentPrice) {
         // Force create new candle at exact minute boundary
         this.processTick(symbol, currentPrice, nextMinute);
@@ -133,7 +145,12 @@ class RealtimeCandleAggregator {
       this.syncWithAPI(symbol);
     }, timeUntilNext + 100); // Add 100ms buffer
 
+    console.log(`Created timer ID ${timer} for ${symbol}, will fire in ${timeUntilNext + 100}ms`);
     this.intervals.set(symbol, timer);
+    
+    // Verify timer was stored
+    const storedTimer = this.intervals.get(symbol);
+    console.log(`Verified timer storage: ${storedTimer === timer ? 'SUCCESS' : 'FAILED'} (stored: ${storedTimer}, expected: ${timer})`);
   }
 
   private async syncWithAPI(symbol: string) {
@@ -256,9 +273,11 @@ class RealtimeCandleAggregator {
   }
 
   async stopAggregating(symbol: string) {
+    console.log(`Stopping aggregation for ${symbol}`);
     // Clear timer
     const timer = this.intervals.get(symbol);
     if (timer) {
+      console.log(`Clearing timer ${timer} for ${symbol} in stopAggregating`);
       clearTimeout(timer);
       this.intervals.delete(symbol);
     }

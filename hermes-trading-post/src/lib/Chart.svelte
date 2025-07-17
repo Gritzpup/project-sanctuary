@@ -20,7 +20,12 @@
   
   // Cache and loading state
   export let cacheStatus = 'initializing';
+  let displayStatus = 'initializing'; // Combined status for display
+  let statusResetTimer: number;
   let isLoadingData = false;
+  
+  // Update display status whenever cache status changes
+  $: if (!statusResetTimer) displayStatus = cacheStatus;
   
   // Granularity state
   let effectiveGranularity = granularity;
@@ -257,6 +262,14 @@
         if (candleSeries && !isLoadingData) {
           console.log('Chart: Processing candle update for', effectiveGranularity);
           
+          // Set display status based on update type
+          displayStatus = isNew ? 'new-candle' : 'price-update';
+          
+          // Clear any existing timer
+          if (statusResetTimer) {
+            clearTimeout(statusResetTimer);
+          }
+          
           // Always update the candle
           const chartCandle = {
             time: candle.time as Time,
@@ -277,6 +290,12 @@
           try {
             candleSeries.update(chartCandle);
             console.log('Chart: Successfully updated candle');
+            
+            // Reset to base status after a delay
+            statusResetTimer = setTimeout(() => {
+              displayStatus = cacheStatus;
+              statusResetTimer = null;
+            }, isNew ? 3000 : 1500); // Stay visible longer - 1.5s for price, 3s for new candle
             
             // No need to force redraw - lightweight-charts handles updates automatically
           } catch (error) {
@@ -596,6 +615,12 @@
     isLoadingData = true;
     
     try {
+      // Clear cache on reload to ensure fresh data
+      console.log('Clearing cache before reload...');
+      await clearCache(true); // Skip page reload since we're just refreshing data
+      
+      // Small delay to ensure cache is cleared
+      await new Promise(resolve => setTimeout(resolve, 100));
       // Calculate time range based on period - USE FRESH DATE
       const now = Math.floor(Date.now() / 1000);
       const currentDateTime = new Date();
@@ -816,7 +841,7 @@
     }
   }
 
-  async function clearCache() {
+  async function clearCache(skipPageReload = false) {
     console.log('Clearing cache...');
     try {
       // Clear IndexedDB
@@ -838,8 +863,10 @@
       }
       keysToRemove.forEach(key => localStorage.removeItem(key));
       
-      // Reload the page
-      window.location.reload();
+      // Only reload the page if not skipped
+      if (!skipPageReload) {
+        window.location.reload();
+      }
     } catch (error) {
       console.error('Error clearing cache:', error);
       errorMessage = 'Failed to clear cache: ' + error.message;
@@ -855,6 +882,9 @@
     }
     if (reloadDebounceTimer) {
       clearTimeout(reloadDebounceTimer);
+    }
+    if (statusResetTimer) {
+      clearTimeout(statusResetTimer);
     }
     if (resizeHandler) {
       window.removeEventListener('resize', resizeHandler);
@@ -887,9 +917,25 @@
     {visibleCandleCount} / {totalCandleCount} candles
   </div>
   
-  <div class="cache-status">
-    <span class="status-dot {cacheStatus}"></span>
-    Cache: {cacheStatus}
+  <div class="status-container">
+    <span class="status-dot {displayStatus}"></span>
+    <span class="status-label">
+      {#if displayStatus === 'initializing'}
+        Initializing...
+      {:else if displayStatus === 'loading'}
+        Loading data...
+      {:else if displayStatus === 'ready'}
+        Ready
+      {:else if displayStatus === 'updating'}
+        Updating...
+      {:else if displayStatus === 'error'}
+        Error!
+      {:else if displayStatus === 'price-update'}
+        Price Update
+      {:else if displayStatus === 'new-candle'}
+        New Candle! 🕯️
+      {/if}
+    </span>
   </div>
   
   <div class="clock-container">
@@ -930,7 +976,7 @@
     font-family: 'Monaco', 'Consolas', monospace;
   }
   
-  .cache-status {
+  .status-container {
     position: absolute;
     bottom: 10px;
     left: 10px;
@@ -945,11 +991,20 @@
     gap: 8px;
   }
   
+  .status-label {
+    font-weight: 500;
+  }
+  
   .status-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
     background: #6b7280;
+  }
+  
+  .status-dot.initializing {
+    background: #8b5cf6;
+    animation: pulse 1s infinite;
   }
   
   .status-dot.loading {
@@ -965,6 +1020,24 @@
     background: #3b82f6;
     animation: pulse-scale 0.5s infinite;
     box-shadow: 0 0 10px #3b82f6;
+  }
+  
+  .status-dot.error {
+    background: #ef4444;
+    animation: pulse 0.5s infinite;
+    box-shadow: 0 0 10px #ef4444;
+  }
+  
+  .status-dot.price-update {
+    background: #60a5fa;
+    animation: pulse 0.8s infinite;
+    box-shadow: 0 0 8px #60a5fa;
+  }
+  
+  .status-dot.new-candle {
+    background: #fbbf24;
+    animation: pulse-glow 1s ease-out;
+    box-shadow: 0 0 20px #fbbf24;
   }
   
   @keyframes pulse {
@@ -987,6 +1060,23 @@
       transform: scale(1);
       opacity: 1;
       box-shadow: 0 0 5px #3b82f6;
+    }
+  }
+  
+  
+  
+  @keyframes pulse-glow {
+    0% { 
+      transform: scale(1);
+      box-shadow: 0 0 5px #fbbf24;
+    }
+    50% { 
+      transform: scale(2);
+      box-shadow: 0 0 30px #fbbf24;
+    }
+    100% { 
+      transform: scale(1);
+      box-shadow: 0 0 10px #fbbf24;
     }
   }
   

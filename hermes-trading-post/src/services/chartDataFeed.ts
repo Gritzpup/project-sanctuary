@@ -560,9 +560,9 @@ export class ChartDataFeed {
     const wasEmpty = this.subscribers.size === 0;
     this.subscribers.set(id, callback);
     
-    // Start WebSocket aggregation when first subscriber is added
-    if (wasEmpty && this.subscribers.size === 1) {
-      console.log('ChartDataFeed: First subscriber added, starting real-time aggregation');
+    // Start WebSocket aggregation when first subscriber is added and granularity is 1m
+    if (wasEmpty && this.subscribers.size === 1 && this.currentGranularity === '1m') {
+      console.log('ChartDataFeed: First subscriber added with 1m granularity, starting real-time aggregation');
       realtimeCandleAggregator.startAggregating(this.symbol);
     }
   }
@@ -702,8 +702,10 @@ export class ChartDataFeed {
     // Handle real-time aggregator for 1m candles
     if (granularity !== '1m') {
       realtimeCandleAggregator.stopAggregating(this.symbol);
+    } else {
+      // Restart aggregation if switching back to 1m
+      realtimeCandleAggregator.startAggregating(this.symbol);
     }
-    // Don't start aggregating here - it's already started in constructor
   }
   
   // Re-enable auto-granularity mode
