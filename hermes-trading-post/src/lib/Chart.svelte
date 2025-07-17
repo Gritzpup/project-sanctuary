@@ -304,90 +304,45 @@
         });
         
         if (candleSeries && !isLoadingData) {
-          // For 1m granularity, always update regardless of visible range
-          // The chart will handle whether to display it or not
-          if (effectiveGranularity === '1m') {
-            console.log('Chart: Processing 1m candle update');
+          console.log('Chart: Processing candle update for', effectiveGranularity);
+          
+          // Always update the candle
+          const chartCandle = {
+            time: candle.time as Time,
+            open: candle.open,
+            high: candle.high,
+            low: candle.low,
+            close: candle.close
+          };
+          
+          if (isNew) {
+            console.log(`Chart: Received new ${effectiveGranularity} candle at ${new Date(candle.time * 1000).toISOString()}`);
+          } else {
+            console.log(`Chart: Updating existing ${effectiveGranularity} candle at ${new Date(candle.time * 1000).toISOString()}`);
+          }
+          
+          console.log('Chart: Candle data:', chartCandle);
+          
+          try {
+            candleSeries.update(chartCandle);
+            console.log('Chart: Successfully updated candle');
             
-            // For 1m granularity, update or append candle directly
-            if (isNew) {
-                console.log(`Chart: Received new 1m candle at ${new Date(candle.time * 1000).toISOString()}`);
-                
-                // Simply append the new candle
-                const chartCandle = {
-                  time: candle.time as Time,
-                  open: candle.open,
-                  high: candle.high,  
-                  low: candle.low,
-                  close: candle.close
-                };
-                
-                console.log('Chart: Appending new candle:', chartCandle);
-                try {
-                  candleSeries.update(chartCandle);
-                  console.log('Chart: Successfully appended new candle');
-                } catch (error) {
-                  console.error('Chart: Error appending new candle:', error);
-                }
-              } else {
-                // Update existing candle
-                const chartCandle = {
-                  time: candle.time as Time,
-                  open: candle.open,
-                  high: candle.high,
-                  low: candle.low,
-                  close: candle.close
-                };
-                console.log('Chart: Updating existing candle with:', chartCandle);
-                try {
-                  candleSeries.update(chartCandle);
-                  console.log('Chart: Successfully updated candle');
-                  
-                  // Force chart to redraw - try multiple methods
-                  // Method 1: Force a resize event (most reliable)
-                  if (chart && chartContainer) {
-                    const width = chartContainer.clientWidth;
-                    const height = chartContainer.clientHeight;
-                    chart.applyOptions({
-                      width: width - 1,
-                      height: height
-                    });
-                    // Immediately restore original size
-                    requestAnimationFrame(() => {
-                      chart.applyOptions({
-                        width: width,
-                        height: height
-                      });
-                    });
-                  }
-                  
-                  // Method 2: Also try time scale update as backup
-                  const currentRange = chart?.timeScale().getVisibleRange();
-                  if (currentRange) {
-                    // Trigger a minimal time scale change to force re-render
-                    chart?.timeScale().setVisibleRange({
-                      from: currentRange.from,
-                      to: (Number(currentRange.to) + 0.001) as Time
-                    });
-                    // Immediately restore the original range
-                    requestAnimationFrame(() => {
-                      chart?.timeScale().setVisibleRange(currentRange);
-                    });
-                  }
-                } catch (error) {
-                  console.error('Chart: Error updating candle:', error);
-                }
+            // Force redraw
+            if (chart) {
+              chart.applyOptions({});
+            }
+          } catch (error) {
+            console.error('Chart: Error updating candle:', error);
+            // If update fails, try adding it as new data
+            try {
+              const currentData = candleSeries.data();
+              const existingIndex = currentData.findIndex(c => c.time === chartCandle.time);
+              if (existingIndex === -1) {
+                console.log('Chart: Candle not found, adding as new');
+                candleSeries.setData([...currentData, chartCandle].sort((a, b) => (a.time as number) - (b.time as number)));
               }
-            } else {
-              // For other granularities, check if we need to reload
-              const granularitySeconds = granularityToSeconds[effectiveGranularity] || 60;
-              const currentAlignedTime = Math.floor(Date.now() / 1000 / granularitySeconds) * granularitySeconds;
-              const candleAlignedTime = Math.floor(candle.time / granularitySeconds) * granularitySeconds;
-              
-              if (isNew && candleAlignedTime === currentAlignedTime) {
-                console.log(`New ${effectiveGranularity} candle period started, reloading...`);
-                debouncedReloadData();
-              }
+            } catch (e) {
+              console.error('Chart: Failed to add candle:', e);
             }
           }
         }

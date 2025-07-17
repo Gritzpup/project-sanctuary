@@ -101,7 +101,15 @@ export class ChartDataFeed {
   private setupWebSocket() {
     // Use realtimeCandleAggregator for 1-minute candles
     this.realtimeUnsubscribe = realtimeCandleAggregator.subscribe(async (update) => {
-      if (this.currentGranularity === '1m' && update.symbol === this.symbol) {
+      console.log(`ChartDataFeed: Received update from aggregator`, {
+        symbol: update.symbol,
+        currentGranularity: this.currentGranularity,
+        isNewCandle: update.isNewCandle,
+        time: new Date((update.candle.time as number) * 1000).toISOString()
+      });
+      
+      // Always process updates for real-time price display
+      if (update.symbol === this.symbol) {
         // Convert CandlestickData to CandleData
         const candleData: CandleData = {
           time: update.candle.time as number,
@@ -112,13 +120,15 @@ export class ChartDataFeed {
           volume: 0 // Real-time ticker doesn't provide volume
         };
         
-        if (update.isNewCandle) {
-          console.log(`ChartDataFeed: Received new candle at ${new Date(candleData.time * 1000).toISOString()}`);
-          // Add new candle to current data
-          this.currentData.push(candleData);
-          
-          // Implement sliding window for 1m candles
-          if (this.currentGranularity === '1m' && this.visibleRange) {
+        // For 1m granularity, handle new candles directly
+        if (this.currentGranularity === '1m') {
+          if (update.isNewCandle) {
+            console.log(`ChartDataFeed: Received new 1m candle at ${new Date(candleData.time * 1000).toISOString()}`);
+            // Add new candle to current data
+            this.currentData.push(candleData);
+            
+            // Implement sliding window for 1m candles
+            if (this.visibleRange) {
             // Calculate expected candles based on visible range
             const visibleMinutes = Math.floor((this.visibleRange.end - this.visibleRange.start) / 60);
             // Add buffer to keep some extra candles for smooth scrolling
@@ -144,26 +154,57 @@ export class ChartDataFeed {
           }
           
           console.log(`ChartDataFeed: Total candles after sliding window: ${this.currentData.length}`);
-        } else {
-          // Update existing candle
-          const lastIndex = this.currentData.length - 1;
-          if (lastIndex >= 0 && this.currentData[lastIndex].time === candleData.time) {
-            console.log(`ChartDataFeed: Updating existing candle at index ${lastIndex}, time: ${new Date(candleData.time * 1000).toISOString()}`);
-            this.currentData[lastIndex] = candleData;
           } else {
-            console.log(`ChartDataFeed: Could not find candle to update. Last candle time: ${lastIndex >= 0 ? new Date(this.currentData[lastIndex].time * 1000).toISOString() : 'none'}, update time: ${new Date(candleData.time * 1000).toISOString()}`);
+            // Update existing candle
+            const lastIndex = this.currentData.length - 1;
+            if (lastIndex >= 0 && this.currentData[lastIndex].time === candleData.time) {
+              console.log(`ChartDataFeed: Updating existing 1m candle at index ${lastIndex}, time: ${new Date(candleData.time * 1000).toISOString()}`);
+              this.currentData[lastIndex] = candleData;
+            } else {
+              console.log(`ChartDataFeed: Could not find 1m candle to update. Last candle time: ${lastIndex >= 0 ? new Date(this.currentData[lastIndex].time * 1000).toISOString() : 'none'}, update time: ${new Date(candleData.time * 1000).toISOString()}`);
+            }
+          }
+          
+          // Notify subscribers with the candle update
+          console.log(`ChartDataFeed: Notifying ${this.subscribers.size} subscribers for 1m update`);
+          this.subscribers.forEach(callback => {
+            try {
+              callback(candleData, update.isNewCandle);
+            } catch (error) {
+              console.error('ChartDataFeed: Error in subscriber callback:', error);
+            }
+          });
+        } else {
+          // For other granularities, update the current candle with real-time price
+          const granularitySeconds = this.getGranularitySeconds(this.currentGranularity);
+          const currentCandleTime = Math.floor(candleData.time / granularitySeconds) * granularitySeconds;
+          
+          // Find and update the current candle for this granularity
+          const currentIndex = this.currentData.findIndex(c => c.time === currentCandleTime);
+          if (currentIndex >= 0) {
+            const currentCandle = this.currentData[currentIndex];
+            // Update the current candle with new price data
+            const updatedCandle = {
+              ...currentCandle,
+              high: Math.max(currentCandle.high, candleData.close),
+              low: Math.min(currentCandle.low, candleData.close),
+              close: candleData.close
+            };
+            
+            console.log(`ChartDataFeed: Updating ${this.currentGranularity} candle at ${new Date(currentCandleTime * 1000).toISOString()} with price ${candleData.close}`);
+            this.currentData[currentIndex] = updatedCandle;
+            
+            // Notify subscribers with the updated candle
+            console.log(`ChartDataFeed: Notifying ${this.subscribers.size} subscribers for ${this.currentGranularity} update`);
+            this.subscribers.forEach(callback => {
+              try {
+                callback(updatedCandle, false);
+              } catch (error) {
+                console.error('ChartDataFeed: Error in subscriber callback:', error);
+              }
+            });
           }
         }
-        
-        // Notify subscribers with the candle update
-        console.log(`ChartDataFeed: Notifying ${this.subscribers.size} subscribers`);
-        this.subscribers.forEach(callback => {
-          try {
-            callback(candleData, update.isNewCandle);
-          } catch (error) {
-            console.error('ChartDataFeed: Error in subscriber callback:', error);
-          }
-        });
       }
     });
     
