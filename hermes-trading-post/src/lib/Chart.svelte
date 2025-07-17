@@ -120,61 +120,12 @@
     
     console.log(`Manual granularity change to: ${newGranularity}`);
     
-    // Unsubscribe from old granularity
-    dataFeed.unsubscribe('chart');
-    
     // Update granularity using ChartDataFeed API
     effectiveGranularity = newGranularity;
     dataFeed.setManualGranularity(newGranularity);
     
-    // Re-subscribe for real-time updates (same logic as main subscription)
-    dataFeed.subscribe('chart', (candle) => {
-      if (candleSeries && !isLoadingData) {
-        const visibleRange = chart?.timeScale().getVisibleRange();
-        if (visibleRange && candle.time >= Number(visibleRange.from) && candle.time <= Number(visibleRange.to)) {
-          const granularitySeconds = granularityToSeconds[effectiveGranularity] || 60;
-          const candleAlignedTime = Math.floor(candle.time / granularitySeconds) * granularitySeconds;
-          
-          if (effectiveGranularity === '1m') {
-            try {
-              candleSeries.update({
-                time: candle.time as Time,
-                open: candle.open,
-                high: candle.high,
-                low: candle.low,
-                close: candle.close,
-                volume: candle.volume || 0
-              });
-            } catch (error) {
-              console.log('New 1m candle detected, reloading data...');
-              debouncedReloadData();
-              
-              setTimeout(() => {
-                const range = chart?.timeScale().getVisibleRange();
-                if (range) {
-                  const now = Math.floor(Date.now() / 1000);
-                  if (Number(range.to) >= now - 120) {
-                    const newRange = {
-                      from: (Number(range.from) + granularitySeconds) as Time,
-                      to: (Number(range.to) + granularitySeconds) as Time
-                    };
-                    chart?.timeScale().setVisibleRange(newRange);
-                  }
-                }
-              }, 150);
-            }
-          } else {
-            const currentAlignedTime = Math.floor(Date.now() / 1000 / granularitySeconds) * granularitySeconds;
-            const isNewCandle = currentAlignedTime > candleAlignedTime;
-            
-            if (isNewCandle || candleAlignedTime === currentAlignedTime) {
-              console.log(`${effectiveGranularity} candle update detected, reloading...`);
-              debouncedReloadData();
-            }
-          }
-        }
-      }
-    });
+    // Note: We don't need to re-subscribe here because the main subscription 
+    // in onMount already handles all real-time updates for any granularity
     
     // Update countdown display
     updateClock();
@@ -327,10 +278,7 @@
             candleSeries.update(chartCandle);
             console.log('Chart: Successfully updated candle');
             
-            // Force redraw
-            if (chart) {
-              chart.applyOptions({});
-            }
+            // No need to force redraw - lightweight-charts handles updates automatically
           } catch (error) {
             console.error('Chart: Error updating candle:', error);
             // If update fails, try adding it as new data
@@ -959,6 +907,13 @@
     height: 100%;
     position: relative;
     background-color: #1a1a1a;
+    z-index: 1;
+  }
+  
+  /* Ensure the actual chart canvas is properly layered */
+  .chart-container :global(canvas) {
+    z-index: 2;
+    position: relative;
   }
   
   .candle-count {
