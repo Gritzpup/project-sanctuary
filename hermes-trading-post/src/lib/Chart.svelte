@@ -4,7 +4,6 @@
   import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
   import { ChartDataFeed } from '../services/chartDataFeed';
   import type { CandleData } from '../types/coinbase';
-  import { redisService } from '../services/redisService';
 
   let chartContainer: HTMLDivElement;
   let chart: IChartApi | null = null;
@@ -34,7 +33,7 @@
   let clockInterval: any = null;
   
   // Redis subscription cleanup
-  let redisUnsubscribe: (() => void) | null = null;
+  // let redisUnsubscribe: (() => void) | null = null;
   
   // Visible candle count
   let visibleCandleCount = 0;
@@ -274,63 +273,110 @@
         wickUpColor: '#26a69a',
         wickDownColor: '#ef5350',
         priceScaleId: 'right',
+        priceFormat: {
+          type: 'price',
+          precision: 2,
+          minMove: 0.01
+        }
       });
+
+      // Ensure candleSeries was created successfully
+      if (!candleSeries) {
+        console.error('Failed to create candle series');
+        return;
+      }
+      
+      console.log('Chart: Successfully created chart and candle series');
 
       // Initialize data feed with real Coinbase data
       dataFeed = new ChartDataFeed();
       
-      // Set up granularity change callback
-      if (onGranularityChange) {
-        dataFeed.onGranularityChange(onGranularityChange);
-      }
-      
-      // Initialize Redis connection
-      try {
-        await redisService.connect();
-        console.log('Chart: Redis connected');
-      } catch (error) {
-        console.error('Chart: Failed to connect to Redis:', error);
-      }
-      
-      // Subscribe to real-time updates from dataFeed
+      // IMPORTANT: Subscribe IMMEDIATELY before any data arrives
       dataFeed.subscribe('chart', (candle, isNew) => {
+        console.log('Chart: Received candle update', { 
+          time: new Date(candle.time * 1000).toISOString(),
+          price: candle.close,
+          isNew, 
+          candleSeries: !!candleSeries,
+          isLoadingData,
+          chart: !!chart,
+          effectiveGranularity
+        });
+        
         if (candleSeries && !isLoadingData) {
-          const visibleRange = chart?.timeScale().getVisibleRange();
-          if (visibleRange && candle.time >= Number(visibleRange.from) && candle.time <= Number(visibleRange.to)) {
+          // For 1m granularity, always update regardless of visible range
+          // The chart will handle whether to display it or not
+          if (effectiveGranularity === '1m') {
+            console.log('Chart: Processing 1m candle update');
             
-            // Handle based on granularity
-            if (effectiveGranularity === '1m') {
-              // For 1m granularity, update or append candle directly
-              if (isNew) {
+            // For 1m granularity, update or append candle directly
+            if (isNew) {
                 console.log(`Chart: Received new 1m candle at ${new Date(candle.time * 1000).toISOString()}`);
-                // For new candles, we need to reload the data to ensure the chart has all candles
-                console.log('New candle detected, reloading chart data...');
                 
-                // Get current visible range before reload
-                const currentRange = chart?.timeScale().getVisibleRange();
+                // Simply append the new candle
+                const chartCandle = {
+                  time: candle.time as Time,
+                  open: candle.open,
+                  high: candle.high,  
+                  low: candle.low,
+                  close: candle.close
+                };
                 
-                // Reload the data
-                debouncedReloadData();
-                
-                // After reload, if we were at the right edge, shift the view to include the new candle
-                setTimeout(() => {
-                  if (currentRange && Number(currentRange.to) >= Math.floor(Date.now() / 1000) - 120) {
-                    const newRange = {
-                      from: (Number(currentRange.from) + 60) as Time,
-                      to: Math.floor(Date.now() / 1000) as Time
-                    };
-                    chart?.timeScale().setVisibleRange(newRange);
-                  }
-                }, 100);
+                console.log('Chart: Appending new candle:', chartCandle);
+                try {
+                  candleSeries.update(chartCandle);
+                  console.log('Chart: Successfully appended new candle');
+                } catch (error) {
+                  console.error('Chart: Error appending new candle:', error);
+                }
               } else {
                 // Update existing candle
-                candleSeries.update({
+                const chartCandle = {
                   time: candle.time as Time,
                   open: candle.open,
                   high: candle.high,
                   low: candle.low,
                   close: candle.close
-                });
+                };
+                console.log('Chart: Updating existing candle with:', chartCandle);
+                try {
+                  candleSeries.update(chartCandle);
+                  console.log('Chart: Successfully updated candle');
+                  
+                  // Force chart to redraw - try multiple methods
+                  // Method 1: Force a resize event (most reliable)
+                  if (chart && chartContainer) {
+                    const width = chartContainer.clientWidth;
+                    const height = chartContainer.clientHeight;
+                    chart.applyOptions({
+                      width: width - 1,
+                      height: height
+                    });
+                    // Immediately restore original size
+                    requestAnimationFrame(() => {
+                      chart.applyOptions({
+                        width: width,
+                        height: height
+                      });
+                    });
+                  }
+                  
+                  // Method 2: Also try time scale update as backup
+                  const currentRange = chart?.timeScale().getVisibleRange();
+                  if (currentRange) {
+                    // Trigger a minimal time scale change to force re-render
+                    chart?.timeScale().setVisibleRange({
+                      from: currentRange.from,
+                      to: (Number(currentRange.to) + 0.001) as Time
+                    });
+                    // Immediately restore the original range
+                    requestAnimationFrame(() => {
+                      chart?.timeScale().setVisibleRange(currentRange);
+                    });
+                  }
+                } catch (error) {
+                  console.error('Chart: Error updating candle:', error);
+                }
               }
             } else {
               // For other granularities, check if we need to reload
@@ -347,6 +393,11 @@
         }
       });
 
+      // Set up granularity change callback AFTER subscribing
+      if (onGranularityChange) {
+        dataFeed.onGranularityChange(onGranularityChange);
+      }
+
       // Load initial data
       await loadInitialData();
       
@@ -358,10 +409,10 @@
       clockInterval = setInterval(updateClock, 1000);
       
       // Subscribe to Redis ticker updates for real-time price display
-      redisUnsubscribe = await redisService.subscribeTicker('BTC-USD', (ticker) => {
-        console.log(`Chart: Received ticker from Redis - price: ${ticker.price}`);
-        // You can use this for real-time price display if needed
-      });
+      // redisUnsubscribe = await redisService.subscribeTicker('BTC-USD', (ticker) => {
+      //   console.log(`Chart: Received ticker from Redis - price: ${ticker.price}`);
+      //   // You can use this for real-time price display if needed
+      // });
       
       // Update total candle count
       updateTotalCandleCount();
@@ -875,9 +926,9 @@
     if (resizeHandler) {
       window.removeEventListener('resize', resizeHandler);
     }
-    if (redisUnsubscribe) {
-      redisUnsubscribe();
-    }
+    // if (redisUnsubscribe) {
+    //   redisUnsubscribe();
+    // }
     if (dataFeed) {
       dataFeed.unsubscribe('chart');
       dataFeed.disconnect();

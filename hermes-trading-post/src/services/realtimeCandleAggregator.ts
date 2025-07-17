@@ -1,7 +1,8 @@
-import type { CandlestickData } from 'lightweight-charts';
-import { coinbaseWebSocket } from './coinbaseWebSocket';
+import type { CandlestickData, Time } from 'lightweight-charts';
+import { webSocketManager } from './webSocketManager';
 import { indexedDBCache } from './indexedDBCache';
 import { CoinbaseAPI } from './coinbaseApi';
+import type { TickerData } from '../types/coinbase';
 
 export interface CandleUpdate {
   symbol: string;
@@ -15,37 +16,43 @@ class RealtimeCandleAggregator {
   private intervals: Map<string, NodeJS.Timeout> = new Map();
   private lastPrices: Map<string, number> = new Map();
   private api: CoinbaseAPI;
+  private unregisterWebSocket: (() => void) | null = null;
 
   constructor() {
     this.api = new CoinbaseAPI();
     
-    // Subscribe to WebSocket ticker updates
-    console.log('RealtimeCandleAggregator: Setting up WebSocket subscription');
-    coinbaseWebSocket.subscribe((data) => {
-      if (data.type === 'ticker' && data.price) {
-        console.log(`RealtimeCandleAggregator: Received ticker for ${data.product_id} - price: ${data.price}`);
-        this.processTick(data.product_id, parseFloat(data.price), new Date(data.time).getTime());
+    // Register as a WebSocket data consumer
+    console.log('RealtimeCandleAggregator: Registering as WebSocket consumer');
+    this.unregisterWebSocket = webSocketManager.registerConsumer({
+      id: 'realtime-candle-aggregator',
+      onTicker: (data: TickerData) => {
+        if (data.price) {
+          console.log(`RealtimeCandleAggregator: Received ticker for ${data.product_id} - price: ${data.price}`);
+          this.processTick(data.product_id, parseFloat(data.price), new Date(data.time).getTime());
+        }
       }
     });
   }
 
   private processTick(symbol: string, price: number, timestamp: number) {
     // Calculate the current minute boundary (in seconds for lightweight-charts)
-    const minuteTime = Math.floor(timestamp / 60000) * 60;
+    // timestamp is in milliseconds, we need seconds for lightweight-charts
+    const minuteTimeMs = Math.floor(timestamp / 60000) * 60000; // Round down to minute in ms
+    const minuteTime = minuteTimeMs / 1000; // Convert to seconds
     const currentCandle = this.currentCandles.get(symbol);
     
     // Debug logging
     const debugTime = new Date(timestamp);
-    const debugMinute = new Date(minuteTime * 1000);
+    const debugMinute = new Date(minuteTimeMs);
     console.log(`Process tick: ${debugTime.toISOString()} -> Minute boundary: ${debugMinute.toISOString()} (${minuteTime}s)`);
     
     if (!currentCandle || currentCandle.time !== minuteTime) {
       // Need to create a new candle
-      console.log(`Creating new candle at ${new Date(minuteTime * 1000).toISOString()} (${minuteTime}s)`);
+      console.log(`Creating new candle at ${new Date(minuteTimeMs).toISOString()} (${minuteTime}s)`);
       this.createNewCandle(symbol, price, minuteTime);
     } else {
       // Update existing candle
-      console.log(`Updating existing candle at ${new Date(minuteTime * 1000).toISOString()}`);
+      console.log(`Updating existing candle at ${new Date(minuteTimeMs).toISOString()}`);
       this.updateCandle(symbol, price);
     }
     
@@ -63,7 +70,7 @@ class RealtimeCandleAggregator {
 
     // Create new candle
     const newCandle: CandlestickData = {
-      time: time,
+      time: time as Time,
       open: this.lastPrices.get(symbol) || price,
       high: price,
       low: price,
@@ -137,7 +144,7 @@ class RealtimeCandleAggregator {
       
       const candles = await this.api.getCandles(
         symbol,
-        '60', // 1 minute granularity
+        60, // 1 minute granularity
         startTime.toISOString(),
         endTime.toISOString()
       );
@@ -175,15 +182,16 @@ class RealtimeCandleAggregator {
     try {
       // Convert CandlestickData to CandleData (add volume field)
       const candleData = {
-        ...candle,
+        time: candle.time as number,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
         volume: 0 // Default volume since real-time ticker doesn't provide it
       };
       
-      // Update Redis with current candle
-      await redisService.updateCurrentCandle(symbol, '1m', candleData);
-      
       // Get existing candles from cache (cache expects timestamps in seconds, not milliseconds)
-      const cached = await indexedDBCache.getCachedCandles(symbol, '1m', candle.time - 86400, candle.time + 86400);
+      const cached = await indexedDBCache.getCachedCandles(symbol, '1m', (candle.time as number) - 86400, (candle.time as number) + 86400);
       if (cached && cached.candles) {
         const candles = [...cached.candles];
         // Check if candle already exists
@@ -227,34 +235,21 @@ class RealtimeCandleAggregator {
   async startAggregating(symbol: string) {
     console.log(`RealtimeCandleAggregator: Starting aggregation for ${symbol}`);
     
-    // Subscribe to Redis ticker updates for this symbol
-    const unsubscribe = await redisService.subscribeTicker(symbol, (ticker) => {
-      console.log(`RealtimeCandleAggregator: Received ticker from Redis for ${ticker.product_id} - price: ${ticker.price}`);
-      this.processTick(ticker.product_id, ticker.price, ticker.time);
-    });
-    
-    // Store unsubscribe function
-    this.intervals.set(`${symbol}-unsub`, unsubscribe as any);
-    
     // Connect WebSocket FIRST if not already connected
-    if (!coinbaseWebSocket.isConnected()) {
-      console.log('RealtimeCandleAggregator: WebSocket not connected, connecting...');
-      coinbaseWebSocket.connect();
-      // Wait a bit for connection to establish
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
+    await webSocketManager.connect();
     
-    // THEN subscribe to ticker channel for this symbol
+    // Subscribe to ticker channel for this symbol
     console.log(`RealtimeCandleAggregator: Subscribing to ticker for ${symbol}`);
-    await coinbaseWebSocket.subscribeTicker(symbol);
+    await webSocketManager.subscribeSymbol(symbol);
     
-    // Initialize with current price from Redis if available
-    const latestPrice = await redisService.getLatestPrice(symbol);
-    if (latestPrice) {
-      console.log(`RealtimeCandleAggregator: Current price from Redis for ${symbol}: ${latestPrice.price}`);
+    // Initialize with current price if available
+    const currentPrice = webSocketManager.getLastPrice(symbol) || this.lastPrices.get(symbol);
+    console.log(`RealtimeCandleAggregator: Current price for ${symbol}: ${currentPrice}`);
+    if (currentPrice) {
       const now = Date.now();
-      const minuteTime = Math.floor(now / 60000) * 60;
-      this.createNewCandle(symbol, latestPrice.price, minuteTime);
+      const minuteTimeMs = Math.floor(now / 60000) * 60000;
+      const minuteTime = minuteTimeMs / 1000; // Convert to seconds
+      this.createNewCandle(symbol, currentPrice, minuteTime);
     } else {
       console.log('RealtimeCandleAggregator: No current price available, waiting for first tick');
     }
@@ -268,19 +263,12 @@ class RealtimeCandleAggregator {
       this.intervals.delete(symbol);
     }
     
-    // Unsubscribe from Redis
-    const unsubscribe = this.intervals.get(`${symbol}-unsub`);
-    if (unsubscribe && typeof unsubscribe === 'function') {
-      unsubscribe();
-      this.intervals.delete(`${symbol}-unsub`);
-    }
-    
     // Clear current candle
     this.currentCandles.delete(symbol);
     this.lastPrices.delete(symbol);
     
     // Unsubscribe from ticker
-    await coinbaseWebSocket.unsubscribeTicker(symbol);
+    await webSocketManager.unsubscribeSymbol(symbol);
   }
 
   getCurrentCandle(symbol: string): CandlestickData | undefined {
@@ -296,6 +284,12 @@ class RealtimeCandleAggregator {
     this.currentCandles.clear();
     this.lastPrices.clear();
     this.listeners.clear();
+    
+    // Unregister from WebSocket manager
+    if (this.unregisterWebSocket) {
+      this.unregisterWebSocket();
+      this.unregisterWebSocket = null;
+    }
   }
 }
 

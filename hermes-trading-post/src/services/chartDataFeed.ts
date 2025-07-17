@@ -1,6 +1,5 @@
 import type { CandleData } from '../types/coinbase';
 import { CoinbaseAPI } from './coinbaseApi';
-import { coinbaseWebSocket } from './coinbaseWebSocket';
 import { IndexedDBCache } from './indexedDBCache';
 import { HistoricalDataLoader } from './historicalDataLoader';
 import { realtimeCandleAggregator } from './realtimeCandleAggregator';
@@ -61,14 +60,10 @@ export class ChartDataFeed {
     
     console.log(`ChartDataFeed: Initialized with granularity ${this.currentGranularity}`);
     
+    // Setup WebSocket but don't start aggregation yet
     this.setupWebSocket();
+    
     this.startBackgroundLoading();
-    
-    // Start real-time aggregation for BTC-USD
-    console.log('ChartDataFeed: Starting real-time aggregation for BTC-USD');
-    realtimeCandleAggregator.startAggregating(this.symbol);
-    
-    // The realtimeCandleAggregator will connect the WebSocket if needed
   }
 
   private async startBackgroundLoading() {
@@ -109,7 +104,11 @@ export class ChartDataFeed {
       if (this.currentGranularity === '1m' && update.symbol === this.symbol) {
         // Convert CandlestickData to CandleData
         const candleData: CandleData = {
-          ...update.candle,
+          time: update.candle.time as number,
+          open: update.candle.open,
+          high: update.candle.high,
+          low: update.candle.low,
+          close: update.candle.close,
           volume: 0 // Real-time ticker doesn't provide volume
         };
         
@@ -122,7 +121,9 @@ export class ChartDataFeed {
           if (this.currentGranularity === '1m' && this.visibleRange) {
             // Calculate expected candles based on visible range
             const visibleMinutes = Math.floor((this.visibleRange.end - this.visibleRange.start) / 60);
-            const maxCandlesToKeep = Math.min(visibleMinutes, this.maxCandles);
+            // Add buffer to keep some extra candles for smooth scrolling
+            const buffer = 10; // Keep 10 extra candles
+            const maxCandlesToKeep = Math.min(visibleMinutes + buffer, this.maxCandles);
             
             // Keep only the required number of most recent candles
             if (this.currentData.length > maxCandlesToKeep) {
@@ -130,16 +131,16 @@ export class ChartDataFeed {
               this.currentData = this.currentData.slice(-maxCandlesToKeep);
             }
             
-            // Update visible range to auto-scroll with new data
-            if (this.autoUpdateRange) {
-              const latestTime = candleData.time;
-              const rangeSeconds = this.visibleRange.end - this.visibleRange.start;
-              this.visibleRange = {
-                start: latestTime - rangeSeconds,
-                end: latestTime
-              };
-              console.log(`Updated visible range: ${new Date(this.visibleRange.start * 1000).toISOString()} to ${new Date(this.visibleRange.end * 1000).toISOString()}`);
-            }
+            // Don't auto-update range for now - let the chart handle scrolling
+            // if (this.autoUpdateRange) {
+            //   const latestTime = candleData.time;
+            //   const rangeSeconds = this.visibleRange.end - this.visibleRange.start;
+            //   this.visibleRange = {
+            //     start: latestTime - rangeSeconds,
+            //     end: latestTime
+            //   };
+            //   console.log(`Updated visible range: ${new Date(this.visibleRange.start * 1000).toISOString()} to ${new Date(this.visibleRange.end * 1000).toISOString()}`);
+            // }
           }
           
           console.log(`ChartDataFeed: Total candles after sliding window: ${this.currentData.length}`);
@@ -147,83 +148,30 @@ export class ChartDataFeed {
           // Update existing candle
           const lastIndex = this.currentData.length - 1;
           if (lastIndex >= 0 && this.currentData[lastIndex].time === candleData.time) {
+            console.log(`ChartDataFeed: Updating existing candle at index ${lastIndex}, time: ${new Date(candleData.time * 1000).toISOString()}`);
             this.currentData[lastIndex] = candleData;
+          } else {
+            console.log(`ChartDataFeed: Could not find candle to update. Last candle time: ${lastIndex >= 0 ? new Date(this.currentData[lastIndex].time * 1000).toISOString() : 'none'}, update time: ${new Date(candleData.time * 1000).toISOString()}`);
           }
         }
         
-        // Notify subscribers with the sliding window data
-        const slidingWindowData = this.getVisibleData();
-        this.subscribers.forEach(callback => callback(candleData, update.isNewCandle));
+        // Notify subscribers with the candle update
+        console.log(`ChartDataFeed: Notifying ${this.subscribers.size} subscribers`);
+        this.subscribers.forEach(callback => {
+          try {
+            callback(candleData, update.isNewCandle);
+          } catch (error) {
+            console.error('ChartDataFeed: Error in subscriber callback:', error);
+          }
+        });
       }
     });
     
-    // For other granularities, still use price updates
-    coinbaseWebSocket.onPrice(async (price) => {
-      console.log(`ChartDataFeed: onPrice called - price: ${price}, wsConnected: ${this.wsConnected}, granularity: ${this.currentGranularity}`);
-      if (!this.wsConnected || this.currentGranularity === '1m') return;
-      
-      const now = Math.floor(Date.now() / 1000);
-      
-      // Update real-time candle for current granularity
-      await this.updateRealtimeCandle(price, now);
-    });
-    
-    coinbaseWebSocket.onStatus((status) => {
-      console.log(`ChartDataFeed: WebSocket status changed to: ${status}`);
-      this.wsConnected = status === 'connected';
-      // Don't start aggregation here - it's already started in constructor
-    });
+    // WebSocket status is now managed through realtimeCandleAggregator
+    this.wsConnected = true; // Always consider connected when using aggregator
   }
 
-  private async updateRealtimeCandle(price: number, timestamp: number) {
-    const granularitySeconds = this.getGranularitySeconds(this.currentGranularity);
-    const candleTime = Math.floor(timestamp / granularitySeconds) * granularitySeconds;
-    
-    // Get the current candle from data
-    const currentIndex = this.currentData.findIndex(c => c.time === candleTime);
-    
-    if (currentIndex >= 0) {
-      // Update existing candle
-      const candle = this.currentData[currentIndex];
-      const updated = {
-        ...candle,
-        high: Math.max(candle.high, price),
-        low: Math.min(candle.low, price),
-        close: price,
-        volume: candle.volume // Volume updates come from API
-      };
-      
-      this.currentData[currentIndex] = updated;
-      
-      // Update cache
-      await this.cache.updateLatestCandle(this.symbol, this.currentGranularity, updated);
-      
-      // Notify subscribers
-      this.subscribers.forEach(callback => callback(updated, false));
-    } else if (this.currentData.length > 0) {
-      // Check if this is a new candle
-      const lastCandle = this.currentData[this.currentData.length - 1];
-      if (candleTime > lastCandle.time) {
-        // Create new candle
-        const newCandle: CandleData = {
-          time: candleTime,
-          open: price,
-          high: price,
-          low: price,
-          close: price,
-          volume: 0
-        };
-        
-        this.currentData.push(newCandle);
-        
-        // Update cache
-        await this.cache.updateLatestCandle(this.symbol, this.currentGranularity, newCandle);
-        
-        // Notify subscribers about new candle
-        this.subscribers.forEach(callback => callback(newCandle, true));
-      }
-    }
-  }
+  // Removed updateRealtimeCandle - all real-time updates now come through realtimeCandleAggregator
 
   // Get optimal granularity for a time range
   getOptimalGranularity(visibleRangeSeconds: number): string {
@@ -568,7 +516,14 @@ export class ChartDataFeed {
 
   // Subscribe to updates
   subscribe(id: string, callback: (data: CandleData, isNew?: boolean) => void) {
+    const wasEmpty = this.subscribers.size === 0;
     this.subscribers.set(id, callback);
+    
+    // Start WebSocket aggregation when first subscriber is added
+    if (wasEmpty && this.subscribers.size === 1) {
+      console.log('ChartDataFeed: First subscriber added, starting real-time aggregation');
+      realtimeCandleAggregator.startAggregating(this.symbol);
+    }
   }
 
   unsubscribe(id: string) {
@@ -704,11 +659,10 @@ export class ChartDataFeed {
     clearTimeout(this.manualModeTimer);
     
     // Handle real-time aggregator for 1m candles
-    if (granularity === '1m' && this.wsConnected) {
-      realtimeCandleAggregator.startAggregating(this.symbol);
-    } else {
+    if (granularity !== '1m') {
       realtimeCandleAggregator.stopAggregating(this.symbol);
     }
+    // Don't start aggregating here - it's already started in constructor
   }
   
   // Re-enable auto-granularity mode
@@ -733,7 +687,6 @@ export class ChartDataFeed {
   }
   
   disconnect() {
-    coinbaseWebSocket.disconnect();
     this.loader.stop();
     realtimeCandleAggregator.stopAggregating(this.symbol);
     if (this.realtimeUnsubscribe) {

@@ -29,6 +29,8 @@ export interface TickerMessage extends WebSocketMessage {
   type: 'ticker';
 }
 
+export type TickerData = TickerMessage;
+
 export interface MatchMessage extends WebSocketMessage {
   type: 'match';
   size: string;

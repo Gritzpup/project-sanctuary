@@ -214,5 +214,3 @@ export class CoinbaseWebSocket {
     }
   }
 }
-
-export const coinbaseWebSocket = new CoinbaseWebSocket();
