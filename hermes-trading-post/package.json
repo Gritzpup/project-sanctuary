@@ -7,10 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.node.json",
-    "test": "./run-cache-api-tests.sh",
-    "test:interactive": "open test-cache-api-candles.html",
-    "test:screenshots": "node test-screenshot-capture.js"
+    "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.node.json"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^4.0.0",

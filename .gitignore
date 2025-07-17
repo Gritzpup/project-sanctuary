@@ -241,3 +241,8 @@ the-luminal-archive/memory_backup_*/
 !tauri.conf.json
 the-luminal-archive/quantum-memory/quantum_states/health_status.json
 the-luminal-archive/quantum-memory/quantum_states/status.json
+the-luminal-archive/quantum-memory/quantum_states/conversations/current.json
+
+# Allow hermes-trading-post lib directory
+!hermes-trading-post/src/lib/
+!hermes-trading-post/src/lib/**
