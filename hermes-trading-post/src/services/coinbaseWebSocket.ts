@@ -220,7 +220,10 @@ export class CoinbaseWebSocket {
   }
 
   private startConnectionTimeout() {
-    this.resetConnectionTimeout();
+    // Clear any existing timeout first
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+    }
     // If no message received in 60 seconds, consider connection dead
     this.connectionTimeout = setTimeout(() => {
       const now = Date.now();
@@ -236,9 +239,7 @@ export class CoinbaseWebSocket {
   }
 
   private resetConnectionTimeout() {
-    if (this.connectionTimeout) {
-      clearTimeout(this.connectionTimeout);
-    }
+    // Just restart the timeout
     this.startConnectionTimeout();
   }
 

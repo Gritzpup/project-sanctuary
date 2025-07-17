@@ -183,23 +183,6 @@
             <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
             <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
           </div>
-          <div class="cache-controls">
-            <button 
-              class="cache-btn" 
-              class:loading={isClearingCache}
-              class:success={cacheCleared}
-              on:click={clearCache}
-              disabled={isClearingCache}
-            >
-              {#if isClearingCache}
-                Clearing...
-              {:else if cacheCleared}
-                Cache Cleared ✓
-              {:else}
-                Clear Cache
-              {/if}
-            </button>
-          </div>
         </div>
       </div>
       
@@ -314,6 +297,37 @@
     height: 100vh;
     background: #0a0a0a;
     color: #d1d4dc;
+  }
+
+  /* Custom Scrollbar Styling */
+  :global(::-webkit-scrollbar) {
+    width: 10px;
+    height: 10px;
+  }
+
+  :global(::-webkit-scrollbar-track) {
+    background: rgba(22, 33, 62, 0.3);
+    border-radius: 5px;
+  }
+
+  :global(::-webkit-scrollbar-thumb) {
+    background: rgba(74, 0, 224, 0.5);
+    border-radius: 5px;
+    transition: background 0.2s ease;
+  }
+
+  :global(::-webkit-scrollbar-thumb:hover) {
+    background: rgba(167, 139, 250, 0.6);
+  }
+
+  :global(::-webkit-scrollbar-thumb:active) {
+    background: #a78bfa;
+  }
+
+  /* Firefox scrollbar styling */
+  :global(*) {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(74, 0, 224, 0.5) rgba(22, 33, 62, 0.3);
   }
   
   .dashboard-content {
@@ -456,8 +470,8 @@
   
   /* Specific Panel Layouts */
   .chart-panel {
-    min-height: 400px;
-    flex: 1;
+    min-height: 700px;
+    flex: 3; /* Give chart even more flex weight */
   }
   
   .chart-panel .panel-content {
@@ -472,15 +486,31 @@
     flex: 1;
   }
   
+  /* Debug panel - show all content */
+  .debug-panel {
+    flex: 0 0 auto; /* Don't grow, only take needed space */
+    /* No max-height - let it show all content */
+  }
+  
+  .debug-panel .panel-content {
+    overflow: visible; /* No scrolling - show everything */
+  }
+  
   .bottom-panels {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
-    min-height: 200px;
+    flex: 0 0 auto; /* Don't grow */
   }
   
   .portfolio-panel, .stats-panel {
-    height: 200px;
+    height: auto; /* Let them size to content */
+    min-height: 200px; /* Ensure minimum height */
+  }
+  
+  .portfolio-panel .panel-content,
+  .stats-panel .panel-content {
+    overflow: visible; /* No scrolling in these panels */
   }
   
   .portfolio-item, .market-stat {
@@ -591,50 +621,6 @@
     opacity: 1;
   }
   
-  /* Cache controls */
-  .cache-controls {
-    display: flex;
-    justify-content: center;
-    padding: 10px;
-    background: rgba(0, 0, 0, 0.2);
-    border-top: 1px solid rgba(74, 0, 224, 0.2);
-  }
-  
-  .cache-btn {
-    background: rgba(74, 0, 224, 0.2);
-    border: 1px solid rgba(74, 0, 224, 0.4);
-    color: #9ca3af;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 13px;
-    transition: all 0.2s;
-    position: relative;
-    overflow: hidden;
-  }
-  
-  .cache-btn:hover:not(:disabled) {
-    background: rgba(74, 0, 224, 0.3);
-    color: #a78bfa;
-    border-color: #a78bfa;
-  }
-  
-  .cache-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-  
-  .cache-btn.loading {
-    background: rgba(59, 130, 246, 0.2);
-    border-color: rgba(59, 130, 246, 0.4);
-    color: #60a5fa;
-  }
-  
-  .cache-btn.success {
-    background: rgba(16, 185, 129, 0.2);
-    border-color: rgba(16, 185, 129, 0.4);
-    color: #10b981;
-  }
   
   /* Debug Panel Styles */
   .debug-panel {
