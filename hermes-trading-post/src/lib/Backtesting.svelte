@@ -124,26 +124,37 @@
   ];
   
   function createStrategy(type: string): Strategy {
-    const params = strategyParams[type];
-    switch (type) {
-      case 'reverse-ratio':
-        return new ReverseRatioStrategy(params);
-      case 'grid-trading':
-        return new GridTradingStrategy(params);
-      case 'rsi-mean-reversion':
-        return new RSIMeanReversionStrategy(params);
-      case 'dca':
-        return new DCAStrategy(params);
-      case 'vwap-bounce':
-        return new VWAPBounceStrategy(params);
-      default:
-        throw new Error(`Unknown strategy type: ${type}`);
+    try {
+      const params = strategyParams[type];
+      console.log('Creating strategy:', type, 'with params:', params);
+      
+      switch (type) {
+        case 'reverse-ratio':
+          return new ReverseRatioStrategy(params);
+        case 'grid-trading':
+          return new GridTradingStrategy(params);
+        case 'rsi-mean-reversion':
+          return new RSIMeanReversionStrategy(params);
+        case 'dca':
+          return new DCAStrategy(params);
+        case 'vwap-bounce':
+          return new VWAPBounceStrategy(params);
+        default:
+          throw new Error(`Unknown strategy type: ${type}`);
+      }
+    } catch (error) {
+      console.error('Failed to create strategy:', error);
+      throw error;
     }
   }
   
   function updateCurrentStrategy() {
-    currentStrategy = createStrategy(selectedStrategyType);
-    loadStrategySourceCode();
+    try {
+      currentStrategy = createStrategy(selectedStrategyType);
+      loadStrategySourceCode();
+    } catch (error) {
+      console.error('Failed to update strategy:', error);
+    }
   }
   
   async function loadStrategySourceCode() {
@@ -303,6 +314,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
       backtestResults = await backtestingEngine.runBacktest(historicalData);
       
       console.log('Backtest completed:', backtestResults);
+      console.log('Backtest metrics:', backtestResults.metrics);
+      console.log('Chart data:', backtestResults.chartData);
     } catch (error) {
       console.error('Backtest failed:', error);
       alert('Failed to run backtest. Please check the console for details.');

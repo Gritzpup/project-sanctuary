@@ -1,13 +1,7 @@
 // Common types for all trading strategies
 
-export interface CandleData {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume?: number;
-}
+// Re-export CandleData from the existing definition
+export { CandleData } from '../../types/coinbase';
 
 export interface Position {
   entryPrice: number;
