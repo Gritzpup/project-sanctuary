@@ -22,6 +22,10 @@ export class BacktestingEngine {
   }> = [];
   private peakValue: number = 0;
   private maxDrawdown: number = 0;
+  private vaultGrowthHistory: Array<{time: number; value: number}> = [];
+  private btcGrowthHistory: Array<{time: number; value: number}> = [];
+  private drawdownHistory: Array<{time: number; value: number}> = [];
+  private totalFeesCollected: number = 0;
 
   constructor(strategy: Strategy, config: BacktestConfig) {
     this.strategy = strategy;
@@ -44,6 +48,10 @@ export class BacktestingEngine {
     this.equityHistory = [];
     this.peakValue = this.config.initialBalance;
     this.maxDrawdown = 0;
+    this.vaultGrowthHistory = [];
+    this.btcGrowthHistory = [];
+    this.drawdownHistory = [];
+    this.totalFeesCollected = 0;
 
     // Filter candles to backtest period
     const filteredCandles = candles.filter(
@@ -76,10 +84,14 @@ export class BacktestingEngine {
     // Calculate metrics
     const metrics = this.calculateMetrics(state, filteredCandles[filteredCandles.length - 1].close);
 
+    // Generate chart data
+    const chartData = this.generateChartData();
+
     return {
       trades: this.trades,
       metrics,
-      equity: this.equityHistory
+      equity: this.equityHistory,
+      chartData
     };
   }
 
@@ -93,6 +105,7 @@ export class BacktestingEngine {
     const cost = size * executionPrice;
     const fee = cost * (this.config.feePercent / 100);
     const totalCost = cost + fee;
+    this.totalFeesCollected += fee;
 
     // Check if we have enough balance
     if (totalCost > state.balance.usd) return;
@@ -137,6 +150,7 @@ export class BacktestingEngine {
     const proceeds = size * executionPrice;
     const fee = proceeds * (this.config.feePercent / 100);
     const netProceeds = proceeds - fee;
+    this.totalFeesCollected += fee;
 
     // Calculate profit
     const positions = this.strategy.getPositions();
@@ -212,6 +226,11 @@ export class BacktestingEngine {
       usdBalance: state.balance.usd,
       vaultBalance: state.balance.vault
     });
+
+    // Track chart data
+    this.vaultGrowthHistory.push({ time: candle.time, value: state.balance.vault });
+    this.btcGrowthHistory.push({ time: candle.time, value: state.balance.btc });
+    this.drawdownHistory.push({ time: candle.time, value: drawdown });
   }
 
   private calculateMetrics(state: StrategyState, lastPrice: number): BacktestResult['metrics'] {
@@ -251,6 +270,47 @@ export class BacktestingEngine {
     }
     const averageHoldTime = holdTimes.length > 0 ? holdTimes.reduce((a, b) => a + b, 0) / holdTimes.length : 0;
 
+    // Calculate additional metrics
+    const buyTrades = this.trades.filter(t => t.type === 'buy');
+    const avgPositionSize = buyTrades.length > 0 
+      ? buyTrades.reduce((sum, t) => sum + t.value, 0) / buyTrades.length 
+      : 0;
+
+    // Calculate trading frequency
+    const timeSpanDays = (this.config.endTime - this.config.startTime) / (1000 * 60 * 60 * 24);
+    const tradesPerDay = this.trades.length / timeSpanDays;
+    const tradesPerWeek = tradesPerDay * 7;
+    const tradesPerMonth = tradesPerDay * 30;
+
+    // Fees as percent of profit
+    const grossProfit = wins.reduce((a, b) => a + b, 0);
+    const feesAsPercentOfProfit = grossProfit > 0 ? (this.totalFeesCollected / grossProfit) * 100 : 0;
+
+    // Calculate CAGR for vault
+    const years = timeSpanDays / 365;
+    const vaultCAGR = years > 0 && state.balance.vault > 0 
+      ? (Math.pow(state.balance.vault / (this.config.initialBalance * 0.01), 1 / years) - 1) * 100 
+      : 0;
+
+    // BTC growth percent
+    const initialBtcValue = 0; // Started with 0 BTC
+    const btcGrowthPercent = state.balance.btc > 0 ? Infinity : 0;
+
+    // Calculate consecutive losses
+    let maxConsecutiveLosses = 0;
+    let currentConsecutiveLosses = 0;
+    for (const trade of this.trades) {
+      if (trade.type === 'sell' && (trade.profit || 0) < 0) {
+        currentConsecutiveLosses++;
+        maxConsecutiveLosses = Math.max(maxConsecutiveLosses, currentConsecutiveLosses);
+      } else if (trade.type === 'sell' && (trade.profit || 0) > 0) {
+        currentConsecutiveLosses = 0;
+      }
+    }
+
+    // Risk reward ratio
+    const riskRewardRatio = averageLoss > 0 ? averageWin / averageLoss : 0;
+
     return {
       totalTrades: this.trades.length,
       winningTrades,
@@ -264,9 +324,55 @@ export class BacktestingEngine {
       profitFactor,
       averageWin,
       averageLoss,
-      averageHoldTime: averageHoldTime / 3600, // Convert to hours
+      averageHoldTime: averageHoldTime / 3600000, // Convert ms to hours
       vaultBalance: state.balance.vault,
-      btcGrowth: state.balance.btc
+      btcGrowth: state.balance.btc,
+      // New metrics
+      avgPositionSize,
+      tradesPerDay,
+      tradesPerWeek,
+      tradesPerMonth,
+      totalFees: this.totalFeesCollected,
+      feesAsPercentOfProfit,
+      vaultCAGR,
+      btcGrowthPercent,
+      maxConsecutiveLosses,
+      riskRewardRatio
+    };
+  }
+
+  private generateChartData(): BacktestResult['chartData'] {
+    // Generate trade distribution data
+    const tradeDistribution = {
+      daily: new Map<string, number>(),
+      weekly: new Map<string, number>(),
+      monthly: new Map<string, number>()
+    };
+
+    for (const trade of this.trades) {
+      const date = new Date(trade.timestamp);
+      
+      // Daily
+      const dayKey = date.toISOString().split('T')[0];
+      tradeDistribution.daily.set(dayKey, (tradeDistribution.daily.get(dayKey) || 0) + 1);
+      
+      // Weekly
+      const weekStart = new Date(date);
+      weekStart.setDate(date.getDate() - date.getDay());
+      const weekKey = weekStart.toISOString().split('T')[0];
+      tradeDistribution.weekly.set(weekKey, (tradeDistribution.weekly.get(weekKey) || 0) + 1);
+      
+      // Monthly
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      tradeDistribution.monthly.set(monthKey, (tradeDistribution.monthly.get(monthKey) || 0) + 1);
+    }
+
+    return {
+      vaultGrowth: this.vaultGrowthHistory,
+      btcGrowth: this.btcGrowthHistory,
+      equityCurve: this.equityHistory.map(e => ({ time: e.timestamp, value: e.value })),
+      drawdown: this.drawdownHistory,
+      tradeDistribution
     };
   }
 }

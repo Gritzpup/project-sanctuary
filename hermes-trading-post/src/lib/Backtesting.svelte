@@ -11,6 +11,7 @@
   import type { Strategy } from '../strategies/base/Strategy';
   import type { BacktestConfig, BacktestResult } from '../strategies/base/StrategyTypes';
   import { historicalDataService, HistoricalDataService } from '../services/historicalDataService';
+  import BacktestStats from '../components/BacktestStats.svelte';
   
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
@@ -90,6 +91,29 @@
     '1Y': ['6h', '1D'],
     '5Y': ['1D']
   };
+  
+  function isGranularityValid(granularity: string, period: string): boolean {
+    return validGranularities[period]?.includes(granularity) || false;
+  }
+  
+  function selectGranularity(granularity: string) {
+    if (isGranularityValid(granularity, selectedPeriod)) {
+      selectedGranularity = granularity;
+    }
+  }
+  
+  function selectPeriod(period: string) {
+    selectedPeriod = period;
+    
+    // If current granularity is not valid for new period, select the best default
+    if (!isGranularityValid(selectedGranularity, period)) {
+      const validOptions = validGranularities[period];
+      if (validOptions && validOptions.length > 0) {
+        const middleIndex = Math.floor(validOptions.length / 2);
+        selectedGranularity = validOptions[middleIndex];
+      }
+    }
+  }
   
   const strategies = [
     { value: 'reverse-ratio', label: 'Reverse Ratio Buying', description: 'Buy on drops, sell at 7% profit' },
@@ -585,7 +609,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
               <div class="result-item">
                 <span class="result-label">Total Return</span>
                 <span class="result-value" class:profit={backtestResults.metrics.totalReturn > 0} class:loss={backtestResults.metrics.totalReturn < 0}>
-                  ${backtestResults.metrics.totalReturn.toFixed(2)} ({backtestResults.metrics.returnPercent.toFixed(2)}%)
+                  ${backtestResults.metrics.totalReturn.toFixed(2)} ({backtestResults.metrics.totalReturnPercent.toFixed(2)}%)
                 </span>
               </div>
               <div class="result-item">
@@ -602,32 +626,32 @@ export class ${getStrategyFileName(type)} extends Strategy {
               </div>
               <div class="result-item">
                 <span class="result-label">Vault Balance</span>
-                <span class="result-value profit">${backtestResults.vaultBalance.toFixed(2)}</span>
+                <span class="result-value profit">${backtestResults.metrics.vaultBalance.toFixed(2)}</span>
               </div>
               <div class="result-item">
                 <span class="result-label">BTC Holdings</span>
-                <span class="result-value">{backtestResults.btcBalance.toFixed(6)} BTC</span>
+                <span class="result-value">{backtestResults.metrics.btcGrowth.toFixed(6)} BTC</span>
               </div>
             </div>
             
             <h3>Recent Trades (Last 10)</h3>
             <div class="trades-list">
               {#each backtestResults.trades.slice(-10).reverse() as trade}
-                <div class="trade-item" class:buy={trade.side === 'buy'} class:sell={trade.side === 'sell'}>
+                <div class="trade-item" class:buy={trade.type === 'buy'} class:sell={trade.type === 'sell'}>
                   <div class="trade-header">
-                    <span class="trade-type">{trade.side.toUpperCase()}</span>
+                    <span class="trade-type">{trade.type.toUpperCase()}</span>
                     <span class="trade-date">{new Date(trade.timestamp).toLocaleDateString()}</span>
                   </div>
                   <div class="trade-details">
                     <span>Price: ${trade.price.toLocaleString()}</span>
                     <span>Size: {trade.size.toFixed(6)} BTC</span>
-                    <span>Value: ${(trade.price * trade.size).toFixed(2)}</span>
+                    <span>Value: ${trade.value.toFixed(2)}</span>
                     {#if trade.profit !== undefined}
                       <span class:profit={trade.profit > 0} class:loss={trade.profit < 0}>
                         P&L: ${trade.profit.toFixed(2)}
                       </span>
                     {/if}
-                    <span class="trade-reason">Signal: {trade.signalStrength?.toFixed(2) || 'N/A'}</span>
+                    <span class="trade-reason">{trade.reason}</span>
                   </div>
                 </div>
               {/each}
@@ -636,6 +660,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
         </div>
       </div>
     </div>
+    
+    <!-- Comprehensive Stats Section -->
+    {#if backtestResults}
+      <div class="stats-section">
+        <BacktestStats results={backtestResults} />
+      </div>
+    {/if}
   </main>
 </div>
 
@@ -653,7 +684,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
     flex-direction: column;
     margin-left: 250px;
     transition: margin-left 0.3s ease;
-    overflow: hidden;
+    overflow-y: auto;
+    height: 100vh;
   }
   
   .dashboard-content.expanded {
@@ -899,9 +931,19 @@ export class ${getStrategyFileName(type)} extends Strategy {
     border-color: #a78bfa;
   }
   
-  .granularity-btn:disabled {
+  .granularity-btn:disabled,
+  .granularity-btn.disabled {
     opacity: 0.3;
     cursor: not-allowed;
+    background: rgba(74, 0, 224, 0.05);
+    color: #4a5568;
+  }
+  
+  .granularity-btn:disabled:hover,
+  .granularity-btn.disabled:hover {
+    background: rgba(74, 0, 224, 0.05);
+    color: #4a5568;
+    transform: none;
   }
   
   .period-buttons {
@@ -955,11 +997,34 @@ export class ${getStrategyFileName(type)} extends Strategy {
     color: #d1d4dc;
     font-size: 14px;
   }
+
+  .config-section select {
+    background-color: #1a1a1a;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a78bfa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 20px;
+    padding-right: 40px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    cursor: pointer;
+  }
+
+  .config-section select option {
+    background-color: #1a1a1a;
+    color: #d1d4dc;
+  }
   
   .config-section input:focus,
   .config-section select:focus {
     outline: none;
     border-color: #a78bfa;
+    background-color: rgba(74, 0, 224, 0.1);
+  }
+
+  .config-section select:hover {
+    border-color: #8b5cf6;
   }
   
   .backtest-buttons {
@@ -1126,5 +1191,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
     color: #758696;
     font-style: italic;
     font-size: 12px;
+  }
+  
+  .stats-section {
+    padding: 20px;
+    background: #0f0f0f;
+    border-top: 1px solid rgba(74, 0, 224, 0.3);
   }
 </style>

@@ -75,9 +75,20 @@ export interface BacktestResult {
     profitFactor: number;
     averageWin: number;
     averageLoss: number;
-    averageHoldTime: number;
+    averageHoldTime: number; // in hours
     vaultBalance: number;
     btcGrowth: number;
+    // New metrics
+    avgPositionSize: number;
+    tradesPerDay: number;
+    tradesPerWeek: number;
+    tradesPerMonth: number;
+    totalFees: number;
+    feesAsPercentOfProfit: number;
+    vaultCAGR: number; // Compound Annual Growth Rate
+    btcGrowthPercent: number;
+    maxConsecutiveLosses: number;
+    riskRewardRatio: number;
   };
   equity: Array<{
     timestamp: number;
@@ -86,6 +97,18 @@ export interface BacktestResult {
     usdBalance: number;
     vaultBalance: number;
   }>;
+  // Time series data for charts
+  chartData: {
+    vaultGrowth: Array<{time: number; value: number}>;
+    btcGrowth: Array<{time: number; value: number}>;
+    equityCurve: Array<{time: number; value: number}>;
+    drawdown: Array<{time: number; value: number}>;
+    tradeDistribution: {
+      daily: Map<string, number>;
+      weekly: Map<string, number>;
+      monthly: Map<string, number>;
+    };
+  };
 }
 
 export interface StrategyState {
