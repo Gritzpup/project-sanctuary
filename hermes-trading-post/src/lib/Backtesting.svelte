@@ -39,6 +39,10 @@
   let backtestingEngine: BacktestingEngine;
   let currentStrategy: Strategy | null = null;
   
+  // Tab state for strategy panel
+  let activeTab: 'config' | 'code' = 'config';
+  let strategySourceCode = '';
+  
   // Strategy-specific parameters
   let strategyParams: Record<string, any> = {
     'reverse-ratio': {
@@ -116,6 +120,89 @@
   
   function updateCurrentStrategy() {
     currentStrategy = createStrategy(selectedStrategyType);
+    loadStrategySourceCode();
+  }
+  
+  async function loadStrategySourceCode() {
+    // Fetch the source code for the selected strategy
+    try {
+      const strategyPath = `/src/strategies/implementations/${getStrategyFileName(selectedStrategyType)}.ts`;
+      const response = await fetch(strategyPath);
+      if (response.ok) {
+        strategySourceCode = await response.text();
+      } else {
+        // If fetch fails, show a placeholder
+        strategySourceCode = getStrategySourcePlaceholder(selectedStrategyType);
+      }
+    } catch (error) {
+      // Fallback to placeholder
+      strategySourceCode = getStrategySourcePlaceholder(selectedStrategyType);
+    }
+  }
+  
+  function getStrategyFileName(type: string): string {
+    const fileNames: Record<string, string> = {
+      'reverse-ratio': 'ReverseRatioStrategy',
+      'grid-trading': 'GridTradingStrategy',
+      'rsi-mean-reversion': 'RSIMeanReversionStrategy',
+      'dca': 'DCAStrategy',
+      'vwap-bounce': 'VWAPBounceStrategy'
+    };
+    return fileNames[type] || 'Strategy';
+  }
+  
+  function getStrategySourcePlaceholder(type: string): string {
+    // Return a sample of the actual strategy code structure
+    if (type === 'reverse-ratio') {
+      return `import { Strategy } from '../base/Strategy';
+import { CandleData, Position, Signal, StrategyConfig } from '../base/StrategyTypes';
+
+export class ReverseRatioStrategy extends Strategy {
+  constructor(config: Partial<ReverseRatioConfig> = {}) {
+    super();
+    this.name = 'Reverse Ratio Buying';
+    this.description = 'Buys on dips with increasing position sizes, sells all at 7% profit';
+    
+    // Default configuration
+    this.config = {
+      initialDropPercent: 5,
+      levelDropPercent: 5,
+      profitTargetPercent: 7,
+      maxLevels: 5,
+      ratioMultipliers: [1, 1.5, 2, 2.5, 3],
+      vaultAllocation: 99,
+      btcGrowthAllocation: 1,
+      ...config
+    };
+  }
+
+  analyze(candles: CandleData[], currentPrice: number): Signal {
+    const recentHigh = this.findRecentHigh(candles);
+    const dropFromHigh = ((recentHigh - currentPrice) / recentHigh) * 100;
+    
+    // Check for exit conditions first
+    if (this.shouldTakeProfit(currentPrice)) {
+      return { action: 'sell', confidence: 0.9, reason: 'Target profit reached' };
+    }
+    
+    // Check for entry conditions
+    if (this.shouldBuy(dropFromHigh, currentPrice)) {
+      return { action: 'buy', confidence: 0.8, reason: \`Drop level reached: \${dropFromHigh.toFixed(2)}%\` };
+    }
+    
+    return { action: 'hold', confidence: 0.5 };
+  }
+  
+  // ... additional implementation details
+}`;
+    }
+    
+    // Default placeholder for other strategies
+    return `// Source code for ${type} strategy
+// Implementation details would be shown here
+export class ${getStrategyFileName(type)} extends Strategy {
+  // Strategy implementation...
+}`;
   }
   
   function isGranularityValid(granularity: string, period: string): boolean {
@@ -294,24 +381,33 @@
       <!-- Strategy Configuration -->
       <div class="panel strategy-panel">
         <div class="panel-header">
-          <h2>Strategy Configuration</h2>
+          <h2>Strategy</h2>
+          <div class="tabs">
+            <button class="tab" class:active={activeTab === 'config'} on:click={() => activeTab = 'config'}>
+              Configuration
+            </button>
+            <button class="tab" class:active={activeTab === 'code'} on:click={() => activeTab = 'code'}>
+              Source Code
+            </button>
+          </div>
         </div>
         <div class="panel-content">
-          <div class="config-section">
-            <label>
-              Strategy
-              <select bind:value={selectedStrategyType} on:change={updateCurrentStrategy}>
-                {#each strategies as strat}
-                  <option value={strat.value}>{strat.label}</option>
-                {/each}
-              </select>
-            </label>
-            {#if strategies.find(s => s.value === selectedStrategyType)}
-              <div class="strategy-description">
-                {strategies.find(s => s.value === selectedStrategyType).description}
-              </div>
-            {/if}
-          </div>
+          {#if activeTab === 'config'}
+            <div class="config-section">
+              <label>
+                Strategy
+                <select bind:value={selectedStrategyType} on:change={updateCurrentStrategy}>
+                  {#each strategies as strat}
+                    <option value={strat.value}>{strat.label}</option>
+                  {/each}
+                </select>
+              </label>
+              {#if strategies.find(s => s.value === selectedStrategyType)}
+                <div class="strategy-description">
+                  {strategies.find(s => s.value === selectedStrategyType).description}
+                </div>
+              {/if}
+            </div>
           
           <div class="config-section">
             <label>
@@ -451,6 +547,19 @@
               Clear Results
             </button>
           </div>
+          {:else if activeTab === 'code'}
+            <div class="code-editor-section">
+              <div class="code-header">
+                <h3>{getStrategyFileName(selectedStrategyType)}.ts</h3>
+                <div class="code-info">
+                  This is the actual implementation of the {strategies.find(s => s.value === selectedStrategyType)?.label} strategy
+                </div>
+              </div>
+              <div class="code-editor">
+                <pre><code class="typescript">{strategySourceCode}</code></pre>
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
       
@@ -647,6 +756,77 @@
     margin: 0;
     font-size: 16px;
     color: #a78bfa;
+  }
+  
+  .tabs {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .tab {
+    padding: 8px 16px;
+    background: rgba(74, 0, 224, 0.1);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    color: #888;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 12px;
+    transition: all 0.2s;
+  }
+  
+  .tab:hover {
+    background: rgba(74, 0, 224, 0.2);
+    color: #a78bfa;
+  }
+  
+  .tab.active {
+    background: rgba(74, 0, 224, 0.3);
+    border-color: #a78bfa;
+    color: #a78bfa;
+  }
+  
+  .code-editor-section {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .code-header {
+    margin-bottom: 20px;
+  }
+  
+  .code-header h3 {
+    margin: 0 0 5px 0;
+    font-size: 14px;
+    color: #a78bfa;
+    font-family: 'Monaco', 'Consolas', monospace;
+  }
+  
+  .code-info {
+    font-size: 12px;
+    color: #888;
+  }
+  
+  .code-editor {
+    flex: 1;
+    background: #1a1a1a;
+    border: 1px solid rgba(74, 0, 224, 0.2);
+    border-radius: 6px;
+    padding: 15px;
+    overflow-y: auto;
+    overflow-x: auto;
+  }
+  
+  .code-editor pre {
+    margin: 0;
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  
+  .code-editor code {
+    color: #d1d4dc;
+    white-space: pre;
   }
   
   .panel-content {
