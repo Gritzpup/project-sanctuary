@@ -2,6 +2,14 @@
   import Chart from './Chart.svelte';
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
   import { onMount, createEventDispatcher } from 'svelte';
+  import { BacktestingEngine } from '../services/backtestingEngine';
+  import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';
+  import { GridTradingStrategy } from '../strategies/implementations/GridTradingStrategy';
+  import { RSIMeanReversionStrategy } from '../strategies/implementations/RSIMeanReversionStrategy';
+  import { DCAStrategy } from '../strategies/implementations/DCAStrategy';
+  import { VWAPBounceStrategy } from '../strategies/implementations/VWAPBounceStrategy';
+  import type { Strategy } from '../strategies/base/Strategy';
+  import type { BacktestConfig, BacktestResult } from '../strategies/base/StrategyTypes';
   
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
@@ -23,16 +31,49 @@
   let autoGranularityActive = false;
   
   // Backtesting state
-  let strategy = 'sma-cross'; // Default strategy
+  let selectedStrategyType = 'reverse-ratio'; // Default strategy
   let startBalance = 10000;
-  let backtestResults: any = null;
+  let backtestResults: BacktestResult | null = null;
   let isRunning = false;
+  let backtestingEngine: BacktestingEngine;
+  let currentStrategy: Strategy | null = null;
   
-  // Strategy parameters
-  let fastMA = 10;
-  let slowMA = 30;
-  let stopLoss = 2; // percent
-  let takeProfit = 5; // percent
+  // Strategy-specific parameters
+  let strategyParams: Record<string, any> = {
+    'reverse-ratio': {
+      dropThreshold: 2,
+      sellProfitPercent: 7,
+      positionStep: 2,
+      maxPositions: 10
+    },
+    'grid-trading': {
+      gridLevels: 10,
+      gridSpacing: 1,
+      positionSize: 0.1,
+      takeProfit: 2
+    },
+    'rsi-mean-reversion': {
+      rsiPeriod: 14,
+      oversoldLevel: 30,
+      overboughtLevel: 70,
+      positionSize: 0.1
+    },
+    'dca': {
+      intervalHours: 24,
+      amountPerBuy: 100,
+      dropThreshold: 3
+    },
+    'vwap-bounce': {
+      vwapPeriod: 20,
+      bounceThreshold: 0.5,
+      volumeMultiplier: 1.5,
+      positionSize: 0.1
+    }
+  };
+  
+  onMount(() => {
+    backtestingEngine = new BacktestingEngine();
+  });
   
   // Valid granularities for each period
   const validGranularities: Record<string, string[]> = {
@@ -47,11 +88,34 @@
   };
   
   const strategies = [
-    { value: 'sma-cross', label: 'SMA Crossover' },
-    { value: 'rsi', label: 'RSI Overbought/Oversold' },
-    { value: 'bb', label: 'Bollinger Bands' },
-    { value: 'macd', label: 'MACD Signal' }
+    { value: 'reverse-ratio', label: 'Reverse Ratio Buying', description: 'Buy on drops, sell at 7% profit' },
+    { value: 'grid-trading', label: 'Grid Trading', description: 'Place orders at regular intervals' },
+    { value: 'rsi-mean-reversion', label: 'RSI Mean Reversion', description: 'Trade RSI oversold/overbought' },
+    { value: 'dca', label: 'Dollar Cost Averaging', description: 'Buy at regular intervals' },
+    { value: 'vwap-bounce', label: 'VWAP Bounce', description: 'Trade bounces off VWAP' }
   ];
+  
+  function createStrategy(type: string): Strategy {
+    const params = strategyParams[type];
+    switch (type) {
+      case 'reverse-ratio':
+        return new ReverseRatioStrategy(params);
+      case 'grid-trading':
+        return new GridTradingStrategy(params);
+      case 'rsi-mean-reversion':
+        return new RSIMeanReversionStrategy(params);
+      case 'dca':
+        return new DCAStrategy(params);
+      case 'vwap-bounce':
+        return new VWAPBounceStrategy(params);
+      default:
+        throw new Error(`Unknown strategy type: ${type}`);
+    }
+  }
+  
+  function updateCurrentStrategy() {
+    currentStrategy = createStrategy(selectedStrategyType);
+  }
   
   function isGranularityValid(granularity: string, period: string): boolean {
     return validGranularities[period]?.includes(granularity) || false;
@@ -87,58 +151,72 @@
   }
   
   async function runBacktest() {
-    isRunning = true;
+    if (!backtestingEngine || !currentStrategy) {
+      console.error('Backtesting engine or strategy not initialized');
+      return;
+    }
     
-    // Simulate backtest running
-    setTimeout(() => {
-      // Mock backtest results
-      backtestResults = {
-        totalTrades: 42,
-        winningTrades: 26,
-        losingTrades: 16,
-        winRate: 61.9,
-        totalReturn: 2847.50,
-        returnPercent: 28.48,
-        maxDrawdown: -12.3,
-        sharpeRatio: 1.45,
-        trades: [
-          { 
-            type: 'BUY', 
-            date: '2024-01-15', 
-            price: 95420, 
-            size: 0.105,
-            reason: 'SMA Golden Cross'
-          },
-          { 
-            type: 'SELL', 
-            date: '2024-01-18', 
-            price: 98750, 
-            size: 0.105,
-            profit: 349.65,
-            profitPercent: 3.49,
-            reason: 'SMA Death Cross'
-          },
-          { 
-            type: 'BUY', 
-            date: '2024-01-22', 
-            price: 97200, 
-            size: 0.108,
-            reason: 'SMA Golden Cross'
-          },
-          { 
-            type: 'SELL', 
-            date: '2024-01-25', 
-            price: 95800, 
-            size: 0.108,
-            profit: -151.20,
-            profitPercent: -1.44,
-            reason: 'Stop Loss Hit'
-          }
-        ]
+    isRunning = true;
+    backtestResults = null;
+    
+    try {
+      // Get historical data from the chart (you'll need to implement this)
+      // For now, we'll use mock data
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 3); // 3 months of data
+      
+      const config: BacktestConfig = {
+        strategy: currentStrategy,
+        startDate,
+        endDate,
+        initialBalance: startBalance,
+        symbol: 'BTC-USD',
+        profitAllocation: {
+          vault: 0.99,
+          btcGrowth: 0.01
+        }
       };
       
+      // In a real implementation, you would fetch historical data here
+      // For now, we'll create some mock data
+      const mockHistoricalData = generateMockHistoricalData(startDate, endDate);
+      
+      backtestResults = await backtestingEngine.runBacktest(
+        config,
+        mockHistoricalData
+      );
+    } catch (error) {
+      console.error('Backtest failed:', error);
+    } finally {
       isRunning = false;
-    }, 2000);
+    }
+  }
+  
+  // Mock data generator for testing
+  function generateMockHistoricalData(startDate: Date, endDate: Date) {
+    const data = [];
+    const currentDate = new Date(startDate);
+    let price = 95000 + Math.random() * 5000;
+    
+    while (currentDate <= endDate) {
+      // Generate random price movement
+      const change = (Math.random() - 0.5) * 2000;
+      price = Math.max(85000, Math.min(105000, price + change));
+      
+      data.push({
+        timestamp: currentDate.getTime(),
+        open: price - Math.random() * 500,
+        high: price + Math.random() * 500,
+        low: price - Math.random() * 500,
+        close: price,
+        volume: 100 + Math.random() * 50
+      });
+      
+      currentDate.setHours(currentDate.getHours() + 1);
+    }
+    
+    return data;
   }
   
   function clearResults() {
@@ -217,12 +295,17 @@
           <div class="config-section">
             <label>
               Strategy
-              <select bind:value={strategy}>
+              <select bind:value={selectedStrategyType} on:change={updateCurrentStrategy}>
                 {#each strategies as strat}
                   <option value={strat.value}>{strat.label}</option>
                 {/each}
               </select>
             </label>
+            {#if strategies.find(s => s.value === selectedStrategyType)}
+              <div class="strategy-description">
+                {strategies.find(s => s.value === selectedStrategyType).description}
+              </div>
+            {/if}
           </div>
           
           <div class="config-section">
@@ -232,38 +315,131 @@
             </label>
           </div>
           
-          {#if strategy === 'sma-cross'}
-            <div class="config-section">
-              <label>
-                Fast MA Period
-                <input type="number" bind:value={fastMA} min="5" max="50" />
-              </label>
-            </div>
-            
-            <div class="config-section">
-              <label>
-                Slow MA Period
-                <input type="number" bind:value={slowMA} min="10" max="200" />
-              </label>
-            </div>
-          {/if}
-          
-          <div class="config-section">
-            <label>
-              Stop Loss (%)
-              <input type="number" bind:value={stopLoss} min="0.5" max="10" step="0.5" />
-            </label>
-          </div>
-          
-          <div class="config-section">
-            <label>
-              Take Profit (%)
-              <input type="number" bind:value={takeProfit} min="1" max="20" step="0.5" />
-            </label>
+          <div class="strategy-params">
+            {#if selectedStrategyType === 'reverse-ratio'}
+              <div class="config-section">
+                <label>
+                  Drop Threshold (%)
+                  <input type="number" bind:value={strategyParams['reverse-ratio'].dropThreshold} min="1" max="10" step="0.5" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Sell Profit Target (%)
+                  <input type="number" bind:value={strategyParams['reverse-ratio'].sellProfitPercent} min="3" max="20" step="1" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Position Step (%)
+                  <input type="number" bind:value={strategyParams['reverse-ratio'].positionStep} min="1" max="5" step="0.5" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Max Positions
+                  <input type="number" bind:value={strategyParams['reverse-ratio'].maxPositions} min="5" max="20" step="1" />
+                </label>
+              </div>
+            {:else if selectedStrategyType === 'grid-trading'}
+              <div class="config-section">
+                <label>
+                  Grid Levels
+                  <input type="number" bind:value={strategyParams['grid-trading'].gridLevels} min="5" max="20" step="1" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Grid Spacing (%)
+                  <input type="number" bind:value={strategyParams['grid-trading'].gridSpacing} min="0.5" max="5" step="0.5" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Position Size
+                  <input type="number" bind:value={strategyParams['grid-trading'].positionSize} min="0.01" max="1" step="0.01" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Take Profit (%)
+                  <input type="number" bind:value={strategyParams['grid-trading'].takeProfit} min="1" max="10" step="0.5" />
+                </label>
+              </div>
+            {:else if selectedStrategyType === 'rsi-mean-reversion'}
+              <div class="config-section">
+                <label>
+                  RSI Period
+                  <input type="number" bind:value={strategyParams['rsi-mean-reversion'].rsiPeriod} min="7" max="30" step="1" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Oversold Level
+                  <input type="number" bind:value={strategyParams['rsi-mean-reversion'].oversoldLevel} min="20" max="40" step="5" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Overbought Level
+                  <input type="number" bind:value={strategyParams['rsi-mean-reversion'].overboughtLevel} min="60" max="80" step="5" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Position Size
+                  <input type="number" bind:value={strategyParams['rsi-mean-reversion'].positionSize} min="0.01" max="1" step="0.01" />
+                </label>
+              </div>
+            {:else if selectedStrategyType === 'dca'}
+              <div class="config-section">
+                <label>
+                  Buy Interval (hours)
+                  <input type="number" bind:value={strategyParams['dca'].intervalHours} min="1" max="168" step="1" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Amount Per Buy ($)
+                  <input type="number" bind:value={strategyParams['dca'].amountPerBuy} min="10" max="1000" step="10" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Extra Buy on Drop (%)
+                  <input type="number" bind:value={strategyParams['dca'].dropThreshold} min="0" max="10" step="1" />
+                </label>
+              </div>
+            {:else if selectedStrategyType === 'vwap-bounce'}
+              <div class="config-section">
+                <label>
+                  VWAP Period
+                  <input type="number" bind:value={strategyParams['vwap-bounce'].vwapPeriod} min="10" max="50" step="5" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Bounce Threshold (%)
+                  <input type="number" bind:value={strategyParams['vwap-bounce'].bounceThreshold} min="0.1" max="2" step="0.1" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Volume Multiplier
+                  <input type="number" bind:value={strategyParams['vwap-bounce'].volumeMultiplier} min="1" max="3" step="0.1" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Position Size
+                  <input type="number" bind:value={strategyParams['vwap-bounce'].positionSize} min="0.01" max="1" step="0.01" />
+                </label>
+              </div>
+            {/if}
           </div>
           
           <div class="backtest-buttons">
-            <button class="run-btn" on:click={runBacktest} disabled={isRunning}>
+            <button class="run-btn" on:click={() => { updateCurrentStrategy(); runBacktest(); }} disabled={isRunning}>
               {isRunning ? 'Running...' : 'Run Backtest'}
             </button>
             <button class="clear-btn" on:click={clearResults} disabled={!backtestResults || isRunning}>
@@ -287,53 +463,58 @@
             <div class="results-summary">
               <div class="result-item">
                 <span class="result-label">Total Trades</span>
-                <span class="result-value">{backtestResults.totalTrades}</span>
+                <span class="result-value">{backtestResults.metrics.totalTrades}</span>
               </div>
               <div class="result-item">
                 <span class="result-label">Win Rate</span>
-                <span class="result-value">{backtestResults.winRate}%</span>
+                <span class="result-value">{backtestResults.metrics.winRate.toFixed(1)}%</span>
               </div>
               <div class="result-item">
                 <span class="result-label">Total Return</span>
-                <span class="result-value profit">
-                  ${backtestResults.totalReturn.toFixed(2)} ({backtestResults.returnPercent}%)
+                <span class="result-value" class:profit={backtestResults.metrics.totalReturn > 0} class:loss={backtestResults.metrics.totalReturn < 0}>
+                  ${backtestResults.metrics.totalReturn.toFixed(2)} ({backtestResults.metrics.returnPercent.toFixed(2)}%)
                 </span>
               </div>
               <div class="result-item">
                 <span class="result-label">Max Drawdown</span>
-                <span class="result-value loss">{backtestResults.maxDrawdown}%</span>
+                <span class="result-value loss">{backtestResults.metrics.maxDrawdown.toFixed(2)}%</span>
               </div>
               <div class="result-item">
                 <span class="result-label">Sharpe Ratio</span>
-                <span class="result-value">{backtestResults.sharpeRatio}</span>
+                <span class="result-value">{backtestResults.metrics.sharpeRatio.toFixed(2)}</span>
               </div>
               <div class="result-item">
-                <span class="result-label">Winning Trades</span>
-                <span class="result-value profit">{backtestResults.winningTrades}</span>
+                <span class="result-label">Profit Factor</span>
+                <span class="result-value">{backtestResults.metrics.profitFactor.toFixed(2)}</span>
               </div>
               <div class="result-item">
-                <span class="result-label">Losing Trades</span>
-                <span class="result-value loss">{backtestResults.losingTrades}</span>
+                <span class="result-label">Vault Balance</span>
+                <span class="result-value profit">${backtestResults.vaultBalance.toFixed(2)}</span>
+              </div>
+              <div class="result-item">
+                <span class="result-label">BTC Holdings</span>
+                <span class="result-value">{backtestResults.btcBalance.toFixed(6)} BTC</span>
               </div>
             </div>
             
-            <h3>Recent Trades</h3>
+            <h3>Recent Trades (Last 10)</h3>
             <div class="trades-list">
-              {#each backtestResults.trades as trade}
-                <div class="trade-item" class:buy={trade.type === 'BUY'} class:sell={trade.type === 'SELL'}>
+              {#each backtestResults.trades.slice(-10).reverse() as trade}
+                <div class="trade-item" class:buy={trade.side === 'buy'} class:sell={trade.side === 'sell'}>
                   <div class="trade-header">
-                    <span class="trade-type">{trade.type}</span>
-                    <span class="trade-date">{trade.date}</span>
+                    <span class="trade-type">{trade.side.toUpperCase()}</span>
+                    <span class="trade-date">{new Date(trade.timestamp).toLocaleDateString()}</span>
                   </div>
                   <div class="trade-details">
                     <span>Price: ${trade.price.toLocaleString()}</span>
-                    <span>Size: {trade.size} BTC</span>
+                    <span>Size: {trade.size.toFixed(6)} BTC</span>
+                    <span>Value: ${(trade.price * trade.size).toFixed(2)}</span>
                     {#if trade.profit !== undefined}
                       <span class:profit={trade.profit > 0} class:loss={trade.profit < 0}>
-                        P&L: ${trade.profit.toFixed(2)} ({trade.profitPercent}%)
+                        P&L: ${trade.profit.toFixed(2)}
                       </span>
                     {/if}
-                    <span class="trade-reason">{trade.reason}</span>
+                    <span class="trade-reason">Signal: {trade.signalStrength?.toFixed(2) || 'N/A'}</span>
                   </div>
                 </div>
               {/each}
@@ -744,6 +925,17 @@
   .trade-details span.loss {
     color: #ef5350;
     font-weight: 600;
+  }
+  
+  .strategy-description {
+    font-size: 12px;
+    color: #758696;
+    margin-top: 5px;
+    font-style: italic;
+  }
+  
+  .strategy-params {
+    margin-top: 20px;
   }
   
   .trade-reason {

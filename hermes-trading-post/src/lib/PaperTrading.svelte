@@ -1,7 +1,14 @@
 <script lang="ts">
   import Chart from './Chart.svelte';
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
-  import { onMount, createEventDispatcher } from 'svelte';
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+  import { PaperTradingService } from '../services/paperTradingService';
+  import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';
+  import { GridTradingStrategy } from '../strategies/implementations/GridTradingStrategy';
+  import { RSIMeanReversionStrategy } from '../strategies/implementations/RSIMeanReversionStrategy';
+  import { DCAStrategy } from '../strategies/implementations/DCAStrategy';
+  import { VWAPBounceStrategy } from '../strategies/implementations/VWAPBounceStrategy';
+  import type { Strategy } from '../strategies/base/Strategy';
   
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
@@ -23,12 +30,60 @@
   let autoGranularityActive = false;
   
   // Paper trading state
-  let balance = 10000; // Starting balance $10,000
+  let paperTradingService: PaperTradingService;
+  let isRunning = false;
+  let selectedStrategyType = 'reverse-ratio';
+  let currentStrategy: Strategy | null = null;
+  let statusInterval: NodeJS.Timer | null = null;
+  
+  // Current balances and metrics
+  let balance = 10000;
   let btcBalance = 0;
+  let vaultBalance = 0;
   let trades: any[] = [];
-  let currentPosition: 'none' | 'long' | 'short' = 'none';
-  let positionSize = 0;
-  let entryPrice = 0;
+  let positions: any[] = [];
+  let totalReturn = 0;
+  let winRate = 0;
+  
+  const strategies = [
+    { value: 'reverse-ratio', label: 'Reverse Ratio Buying' },
+    { value: 'grid-trading', label: 'Grid Trading' },
+    { value: 'rsi-mean-reversion', label: 'RSI Mean Reversion' },
+    { value: 'dca', label: 'Dollar Cost Averaging' },
+    { value: 'vwap-bounce', label: 'VWAP Bounce' }
+  ];
+  
+  function createStrategy(type: string): Strategy {
+    // Use default parameters for now
+    switch (type) {
+      case 'reverse-ratio':
+        return new ReverseRatioStrategy({});
+      case 'grid-trading':
+        return new GridTradingStrategy({});
+      case 'rsi-mean-reversion':
+        return new RSIMeanReversionStrategy({});
+      case 'dca':
+        return new DCAStrategy({});
+      case 'vwap-bounce':
+        return new VWAPBounceStrategy({});
+      default:
+        throw new Error(`Unknown strategy type: ${type}`);
+    }
+  }
+  
+  onMount(() => {
+    paperTradingService = new PaperTradingService();
+    updateStatus();
+  });
+  
+  onDestroy(() => {
+    if (statusInterval) {
+      clearInterval(statusInterval);
+    }
+    if (isRunning) {
+      paperTradingService.stop();
+    }
+  });
   
   // Valid granularities for each period
   const validGranularities: Record<string, string[]> = {
@@ -75,53 +130,58 @@
     }
   }
   
-  function buy() {
-    if (currentPosition !== 'none' || balance <= 0) return;
+  async function startTrading() {
+    if (!paperTradingService || isRunning) return;
     
-    const size = balance / currentPrice;
-    btcBalance = size;
-    balance = 0;
-    currentPosition = 'long';
-    positionSize = size;
-    entryPrice = currentPrice;
+    currentStrategy = createStrategy(selectedStrategyType);
+    paperTradingService.start(currentStrategy, 'BTC-USD', balance);
+    isRunning = true;
     
-    trades.push({
-      type: 'BUY',
-      price: currentPrice,
-      size: size,
-      time: new Date().toLocaleString(),
-      value: size * currentPrice
-    });
+    // Start periodic status updates
+    statusInterval = setInterval(updateStatus, 1000);
   }
   
-  function sell() {
-    if (currentPosition !== 'long' || btcBalance <= 0) return;
+  function stopTrading() {
+    if (!paperTradingService || !isRunning) return;
     
-    const value = btcBalance * currentPrice;
-    balance = value;
+    paperTradingService.stop();
+    isRunning = false;
     
-    const profit = value - (positionSize * entryPrice);
-    const profitPercent = (profit / (positionSize * entryPrice)) * 100;
+    if (statusInterval) {
+      clearInterval(statusInterval);
+      statusInterval = null;
+    }
     
-    trades.push({
-      type: 'SELL',
-      price: currentPrice,
-      size: btcBalance,
-      time: new Date().toLocaleString(),
-      value: value,
-      profit: profit,
-      profitPercent: profitPercent
-    });
-    
-    btcBalance = 0;
-    currentPosition = 'none';
-    positionSize = 0;
-    entryPrice = 0;
+    updateStatus();
   }
   
-  $: totalValue = balance + (btcBalance * currentPrice);
-  $: pnl = currentPosition === 'long' ? (currentPrice - entryPrice) * positionSize : 0;
-  $: pnlPercent = currentPosition === 'long' && entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0;
+  function updateStatus() {
+    if (!paperTradingService) return;
+    
+    const status = paperTradingService.getStatus();
+    balance = status.usdBalance;
+    btcBalance = status.btcBalance;
+    vaultBalance = status.vaultBalance;
+    positions = status.positions;
+    trades = status.trades;
+    
+    // Calculate metrics
+    if (trades.length > 0) {
+      const closedTrades = trades.filter(t => t.side === 'sell');
+      const profitableTrades = closedTrades.filter(t => t.profit && t.profit > 0);
+      winRate = closedTrades.length > 0 ? (profitableTrades.length / closedTrades.length) * 100 : 0;
+      
+      const initialBalance = 10000;
+      const currentTotal = balance + (btcBalance * currentPrice) + vaultBalance;
+      totalReturn = currentTotal - initialBalance;
+    }
+  }
+  
+  $: totalValue = balance + (btcBalance * currentPrice) + vaultBalance;
+  $: unrealizedPnl = positions.reduce((total, pos) => {
+    return total + ((currentPrice - pos.entryPrice) * pos.size);
+  }, 0);
+  $: returnPercent = ((totalValue - 10000) / 10000) * 100;
 </script>
 
 <div class="dashboard-layout">
@@ -145,10 +205,14 @@
           <span class="stat-value">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">P&L</span>
-          <span class="stat-value" class:profit={pnl > 0} class:loss={pnl < 0}>
-            ${pnl.toFixed(2)} ({pnlPercent.toFixed(2)}%)
+          <span class="stat-label">Total Return</span>
+          <span class="stat-value" class:profit={totalReturn > 0} class:loss={totalReturn < 0}>
+            ${totalReturn.toFixed(2)} ({returnPercent.toFixed(2)}%)
           </span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Win Rate</span>
+          <span class="stat-value">{winRate.toFixed(1)}%</span>
         </div>
       </div>
     </div>
@@ -195,9 +259,20 @@
       <!-- Trading Controls -->
       <div class="panel trading-panel">
         <div class="panel-header">
-          <h2>Trading Controls</h2>
+          <h2>Automated Trading</h2>
         </div>
         <div class="panel-content">
+          <div class="strategy-section">
+            <label>
+              Strategy
+              <select bind:value={selectedStrategyType} disabled={isRunning}>
+                {#each strategies as strat}
+                  <option value={strat.value}>{strat.label}</option>
+                {/each}
+              </select>
+            </label>
+          </div>
+          
           <div class="balances">
             <div class="balance-item">
               <span>USD Balance:</span>
@@ -208,18 +283,64 @@
               <span>{btcBalance.toFixed(8)} BTC</span>
             </div>
             <div class="balance-item">
-              <span>Position:</span>
-              <span class:long={currentPosition === 'long'}>{currentPosition.toUpperCase()}</span>
+              <span>Vault Balance:</span>
+              <span class="vault">${vaultBalance.toFixed(2)}</span>
+            </div>
+            <div class="balance-item">
+              <span>Unrealized P&L:</span>
+              <span class:profit={unrealizedPnl > 0} class:loss={unrealizedPnl < 0}>
+                ${unrealizedPnl.toFixed(2)}
+              </span>
             </div>
           </div>
           
-          <div class="trade-buttons">
-            <button class="buy-btn" on:click={buy} disabled={currentPosition !== 'none'}>
-              BUY
-            </button>
-            <button class="sell-btn" on:click={sell} disabled={currentPosition !== 'long'}>
-              SELL
-            </button>
+          <div class="control-buttons">
+            {#if !isRunning}
+              <button class="start-btn" on:click={startTrading}>
+                Start Automated Trading
+              </button>
+            {:else}
+              <button class="stop-btn" on:click={stopTrading}>
+                Stop Trading
+              </button>
+            {/if}
+          </div>
+          
+          {#if isRunning}
+            <div class="status-indicator">
+              <span class="status-dot"></span>
+              <span>Strategy Running</span>
+            </div>
+          {/if}
+        </div>
+      </div>
+      
+      <!-- Positions Panel -->
+      <div class="panel positions-panel">
+        <div class="panel-header">
+          <h2>Open Positions</h2>
+        </div>
+        <div class="panel-content">
+          <div class="positions-list">
+            {#if positions.length === 0}
+              <p class="no-positions">No open positions</p>
+            {:else}
+              {#each positions as position}
+                <div class="position-item">
+                  <div class="position-header">
+                    <span>Entry: ${position.entryPrice.toFixed(2)}</span>
+                    <span>{position.size.toFixed(8)} BTC</span>
+                  </div>
+                  <div class="position-details">
+                    <span>Current: ${currentPrice.toFixed(2)}</span>
+                    <span class:profit={(currentPrice - position.entryPrice) > 0} 
+                          class:loss={(currentPrice - position.entryPrice) < 0}>
+                      P&L: ${((currentPrice - position.entryPrice) * position.size).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              {/each}
+            {/if}
           </div>
         </div>
       </div>
@@ -234,20 +355,23 @@
             {#if trades.length === 0}
               <p class="no-trades">No trades yet</p>
             {:else}
-              {#each trades.slice().reverse() as trade}
-                <div class="trade-item" class:buy={trade.type === 'BUY'} class:sell={trade.type === 'SELL'}>
+              {#each trades.slice(-20).reverse() as trade}
+                <div class="trade-item" class:buy={trade.side === 'buy'} class:sell={trade.side === 'sell'}>
                   <div class="trade-header">
-                    <span class="trade-type">{trade.type}</span>
-                    <span class="trade-time">{trade.time}</span>
+                    <span class="trade-type">{trade.side.toUpperCase()}</span>
+                    <span class="trade-time">{new Date(trade.timestamp).toLocaleString()}</span>
                   </div>
                   <div class="trade-details">
                     <span>Price: ${trade.price.toFixed(2)}</span>
                     <span>Size: {trade.size.toFixed(8)} BTC</span>
-                    <span>Value: ${trade.value.toFixed(2)}</span>
+                    <span>Value: ${(trade.price * trade.size).toFixed(2)}</span>
                     {#if trade.profit !== undefined}
                       <span class:profit={trade.profit > 0} class:loss={trade.profit < 0}>
-                        P&L: ${trade.profit.toFixed(2)} ({trade.profitPercent.toFixed(2)}%)
+                        P&L: ${trade.profit.toFixed(2)}
                       </span>
+                    {/if}
+                    {#if trade.profitToVault}
+                      <span class="vault-allocation">Vault: ${trade.profitToVault.toFixed(2)}</span>
                     {/if}
                   </div>
                 </div>
@@ -334,7 +458,7 @@
     flex: 1;
     display: grid;
     grid-template-columns: 2fr 1fr;
-    grid-template-rows: 1fr 1fr;
+    grid-template-rows: auto 1fr;
     gap: 20px;
     padding: 20px;
     overflow: hidden;
@@ -499,13 +623,46 @@
     color: #26a69a;
   }
   
-  .trade-buttons {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+  .balance-item span.vault {
+    color: #a78bfa;
+    font-weight: 600;
   }
   
-  .buy-btn, .sell-btn {
+  .balance-item span.profit {
+    color: #26a69a;
+  }
+  
+  .balance-item span.loss {
+    color: #ef5350;
+  }
+  
+  .strategy-section {
+    margin-bottom: 20px;
+  }
+  
+  .strategy-section label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 14px;
+    color: #d1d4dc;
+  }
+  
+  .strategy-section select {
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 4px;
+    color: #d1d4dc;
+    font-size: 14px;
+  }
+  
+  .control-buttons {
+    margin-top: 20px;
+  }
+  
+  .start-btn, .stop-btn {
+    width: 100%;
     padding: 15px;
     border: none;
     border-radius: 6px;
@@ -515,27 +672,100 @@
     transition: all 0.2s;
   }
   
-  .buy-btn {
-    background: #26a69a;
+  .start-btn {
+    background: #a78bfa;
     color: white;
   }
   
-  .buy-btn:hover:not(:disabled) {
-    background: #1e8e7e;
+  .start-btn:hover {
+    background: #8b5cf6;
   }
   
-  .sell-btn {
+  .stop-btn {
     background: #ef5350;
     color: white;
   }
   
-  .sell-btn:hover:not(:disabled) {
+  .stop-btn:hover {
     background: #d32f2f;
   }
   
-  .buy-btn:disabled, .sell-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 15px;
+    padding: 10px;
+    background: rgba(74, 0, 224, 0.1);
+    border-radius: 4px;
+    font-size: 14px;
+    color: #a78bfa;
+  }
+  
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    background: #a78bfa;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+  
+  .positions-panel {
+    overflow: hidden;
+  }
+  
+  .positions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .no-positions {
+    text-align: center;
+    color: #758696;
+    padding: 20px;
+  }
+  
+  .position-item {
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 6px;
+    border: 1px solid rgba(74, 0, 224, 0.2);
+  }
+  
+  .position-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  
+  .position-details {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #d1d4dc;
+  }
+  
+  .position-details span.profit {
+    color: #26a69a;
+  }
+  
+  .position-details span.loss {
+    color: #ef5350;
   }
   
   .trades-list {
@@ -605,5 +835,10 @@
   .trade-details span.loss {
     color: #ef5350;
     font-weight: 600;
+  }
+  
+  .vault-allocation {
+    color: #a78bfa;
+    font-size: 12px;
   }
 </style>
