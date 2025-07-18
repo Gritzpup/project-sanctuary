@@ -1,4 +1,5 @@
 import { Plugin, type PluginContext } from './Plugin';
+import { ChartDebug } from '../../utils/debug';
 
 export interface PluginEvent {
   type: 'registered' | 'unregistered' | 'enabled' | 'disabled' | 'error';
@@ -41,7 +42,7 @@ export class PluginManager {
       timestamp: Date.now()
     });
 
-    console.log(`PluginManager: Registered plugin ${plugin.id}`);
+    ChartDebug.log(`Registered plugin ${plugin.id}`);
   }
 
   async unregister(pluginId: string): Promise<void> {
@@ -63,7 +64,7 @@ export class PluginManager {
       timestamp: Date.now()
     });
 
-    console.log(`PluginManager: Unregistered plugin ${pluginId}`);
+    ChartDebug.log(`Unregistered plugin ${pluginId}`);
   }
 
   // Batch operations
@@ -79,7 +80,7 @@ export class PluginManager {
     }
 
     if (errors.length > 0) {
-      console.error('PluginManager: Failed to register some plugins:', errors);
+      ChartDebug.error('Failed to register some plugins:', errors);
       throw new Error(`Failed to register ${errors.length} plugins`);
     }
   }
@@ -109,7 +110,7 @@ export class PluginManager {
     }
 
     if (errors.length > 0) {
-      console.error('PluginManager: Failed to initialize some plugins:', errors);
+      ChartDebug.error('Failed to initialize some plugins:', errors);
     }
   }
 
@@ -184,7 +185,7 @@ export class PluginManager {
       try {
         callback(event);
       } catch (error) {
-        console.error('PluginManager: Error in event callback:', error);
+        ChartDebug.error('Error in event callback:', error);
       }
     });
   }
@@ -200,7 +201,7 @@ export class PluginManager {
         try {
           await plugin.destroy();
         } catch (error) {
-          console.error(`PluginManager: Error destroying plugin ${pluginId}:`, error);
+          ChartDebug.error(`Error destroying plugin ${pluginId}:`, error);
         }
       }
     }

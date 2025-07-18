@@ -1,4 +1,5 @@
 import type { IChartApi } from 'lightweight-charts';
+import { ChartDebug } from '../../utils/debug';
 
 export interface PluginConfig {
   id: string;
@@ -59,7 +60,7 @@ export abstract class Plugin {
   // Lifecycle methods
   async initialize(context: PluginContext): Promise<void> {
     if (this._initialized) {
-      console.warn(`Plugin ${this.id} already initialized`);
+      ChartDebug.warn(`Plugin ${this.id} already initialized`);
       return;
     }
 
@@ -68,9 +69,9 @@ export abstract class Plugin {
     try {
       await this.onInitialize();
       this._initialized = true;
-      console.log(`Plugin ${this.id} initialized successfully`);
+      ChartDebug.log(`Plugin ${this.id} initialized successfully`);
     } catch (error) {
-      console.error(`Failed to initialize plugin ${this.id}:`, error);
+      ChartDebug.error(`Failed to initialize plugin ${this.id}:`, error);
       throw error;
     }
   }
@@ -84,9 +85,9 @@ export abstract class Plugin {
       await this.onDestroy();
       this.context = null;
       this._initialized = false;
-      console.log(`Plugin ${this.id} destroyed`);
+      ChartDebug.log(`Plugin ${this.id} destroyed`);
     } catch (error) {
-      console.error(`Error destroying plugin ${this.id}:`, error);
+      ChartDebug.error(`Error destroying plugin ${this.id}:`, error);
     }
   }
 
@@ -111,7 +112,7 @@ export abstract class Plugin {
     try {
       this.onSettingsUpdate(oldSettings, this.config.settings);
     } catch (error) {
-      console.error(`Error updating settings for plugin ${this.id}:`, error);
+      ChartDebug.error(`Error updating settings for plugin ${this.id}:`, error);
       // Rollback on error
       this.config.settings = oldSettings;
       throw error;

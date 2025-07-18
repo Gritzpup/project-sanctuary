@@ -28,17 +28,10 @@
     }
   });
   
-  // Reactive values
-  $: stats = dataStore.stats;
-  $: latestPrice = dataStore.latestPrice;
-  $: isNewCandle = dataStore.isNewCandle;
-  $: perfStats = performanceStore.stats;
-  $: config = chartStore.config;
-  
   // Format time range
-  $: timeRange = stats.oldestTime && stats.newestTime ? {
-    from: new Date(stats.oldestTime * 1000).toLocaleString(),
-    to: new Date(stats.newestTime * 1000).toLocaleString()
+  $: timeRange = dataStore.stats.oldestTime && dataStore.stats.newestTime ? {
+    from: new Date(dataStore.stats.oldestTime * 1000).toLocaleString(),
+    to: new Date(dataStore.stats.newestTime * 1000).toLocaleString()
   } : null;
   
   // Format clock
@@ -64,10 +57,10 @@
 </script>
 
 <div class="chart-info {positionClass}">
-  {#if showLatestPrice && latestPrice !== null}
-    <div class="info-item price-item" class:new-candle={isNewCandle}>
+  {#if showLatestPrice && dataStore.latestPrice !== null}
+    <div class="info-item price-item" class:new-candle={dataStore.isNewCandle}>
       <span class="info-label">Price:</span>
-      <span class="info-value price-value">{formatPrice(latestPrice)}</span>
+      <span class="info-value price-value">{formatPrice(dataStore.latestPrice)}</span>
     </div>
   {/if}
   
@@ -75,7 +68,7 @@
     <div class="info-item">
       <span class="info-label">Candles:</span>
       <span class="info-value">
-        {formatNumber(stats.visibleCount)} / {formatNumber(stats.totalCount)}
+        {formatNumber(dataStore.stats.visibleCount)} / {formatNumber(dataStore.stats.totalCount)}
       </span>
     </div>
   {/if}
@@ -99,19 +92,19 @@
   {#if showPerformance && performanceStore.isMonitoring}
     <div class="info-item performance">
       <span class="info-label">FPS:</span>
-      <span class="info-value" class:good={perfStats.fps >= 45} class:poor={perfStats.fps < 30}>
-        {perfStats.fps}
+      <span class="info-value" class:good={performanceStore.stats.fps >= 45} class:poor={performanceStore.stats.fps < 30}>
+        {performanceStore.stats.fps}
       </span>
-      {#if perfStats.cacheHitRate > 0}
+      {#if performanceStore.stats.cacheHitRate > 0}
         <span class="info-label">Cache:</span>
-        <span class="info-value">{perfStats.cacheHitRate}%</span>
+        <span class="info-value">{performanceStore.stats.cacheHitRate}%</span>
       {/if}
     </div>
   {/if}
   
   <div class="info-item settings">
     <span class="info-value small">
-      {config.timeframe} / {config.granularity}
+      {chartStore.config.timeframe} / {chartStore.config.granularity}
     </span>
   </div>
 </div>

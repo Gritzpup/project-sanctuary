@@ -1,6 +1,7 @@
 import type { CandlestickData } from 'lightweight-charts';
 import type { WebSocketCandle } from '../types/data.types';
 import { ChartDataService } from '../services/ChartDataService';
+import { ChartDebug } from '../utils/debug';
 
 class DataStore {
   private dataService = new ChartDataService();
@@ -51,14 +52,45 @@ class DataStore {
     startTime: number,
     endTime: number
   ): Promise<void> {
+    const loadStartTime = performance.now();
+    
     try {
+      if (granularity === '1d' || granularity === '1D') {
+        ChartDebug.critical(`[PERF] dataStore.loadData started`);
+      }
+      
       await this.dataService.initialize(pair, granularity);
+      
+      if (granularity === '1d' || granularity === '1D') {
+        ChartDebug.critical(`[PERF] About to fetch historical data`);
+      }
+      
+      const fetchStart = performance.now();
       const data = await this.dataService.fetchHistoricalData(startTime, endTime);
+      const fetchEnd = performance.now();
+      
+      if (granularity === '1d' || granularity === '1D') {
+        ChartDebug.critical(`[PERF] fetchHistoricalData took ${fetchEnd - fetchStart}ms`);
+      }
       
       this.setCandles(data);
       this.updateStats();
+      
+      // Special debug for 1d/3M combination
+      if (granularity === '1d' || granularity === '1D') {
+        const timeRange = endTime - startTime;
+        const expectedCandles = Math.ceil(timeRange / 86400); // 86400 seconds = 1 day
+        ChartDebug.critical(`1d granularity debug: Expected ${expectedCandles} candles, Got ${data.length} candles`);
+        ChartDebug.critical(`Time range: ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
+      }
+      
+      ChartDebug.log(`Data loaded: ${data.length} candles for ${pair} ${granularity}`);
+      
+      if (granularity === '1d' || granularity === '1D') {
+        ChartDebug.critical(`[PERF] dataStore.loadData completed in ${performance.now() - loadStartTime}ms`);
+      }
     } catch (error) {
-      console.error('DataStore: Error loading data:', error);
+      ChartDebug.error('Error loading data:', error);
       throw error;
     }
   }
@@ -85,11 +117,38 @@ class DataStore {
   }
 
   updateVisibleRange(from: number, to: number) {
+    // Debug visible range calculation
+    if (this._candles.length > 0) {
+      const granularity = this.dataService.currentGranularity;
+      if (granularity === '1d' || granularity === '1D') {
+        ChartDebug.critical(`[dataStore] updateVisibleRange called for 1d granularity:`);
+        ChartDebug.critical(`- From: ${new Date(from * 1000).toISOString()}`);
+        ChartDebug.critical(`- To: ${new Date(to * 1000).toISOString()}`);
+        ChartDebug.critical(`- Time range: ${(to - from) / 86400} days`);
+        ChartDebug.critical(`- Total candles available: ${this._candles.length}`);
+        
+        // Show first and last candle times
+        if (this._candles.length > 0) {
+          ChartDebug.critical(`- First available candle: ${new Date((this._candles[0].time as number) * 1000).toISOString()}`);
+          ChartDebug.critical(`- Last available candle: ${new Date((this._candles[this._candles.length - 1].time as number) * 1000).toISOString()}`);
+        }
+      }
+    }
+    
     this._visibleCandles = this._candles.filter(
       candle => candle.time >= from && candle.time <= to
     );
     
     this._dataStats.visibleCount = this._visibleCandles.length;
+    
+    // Debug result for 1d granularity
+    if (this.dataService.currentGranularity === '1d') {
+      ChartDebug.critical(`Visible candles after filter: ${this._visibleCandles.length}`);
+      if (this._visibleCandles.length > 0) {
+        ChartDebug.critical(`- First visible: ${new Date((this._visibleCandles[0].time as number) * 1000).toISOString()}`);
+        ChartDebug.critical(`- Last visible: ${new Date((this._visibleCandles[this._visibleCandles.length - 1].time as number) * 1000).toISOString()}`);
+      }
+    }
   }
 
   // Realtime updates
@@ -171,6 +230,8 @@ class DataStore {
       newestTime: count > 0 ? this._candles[count - 1].time as number : null,
       lastUpdate: Date.now()
     };
+    
+    ChartDebug.log(`Stats updated: Total: ${count}, Visible: ${this._visibleCandles.length}`);
   }
 
   // Cache management

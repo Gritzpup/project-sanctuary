@@ -7,6 +7,8 @@
   import { performanceStore } from '../stores/performanceStore.svelte';
   import { PluginManager } from '../plugins/base/PluginManager';
   import ChartCanvas from '../components/canvas/ChartCanvas.svelte';
+  import { ChartDebug } from '../utils/debug';
+  import { perfTest } from '../utils/performanceTest';
   
   export let pair: string = 'BTC-USD';
   export let enablePlugins: boolean = true;
@@ -62,6 +64,7 @@
       // Subscribe to configuration changes
       const unsubscribeConfig = chartStore.subscribeToEvents(async (event) => {
         if (event.type === 'period-change' || event.type === 'granularity-change') {
+          ChartDebug.log(`Config change event received: ${event.type}`, event.data);
           await loadData();
         }
       });
@@ -82,7 +85,7 @@
         unsubscribeConfig();
       };
     } catch (error) {
-      console.error('ChartCore: Initialization error:', error);
+      ChartDebug.error('Initialization error:', error);
       statusStore.setError(error instanceof Error ? error.message : 'Failed to initialize chart');
       chartStore.setError(error instanceof Error ? error.message : 'Unknown error');
     }
@@ -108,46 +111,124 @@
           clearInterval(checkInterval);
           resolve();
         }
-      }, 100);
+      }, 10); // Reduced from 100ms to 10ms for faster chart detection
       
-      // Timeout after 5 seconds
+      // Timeout after 1 second (reduced from 5 seconds)
       setTimeout(() => {
         clearInterval(checkInterval);
         resolve();
-      }, 5000);
+      }, 1000);
     });
   }
   
   async function loadData() {
-    const startTime = performance.now();
+    const loadStartTime = performance.now();
+    perfTest.reset();
+    perfTest.mark('loadData-start');
+    
+    const config = chartStore.config;
+    if (config.timeframe === '3M' && config.granularity === '1d') {
+      ChartDebug.critical(`[PERF FLOW START] Loading 3M/1d data at ${new Date().toISOString()}`);
+      ChartDebug.critical(`[PERF] Step 1: Starting loadData()`);
+    }
+    
     statusStore.setLoading('Loading chart data...');
     chartStore.setLoading(true);
     
     try {
-      const config = chartStore.config;
       const now = Math.floor(Date.now() / 1000);
       
       // Calculate time range based on period
       const periodSeconds = getPeriodSeconds(config.timeframe);
       const startTime = now - periodSeconds;
       
+      // Consolidated debug for 3M/1d (reduce multiple log calls)
+      if (config.timeframe === '3M' && config.granularity === '1d') {
+        const debugInfo = {
+          period: `${config.timeframe} = ${periodSeconds} seconds = ${periodSeconds / 86400} days`,
+          now: `${now} (${new Date(now * 1000).toISOString()})`,
+          start: `${startTime} (${new Date(startTime * 1000).toISOString()})`,
+          expectedCandles: Math.ceil(periodSeconds / 86400)
+        };
+        ChartDebug.critical('Loading 3M/1d data:', debugInfo);
+      }
+      
       // Load data
+      perfTest.mark('dataStore-loadData-start');
       await dataStore.loadData(
         pair,
         config.granularity,
         startTime,
         now
       );
+      perfTest.measure('dataStore.loadData', 'dataStore-loadData-start');
       
       // Set visible range
       if (chartCanvas) {
+        // Debug visible range setting (consolidated)
+        if (config.timeframe === '3M' && config.granularity === '1d') {
+          const visibleDays = ((now + 30) - startTime) / 86400;
+          ChartDebug.critical('Setting visible range', {
+            from: new Date(startTime * 1000).toISOString(),
+            to: new Date((now + 30) * 1000).toISOString(),
+            visibleDays: visibleDays.toFixed(1),
+            note: "'+30' adds 30 seconds to end time for last candle visibility"
+          });
+        }
         chartCanvas.setVisibleRange(startTime, now + 30);
+        
+        // After setting, immediately check what candles are visible
+        if (config.timeframe === '3M' && config.granularity === '1d') {
+          // Remove setTimeout delays - execute immediately
+          ChartDebug.critical(`After setVisibleRange, visible candles: ${dataStore.stats.visibleCount}`);
+          ChartDebug.critical(`Total candles loaded: ${dataStore.stats.totalCount}`);
+          
+          // If not all candles are visible, force fit content
+          if (dataStore.stats.visibleCount < dataStore.stats.totalCount) {
+            ChartDebug.critical(`Not all candles visible! Calling fitContent() to show all ${dataStore.stats.totalCount} candles`);
+            chartCanvas.fitContent();
+            
+            // Check again immediately
+            ChartDebug.critical(`After fitContent, visible candles: ${dataStore.stats.visibleCount}`);
+            
+            // If still not showing all candles, manually calculate and set range
+            if (dataStore.stats.visibleCount < dataStore.stats.totalCount && dataStore.candles.length > 0) {
+              const firstCandle = dataStore.candles[0];
+              const lastCandle = dataStore.candles[dataStore.candles.length - 1];
+              const buffer = 86400; // 1 day buffer on each side
+              
+              ChartDebug.critical(`Manually setting range from first to last candle`);
+              ChartDebug.critical(`First candle: ${new Date((firstCandle.time as number) * 1000).toISOString()}`);
+              ChartDebug.critical(`Last candle: ${new Date((lastCandle.time as number) * 1000).toISOString()}`);
+              
+              // Use the new showAllCandles method
+              chartCanvas.showAllCandles();
+              ChartDebug.critical(`Called showAllCandles() to display all candles`);
+            }
+          }
+        }
       }
       
-      performanceStore.recordDataLoadTime(performance.now() - startTime);
+      performanceStore.recordDataLoadTime(performance.now() - loadStartTime);
       statusStore.setReady();
+      
+      if (config.timeframe === '3M' && config.granularity === '1d') {
+        const totalTime = performance.now() - loadStartTime;
+        ChartDebug.critical(`[PERF FLOW END] Total loadData() time: ${totalTime}ms`);
+        
+        if (totalTime > 2000) {
+          ChartDebug.critical(`[PERF WARNING] Loading took ${(totalTime/1000).toFixed(1)}s - this is too slow!`);
+          ChartDebug.critical(`[PERF] Check the console for [PERF] logs to identify the bottleneck`);
+        }
+      }
+      
+      // Print performance report for 3M/1d
+      if (config.timeframe === '3M' && config.granularity === '1d') {
+        perfTest.measure('Total loadData', 'loadData-start');
+        perfTest.getReport();
+      }
     } catch (error) {
-      console.error('ChartCore: Error loading data:', error);
+      ChartDebug.error('Error loading data:', error);
       statusStore.setError('Failed to load data');
       chartStore.setError(error instanceof Error ? error.message : 'Unknown error');
     } finally {

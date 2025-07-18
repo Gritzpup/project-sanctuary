@@ -125,6 +125,15 @@
     chart.timeScale().subscribeVisibleTimeRangeChange(() => {
       const visibleRange = chart!.timeScale().getVisibleRange();
       if (visibleRange) {
+        // Debug visible range for 1d granularity
+        if (chartStore.config.granularity === '1d') {
+          console.log('[ChartCanvas] Visible range changed for 1d:', {
+            from: new Date(Number(visibleRange.from) * 1000).toISOString(),
+            to: new Date(Number(visibleRange.to) * 1000).toISOString(),
+            rangeInDays: (Number(visibleRange.to) - Number(visibleRange.from)) / 86400
+          });
+        }
+        
         dataStore.updateVisibleRange(
           Number(visibleRange.from),
           Number(visibleRange.to)
@@ -221,7 +230,35 @@
     chart?.timeScale().fitContent();
   }
   
+  export function showAllCandles() {
+    if (!chart || dataStore.candles.length === 0) return;
+    
+    const firstCandle = dataStore.candles[0];
+    const lastCandle = dataStore.candles[dataStore.candles.length - 1];
+    
+    // Add small buffer to ensure all candles are visible
+    const buffer = (lastCandle.time as number - firstCandle.time as number) * 0.05;
+    
+    chart.timeScale().setVisibleRange({
+      from: (firstCandle.time as number) - buffer,
+      to: (lastCandle.time as number) + buffer
+    });
+    
+    // Update visible range in dataStore
+    dataStore.updateVisibleRange(
+      (firstCandle.time as number) - buffer,
+      (lastCandle.time as number) + buffer
+    );
+  }
+  
   export function setVisibleRange(from: number, to: number) {
+    if (chartStore.config.granularity === '1d') {
+      console.log('[ChartCanvas] Setting visible range for 1d:', {
+        from: new Date(from * 1000).toISOString(),
+        to: new Date(to * 1000).toISOString(),
+        rangeInDays: (to - from) / 86400
+      });
+    }
     chart?.timeScale().setVisibleRange({ from, to });
   }
   

@@ -1,4 +1,5 @@
 import type { Candle, DataCache } from '../types/data.types';
+import { ChartDebug } from '../utils/debug';
 
 export class ChartCacheService {
   private cache: Map<string, DataCache> = new Map();
@@ -30,7 +31,7 @@ export class ChartCacheService {
       return null;
     }
 
-    console.log(`ChartCacheService: Cache hit for ${key}`);
+    ChartDebug.log(`Cache hit for ${key}`);
     return cached.data;
   }
 
@@ -53,7 +54,7 @@ export class ChartCacheService {
     };
 
     this.cache.set(key, cacheEntry);
-    console.log(`ChartCacheService: Cached ${data.length} candles for ${key}`);
+    ChartDebug.log(`Cached ${data.length} candles for ${key}`);
   }
 
   async clearForPair(pair: string): Promise<void> {
@@ -66,13 +67,13 @@ export class ChartCacheService {
     }
 
     keysToDelete.forEach(key => this.cache.delete(key));
-    console.log(`ChartCacheService: Cleared ${keysToDelete.length} entries for ${pair}`);
+    ChartDebug.log(`Cleared ${keysToDelete.length} entries for ${pair}`);
   }
 
   async clearAll(): Promise<void> {
     const size = this.cache.size;
     this.cache.clear();
-    console.log(`ChartCacheService: Cleared all ${size} cache entries`);
+    ChartDebug.log(`Cleared all ${size} cache entries`);
   }
 
   getStatus(): {
@@ -120,7 +121,7 @@ export class ChartCacheService {
     keysToDelete.forEach(key => this.cache.delete(key));
     
     if (keysToDelete.length > 0) {
-      console.log(`ChartCacheService: Cleaned up ${keysToDelete.length} expired entries`);
+      ChartDebug.log(`Cleaned up ${keysToDelete.length} expired entries`);
     }
   }
 

@@ -1,4 +1,5 @@
 import type { ChartConfig, ChartStatus, ChartRange, ChartEvent } from '../types/chart.types';
+import { ChartDebug } from '../utils/debug';
 
 type StateChangeCallback = (state: ChartState) => void;
 type EventCallback = (event: ChartEvent) => void;
@@ -159,7 +160,7 @@ export class ChartStateService {
       try {
         callback(currentState);
       } catch (error) {
-        console.error('ChartStateService: Error in state callback:', error);
+        ChartDebug.error('Error in state callback:', error);
       }
     });
   }
@@ -169,7 +170,7 @@ export class ChartStateService {
       try {
         callback(event);
       } catch (error) {
-        console.error('ChartStateService: Error in event callback:', error);
+        ChartDebug.error('Error in event callback:', error);
       }
     });
   }

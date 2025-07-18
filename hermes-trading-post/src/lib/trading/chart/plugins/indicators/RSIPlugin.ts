@@ -1,5 +1,6 @@
 import { IndicatorPlugin, type IndicatorSettings } from './IndicatorPlugin';
 import type { CandlestickData, LineData } from 'lightweight-charts';
+import { ChartDebug } from '../../utils/debug';
 
 export interface RSISettings extends IndicatorSettings {
   period: number;
@@ -110,7 +111,7 @@ export class RSIPlugin extends IndicatorPlugin {
     // or use price lines on a separate pane. This is a simplified version.
     
     // This would require the multi-pane support from Phase 4
-    console.log(`RSI Levels: Overbought ${settings.overboughtLevel}, Oversold ${settings.oversoldLevel}`);
+    ChartDebug.log(`RSI Levels: Overbought ${settings.overboughtLevel}, Oversold ${settings.oversoldLevel}`);
   }
 
   protected onDestroy(): Promise<void> {

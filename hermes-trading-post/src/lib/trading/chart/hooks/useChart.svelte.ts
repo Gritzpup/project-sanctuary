@@ -4,6 +4,7 @@ import type { PluginManager } from '../plugins';
 import { chartStore } from '../stores/chartStore.svelte';
 import { dataStore } from '../stores/dataStore.svelte';
 import { statusStore } from '../stores/statusStore.svelte';
+import { ChartDebug } from '../utils/debug';
 
 export interface ChartHookResult {
   chart: IChartApi | null;
@@ -53,7 +54,7 @@ export function useChart(): ChartHookResult {
         const canvas = chart.takeScreenshot();
         return canvas.toDataURL();
       } catch (error) {
-        console.error('Failed to take screenshot:', error);
+        ChartDebug.error('Failed to take screenshot:', error);
         return null;
       }
     },

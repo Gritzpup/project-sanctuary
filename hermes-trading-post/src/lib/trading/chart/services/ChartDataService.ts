@@ -4,6 +4,8 @@ import type { ChartRange } from '../types/chart.types';
 import { ChartAPIService } from './ChartAPIService';
 import { ChartCacheService } from './ChartCacheService';
 import { RealtimeCandleAggregator } from '../utils/RealtimeCandleAggregator';
+import { ChartDebug } from '../utils/debug';
+import { perfTest } from '../utils/performanceTest';
 
 export class ChartDataService {
   private apiService: ChartAPIService;
@@ -39,15 +41,40 @@ export class ChartDataService {
 
     // Check cache first if enabled
     if (useCache) {
+      perfTest.mark('cache-check-start');
+      
+      if (this.currentGranularity === '1d') {
+        ChartDebug.critical(`[PERF] Checking cache for 1d data`);
+      }
+      
       const cachedData = await this.cacheService.get(cacheKey);
+      perfTest.measure('Cache check', 'cache-check-start');
+      
       if (cachedData) {
-        console.log(`ChartDataService: Cache hit for ${cacheKey}`);
+        ChartDebug.log(`Cache hit for ${cacheKey}`);
+        if (this.currentGranularity === '1d') {
+          ChartDebug.critical(`[PERF] Cache HIT! Using ${cachedData.length} cached candles`);
+        }
         return this.transformToChartData(cachedData);
+      } else {
+        if (this.currentGranularity === '1d') {
+          ChartDebug.critical(`[PERF] Cache MISS! Will fetch from API`);
+        }
       }
     }
 
     // Fetch from API
-    console.log(`ChartDataService: Fetching data from API for ${this.currentPair}/${this.currentGranularity}`);
+    ChartDebug.log(`Fetching data from API for ${this.currentPair}/${this.currentGranularity}`);
+    
+    // Debug for 3M/1d
+    if (this.currentGranularity === '1d') {
+      const expectedCandles = Math.ceil((endTime - startTime) / 86400);
+      ChartDebug.critical(`Fetching historical data for 1d granularity:`);
+      ChartDebug.critical(`- Expected candles based on time range: ${expectedCandles}`);
+      ChartDebug.critical(`- Start: ${new Date(startTime * 1000).toISOString()}`);
+      ChartDebug.critical(`- End: ${new Date(endTime * 1000).toISOString()}`);
+    }
+    
     const request: DataRequest = {
       pair: this.currentPair,
       granularity: this.currentGranularity,
@@ -55,11 +82,23 @@ export class ChartDataService {
       end: endTime
     };
 
+    perfTest.mark('api-fetch-start');
     const data = await this.apiService.fetchCandles(request);
+    perfTest.measure('API fetch total', 'api-fetch-start');
+    
+    // Debug response for 1d
+    if (this.currentGranularity === '1d') {
+      ChartDebug.critical(`API returned ${data.length} candles for 1d granularity`);
+      if (data.length < 90 && (endTime - startTime) >= 7776000) { // 90 days
+        ChartDebug.critical(`WARNING: Less than 90 candles returned for 3M timeframe!`);
+      }
+    }
     
     // Cache the result
     if (useCache && data.length > 0) {
+      perfTest.mark('cache-set-start');
       await this.cacheService.set(cacheKey, data);
+      perfTest.measure('Cache set', 'cache-set-start');
     }
 
     return this.transformToChartData(data);

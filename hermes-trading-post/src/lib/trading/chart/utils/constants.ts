@@ -30,8 +30,7 @@ export const GRANULARITY_TO_SECONDS: Record<string, number> = {
   '4h': 14400,     // 4 hours
   '6h': 21600,     // 6 hours
   '12h': 43200,    // 12 hours
-  '1d': 86400,     // 1 day
-  '1D': 86400      // 1 day (alias)
+  '1d': 86400      // 1 day
 };
 
 // Display names

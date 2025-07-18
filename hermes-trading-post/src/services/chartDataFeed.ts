@@ -283,14 +283,12 @@ export class ChartDataFeed {
   private async performSmoothTransition(newGranularity: string) {
     if (this.isTransitioning || this.isManualMode) return;
     
-    console.log(`Transitioning from ${this.activeGranularity} to ${newGranularity}`);
     this.isTransitioning = true;
     this.targetGranularity = newGranularity;
     
     // Update active granularity
     this.activeGranularity = newGranularity;
     this.currentGranularity = newGranularity;
-    console.log(`ChartDataFeed: Granularity changed to ${newGranularity} (activeGranularity: ${this.activeGranularity}, currentGranularity: ${this.currentGranularity})`);
     
     // Notify UI of granularity change
     this.granularityChangeCallback?.(newGranularity);
@@ -303,12 +301,9 @@ export class ChartDataFeed {
   
   // Get current data for the visible range
   private async getCurrentDataForRange(startTime: number, endTime: number): Promise<CandleData[]> {
-    console.log(`Requested range: ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
     
     // Validate time range
     const validatedRange = this.validateTimeRange(startTime, endTime);
-    
-    console.log(`Validated range: ${new Date(validatedRange.start * 1000).toISOString()} to ${new Date(validatedRange.end * 1000).toISOString()}, isValid: ${validatedRange.isValid}`);
     
     if (!validatedRange.isValid) {
       return [];
@@ -332,8 +327,6 @@ export class ChartDataFeed {
       startTime,
       endTime
     );
-    
-    console.log(`Cache returned ${cacheResult.candles.length} candles, ${cacheResult.gaps.length} gaps`);
     
     // Fill gaps if any
     if (cacheResult.gaps.length > 0) {
@@ -379,7 +372,15 @@ export class ChartDataFeed {
 
   // Fill gaps in data
   private async fillGaps(gaps: Array<{ start: number; end: number }>, granularity: string): Promise<void> {
-    console.log(`Filling ${gaps.length} gaps for ${granularity}`);
+    console.log(`[FILL GAPS] Received ${gaps.length} gaps for ${granularity}:`, {
+      gaps: gaps.slice(0, 5).map(g => ({
+        start: new Date(g.start * 1000).toISOString(),
+        end: new Date(g.end * 1000).toISOString(),
+        days: Math.round((g.end - g.start) / 86400)
+      })),
+      totalGaps: gaps.length,
+      ...(gaps.length > 5 ? { note: `... and ${gaps.length - 5} more gaps` } : {})
+    });
     
     // Filter out future gaps first
     const now = Math.floor(Date.now() / 1000);
@@ -396,7 +397,8 @@ export class ChartDataFeed {
     }
     
     // For large numbers of gaps, process in batches to avoid overwhelming the API
-    const batchSize = 5; // Process 5 gaps at a time
+    // With gap merging, we should have fewer gaps, so we can process more in parallel
+    const batchSize = validGaps.length <= 3 ? validGaps.length : 10; // Process all if 3 or fewer, otherwise 10 at a time
     
     for (let i = 0; i < validGaps.length; i += batchSize) {
       const batch = validGaps.slice(i, i + batchSize);
@@ -426,7 +428,7 @@ export class ChartDataFeed {
       
       // Add a small delay between batches to be nice to the API
       if (i + batchSize < validGaps.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 200)); // Reduced delay since we have fewer gaps
       }
     }
   }
@@ -446,7 +448,26 @@ export class ChartDataFeed {
       const maxCandlesPerRequest = 300; // Coinbase limit
       const maxTimeRange = maxCandlesPerRequest * granularitySeconds;
       
+      console.log(`[FETCH GAP] Processing gap for ${granularity}:`, {
+        start: new Date(gapStart * 1000).toISOString(),
+        end: new Date(gapEnd * 1000).toISOString(),
+        totalDays: Math.round((gapEnd - gapStart) / 86400),
+        maxTimeRange: maxTimeRange / 86400 + ' days',
+        granularitySeconds
+      });
+      
+      // For daily candles, check if we're requesting data too far in the past
+      // Coinbase typically only has ~1 year of daily data
+      if (granularity === '1D' || granularity === '1d') {
+        const oneYearAgo = Math.floor(Date.now() / 1000) - (365 * 86400);
+        if (gapEnd < oneYearAgo) {
+          console.log(`Skipping gap fetch for ${granularity} - data too old (before ${new Date(oneYearAgo * 1000).toISOString()})`);
+          return;
+        }
+      }
+      
       let currentStart = gapStart;
+      let consecutiveEmptyResponses = 0;
       
       // If the gap is too large, split it into smaller requests
       while (currentStart < gapEnd) {
@@ -464,16 +485,23 @@ export class ChartDataFeed {
         if (candles.length > 0) {
           console.log(`Fetched ${candles.length} candles for chunk`);
           await this.cache.storeChunk(this.symbol, granularity, candles);
+          consecutiveEmptyResponses = 0; // Reset counter
           
           // If we got fewer candles than expected, data might not exist that far back
           const expectedCandles = Math.floor((currentEnd - currentStart) / granularitySeconds);
-          if (candles.length < expectedCandles * 0.8) { // Allow 20% missing for weekends/holidays
+          if (candles.length < expectedCandles * 0.98) { // Allow 2% missing for API downtime or data gaps
             console.warn(`Got ${candles.length} candles but expected ~${expectedCandles}. Data may not exist before ${new Date(candles[0].time * 1000).toISOString()}`);
             break; // Stop trying to fetch older data
           }
         } else {
           console.warn(`No candles returned for range ${new Date(currentStart * 1000).toISOString()} to ${new Date(currentEnd * 1000).toISOString()}`);
-          break; // No point continuing if we get empty results
+          consecutiveEmptyResponses++;
+          
+          // If we get 3 consecutive empty responses, assume no more data exists
+          if (consecutiveEmptyResponses >= 3) {
+            console.log(`Stopping gap fetch after ${consecutiveEmptyResponses} consecutive empty responses - assuming no data exists`);
+            break;
+          }
         }
         
         currentStart = currentEnd;
@@ -610,7 +638,11 @@ export class ChartDataFeed {
       '1d': 86400,  // Legacy support
       '1D': 86400  // Support both lowercase and uppercase
     };
-    return map[granularity] || 60;
+    const seconds = map[granularity] || 60;
+    if (granularity === '1D' || granularity === '1d') {
+      console.log(`[GRANULARITY] ${granularity} = ${seconds} seconds`);
+    }
+    return seconds;
   }
 
   // Central time range validation method

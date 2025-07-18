@@ -7,6 +7,7 @@
     GRANULARITY_DISPLAY_NAMES,
     RECOMMENDED_GRANULARITIES 
   } from '../../utils/constants';
+  import { ChartDebug } from '../../utils/debug';
   
   export let showTimeframes: boolean = true;
   export let showGranularities: boolean = true;
@@ -27,6 +28,7 @@
     [];
   
   function handleTimeframeChange(timeframe: string) {
+    ChartDebug.log(`Timeframe button clicked: ${timeframe}`);
     chartStore.setTimeframe(timeframe);
     
     // Auto-select appropriate granularity if current one isn't recommended
@@ -34,6 +36,7 @@
     const recommended = RECOMMENDED_GRANULARITIES[timeframe] || [];
     
     if (!recommended.includes(currentGranularity) && recommended.length > 0) {
+      ChartDebug.log(`Auto-selecting granularity: ${recommended[0]}`);
       chartStore.setGranularity(recommended[0]);
     }
   }

@@ -157,6 +157,7 @@ export class IndexedDBCache {
         end = Math.floor(date.getTime() / 1000) - 1;
         break;
       case '1d':
+      case '1D':
       default:
         // Yearly chunks for daily data
         date.setUTCMonth(0, 1);
@@ -330,14 +331,9 @@ export class IndexedDBCache {
 
   // Check if a chunk has all expected candles
   private isChunkComplete(candles: CandleData[], granularity: string, boundaries: { start: number; end: number }): boolean {
-    if (candles.length === 0) return false;
-    
-    const granularitySeconds = this.getGranularitySeconds(granularity);
-    const expectedCandles = Math.floor((boundaries.end - boundaries.start) / granularitySeconds);
-    
-    // Allow some missing candles for weekends/holidays
-    const tolerance = granularity === '1d' ? 0.7 : 0.95;
-    return candles.length >= expectedCandles * tolerance;
+    // Simply mark as complete if we have any candles
+    // The gap detection in getCachedCandles will handle missing data
+    return candles.length > 0;
   }
 
   // Get granularity in seconds
@@ -348,7 +344,8 @@ export class IndexedDBCache {
       '15m': 900,
       '1h': 3600,
       '6h': 21600,
-      '1d': 86400
+      '1d': 86400,
+      '1D': 86400  // Support uppercase
     };
     return map[granularity] || 60;
   }
@@ -532,12 +529,6 @@ export class IndexedDBCache {
     startTime: number,
     endTime: number
   ): Promise<{ candles: CandleData[]; gaps: Array<{ start: number; end: number }> }> {
-    console.log('getCachedCandles called:', { 
-      symbol, 
-      granularity, 
-      startTime: new Date(startTime * 1000).toISOString(), 
-      endTime: new Date(endTime * 1000).toISOString() 
-    });
     
     try {
       // Ensure DB is initialized
@@ -552,13 +543,10 @@ export class IndexedDBCache {
       
       // If the entire range is in the future, return empty
       if (startTime > now) {
-        console.log(`getCachedCandles: Entire range is in future (start: ${new Date(startTime * 1000).toISOString()}, now: ${new Date(now * 1000).toISOString()})`);
         return { candles: [], gaps: [] };
       }
       
       const chunks = await this.getChunksForTimeRange(symbol, granularity, startTime, endTime);
-      
-      console.log(`Found ${chunks.length} chunks for ${symbol} ${granularity}`);
       
       if (chunks.length === 0) {
         return {
@@ -618,23 +606,57 @@ export class IndexedDBCache {
       return [{ start: startTime, end: endTime }];
     }
     
+    // For large granularities (1D), merge consecutive gaps to reduce API calls
+    const shouldMergeGaps = granularitySeconds >= 86400; // 1 day or more
+    const maxGapSize = 300 * granularitySeconds; // Max 300 candles per API request
+    
+    // Helper function to add or merge gaps
+    const addGap = (gapStart: number, gapEnd: number) => {
+      if (shouldMergeGaps && gaps.length > 0) {
+        const lastGap = gaps[gaps.length - 1];
+        // If this gap is consecutive with the last one and combined size is reasonable
+        const isConsecutive = gapStart - lastGap.end <= granularitySeconds * 2;
+        const combinedSize = gapEnd - lastGap.start;
+        
+        if (isConsecutive && combinedSize <= maxGapSize) {
+          // Merge with the last gap
+          lastGap.end = gapEnd;
+          return;
+        }
+      }
+      gaps.push({ start: gapStart, end: gapEnd });
+    };
+    
     // Check gap at the beginning
     if (candles[0].time - startTime > granularitySeconds) {
-      gaps.push({ start: startTime, end: candles[0].time - granularitySeconds });
+      addGap(startTime, candles[0].time - granularitySeconds);
     }
     
     // Check gaps between candles
     for (let i = 1; i < candles.length; i++) {
       const expectedNext = candles[i - 1].time + granularitySeconds;
       if (candles[i].time - expectedNext > granularitySeconds) {
-        gaps.push({ start: expectedNext, end: candles[i].time - granularitySeconds });
+        addGap(expectedNext, candles[i].time - granularitySeconds);
       }
     }
     
     // Check gap at the end
     const lastCandle = candles[candles.length - 1];
     if (endTime - lastCandle.time > granularitySeconds) {
-      gaps.push({ start: lastCandle.time + granularitySeconds, end: endTime });
+      addGap(lastCandle.time + granularitySeconds, endTime);
+    }
+    
+    // Log gap optimization for debugging
+    if (shouldMergeGaps) {
+      console.log(`[GAP DETECTION] ${granularity} gaps:`, {
+        totalGaps: gaps.length,
+        shouldMerge: shouldMergeGaps,
+        gaps: gaps.map(g => ({
+          start: new Date(g.start * 1000).toISOString(),
+          end: new Date(g.end * 1000).toISOString(),
+          days: Math.round((g.end - g.start) / 86400)
+        }))
+      });
     }
     
     return gaps;
