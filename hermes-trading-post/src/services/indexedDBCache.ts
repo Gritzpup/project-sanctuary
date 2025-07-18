@@ -44,8 +44,8 @@ export class IndexedDBCache {
     '15m': 2880,    // 30 days of 15-minute candles (was 120 days)
     '1h': 2160,     // 90 days of hourly candles (was 365 days)
     '6h': 1460,     // 1 year of 6-hour candles (was 5 years)
-    '1d': 730,      // 2 years of daily candles (was 10 years)
-    '1D': 730       // 2 years of daily candles (was 10 years)
+    '1d': 2200,     // 6 years of daily candles (supports 5Y chart)
+    '1D': 2200      // 6 years of daily candles (supports 5Y chart)
   };
 
   constructor() {
@@ -358,8 +358,8 @@ export class IndexedDBCache {
       '15m': 2016,   // 3 weeks of 15-minute candles
       '1h': 1000,    // ~42 days of hourly candles
       '6h': 600,     // ~150 days of 6-hour candles
-      '1d': 400,     // ~1 year of daily candles
-      '1D': 400      // ~1 year of daily candles
+      '1d': 500,     // ~1.3 years of daily candles (increased for 5Y support)
+      '1D': 500      // ~1.3 years of daily candles (increased for 5Y support)
     };
     return limits[granularity] || 1000;
   }

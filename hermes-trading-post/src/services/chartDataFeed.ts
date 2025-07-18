@@ -456,15 +456,7 @@ export class ChartDataFeed {
         granularitySeconds
       });
       
-      // For daily candles, check if we're requesting data too far in the past
-      // Coinbase typically only has ~1 year of daily data
-      if (granularity === '1D' || granularity === '1d') {
-        const oneYearAgo = Math.floor(Date.now() / 1000) - (365 * 86400);
-        if (gapEnd < oneYearAgo) {
-          console.log(`Skipping gap fetch for ${granularity} - data too old (before ${new Date(oneYearAgo * 1000).toISOString()})`);
-          return;
-        }
-      }
+      // Note: Coinbase provides several years of daily data, so we don't need to limit how far back we fetch
       
       let currentStart = gapStart;
       let consecutiveEmptyResponses = 0;
