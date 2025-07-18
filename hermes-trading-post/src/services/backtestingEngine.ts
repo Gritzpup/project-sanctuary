@@ -271,7 +271,6 @@ export class BacktestingEngine {
     const averageHoldTime = holdTimes.length > 0 ? holdTimes.reduce((a, b) => a + b, 0) / holdTimes.length : 0;
 
     // Calculate additional metrics
-    const buyTrades = this.trades.filter(t => t.type === 'buy');
     const avgPositionSize = buyTrades.length > 0 
       ? buyTrades.reduce((sum, t) => sum + t.value, 0) / buyTrades.length 
       : 0;

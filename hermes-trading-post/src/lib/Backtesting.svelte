@@ -228,28 +228,6 @@ export class ${getStrategyFileName(type)} extends Strategy {
 }`;
   }
   
-  function isGranularityValid(granularity: string, period: string): boolean {
-    return validGranularities[period]?.includes(granularity) || false;
-  }
-  
-  function selectGranularity(granularity: string) {
-    if (isGranularityValid(granularity, selectedPeriod)) {
-      selectedGranularity = granularity;
-    }
-  }
-  
-  function selectPeriod(period: string) {
-    selectedPeriod = period;
-    
-    if (!isGranularityValid(selectedGranularity, period)) {
-      const validOptions = validGranularities[period];
-      if (validOptions && validOptions.length > 0) {
-        const middleIndex = Math.floor(validOptions.length / 2);
-        selectedGranularity = validOptions[middleIndex];
-      }
-    }
-  }
-  
   function handleChartGranularityChange(newGranularity: string) {
     if (selectedGranularity !== newGranularity) {
       selectedGranularity = newGranularity;
