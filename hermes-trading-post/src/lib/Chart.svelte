@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { createChart, ColorType, CandlestickSeries } from 'lightweight-charts';
+  import { createChart, ColorType } from 'lightweight-charts';
   import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
   import { ChartDataFeed } from '../services/chartDataFeed';
   import type { CandleData } from '../types/coinbase';
@@ -220,8 +220,8 @@
         return;
       }
 
-      // Create candle series using the new v5 API
-      candleSeries = chart.addSeries(CandlestickSeries, {
+      // Create candle series
+      candleSeries = chart.addCandlestickSeries({
         upColor: '#26a69a',
         downColor: '#ef5350',
         borderUpColor: '#26a69a',
