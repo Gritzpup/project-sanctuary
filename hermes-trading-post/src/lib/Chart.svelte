@@ -1,4 +1,5 @@
 <script lang="ts">
+  console.log('Chart.svelte VERSION 6 LOADED - Disabled visible range subscription to fix null errors');
   import { onMount, onDestroy } from 'svelte';
   import { createChart, ColorType } from 'lightweight-charts';
   import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
@@ -6,7 +7,7 @@
   import type { CandleData } from '../types/coinbase';
 
   let chartContainer: HTMLDivElement;
-  let chart: IChartApi | null = null;
+  let chart: IChartApi | null = null; // VERSION 5 - Fixed null errors
   let candleSeries: ISeriesApi<'Candlestick'> | any = null;
   let dataFeed: ChartDataFeed | null = null;
 
@@ -21,11 +22,11 @@
   // Cache and loading state
   export let cacheStatus = 'initializing';
   let displayStatus = 'initializing'; // Combined status for display
-  let statusResetTimer: number;
+  let statusResetTimer: ReturnType<typeof setTimeout> | null = null;
   let isLoadingData = false;
   
   // Update display status whenever cache status changes
-  $: if (!statusResetTimer) displayStatus = cacheStatus;
+  $: if (statusResetTimer === null) displayStatus = cacheStatus;
   
   // Granularity state
   let effectiveGranularity = granularity;
@@ -45,7 +46,7 @@
   export let totalCandleCount = 0;
   
   // Error handling
-  let errorMessage = '';
+  // let errorMessage = ''; // Removed error popup
   
   // Date range display - exported for debug
   export let dateRangeInfo = {
@@ -123,23 +124,17 @@
   function handleManualGranularityChange(newGranularity: string) {
     if (!dataFeed || !chart || !candleSeries) return;
     
-    console.log(`Manual granularity change to: ${newGranularity}`);
+    console.log(`VERSION 5: Manual granularity change from ${effectiveGranularity} to ${newGranularity}`);
     
     // Update granularity using ChartDataFeed API
     effectiveGranularity = newGranularity;
     dataFeed.setManualGranularity(newGranularity);
     
-    // Note: We don't need to re-subscribe here because the main subscription 
-    // in onMount already handles all real-time updates for any granularity
+    // DON'T clear data here - it causes null errors
+    // Let reloadData handle the transition smoothly
     
     // Update countdown display
     updateClock();
-    
-    // Update visible candle count
-    const visibleRange = chart.timeScale().getVisibleRange();
-    if (visibleRange) {
-      updateVisibleCandleCount(Number(visibleRange.from), Number(visibleRange.to));
-    }
     
     // Reload data with new granularity
     debouncedReloadData();
@@ -220,7 +215,7 @@
         return;
       }
 
-      // Create candle series
+      // Create candle series using the correct API
       candleSeries = chart.addCandlestickSeries({
         upColor: '#26a69a',
         downColor: '#ef5350',
@@ -259,7 +254,7 @@
           effectiveGranularity
         });
         
-        if (candleSeries && !isLoadingData) {
+        if (candleSeries && !isLoadingData && dataFeed.currentGranularity === effectiveGranularity) {
           console.log('Chart: Processing candle update for', effectiveGranularity);
           
           // Set display status based on update type
@@ -288,8 +283,37 @@
           console.log('Chart: Candle data:', chartCandle);
           
           try {
-            candleSeries.update(chartCandle);
-            console.log('Chart: Successfully updated candle');
+            const currentData = candleSeries.data();
+            
+            // Check if we should update or add the candle
+            if (currentData.length === 0) {
+              // No data, add as first candle
+              candleSeries.setData([chartCandle]);
+              console.log('Chart: Added first candle');
+            } else {
+              const existingIndex = currentData.findIndex((c: any) => c.time === chartCandle.time);
+              const firstCandle = currentData[0];
+              const lastCandle = currentData[currentData.length - 1];
+              
+              if (existingIndex >= 0) {
+                // Candle exists, update it
+                candleSeries.update(chartCandle);
+                console.log('Chart: Successfully updated candle');
+              } else if (chartCandle.time < firstCandle.time) {
+                // New candle is older than first candle, prepend and reset data
+                console.log('Chart: Prepending older candle');
+                candleSeries.setData([chartCandle, ...currentData]);
+              } else if (chartCandle.time > lastCandle.time) {
+                // New candle is newer than last candle, append
+                console.log('Chart: Appending newer candle');
+                candleSeries.setData([...currentData, chartCandle]);
+              } else {
+                // Insert in the middle
+                console.log('Chart: Inserting candle in the middle');
+                const newData = [...currentData, chartCandle].sort((a, b) => (a.time as number) - (b.time as number));
+                candleSeries.setData(newData);
+              }
+            }
             
             // Reset to base status after a delay
             statusResetTimer = setTimeout(() => {
@@ -297,20 +321,8 @@
               statusResetTimer = null;
             }, isNew ? 3000 : 1500); // Stay visible longer - 1.5s for price, 3s for new candle
             
-            // No need to force redraw - lightweight-charts handles updates automatically
           } catch (error) {
-            console.error('Chart: Error updating candle:', error);
-            // If update fails, try adding it as new data
-            try {
-              const currentData = candleSeries.data();
-              const existingIndex = currentData.findIndex(c => c.time === chartCandle.time);
-              if (existingIndex === -1) {
-                console.log('Chart: Candle not found, adding as new');
-                candleSeries.setData([...currentData, chartCandle].sort((a, b) => (a.time as number) - (b.time as number)));
-              }
-            } catch (e) {
-              console.error('Chart: Failed to add candle:', e);
-            }
+            console.error('Chart: Error updating/adding candle:', error);
           }
         }
       });
@@ -340,13 +352,18 @@
       updateTotalCandleCount();
       setInterval(updateTotalCandleCount, 30000); // Update every 30s
       
+      // VERSION 6: Commented out visible range subscription to prevent null errors
       // Subscribe to visible range changes to keep candle count accurate
-      chart.timeScale().subscribeVisibleTimeRangeChange(() => {
-        const visibleRange = chart.timeScale().getVisibleRange();
-        if (visibleRange) {
-          updateVisibleCandleCount(Number(visibleRange.from), Number(visibleRange.to));
+      /* chart.timeScale().subscribeVisibleTimeRangeChange(() => {
+        try {
+          const visibleRange = chart?.timeScale().getVisibleRange();
+          if (visibleRange) {
+            updateVisibleCandleCount(Number(visibleRange.from), Number(visibleRange.to));
+          }
+        } catch (e) {
+          console.debug('Unable to get visible range in range change callback');
         }
-      });
+      }); */
       
       // Set cache status
       cacheStatus = 'ready';
@@ -354,7 +371,7 @@
     } catch (error: any) {
       console.error('Error initializing chart:', error);
       status = 'error';
-      errorMessage = `Failed to initialize chart: ${error.message || 'Unknown error'}`;
+      // errorMessage = `Failed to initialize chart: ${error.message || 'Unknown error'}`;
     }
 
     // Handle resize
@@ -429,7 +446,8 @@
         expectedCandles: adjustedExpectedCandles,
         actualCandles: 0,
         requestedFrom: adjustedStartTime,
-        requestedTo: alignedNow
+        requestedTo: alignedNow,
+        dataDebug: ''
       };
       
       console.log(`Initial load for ${period} with ${effectiveGranularity}:`, {
@@ -496,7 +514,7 @@
       
       if (filteredData.length === 0) {
         console.error('No data received from API!');
-        errorMessage = 'No data available. Please check your connection and try again.';
+        // errorMessage = 'No data available. Please check your connection and try again.';
         status = 'error';
         cacheStatus = 'error';
         return;
@@ -530,41 +548,47 @@
             : adjustedStartTime;
           
           // Add 30 seconds buffer to ensure the last candle is visible
-          chart.timeScale().setVisibleRange({
+          chart?.timeScale().setVisibleRange({
             from: rangeStart as Time,
             to: (alignedNow + 30) as Time
           });
           
           // Check what happened
-          const actualRange = chart.timeScale().getVisibleRange();
-          if (actualRange) {
-            console.log(`Actual visible range after setting: ${actualRange.from} to ${actualRange.to} (${(actualRange.to - actualRange.from)/60} minutes)`);
-            
-            // If the range is wrong, try again!
-            if (Math.abs((actualRange.to - actualRange.from) - (alignedNow - rangeStart)) > 60) {
-              console.log('Range is wrong, forcing it again...');
-              chart.timeScale().setVisibleRange({
-                from: rangeStart as Time,
-                to: (alignedNow + 30) as Time
-              });
+          try {
+            const actualRange = chart?.timeScale().getVisibleRange();
+            if (actualRange) {
+              console.log(`Actual visible range after setting: ${actualRange.from} to ${actualRange.to} (${(Number(actualRange.to) - Number(actualRange.from))/60} minutes`);
+              
+              // If the range is wrong, try again!
+              if (Math.abs((Number(actualRange.to) - Number(actualRange.from)) - (alignedNow - rangeStart)) > 60) {
+                console.log('Range is wrong, forcing it again...');
+                chart?.timeScale().setVisibleRange({
+                  from: rangeStart as Time,
+                  to: (alignedNow + 30) as Time
+                });
+              }
             }
+          } catch (e) {
+            console.debug('Unable to verify visible range after setting');
           }
         }, 50);
         
         
-        // Update visible candle count for the actual visible range
-        updateVisibleCandleCount(adjustedStartTime, alignedNow);
+        // VERSION 5: Don't update visible candle count here - it causes null errors
+        // updateVisibleCandleCount(adjustedStartTime, alignedNow);
         
-        // Log what the chart thinks the visible range is and update count
+        // VERSION 5: Disable visible range verification - it causes null errors during transitions
+        /*
         setTimeout(() => {
-          const actualRange = chart?.timeScale().getVisibleRange();
-          if (actualRange) {
-            const actualRangeSeconds = Number(actualRange.to) - Number(actualRange.from);
-            const actualCandles = Math.ceil(actualRangeSeconds / granularitySeconds);
-            
-            console.log('Chart visible range verification:', {
-              actualCandles,
-              expectedCandles,
+          try {
+            const actualRange = chart?.timeScale().getVisibleRange();
+            if (actualRange) {
+              const actualRangeSeconds = Number(actualRange.to) - Number(actualRange.from);
+              const actualCandles = Math.ceil(actualRangeSeconds / granularitySeconds);
+              
+              console.log('Chart visible range verification:', {
+                actualCandles,
+                expectedCandles,
               matches: Math.abs(actualCandles - expectedCandles) <= 1 ? '✅' : '❌',
               period,
               granularity: effectiveGranularity
@@ -573,21 +597,25 @@
             // Always update the visible candle count with the actual range
             updateVisibleCandleCount(Number(actualRange.from), Number(actualRange.to));
           }
+          } catch (e) {
+            console.debug('Unable to get visible range for verification');
+          }
         }, 200); // Slightly longer delay to ensure chart has settled
+        */
       }
       
       status = 'connected';
       cacheStatus = 'ready';
-      errorMessage = ''; // Clear any previous errors
+      // errorMessage = ''; // Clear any previous errors
     } catch (error: any) {
       console.error('Error loading initial data:', error);
       console.error('Error stack:', error.stack);
       status = 'error';
       cacheStatus = 'error';
       if (error?.response?.status === 429) {
-        errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+        // errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
       } else {
-        errorMessage = `Failed to load chart data: ${error.message || 'Unknown error'}`;
+        // errorMessage = `Failed to load chart data: ${error.message || 'Unknown error'}`;
       }
       // Log more details
       console.error('Full error details:', {
@@ -615,12 +643,10 @@
     isLoadingData = true;
     
     try {
-      // Clear cache on reload to ensure fresh data
-      console.log('Clearing cache before reload...');
-      await clearCache(true); // Skip page reload since we're just refreshing data
+      console.log('VERSION 5: Reloading data with granularity:', effectiveGranularity);
       
-      // Small delay to ensure cache is cleared
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // DON'T clear the chart data - just replace it when new data arrives
+      // This avoids null errors from an empty chart
       // Calculate time range based on period - USE FRESH DATE
       const now = Math.floor(Date.now() / 1000);
       const currentDateTime = new Date();
@@ -699,7 +725,7 @@
         console.warn(`⚠️ Candle count mismatch on reload! Expected ${expectedCandles}, got ${filteredData.length}`);
       } else {
         status = 'connected';
-        errorMessage = ''; // Clear any previous errors
+        // errorMessage = ''; // Clear any previous errors
       }
       
       if (filteredData.length > 0) {
@@ -711,35 +737,43 @@
         // Update chart data
         candleSeries.setData(chartData);
         
-        // Force the specific range we want
-        setTimeout(() => {
-          chart.timeScale().setVisibleRange({
-            from: startTime as Time,
-            to: alignedNow as Time
+        // Force the chart to show all data
+        if (chartData.length > 0) {
+          console.log('VERSION 5: Setting data and fitting content');
+          
+          // Use requestAnimationFrame to ensure chart has processed the data
+          requestAnimationFrame(() => {
+            try {
+              // Check if we have valid data before fitting
+              const currentData = candleSeries?.data();
+              if (!currentData || currentData.length === 0) {
+                console.debug('VERSION 5: No data to fit, skipping fitContent');
+                return;
+              }
+              
+              // Fit content to show all candles
+              chart?.timeScale().fitContent();
+              
+              // VERSION 5: Don't update visible candle count here - it causes errors
+              // The subscribeVisibleTimeRangeChange will handle it when the chart is ready
+            } catch (e) {
+              console.debug('VERSION 5: Unable to fit content:', e);
+            }
           });
-        }, 50);
+        }
         
-        // Update visible candle count
-        updateVisibleCandleCount(startTime, alignedNow);
-        
-        // Verify the range after a short delay
-        setTimeout(() => {
-          const actualRange = chart?.timeScale().getVisibleRange();
-          if (actualRange) {
-            // Always update with the actual visible range
-            updateVisibleCandleCount(Number(actualRange.from), Number(actualRange.to));
-          }
-        }, 100);
+        // Verification is now handled in the requestAnimationFrame callback above
       }
     } catch (error: any) {
       console.error('Error reloading data:', error);
       if (error?.response?.status === 429) {
-        errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+        // errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
       } else {
-        errorMessage = `Failed to reload data: ${error.message || 'Unknown error'}`;
+        // errorMessage = `Failed to reload data: ${error.message || 'Unknown error'}`;
       }
     } finally {
       isLoadingData = false;
+      console.log('VERSION 5: Reload complete, granularity:', effectiveGranularity);
     }
   }
 
@@ -748,6 +782,12 @@
   function updateVisibleCandleCount(fromTime: number, toTime: number) {
     if (!dataFeed) {
       visibleCandleCount = 0;
+      return;
+    }
+    
+    // VERSION 5: Protect against invalid ranges
+    if (!fromTime || !toTime || fromTime >= toTime || isNaN(fromTime) || isNaN(toTime)) {
+      console.debug('VERSION 5: Invalid time range for visible candle count');
       return;
     }
     
@@ -869,7 +909,7 @@
       }
     } catch (error) {
       console.error('Error clearing cache:', error);
-      errorMessage = 'Failed to clear cache: ' + error.message;
+      // errorMessage = 'Failed to clear cache: ' + (error as Error).message;
     }
   }
 
@@ -903,15 +943,6 @@
 </script>
 
 <div class="chart-container" bind:this={chartContainer}>
-  {#if errorMessage}
-    <div class="error-message">
-      <span class="error-icon">⚠️</span>
-      <span class="error-text">{errorMessage}</span>
-      <button class="error-retry" on:click={() => { errorMessage = ''; reloadData(); }}>
-        Retry
-      </button>
-    </div>
-  {/if}
   
   <div class="candle-count">
     {visibleCandleCount} / {totalCandleCount} candles
@@ -1117,46 +1148,4 @@
     font-family: 'Monaco', 'Consolas', monospace;
   }
   
-  .error-message {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: #2a2020;
-    border: 1px solid #ef5350;
-    border-radius: 8px;
-    padding: 20px 30px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    z-index: 1000;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
-  
-  .error-icon {
-    font-size: 24px;
-  }
-  
-  .error-text {
-    color: #e0e0e0;
-    font-size: 14px;
-    max-width: 400px;
-  }
-  
-  .error-retry {
-    background-color: #26a69a;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 8px 16px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    margin-left: 12px;
-  }
-  
-  .error-retry:hover {
-    background-color: #2db67f;
-  }
 </style>

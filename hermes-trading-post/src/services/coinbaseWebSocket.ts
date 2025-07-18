@@ -285,6 +285,13 @@ export class CoinbaseWebSocket {
 
   subscribeTicker(symbol: string) {
     console.log(`CoinbaseWebSocket: subscribeTicker called for ${symbol}`);
+    
+    // Check if already subscribed
+    if (this.subscribedSymbols.has(symbol)) {
+      console.log(`CoinbaseWebSocket: Already subscribed to ${symbol}, skipping`);
+      return;
+    }
+    
     this.subscribedSymbols.add(symbol);
     
     // Always try to subscribe immediately if connected

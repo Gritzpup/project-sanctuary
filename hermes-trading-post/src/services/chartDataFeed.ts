@@ -161,7 +161,23 @@ export class ChartDataFeed {
               console.log(`ChartDataFeed: Updating existing 1m candle at index ${lastIndex}, time: ${new Date(candleData.time * 1000).toISOString()}`);
               this.currentData[lastIndex] = candleData;
             } else {
-              console.log(`ChartDataFeed: Could not find 1m candle to update. Last candle time: ${lastIndex >= 0 ? new Date(this.currentData[lastIndex].time * 1000).toISOString() : 'none'}, update time: ${new Date(candleData.time * 1000).toISOString()}`);
+              // Check if this is actually a new candle that should be added
+              if (lastIndex < 0 || candleData.time > this.currentData[lastIndex].time) {
+                console.log(`ChartDataFeed: Adding new 1m candle at ${new Date(candleData.time * 1000).toISOString()}`);
+                this.currentData.push(candleData);
+                
+                // Apply sliding window to maintain data size
+                const maxCandles = 1440; // 24 hours of 1m candles
+                if (this.currentData.length > maxCandles) {
+                  this.currentData = this.currentData.slice(-maxCandles);
+                  console.log(`ChartDataFeed: Applied sliding window, kept last ${maxCandles} candles`);
+                }
+                
+                // Mark this as a new candle for the notification
+                update.isNewCandle = true;
+              } else {
+                console.log(`ChartDataFeed: Could not find 1m candle to update. Last candle time: ${lastIndex >= 0 ? new Date(this.currentData[lastIndex].time * 1000).toISOString() : 'none'}, update time: ${new Date(candleData.time * 1000).toISOString()}`);
+              }
             }
           }
           

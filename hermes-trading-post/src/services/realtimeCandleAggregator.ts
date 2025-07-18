@@ -154,6 +154,13 @@ class RealtimeCandleAggregator {
 
   private async syncNewCandleWithAPI(symbol: string, candleTime: number, retryCount = 0) {
     try {
+      // Check if this is the current minute - if so, skip sync
+      const currentMinute = Math.floor(Date.now() / 60000) * 60000 / 1000;
+      if (candleTime === currentMinute) {
+        console.log(`Skipping API sync for current minute candle at ${new Date(candleTime * 1000).toISOString()}`);
+        return;
+      }
+      
       // Add a small delay to ensure API has the candle
       const delay = retryCount === 0 ? 1000 : Math.min(5000, 1000 * Math.pow(2, retryCount));
       await new Promise(resolve => setTimeout(resolve, delay));
