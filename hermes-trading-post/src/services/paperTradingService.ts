@@ -1,6 +1,7 @@
 import { Strategy } from '../strategies/base/Strategy';
 import type { CandleData, Trade, StrategyState, Signal } from '../strategies/base/StrategyTypes';
-import { Writable, writable } from 'svelte/store';
+import { writable } from 'svelte/store';
+import type { Writable } from 'svelte/store';
 
 export interface PaperTradingState {
   isRunning: boolean;
@@ -387,6 +388,9 @@ class PaperTradingService {
     });
   }
 }
+
+// Export class for type annotations
+export { PaperTradingService };
 
 // Export singleton instance
 export const paperTradingService = new PaperTradingService();

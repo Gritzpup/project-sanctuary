@@ -2,7 +2,7 @@
   import Chart from './Chart.svelte';
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-  import { PaperTradingService } from '../services/paperTradingService';
+  import { paperTradingService } from '../services/paperTradingService';
   import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';
   import { GridTradingStrategy } from '../strategies/implementations/GridTradingStrategy';
   import { RSIMeanReversionStrategy } from '../strategies/implementations/RSIMeanReversionStrategy';
@@ -30,7 +30,6 @@
   let autoGranularityActive = false;
   
   // Paper trading state
-  let paperTradingService: PaperTradingService;
   let isRunning = false;
   let selectedStrategyType = 'reverse-ratio';
   let currentStrategy: Strategy | null = null;
@@ -72,7 +71,6 @@
   }
   
   onMount(() => {
-    paperTradingService = new PaperTradingService();
     updateStatus();
   });
   
