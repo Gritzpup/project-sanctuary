@@ -1,15 +1,21 @@
 <script lang="ts">
   import Chart from './Chart.svelte';
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
-  import { onMount } from 'svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
   
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
+  
+  const dispatch = createEventDispatcher();
   
   let sidebarCollapsed = false;
   
   function toggleSidebar() {
     sidebarCollapsed = !sidebarCollapsed;
+  }
+  
+  function handleNavigation(event: CustomEvent) {
+    dispatch('navigate', event.detail);
   }
   
   let selectedGranularity = '1m';  // Candle size: 1m, 5m, 15m, 1h, 6h, 1D (Coinbase supported only)
@@ -71,7 +77,12 @@
 </script>
 
 <div class="dashboard-layout">
-  <CollapsibleSidebar {sidebarCollapsed} on:toggle={toggleSidebar} />
+  <CollapsibleSidebar 
+    {sidebarCollapsed} 
+    activeSection="dashboard"
+    on:toggle={toggleSidebar} 
+    on:navigate={handleNavigation} 
+  />
   
   <main class="dashboard-content" class:expanded={sidebarCollapsed}>
     <!-- Header Bar -->

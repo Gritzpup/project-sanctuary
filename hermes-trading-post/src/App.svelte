@@ -1,11 +1,14 @@
 <script lang="ts">
   import Dashboard from './lib/Dashboard.svelte';
+  import PaperTrading from './lib/PaperTrading.svelte';
+  import Backtesting from './lib/Backtesting.svelte';
   import { CoinbaseAPI } from './services/coinbaseApi';
   import { onMount } from 'svelte';
 
   let currentPrice: number = 0;
   let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   let api: CoinbaseAPI;
+  let currentSection: 'dashboard' | 'paper-trading' | 'backtesting' = 'dashboard';
 
   let priceInterval: number;
 
@@ -34,10 +37,20 @@
       clearInterval(priceInterval);
     };
   });
+
+  function handleNavigation(event: CustomEvent) {
+    currentSection = event.detail.section;
+  }
 </script>
 
 <main>
-  <Dashboard {currentPrice} bind:connectionStatus />
+  {#if currentSection === 'dashboard'}
+    <Dashboard {currentPrice} bind:connectionStatus on:navigate={handleNavigation} />
+  {:else if currentSection === 'paper-trading'}
+    <PaperTrading {currentPrice} bind:connectionStatus on:navigate={handleNavigation} />
+  {:else if currentSection === 'backtesting'}
+    <Backtesting {currentPrice} bind:connectionStatus on:navigate={handleNavigation} />
+  {/if}
 </main>
 
 <style>

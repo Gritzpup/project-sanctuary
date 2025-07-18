@@ -2,6 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   
   export let sidebarCollapsed = false;
+  export let activeSection = 'dashboard';
   
   const dispatch = createEventDispatcher();
   
@@ -9,13 +10,18 @@
     dispatch('toggle');
   }
   
+  function navigate(section: string) {
+    activeSection = section;
+    dispatch('navigate', { section });
+  }
+  
   const menuItems = [
-    { icon: '📊', label: 'Dashboard', active: true },
-    { icon: '💼', label: 'Portfolio', active: false },
-    { icon: '📈', label: 'Trading', active: false },
-    { icon: '📝', label: 'Paper Trading', active: false },
-    { icon: '📉', label: 'Backtesting', active: false },
-    { icon: '📰', label: 'News', active: false },
+    { icon: '📊', label: 'Dashboard', section: 'dashboard' },
+    { icon: '💼', label: 'Portfolio', section: 'portfolio' },
+    { icon: '📈', label: 'Trading', section: 'trading' },
+    { icon: '📝', label: 'Paper Trading', section: 'paper-trading' },
+    { icon: '📉', label: 'Backtesting', section: 'backtesting' },
+    { icon: '📰', label: 'News', section: 'news' },
   ];
 </script>
 
@@ -26,7 +32,11 @@
   
   <nav class="sidebar-nav">
     {#each menuItems as item}
-      <button class="nav-item" class:active={item.active}>
+      <button 
+        class="nav-item" 
+        class:active={activeSection === item.section}
+        on:click={() => navigate(item.section)}
+      >
         <span class="nav-icon">{item.icon}</span>
         {#if !sidebarCollapsed}
           <span class="nav-label">{item.label}</span>
