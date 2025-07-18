@@ -3,13 +3,14 @@
   import PaperTrading from './lib/PaperTrading.svelte';
   import Backtesting from './lib/Backtesting.svelte';
   import Trading from './lib/Trading.svelte';
+  import Vault from './lib/Vault.svelte';
   import { CoinbaseAPI } from './services/coinbaseApi';
   import { onMount } from 'svelte';
 
   let currentPrice: number = 0;
   let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   let api: CoinbaseAPI;
-  let currentSection: 'dashboard' | 'paper-trading' | 'backtesting' | 'trading' = 'dashboard';
+  let currentSection: 'dashboard' | 'paper-trading' | 'backtesting' | 'trading' | 'vault' = 'dashboard';
 
   let priceInterval: number;
 
@@ -53,6 +54,8 @@
     <Backtesting {currentPrice} bind:connectionStatus on:navigate={handleNavigation} />
   {:else if currentSection === 'trading'}
     <Trading {currentPrice} bind:connectionStatus on:navigate={handleNavigation} />
+  {:else if currentSection === 'vault'}
+    <Vault {currentPrice} bind:connectionStatus on:navigate={handleNavigation} />
   {/if}
 </main>
 

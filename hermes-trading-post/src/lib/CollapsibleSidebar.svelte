@@ -21,6 +21,7 @@
     { icon: '📈', label: 'Live Trading', section: 'trading' },
     { icon: '📝', label: 'Paper Trading', section: 'paper-trading' },
     { icon: '📉', label: 'Backtesting', section: 'backtesting' },
+    { icon: '🏦', label: 'Vault', section: 'vault' },
     { icon: '📰', label: 'News', section: 'news' },
   ];
 </script>
