@@ -19,6 +19,9 @@
   const dispatch = createEventDispatcher();
   
   let sidebarCollapsed = false;
+  let selectedGranularity = '1h';
+  let selectedPeriod = '1M';
+  let autoGranularityActive = false;
   
   function toggleSidebar() {
     sidebarCollapsed = !sidebarCollapsed;
@@ -27,10 +30,6 @@
   function handleNavigation(event: CustomEvent) {
     dispatch('navigate', event.detail);
   }
-  
-  let selectedGranularity = '1h';
-  let selectedPeriod = '1M';
-  let autoGranularityActive = false;
   
   // Backtesting state
   let selectedStrategyType = 'reverse-ratio'; // Default strategy
@@ -77,6 +76,8 @@
   };
   
   onMount(() => {
+    console.log('Backtesting component mounted');
+    console.log('Initial state:', { selectedStrategyType, startBalance, selectedPeriod, selectedGranularity });
     updateCurrentStrategy();
   });
   
