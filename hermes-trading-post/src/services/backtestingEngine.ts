@@ -1,5 +1,5 @@
 import { Strategy } from '../strategies/base/Strategy';
-import { CandleData, Trade, BacktestResult, StrategyState } from '../strategies/base/StrategyTypes';
+import type { CandleData, Trade, BacktestResult, StrategyState } from '../strategies/base/StrategyTypes';
 
 export interface BacktestConfig {
   initialBalance: number;

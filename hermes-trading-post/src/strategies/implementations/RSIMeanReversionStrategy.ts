@@ -1,5 +1,5 @@
 import { Strategy } from '../base/Strategy';
-import { CandleData, Position, Signal, StrategyConfig } from '../base/StrategyTypes';
+import type { CandleData, Position, Signal, StrategyConfig } from '../base/StrategyTypes';
 
 export interface RSIConfig extends StrategyConfig {
   rsiPeriod: number;            // RSI calculation period (default: 14)

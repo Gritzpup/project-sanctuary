@@ -1,4 +1,4 @@
-import { CandleData, Position, Signal, StrategyConfig, StrategyState, Trade } from './StrategyTypes';
+import type { CandleData, Position, Signal, StrategyConfig, StrategyState, Trade } from './StrategyTypes';
 
 export abstract class Strategy {
   protected name: string;

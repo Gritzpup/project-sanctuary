@@ -100,3 +100,4 @@ export interface StrategyState {
     [key: string]: any;
   };
 }
+

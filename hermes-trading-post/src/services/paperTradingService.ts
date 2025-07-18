@@ -1,5 +1,5 @@
 import { Strategy } from '../strategies/base/Strategy';
-import { CandleData, Trade, StrategyState, Signal } from '../strategies/base/StrategyTypes';
+import type { CandleData, Trade, StrategyState, Signal } from '../strategies/base/StrategyTypes';
 import { Writable, writable } from 'svelte/store';
 
 export interface PaperTradingState {

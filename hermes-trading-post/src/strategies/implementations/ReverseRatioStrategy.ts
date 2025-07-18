@@ -1,5 +1,5 @@
 import { Strategy } from '../base/Strategy';
-import { CandleData, Position, Signal, StrategyConfig } from '../base/StrategyTypes';
+import type { CandleData, Position, Signal, StrategyConfig } from '../base/StrategyTypes';
 
 export interface ReverseRatioConfig extends StrategyConfig {
   initialDropPercent: number;    // % drop from recent high to start buying (default: 5)

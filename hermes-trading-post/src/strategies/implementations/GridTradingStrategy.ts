@@ -1,5 +1,5 @@
 import { Strategy } from '../base/Strategy';
-import { CandleData, Position, Signal, StrategyConfig } from '../base/StrategyTypes';
+import type { CandleData, Position, Signal, StrategyConfig } from '../base/StrategyTypes';
 
 export interface GridConfig extends StrategyConfig {
   gridLevels: number;           // Number of grid levels (default: 10)

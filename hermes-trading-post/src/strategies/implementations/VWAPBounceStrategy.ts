@@ -1,5 +1,5 @@
 import { Strategy } from '../base/Strategy';
-import { CandleData, Position, Signal, StrategyConfig } from '../base/StrategyTypes';
+import type { CandleData, Position, Signal, StrategyConfig } from '../base/StrategyTypes';
 
 export interface VWAPConfig extends StrategyConfig {
   vwapPeriod: number;          // VWAP calculation period in candles (default: 20)
