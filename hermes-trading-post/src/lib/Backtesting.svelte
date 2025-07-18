@@ -46,10 +46,11 @@
   // Strategy-specific parameters
   let strategyParams: Record<string, any> = {
     'reverse-ratio': {
-      dropThreshold: 2,
-      sellProfitPercent: 7,
-      positionStep: 2,
-      maxPositions: 10
+      initialDropPercent: 5,
+      levelDropPercent: 5,
+      ratioMultiplier: 2,
+      profitTarget: 7,
+      maxLevels: 5
     },
     'grid-trading': {
       gridLevels: 10,
@@ -65,19 +66,17 @@
     },
     'dca': {
       intervalHours: 24,
-      amountPerBuy: 100,
-      dropThreshold: 3
+      amountPerInterval: 5
     },
     'vwap-bounce': {
       vwapPeriod: 20,
-      bounceThreshold: 0.5,
-      volumeMultiplier: 1.5,
-      positionSize: 0.1
+      deviationBuy: 2,
+      deviationSell: 2
     }
   };
   
   onMount(() => {
-    backtestingEngine = new BacktestingEngine();
+    updateCurrentStrategy();
   });
   
   // Valid granularities for each period

@@ -11,7 +11,7 @@
   let currentPrice: number = 0;
   let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   let api: CoinbaseAPI;
-  let currentSection: 'dashboard' | 'paper-trading' | 'backtesting' | 'trading' | 'vault' | 'news' = 'dashboard';
+  let currentSection: 'dashboard' | 'paper-trading' | 'backtesting' | 'trading' | 'vault' | 'news' = 'backtesting';
 
   let priceInterval: number;
 
