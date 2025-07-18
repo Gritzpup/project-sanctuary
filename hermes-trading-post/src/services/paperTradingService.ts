@@ -2,6 +2,7 @@ import { Strategy } from '../strategies/base/Strategy';
 import type { CandleData, Trade, StrategyState, Signal } from '../strategies/base/StrategyTypes';
 import { writable } from 'svelte/store';
 import type { Writable } from 'svelte/store';
+import { vaultService } from './vaultService';
 
 export interface PaperTradingState {
   isRunning: boolean;
@@ -28,6 +29,8 @@ class PaperTradingService {
   private candles: CandleData[] = [];
   private initialBalance: number = 10000;
   private feePercent: number = 0.1;
+  private botId: string | null = null;
+  private asset: string = 'BTC';
 
   constructor() {
     this.state = writable<PaperTradingState>({
@@ -54,8 +57,24 @@ class PaperTradingService {
   getState(): Writable<PaperTradingState> {
     return this.state;
   }
+  
+  getStatus() {
+    let currentState: PaperTradingState;
+    this.state.subscribe(s => currentState = s)();
+    
+    return {
+      usdBalance: currentState.balance.usd,
+      btcBalance: currentState.balance.btc,
+      vaultBalance: currentState.balance.vault,
+      positions: currentState.strategy?.getState().positions || [],
+      trades: currentState.trades,
+      isRunning: currentState.isRunning
+    };
+  }
 
-  startStrategy(strategy: Strategy, initialBalance: number = 10000): void {
+  start(strategy: Strategy, symbol: string = 'BTC-USD', initialBalance: number = 10000): void {
+    // Extract asset from symbol
+    this.asset = symbol.split('-')[0];
     this.initialBalance = initialBalance;
     
     // Initialize strategy state
@@ -69,6 +88,29 @@ class PaperTradingService {
     };
     
     strategy.setState(strategyState);
+
+    // Create vault entry for this bot
+    const strategyName = strategy.getName();
+    const botName = `Paper ${this.asset} - ${strategyName}`;
+    
+    vaultService.addBot(this.asset, {
+      name: botName,
+      strategy: this.getStrategyKey(strategyName),
+      asset: this.asset,
+      status: 'active',
+      value: 0, // Starts with 0, will accumulate from profits
+      initialDeposit: 0,
+      growthPercent: 0,
+      totalTrades: 0,
+      winRate: 0,
+      startedAt: Date.now(),
+      deposits: []
+    });
+    
+    // Get the bot ID from the last added bot
+    const vaultData = vaultService.getVaultData();
+    const assetVaults = vaultData.assets[this.asset]?.vaults || [];
+    this.botId = assetVaults[assetVaults.length - 1]?.botId || null;
 
     this.state.update(s => ({
       ...s,
@@ -87,8 +129,28 @@ class PaperTradingService {
       lastUpdate: Date.now()
     }));
   }
+  
+  private getStrategyKey(strategyName: string): string {
+    const mapping: Record<string, string> = {
+      'Reverse Ratio Buying': 'reverse-ratio',
+      'Grid Trading': 'grid-trading',
+      'RSI Mean Reversion': 'rsi-mean-reversion',
+      'Dollar Cost Averaging': 'dca',
+      'VWAP Bounce': 'vwap-bounce'
+    };
+    return mapping[strategyName] || 'unknown';
+  }
 
+  stop(): void {
+    this.stopStrategy();
+  }
+  
   stopStrategy(): void {
+    // Update vault bot status
+    if (this.botId) {
+      vaultService.updateBotStatus(this.botId, 'stopped');
+    }
+    
     this.state.update(s => ({
       ...s,
       isRunning: false,
@@ -248,6 +310,15 @@ class PaperTradingService {
         strategyState.balance.vault += allocation.vault;
         strategyState.balance.btc += allocation.btc / currentPrice;
         strategyState.balance.usd += netProceeds - allocation.vault;
+        
+        // Update vault service
+        if (this.botId && allocation.vault > 0) {
+          const currentVaultData = vaultService.getVaultData();
+          const bot = currentVaultData.assets[this.asset]?.vaults.find(v => v.botId === this.botId);
+          if (bot) {
+            vaultService.updateBotValue(this.botId, bot.value + allocation.vault, true);
+          }
+        }
       } else {
         strategyState.balance.usd += netProceeds;
       }
@@ -291,6 +362,14 @@ class PaperTradingService {
       winRate,
       totalTrades: newState.trades.length
     };
+    
+    // Update vault service stats
+    if (this.botId) {
+      vaultService.updateBotStats(this.botId, {
+        totalTrades: newState.trades.length,
+        winRate: winRate
+      });
+    }
 
     return newState;
   }
