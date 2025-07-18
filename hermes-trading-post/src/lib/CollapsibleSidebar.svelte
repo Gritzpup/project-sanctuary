@@ -18,7 +18,7 @@
   const menuItems = [
     { icon: '📊', label: 'Dashboard', section: 'dashboard' },
     { icon: '💼', label: 'Portfolio', section: 'portfolio' },
-    { icon: '📈', label: 'Trading', section: 'trading' },
+    { icon: '📈', label: 'Live Trading', section: 'trading' },
     { icon: '📝', label: 'Paper Trading', section: 'paper-trading' },
     { icon: '📉', label: 'Backtesting', section: 'backtesting' },
     { icon: '📰', label: 'News', section: 'news' },

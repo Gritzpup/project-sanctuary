@@ -19,3 +19,7 @@ export const StrategyRegistry = {
 } as const;
 
 export type StrategyType = keyof typeof StrategyRegistry;
+
+// Export enhanced strategy registry with metadata
+export { STRATEGIES, createStrategy, getStrategyList, getStrategyById } from './strategyRegistry';
+export type { StrategyInfo } from './strategyRegistry';

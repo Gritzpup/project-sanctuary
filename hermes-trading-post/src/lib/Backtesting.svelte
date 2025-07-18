@@ -10,6 +10,7 @@
   import { VWAPBounceStrategy } from '../strategies/implementations/VWAPBounceStrategy';
   import type { Strategy } from '../strategies/base/Strategy';
   import type { BacktestConfig, BacktestResult } from '../strategies/base/StrategyTypes';
+  import { historicalDataService, HistoricalDataService } from '../services/historicalDataService';
   
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
@@ -151,8 +152,8 @@
   }
   
   async function runBacktest() {
-    if (!backtestingEngine || !currentStrategy) {
-      console.error('Backtesting engine or strategy not initialized');
+    if (!currentStrategy) {
+      console.error('Strategy not initialized');
       return;
     }
     
@@ -160,64 +161,68 @@
     backtestResults = null;
     
     try {
-      // Get historical data from the chart (you'll need to implement this)
-      // For now, we'll use mock data
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setMonth(startDate.getMonth() - 3); // 3 months of data
+      // Set up time range for backtest
+      const endTime = new Date();
+      const startTime = new Date();
       
-      const config: BacktestConfig = {
-        strategy: currentStrategy,
-        startDate,
-        endDate,
-        initialBalance: startBalance,
+      // Determine time range based on selected period
+      switch (selectedPeriod) {
+        case '1D':
+          startTime.setDate(startTime.getDate() - 1);
+          break;
+        case '1W':
+          startTime.setDate(startTime.getDate() - 7);
+          break;
+        case '1M':
+          startTime.setMonth(startTime.getMonth() - 1);
+          break;
+        case '3M':
+          startTime.setMonth(startTime.getMonth() - 3);
+          break;
+        case '1Y':
+          startTime.setFullYear(startTime.getFullYear() - 1);
+          break;
+        case '5Y':
+          startTime.setFullYear(startTime.getFullYear() - 5);
+          break;
+        default:
+          startTime.setMonth(startTime.getMonth() - 1);
+      }
+      
+      // Fetch historical data
+      console.log('Fetching historical data...');
+      const granularity = HistoricalDataService.getOptimalGranularity(startTime, endTime);
+      const historicalData = await historicalDataService.fetchHistoricalData({
         symbol: 'BTC-USD',
-        profitAllocation: {
-          vault: 0.99,
-          btcGrowth: 0.01
-        }
+        startTime,
+        endTime,
+        granularity
+      });
+      
+      console.log(`Fetched ${historicalData.length} candles`);
+      
+      // Configure backtesting engine
+      const config = {
+        initialBalance: startBalance,
+        startTime: startTime.getTime(),
+        endTime: endTime.getTime(),
+        feePercent: 0.6, // Coinbase fee
+        slippage: 0.1   // 0.1% slippage
       };
       
-      // In a real implementation, you would fetch historical data here
-      // For now, we'll create some mock data
-      const mockHistoricalData = generateMockHistoricalData(startDate, endDate);
+      // Create and run backtesting engine
+      backtestingEngine = new BacktestingEngine(currentStrategy, config);
+      backtestResults = await backtestingEngine.runBacktest(historicalData);
       
-      backtestResults = await backtestingEngine.runBacktest(
-        config,
-        mockHistoricalData
-      );
+      console.log('Backtest completed:', backtestResults);
     } catch (error) {
       console.error('Backtest failed:', error);
+      alert('Failed to run backtest. Please check the console for details.');
     } finally {
       isRunning = false;
     }
   }
   
-  // Mock data generator for testing
-  function generateMockHistoricalData(startDate: Date, endDate: Date) {
-    const data = [];
-    const currentDate = new Date(startDate);
-    let price = 95000 + Math.random() * 5000;
-    
-    while (currentDate <= endDate) {
-      // Generate random price movement
-      const change = (Math.random() - 0.5) * 2000;
-      price = Math.max(85000, Math.min(105000, price + change));
-      
-      data.push({
-        timestamp: currentDate.getTime(),
-        open: price - Math.random() * 500,
-        high: price + Math.random() * 500,
-        low: price - Math.random() * 500,
-        close: price,
-        volume: 100 + Math.random() * 50
-      });
-      
-      currentDate.setHours(currentDate.getHours() + 1);
-    }
-    
-    return data;
-  }
   
   function clearResults() {
     backtestResults = null;
