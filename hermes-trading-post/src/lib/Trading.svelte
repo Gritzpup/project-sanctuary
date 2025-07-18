@@ -151,7 +151,12 @@
       </div>
       
       <div class="chart-section">
-        <Chart {selectedGranularity} {selectedPeriod} on:granularityChange={(e) => handleChartGranularityChange(e.detail)} />
+        <Chart 
+          bind:status={connectionStatus}
+          granularity={selectedGranularity} 
+          period={selectedPeriod} 
+          onGranularityChange={handleChartGranularityChange} 
+        />
       </div>
       
       <div class="live-trading-section">
@@ -314,6 +319,13 @@
     border-radius: 8px;
     padding: 20px;
     min-height: 400px;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .chart-section :global(.chart-container) {
+    flex: 1;
+    min-height: 350px;
   }
   
   .live-trading-section {
