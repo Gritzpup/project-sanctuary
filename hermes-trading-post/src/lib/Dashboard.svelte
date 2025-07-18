@@ -2,7 +2,6 @@
   import Chart from './Chart.svelte';
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
   import { onMount } from 'svelte';
-  import { IndexedDBCache } from '../services/indexedDBCache';
   
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
@@ -16,27 +15,6 @@
   let selectedGranularity = '1m';  // Candle size: 1m, 5m, 15m, 1h, 6h, 1D (Coinbase supported only)
   let selectedPeriod = '1H';        // Time range: 5Y, 1Y, 6M, 3M, 1M, 5D, 4H, 1H
   let autoGranularityActive = false;
-  
-  // Cache management
-  let isClearingCache = false;
-  let cacheCleared = false;
-  let chartComponent: Chart;
-  
-  // Debug variables from Chart component
-  let chartDateRangeInfo = {
-    expectedFrom: '',
-    expectedTo: '',
-    actualFrom: '',
-    actualTo: '',
-    expectedCandles: 0,
-    actualCandles: 0,
-    requestedFrom: 0,
-    requestedTo: 0,
-    dataDebug: ''
-  };
-  let chartVisibleCandleCount = 0;
-  let chartTotalCandleCount = 0;
-  let chartCacheStatus = 'initializing';
   
   // Define valid granularities for each period - ONLY Coinbase supported values
   const validGranularities: Record<string, string[]> = {
@@ -90,35 +68,6 @@
       }, 2000);
     }
   }
-  
-  async function clearCache() {
-    if (isClearingCache) return;
-    
-    isClearingCache = true;
-    try {
-      // Use nuclear option - completely delete and recreate database
-      const cache = new IndexedDBCache();
-      await cache.deleteDatabase();
-      
-      // Show success feedback
-      cacheCleared = true;
-      setTimeout(() => {
-        cacheCleared = false;
-      }, 3000);
-      
-      // Wait a moment for DB to fully recreate
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Reload chart data
-      if (chartComponent && chartComponent.reloadData) {
-        await chartComponent.reloadData();
-      }
-    } catch (error) {
-      console.error('Error clearing cache:', error);
-    } finally {
-      isClearingCache = false;
-    }
-  }
 </script>
 
 <div class="dashboard-layout">
@@ -163,12 +112,7 @@
         </div>
         <div class="panel-content">
           <Chart 
-            bind:this={chartComponent} 
             bind:status={connectionStatus} 
-            bind:dateRangeInfo={chartDateRangeInfo}
-            bind:visibleCandleCount={chartVisibleCandleCount}
-            bind:totalCandleCount={chartTotalCandleCount}
-            bind:cacheStatus={chartCacheStatus}
             granularity={selectedGranularity} 
             period={selectedPeriod} 
             onGranularityChange={handleChartGranularityChange} 
@@ -182,63 +126,6 @@
             <button class="period-btn" class:active={selectedPeriod === '6M'} on:click={() => selectPeriod('6M')}>6M</button>
             <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
             <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Debug Section -->
-      <div class="panel debug-panel">
-        <div class="panel-header">
-          <h2>Debug Information</h2>
-          <button 
-            class="clear-cache-btn" 
-            on:click={clearCache}
-            disabled={isClearingCache}
-          >
-            {#if isClearingCache}
-              Clearing Cache...
-            {:else}
-              Clear Cache
-            {/if}
-          </button>
-        </div>
-        <div class="panel-content">
-          <div class="debug-content">
-            <div class="debug-info-panel">
-              <h4>Date Range</h4>
-              <div class="debug-row">
-                <span class="debug-label">Expected:</span>
-                <span class="debug-value">{chartDateRangeInfo.expectedFrom} - {chartDateRangeInfo.expectedTo}</span>
-              </div>
-              <div class="debug-row">
-                <span class="debug-label">Actual:</span>
-                <span class="debug-value">{chartDateRangeInfo.actualFrom} - {chartDateRangeInfo.actualTo}</span>
-              </div>
-              <div class="debug-row">
-                <span class="debug-label">Candles:</span>
-                <span class="debug-value">
-                  {chartDateRangeInfo.actualCandles} / {chartDateRangeInfo.expectedCandles}
-                  <span class="debug-candles" class:error={Math.abs(chartDateRangeInfo.actualCandles - chartDateRangeInfo.expectedCandles) > 1}>
-                    {Math.abs(chartDateRangeInfo.actualCandles - chartDateRangeInfo.expectedCandles) <= 1 ? '✅' : '❌'}
-                  </span>
-                </span>
-              </div>
-            </div>
-            <div class="debug-info-panel">
-              <h4>Chart Status</h4>
-              <div class="debug-row">
-                <span class="debug-label">Visible:</span>
-                <span class="debug-value">{chartVisibleCandleCount} candles</span>
-              </div>
-              <div class="debug-row">
-                <span class="debug-label">Total:</span>
-                <span class="debug-value">{chartTotalCandleCount} candles</span>
-              </div>
-              <div class="debug-row">
-                <span class="debug-label">Cache:</span>
-                <span class="debug-value">{chartCacheStatus}</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -486,16 +373,6 @@
     flex: 1;
   }
   
-  /* Debug panel - show all content */
-  .debug-panel {
-    flex: 0 0 auto; /* Don't grow, only take needed space */
-    /* No max-height - let it show all content */
-  }
-  
-  .debug-panel .panel-content {
-    overflow: visible; /* No scrolling - show everything */
-  }
-  
   .bottom-panels {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -619,97 +496,5 @@
   
   .granularity-transition.active {
     opacity: 1;
-  }
-  
-  
-  /* Debug Panel Styles */
-  .debug-panel {
-    margin-bottom: 20px;
-  }
-  
-  .debug-panel .panel-content {
-    padding: 15px 20px;
-  }
-  
-  .clear-cache-btn {
-    background: #ef5350;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-
-  .clear-cache-btn:hover:not(:disabled) {
-    background: #d32f2f;
-  }
-  
-  .clear-cache-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .debug-content {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-  }
-
-  .debug-info-panel {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(74, 0, 224, 0.2);
-    border-radius: 4px;
-    padding: 15px;
-  }
-
-  .debug-info-panel h4 {
-    color: #26a69a;
-    font-size: 13px;
-    font-weight: 600;
-    margin: 0 0 12px 0;
-    font-family: monospace;
-  }
-
-  .debug-row {
-    display: flex;
-    gap: 10px;
-    margin: 8px 0;
-    align-items: center;
-    font-family: monospace;
-    font-size: 12px;
-  }
-
-  .debug-label {
-    color: #758696;
-    width: 80px;
-    flex-shrink: 0;
-  }
-
-  .debug-value {
-    color: #d1d4dc;
-    flex: 1;
-  }
-  
-  .debug-value.error {
-    color: #ef5350;
-  }
-
-  .debug-candles {
-    color: #26a69a;
-    font-weight: bold;
-    margin-left: 5px;
-  }
-  
-  .debug-candles.error {
-    color: #ef5350;
-  }
-
-  @media (max-width: 768px) {
-    .debug-content {
-      grid-template-columns: 1fr;
-    }
   }
 </style>
