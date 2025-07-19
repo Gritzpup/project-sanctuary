@@ -978,7 +978,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .chart-panel {
     position: relative;
-    min-height: 500px;
+    height: 500px;
+    max-height: 500px;
+    overflow: hidden;
   }
   
   .strategy-panel {
@@ -1061,6 +1063,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
     padding: 15px;
     overflow-y: auto;
     overflow-x: auto;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
   }
   
   .code-editor pre {
@@ -1072,7 +1077,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .code-editor code {
     color: #d1d4dc;
-    white-space: pre;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
   
   .panel-content {
@@ -1087,10 +1093,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
     padding: 0;
     display: flex;
     flex-direction: column;
+    height: 100%;
+    overflow: hidden;
   }
   
   .chart-panel .panel-content > :global(.chart-container) {
     flex: 1;
+    height: 100%;
+    max-height: calc(100% - 40px); /* Subtract period buttons height */
   }
   
   .granularity-transition {
