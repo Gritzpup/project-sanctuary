@@ -99,8 +99,20 @@
     console.log(`Saved preset ${index} for ${selectedPeriod}/${selectedGranularity}`);
   }
   
-  // Initialize with default presets if none exist
-  if (customPresets.length === 0) {
+  // Check for old presets with targets below fee threshold
+  let hasOldPresets = false;
+  customPresets.forEach(preset => {
+    if (preset.profitTarget < 0.825) {
+      hasOldPresets = true;
+      console.warn(`[Backtesting] OLD PRESET DETECTED: "${preset.name}" has profit target ${preset.profitTarget}% which is BELOW fee threshold!`);
+    }
+  });
+  
+  // Force clear old presets or initialize with new ones
+  if (customPresets.length === 0 || hasOldPresets) {
+    if (hasOldPresets) {
+      console.warn('[Backtesting] Clearing old presets with unprofitable targets...');
+    }
     customPresets = [
       {
         name: 'Preset 1 (Fee-Aware Quick)',
@@ -131,6 +143,14 @@
       }
     ];
     localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
+    
+    // Also clear all saved preset selections
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('preset_')) {
+        localStorage.removeItem(key);
+      }
+    });
   }
   
   function saveCurrentAsPreset(index: number) {
@@ -224,38 +244,39 @@
   }
   
   // Timeframe-specific configurations for reverse-ratio strategy
+  // ALL PROFIT TARGETS MUST BE ABOVE 0.825% TO COVER FEES!
   const reverseRatioTimeframeConfigs: Record<string, any> = {
     '1m': {
-      initialDropPercent: 0.02,   // ULTRA micro scalping - 0.02% drop
-      levelDropPercent: 0.02,     // 0.02% between levels
-      profitTarget: 0.05,         // Take profit at 0.05% - SUPER QUICK!
+      initialDropPercent: 0.1,    // Quick drops for fast trades
+      levelDropPercent: 0.05,     // Small levels
+      profitTarget: 1.0,          // 1% minimum to cover 0.825% fees
       maxLevels: 5,
       lookbackPeriod: 10,
-      basePositionPercent: 30,    // Big positions for tiny moves
-      ratioMultiplier: 1.2        // Small increases
+      basePositionPercent: 30,
+      ratioMultiplier: 1.2
     },
     '5m': {
-      initialDropPercent: 0.03,   // 0.03% initial drop - TINY!
-      levelDropPercent: 0.03,     // 0.03% between levels
-      profitTarget: 0.08,         // 0.08% profit - FAST EXIT!
+      initialDropPercent: 0.15,
+      levelDropPercent: 0.08,
+      profitTarget: 1.2,          // 1.2% for ~0.375% net profit
       maxLevels: 8,
       lookbackPeriod: 15,
       basePositionPercent: 25,
       ratioMultiplier: 1.2
     },
     '15m': {
-      initialDropPercent: 0.05,   // 0.05% initial drop
-      levelDropPercent: 0.04,     // 0.04% between levels
-      profitTarget: 0.1,          // 0.1% profit target - QUICK!
+      initialDropPercent: 0.2,
+      levelDropPercent: 0.1,
+      profitTarget: 1.5,          // 1.5% for ~0.675% net profit
       maxLevels: 10,
       lookbackPeriod: 20,
       basePositionPercent: 20,
       ratioMultiplier: 1.3
     },
     '1h': {
-      initialDropPercent: 0.08,   // 0.08% initial drop - MICRO!
-      levelDropPercent: 0.05,     // 0.05% between levels
-      profitTarget: 0.15,         // 0.15% profit - FAST SCALP!
+      initialDropPercent: 0.3,
+      levelDropPercent: 0.15,
+      profitTarget: 2.0,          // 2% for ~1.175% net profit
       maxLevels: 15,
       lookbackPeriod: 30,
       basePositionPercent: 15,
@@ -282,16 +303,16 @@
   // Strategy-specific parameters (will be updated based on timeframe)
   let strategyParams: Record<string, any> = {
     'reverse-ratio': {
-      initialDropPercent: 0.05, // MICRO: First buy at 0.05% drop
-      levelDropPercent: 0.03,   // MICRO: Each level is 0.03% more drop
-      ratioMultiplier: 1.2,     // Gentle increase for micro scalping
-      profitTarget: 0.1,        // MICRO: Sell all at +0.1%
-      maxLevels: 10,            // Fewer levels for quick trades
-      lookbackPeriod: 20,       // Shorter lookback for micro
+      initialDropPercent: 0.2,  // First buy at 0.2% drop
+      levelDropPercent: 0.1,    // Each level is 0.1% more drop
+      ratioMultiplier: 1.2,
+      profitTarget: 1.5,        // 1.5% profit (0.675% net after fees)
+      maxLevels: 10,
+      lookbackPeriod: 20,
       positionSizeMode: 'percentage',
-      basePositionPercent: 20,  // 20% of balance - GO BIG!
-      basePositionAmount: 50,   // $50 for first level if using fixed mode
-      maxPositionPercent: 80,   // Max 80% of balance - AGGRESSIVE!
+      basePositionPercent: 20,
+      basePositionAmount: 50,
+      maxPositionPercent: 80,
       // Vault configuration
       vaultConfig: {
         btcVaultPercent: 14.3,    // 1/7 of profits to BTC vault
@@ -1094,22 +1115,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
                       ⚡
                     {/if}
                   </span>
-                  {#if strategyParams['reverse-ratio'].profitTarget <= 0.05}
-                    ULTRA MICRO-SCALPING: {strategyParams['reverse-ratio'].profitTarget}% profits, {strategyParams['reverse-ratio'].initialDropPercent}% drops
-                  {:else if ['1m', '5m'].includes(selectedGranularity) && selectedPeriod === '1H'}
-                    Micro-scalping mode: {selectedGranularity} candles in {selectedPeriod} window
+                  {#if strategyParams['reverse-ratio'].profitTarget <= 1.0}
+                    QUICK SCALPING: {strategyParams['reverse-ratio'].profitTarget}% profit ({(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% net)
+                  {:else if strategyParams['reverse-ratio'].profitTarget <= 1.5}
+                    SCALP MODE: {strategyParams['reverse-ratio'].profitTarget}% profit ({(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% net)
                   {:else}
-                    Parameters optimized for {selectedGranularity} timeframe
+                    STANDARD: {strategyParams['reverse-ratio'].profitTarget}% profit ({(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% net)
                   {/if}
                 </div>
-                
-                {#if strategyParams['reverse-ratio'].profitTarget <= 0.825}
-                  <div class="fee-warning">
-                    ⚠️ <strong>FEE WARNING:</strong> Target profit ({strategyParams['reverse-ratio'].profitTarget}%) is below net fees (0.825%)!
-                    <br>
-                    Strategy will wait for {(0.825 + Math.max(0.1, strategyParams['reverse-ratio'].profitTarget)).toFixed(2)}% to ensure profit after fees.
-                  </div>
-                {/if}
               {/if}
               
               <!-- Preset Management -->
@@ -2130,25 +2143,6 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .notice-icon {
     font-size: 16px;
-  }
-  
-  .fee-warning {
-    background: #ff6b6b;
-    color: white;
-    padding: 0.75rem;
-    border-radius: 0.5rem;
-    margin-top: 0.5rem;
-    font-size: 0.875rem;
-    animation: pulse-warning 2s ease-in-out infinite;
-  }
-  
-  .fee-warning strong {
-    font-weight: 700;
-  }
-  
-  @keyframes pulse-warning {
-    0%, 100% { opacity: 0.9; }
-    50% { opacity: 1; }
   }
   
   /* Run button in header */

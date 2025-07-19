@@ -38,9 +38,18 @@ export class ReverseRatioStrategy extends Strategy {
       ...config
     };
 
+    // Create fee-aware description
+    let description: string;
+    if (fullConfig.profitTarget < 0.825) {
+      description = `⚠️ WARNING: ${fullConfig.profitTarget}% target is BELOW 0.825% fees! Will wait for ${(0.825 + Math.max(0.1, fullConfig.profitTarget)).toFixed(2)}% to profit`;
+    } else {
+      const netProfit = (fullConfig.profitTarget - 0.825).toFixed(3);
+      description = `Buys on dips with increasing sizes, sells at ${fullConfig.profitTarget}% (${netProfit}% net after fees)`;
+    }
+    
     super(
       'Reverse Ratio Buying',
-      `Buys on the way down with increasing position sizes, sells at ${fullConfig.profitTarget}% above initial entry`,
+      description,
       fullConfig
     );
   }
@@ -83,29 +92,40 @@ export class ReverseRatioStrategy extends Strategy {
     // Check if we should take profit
     const totalPositionSize = this.getTotalPositionSize();
     
-    // Log profit progress every 10 candles when we have positions
-    if (this.state.positions.length > 0 && candles.length % 10 === 0) {
-      const targetPrice = this.initialEntryPrice * (1 + (config.profitTarget / 100));
+    // Enhanced profit logging for EVERY candle when we have positions
+    if (this.state.positions.length > 0 && totalPositionSize > 0) {
       const currentProfit = ((currentPrice - this.initialEntryPrice) / this.initialEntryPrice) * 100;
+      const estimatedFees = 0.825; // Net fees after 25% rebate
       
-      // Calculate minimum acceptable profit for micro scalping
-      let minAcceptable = config.profitTarget;
+      // Calculate fee-aware minimum based on profit target
+      let feeAwareMinimum: number;
       if (config.profitTarget <= 0.1) {
-        minAcceptable = Math.max(0.02, config.profitTarget * 0.5);
+        // Ultra mode - need fees + 0.1% minimum
+        feeAwareMinimum = estimatedFees + Math.max(0.1, config.profitTarget);
       } else if (config.profitTarget <= 0.5) {
-        minAcceptable = config.profitTarget * 0.7;
+        // Micro mode - need fees + 0.2% minimum  
+        feeAwareMinimum = Math.max(estimatedFees + 0.2, config.profitTarget + estimatedFees);
+      } else {
+        // Standard mode - just need to cover fees + target
+        feeAwareMinimum = config.profitTarget + estimatedFees;
       }
       
-      console.log('[ReverseRatio] Profit check:', {
-        initialEntry: this.initialEntryPrice.toFixed(2),
-        currentPrice: currentPrice.toFixed(2),
-        targetPrice: targetPrice.toFixed(2),
-        currentProfit: currentProfit.toFixed(4) + '%',
-        targetProfit: config.profitTarget + '%',
-        minAcceptable: minAcceptable.toFixed(4) + '%',
-        willSellAt: currentProfit >= minAcceptable ? 'YES' : 'NO',
-        needsMore: (minAcceptable - currentProfit).toFixed(4) + '%'
-      });
+      // Log every 5 candles or when getting close to target
+      if (candles.length % 5 === 0 || currentProfit >= (feeAwareMinimum * 0.8)) {
+        console.log('[ReverseRatio] 📊 PROFIT CHECK:', {
+          candle: new Date(candles[candles.length - 1].time * 1000).toISOString(),
+          positions: this.state.positions.length,
+          btcHeld: totalPositionSize.toFixed(6),
+          initialEntry: this.initialEntryPrice.toFixed(2),
+          currentPrice: currentPrice.toFixed(2),
+          currentProfit: currentProfit.toFixed(4) + '%',
+          configTarget: config.profitTarget + '%',
+          feeAwareMinimum: feeAwareMinimum.toFixed(4) + '%',
+          netProfitIfSoldNow: (currentProfit - estimatedFees).toFixed(4) + '%',
+          willSell: currentProfit >= feeAwareMinimum ? '✅ YES' : '❌ NO',
+          needsToRise: currentProfit < feeAwareMinimum ? (feeAwareMinimum - currentProfit).toFixed(4) + '%' : '0%'
+        });
+      }
     }
     
     if (this.state.positions.length > 0 && totalPositionSize > 0 && this.shouldTakeProfit(this.state.positions[0], currentPrice)) {

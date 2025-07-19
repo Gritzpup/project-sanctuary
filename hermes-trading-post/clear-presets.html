@@ -27,11 +27,23 @@
             color: #26a69a;
             margin-top: 2rem;
         }
+        .warning {
+            background: #ff6b6b;
+            padding: 1rem;
+            margin: 1rem auto;
+            max-width: 600px;
+            border-radius: 0.5rem;
+        }
     </style>
 </head>
 <body>
     <h1>Clear Old Trading Presets</h1>
-    <p>The old presets had profit targets below the fee threshold (0.825%).</p>
+    
+    <div class="warning">
+        <p><strong>CRITICAL:</strong> The old presets had profit targets BELOW the fee threshold!</p>
+        <p>0.05% profit - 0.825% fees = <strong>-0.775% LOSS on every trade!</strong></p>
+    </div>
+    
     <p>Click below to clear them and use the new fee-aware presets.</p>
     
     <button onclick="clearPresets()">Clear Old Presets</button>
@@ -45,13 +57,15 @@
             
             // Clear all saved preset selections for timeframes
             const keys = Object.keys(localStorage);
+            let cleared = 0;
             keys.forEach(key => {
                 if (key.startsWith('preset_')) {
                     localStorage.removeItem(key);
+                    cleared++;
                 }
             });
             
-            document.getElementById('result').innerHTML = '<p class="success">✅ Old presets cleared! Refresh the backtesting page to see new fee-aware presets.</p>';
+            document.getElementById('result').innerHTML = '<p class="success">✅ Old presets cleared! ' + cleared + ' timeframe selections removed.<br><br>Refresh the backtesting page to see new fee-aware presets:<br>• Quick: 1% profit (0.175% net)<br>• Scalp: 1.5% profit (0.675% net)<br>• Standard: 2% profit (1.175% net)</p>';
         }
     </script>
 </body>
