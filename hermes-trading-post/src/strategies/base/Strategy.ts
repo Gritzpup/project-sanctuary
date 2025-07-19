@@ -101,4 +101,9 @@ export abstract class Strategy {
     }
     return true;
   }
+
+  // Reset strategy state - override in derived classes if needed
+  reset(): void {
+    this.state.positions = [];
+  }
 }

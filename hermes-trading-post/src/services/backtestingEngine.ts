@@ -43,6 +43,11 @@ export class BacktestingEngine {
       }
     };
 
+    // Reset strategy state before starting
+    if (this.strategy.reset) {
+      this.strategy.reset();
+    }
+    
     this.strategy.setState(state);
     this.trades = [];
     this.equityHistory = [];
@@ -82,6 +87,17 @@ export class BacktestingEngine {
       // Get strategy signal
       const signal = this.strategy.analyze(historicalData, currentCandle.close);
 
+      // Debug logging for first few candles and any non-hold signals
+      if (i < 5 || signal.type !== 'hold') {
+        console.log(`Candle ${i}:`, {
+          time: new Date(currentCandle.time).toISOString(),
+          price: currentCandle.close,
+          signal: signal.type,
+          reason: signal.reason,
+          metadata: signal.metadata
+        });
+      }
+
       // Process signal
       if (signal.type === 'buy') {
         this.processBuySignal(signal, currentCandle, state);
@@ -99,6 +115,15 @@ export class BacktestingEngine {
 
     // Generate chart data
     const chartData = this.generateChartData();
+
+    console.log(`Backtest Summary: ${this.trades.length} trades executed`, {
+      trades: this.trades.length,
+      buyTrades: this.trades.filter(t => t.type === 'buy').length,
+      sellTrades: this.trades.filter(t => t.type === 'sell').length,
+      finalEquity: state.balance.usd + (state.balance.btc * lastPrice) + state.balance.vault,
+      profit: metrics.totalReturn,
+      profitPercent: metrics.totalReturnPercent
+    });
 
     return {
       trades: this.trades,

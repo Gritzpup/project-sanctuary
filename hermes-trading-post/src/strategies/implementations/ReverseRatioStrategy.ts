@@ -61,6 +61,18 @@ export class ReverseRatioStrategy extends Strategy {
     // Check if we should buy
     const dropFromHigh = ((this.recentHigh - currentPrice) / this.recentHigh) * 100;
     
+    // Debug logging for the first few candles or when close to trigger
+    if (candles.length <= 50 || dropFromHigh >= 4) {
+      console.log('ReverseRatioStrategy:', {
+        candleCount: candles.length,
+        currentPrice,
+        recentHigh: this.recentHigh,
+        dropFromHigh: dropFromHigh.toFixed(2) + '%',
+        hasPositions: this.state.positions.length > 0,
+        initialDropThreshold: config.initialDropPercent + '%'
+      });
+    }
+    
     // Initial entry check
     if (this.state.positions.length === 0 && dropFromHigh >= config.initialDropPercent) {
       this.initialEntryPrice = currentPrice;

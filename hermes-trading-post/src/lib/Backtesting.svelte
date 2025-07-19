@@ -56,7 +56,7 @@
   // Strategy-specific parameters
   let strategyParams: Record<string, any> = {
     'reverse-ratio': {
-      initialDropPercent: 5,
+      initialDropPercent: 3,  // Lowered from 5% to 3% to trigger more trades
       levelDropPercent: 5,
       ratioMultiplier: 2,
       profitTarget: 7,
@@ -76,7 +76,8 @@
     },
     'dca': {
       intervalHours: 24,
-      amountPerInterval: 5
+      amountPerBuy: 100,  // Changed from amountPerInterval to match DCAStrategy.ts
+      dropThreshold: 5   // Extra buy when price drops this %
     },
     'vwap-bounce': {
       vwapPeriod: 20,
@@ -432,17 +433,23 @@ export class ${getStrategyFileName(type)} extends Strategy {
       
       // Determine time range based on selected period
       switch (selectedPeriod) {
-        case '1D':
-          startTime.setDate(startTime.getDate() - 1);
+        case '1H':
+          startTime.setHours(startTime.getHours() - 1);
           break;
-        case '1W':
-          startTime.setDate(startTime.getDate() - 7);
+        case '4H':
+          startTime.setHours(startTime.getHours() - 4);
+          break;
+        case '5D':
+          startTime.setDate(startTime.getDate() - 5);
           break;
         case '1M':
           startTime.setMonth(startTime.getMonth() - 1);
           break;
         case '3M':
           startTime.setMonth(startTime.getMonth() - 3);
+          break;
+        case '6M':
+          startTime.setMonth(startTime.getMonth() - 6);
           break;
         case '1Y':
           startTime.setFullYear(startTime.getFullYear() - 1);
@@ -785,6 +792,18 @@ export class ${getStrategyFileName(type)} extends Strategy {
               <p>Configure your strategy and run a backtest to see results</p>
             </div>
           {:else}
+            {#if backtestResults.metrics.totalTrades === 0}
+              <div class="no-trades-notice">
+                <h3>No trades were executed</h3>
+                <p>The strategy didn't find any trading opportunities in this period.</p>
+                <p>Try:</p>
+                <ul>
+                  <li>Lowering the "Initial Drop (%)" parameter (currently {strategyParams[selectedStrategyType].initialDropPercent}%)</li>
+                  <li>Selecting a different time period with more volatility</li>
+                  <li>Using a different strategy like DCA or Grid Trading</li>
+                </ul>
+              </div>
+            {/if}
             <div class="results-summary">
               <div class="result-item">
                 <span class="result-label">Total Trades</span>
@@ -822,9 +841,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
               </div>
             </div>
             
-            <h3>Recent Trades (Last 10)</h3>
+            <h3>All Trades ({backtestResults.trades.length})</h3>
             <div class="trades-list">
-              {#each backtestResults.trades.slice(-10).reverse() as trade}
+              {#each backtestResults.trades.slice().reverse() as trade}
                 <div class="trade-item" class:buy={trade.type === 'buy'} class:sell={trade.type === 'sell'}>
                   <div class="trade-header">
                     <span class="trade-type">{trade.type.toUpperCase()}</span>
@@ -1314,6 +1333,28 @@ export class ${getStrategyFileName(type)} extends Strategy {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 5px;
+  }
+  
+  /* Custom scrollbar for trades list */
+  .trades-list::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .trades-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+  }
+  
+  .trades-list::-webkit-scrollbar-thumb {
+    background: rgba(167, 139, 250, 0.3);
+    border-radius: 3px;
+  }
+  
+  .trades-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(167, 139, 250, 0.5);
   }
   
   .trade-item {
@@ -1442,5 +1483,37 @@ export class ${getStrategyFileName(type)} extends Strategy {
     display: inline-block;
     margin-left: 10px;
     animation: spin 1s linear infinite;
+  }
+  
+  .no-trades-notice {
+    background: rgba(255, 152, 0, 0.1);
+    border: 1px solid rgba(255, 152, 0, 0.3);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .no-trades-notice h3 {
+    margin: 0 0 10px 0;
+    color: #ffa726;
+    font-size: 16px;
+  }
+  
+  .no-trades-notice p {
+    margin: 10px 0;
+    color: #d1d4dc;
+    font-size: 14px;
+  }
+  
+  .no-trades-notice ul {
+    margin: 10px 0 0 20px;
+    padding: 0;
+    list-style-type: disc;
+  }
+  
+  .no-trades-notice li {
+    margin: 5px 0;
+    color: #9ca3af;
+    font-size: 13px;
   }
 </style>

@@ -10,7 +10,6 @@
   let chartContainer: HTMLDivElement;
   let chart: IChartApi | null = null;
   let candleSeries: ISeriesApi<'Candlestick'> | null = null;
-  let markerSeries: any[] = [];
   
   function initChart() {
     if (!chartContainer) return;
@@ -35,6 +34,8 @@
       rightPriceScale: {
         borderColor: '#1f2937',
       },
+      handleScroll: false,  // Disable scroll zoom
+      handleScale: false,   // Disable pinch zoom
     });
     
     // Create candlestick series
@@ -78,6 +79,8 @@
     if (data.length > 0) {
       console.log('updateChart: Sample data item:', data[0]);
       console.log('updateChart: Data item keys:', Object.keys(data[0]));
+      console.log('updateChart: First candle time:', data[0].time);
+      console.log('updateChart: Last candle time:', data[data.length - 1].time);
     }
     
     try {
@@ -90,15 +93,43 @@
     
     // Add trade markers if available
     if (trades && trades.length > 0) {
-      const markers = trades.map(trade => ({
-        time: trade.timestamp / 1000, // Convert to seconds
-        position: trade.type === 'buy' ? 'belowBar' : 'aboveBar',
-        color: trade.type === 'buy' ? '#26a69a' : '#ef5350',
-        shape: trade.type === 'buy' ? 'arrowUp' : 'arrowDown',
-        text: `${trade.type.toUpperCase()} @ ${trade.price.toFixed(2)}`,
-      }));
+      console.log('updateChart: Processing trades for markers:', trades);
       
+      // Debug: Log candle time range
+      const candleTimeRange = {
+        first: data[0]?.time,
+        last: data[data.length - 1]?.time
+      };
+      console.log('Candle time range:', candleTimeRange);
+      
+      // Create markers for candlestick series
+      const markers = trades.map((trade, index) => {
+        // Trade timestamp is already in seconds (same as candle.time)
+        const time = trade.timestamp;
+        
+        console.log(`Trade ${index}: timestamp=${trade.timestamp}, type=${trade.type}, price=${trade.price}`);
+        
+        // Check if trade time is within candle range
+        if (time < candleTimeRange.first || time > candleTimeRange.last) {
+          console.warn(`Trade ${index} time ${time} is outside candle range [${candleTimeRange.first}, ${candleTimeRange.last}]`);
+        }
+        
+        return {
+          time: time,
+          position: trade.type === 'buy' ? 'belowBar' : 'aboveBar',
+          color: trade.type === 'buy' ? '#00ff00' : '#ff0000',  // Pure green/red
+          shape: trade.type === 'buy' ? 'arrowUp' : 'arrowDown',
+          size: 5,  // Extra large size
+          text: `${trade.type.toUpperCase()} @ $${trade.price.toLocaleString()}`
+        };
+      });
+      
+      console.log('updateChart: Setting markers:', markers);
       candleSeries.setMarkers(markers);
+    } else {
+      console.log('updateChart: No trades to display as markers');
+      // Clear any existing markers
+      if (candleSeries) candleSeries.setMarkers([]);
     }
     
     // Fit content
@@ -137,6 +168,7 @@
       <p class="hint">Run a backtest to see results</p>
     </div>
   {/if}
+  
 </div>
 
 <style>
@@ -167,4 +199,5 @@
     font-size: 14px;
     color: #6b7280;
   }
+  
 </style>
