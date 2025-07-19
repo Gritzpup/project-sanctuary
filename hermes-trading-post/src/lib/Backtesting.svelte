@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Chart from './Chart.svelte';
+  import BacktestChart from '../components/BacktestChart.svelte';
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
   import { onMount, createEventDispatcher } from 'svelte';
   import { BacktestingEngine } from '../services/backtestingEngine';
@@ -10,6 +10,7 @@
   import { VWAPBounceStrategy } from '../strategies/implementations/VWAPBounceStrategy';
   import type { Strategy } from '../strategies/base/Strategy';
   import type { BacktestConfig, BacktestResult } from '../strategies/base/StrategyTypes';
+  import type { CandleData } from '../types/coinbase';
   import { historicalDataService, HistoricalDataService } from '../services/historicalDataService';
   import BacktestStats from '../components/BacktestStats.svelte';
   
@@ -22,6 +23,10 @@
   let selectedGranularity = '1h';
   let selectedPeriod = '1M';
   let autoGranularityActive = false;
+  let isLoadingChart = false;
+  
+  // Cache for chart data to avoid refetching
+  const chartDataCache = new Map<string, CandleData[]>();
   
   function toggleSidebar() {
     sidebarCollapsed = !sidebarCollapsed;
@@ -38,6 +43,7 @@
   let isRunning = false;
   let backtestingEngine: BacktestingEngine;
   let currentStrategy: Strategy | null = null;
+  let historicalCandles: CandleData[] = [];
   
   // Tab state for strategy panel
   let activeTab: 'config' | 'code' = 'config';
@@ -75,10 +81,13 @@
     }
   };
   
-  onMount(() => {
+  onMount(async () => {
     console.log('Backtesting component mounted');
     console.log('Initial state:', { selectedStrategyType, startBalance, selectedPeriod, selectedGranularity });
     updateCurrentStrategy();
+    
+    // Load initial historical data for display
+    await loadChartData();
   });
   
   // Valid granularities for each period
@@ -97,13 +106,99 @@
     return validGranularities[period]?.includes(granularity) || false;
   }
   
-  function selectGranularity(granularity: string) {
-    if (isGranularityValid(granularity, selectedPeriod)) {
-      selectedGranularity = granularity;
+  async function loadChartData() {
+    const cacheKey = `${selectedPeriod}-${selectedGranularity}`;
+    
+    // Check cache first
+    if (chartDataCache.has(cacheKey)) {
+      console.log('Loading chart data from cache:', cacheKey);
+      historicalCandles = chartDataCache.get(cacheKey)!;
+      return;
+    }
+    
+    isLoadingChart = true;
+    
+    try {
+      console.log('Loading chart data for:', selectedPeriod, selectedGranularity);
+      const endTime = new Date();
+      const startTime = new Date();
+      
+      // Calculate start time based on selected period
+      switch (selectedPeriod) {
+        case '1H':
+          startTime.setHours(startTime.getHours() - 1);
+          break;
+        case '4H':
+          startTime.setHours(startTime.getHours() - 4);
+          break;
+        case '5D':
+          startTime.setDate(startTime.getDate() - 5);
+          break;
+        case '1M':
+          startTime.setMonth(startTime.getMonth() - 1);
+          break;
+        case '3M':
+          startTime.setMonth(startTime.getMonth() - 3);
+          break;
+        case '6M':
+          startTime.setMonth(startTime.getMonth() - 6);
+          break;
+        case '1Y':
+          startTime.setFullYear(startTime.getFullYear() - 1);
+          break;
+        case '5Y':
+          startTime.setFullYear(startTime.getFullYear() - 5);
+          break;
+        default:
+          startTime.setMonth(startTime.getMonth() - 1);
+      }
+      
+      // Convert granularity string to seconds
+      const granularityMap: Record<string, number> = {
+        '1m': 60,
+        '5m': 300,
+        '15m': 900,
+        '1h': 3600,
+        '6h': 21600,
+        '1D': 86400
+      };
+      
+      const granularitySeconds = granularityMap[selectedGranularity] || 3600;
+      
+      console.log('Fetching data with params:', { startTime, endTime, granularitySeconds });
+      
+      historicalCandles = await historicalDataService.fetchHistoricalData({
+        symbol: 'BTC-USD',
+        startTime,
+        endTime,
+        granularity: granularitySeconds
+      });
+      
+      // Cache the data
+      chartDataCache.set(cacheKey, historicalCandles);
+      
+      console.log(`Loaded ${historicalCandles.length} candles for ${selectedPeriod}/${selectedGranularity}`);
+      if (historicalCandles.length > 0) {
+        console.log('First candle:', historicalCandles[0]);
+        console.log('Last candle:', historicalCandles[historicalCandles.length - 1]);
+      }
+    } catch (error) {
+      console.error('Failed to load chart data:', error);
+    } finally {
+      isLoadingChart = false;
     }
   }
   
-  function selectPeriod(period: string) {
+  async function selectGranularity(granularity: string) {
+    console.log('selectGranularity called:', granularity, 'valid:', isGranularityValid(granularity, selectedPeriod));
+    if (isGranularityValid(granularity, selectedPeriod)) {
+      selectedGranularity = granularity;
+      await loadChartData(); // Reload chart with new granularity
+    }
+  }
+  
+  async function selectPeriod(period: string) {
+    console.log('selectPeriod called:', period);
     selectedPeriod = period;
     
     // If current granularity is not valid for new period, select the best default
@@ -112,8 +207,11 @@
       if (validOptions && validOptions.length > 0) {
         const middleIndex = Math.floor(validOptions.length / 2);
         selectedGranularity = validOptions[middleIndex];
+        console.log('Auto-selected granularity:', selectedGranularity);
       }
     }
+    
+    await loadChartData(); // Reload chart with new period
   }
   
   const strategies = [
@@ -151,10 +249,20 @@
   
   function updateCurrentStrategy() {
     try {
+      console.log('Updating strategy to:', selectedStrategyType);
       currentStrategy = createStrategy(selectedStrategyType);
+      console.log('Strategy created successfully:', currentStrategy.getName());
       loadStrategySourceCode();
     } catch (error) {
       console.error('Failed to update strategy:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        strategyType: selectedStrategyType,
+        params: strategyParams[selectedStrategyType]
+      });
+      currentStrategy = null;
+      alert(`Failed to create strategy: ${error.message}`);
     }
   }
   
@@ -254,6 +362,20 @@ export class ${getStrategyFileName(type)} extends Strategy {
   async function runBacktest() {
     if (!currentStrategy) {
       console.error('Strategy not initialized');
+      alert('Strategy not initialized. Please select a strategy.');
+      return;
+    }
+    
+    // Validate strategy is properly initialized
+    try {
+      console.log('Validating strategy:', {
+        name: currentStrategy.getName(),
+        config: currentStrategy.getConfig(),
+        state: currentStrategy.getState()
+      });
+    } catch (validationError) {
+      console.error('Strategy validation failed:', validationError);
+      alert('Strategy validation failed. Please try selecting a different strategy.');
       return;
     }
     
@@ -292,14 +414,20 @@ export class ${getStrategyFileName(type)} extends Strategy {
       // Fetch historical data
       console.log('Fetching historical data...');
       const granularity = HistoricalDataService.getOptimalGranularity(startTime, endTime);
-      const historicalData = await historicalDataService.fetchHistoricalData({
+      historicalCandles = await historicalDataService.fetchHistoricalData({
         symbol: 'BTC-USD',
         startTime,
         endTime,
         granularity
       });
       
-      console.log(`Fetched ${historicalData.length} candles`);
+      console.log(`Fetched ${historicalCandles.length} candles`);
+      console.log('Time range:', {
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        firstCandle: historicalCandles[0] ? new Date(historicalCandles[0].time).toISOString() : 'none',
+        lastCandle: historicalCandles[historicalCandles.length - 1] ? new Date(historicalCandles[historicalCandles.length - 1].time).toISOString() : 'none'
+      });
       
       // Configure backtesting engine
       const config = {
@@ -312,14 +440,21 @@ export class ${getStrategyFileName(type)} extends Strategy {
       
       // Create and run backtesting engine
       backtestingEngine = new BacktestingEngine(currentStrategy, config);
-      backtestResults = await backtestingEngine.runBacktest(historicalData);
+      backtestResults = await backtestingEngine.runBacktest(historicalCandles);
       
       console.log('Backtest completed:', backtestResults);
       console.log('Backtest metrics:', backtestResults.metrics);
       console.log('Chart data:', backtestResults.chartData);
     } catch (error) {
       console.error('Backtest failed:', error);
-      alert('Failed to run backtest. Please check the console for details.');
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        strategy: currentStrategy?.getName(),
+        candles: historicalCandles?.length || 0
+      });
+      alert(`Failed to run backtest: ${error.message || 'Unknown error'}. Please check the console for details.`);
     } finally {
       isRunning = false;
     }
@@ -328,6 +463,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   function clearResults() {
     backtestResults = null;
+    historicalCandles = [];
   }
 </script>
 
@@ -354,8 +490,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
       </div>
     </div>
     
-    <div class="backtest-grid">
-      <!-- Chart Panel -->
+    <div class="content-wrapper">
+      <div class="backtest-grid">
+        <!-- Chart Panel -->
       <div class="panel chart-panel">
         <div class="granularity-transition" class:active={autoGranularityActive}>
           Switching to {selectedGranularity}
@@ -374,11 +511,18 @@ export class ${getStrategyFileName(type)} extends Strategy {
           </div>
         </div>
         <div class="panel-content">
-          <Chart 
-            bind:status={connectionStatus} 
-            granularity={selectedGranularity} 
-            period={selectedPeriod} 
-            onGranularityChange={handleChartGranularityChange} 
+          {#if isLoadingChart}
+            <div class="loading-overlay">
+              <div class="loading-spinner"></div>
+              <div class="loading-text">Loading chart data...</div>
+              {#if selectedPeriod === '5Y'}
+                <div class="loading-hint">This may take a few seconds for large datasets</div>
+              {/if}
+            </div>
+          {/if}
+          <BacktestChart 
+            data={historicalCandles}
+            trades={backtestResults?.trades || []}
           />
           <div class="period-buttons">
             <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
@@ -435,26 +579,32 @@ export class ${getStrategyFileName(type)} extends Strategy {
             {#if selectedStrategyType === 'reverse-ratio'}
               <div class="config-section">
                 <label>
-                  Drop Threshold (%)
-                  <input type="number" bind:value={strategyParams['reverse-ratio'].dropThreshold} min="1" max="10" step="0.5" />
+                  Initial Drop (%)
+                  <input type="number" bind:value={strategyParams['reverse-ratio'].initialDropPercent} min="1" max="10" step="0.5" />
                 </label>
               </div>
               <div class="config-section">
                 <label>
-                  Sell Profit Target (%)
-                  <input type="number" bind:value={strategyParams['reverse-ratio'].sellProfitPercent} min="3" max="20" step="1" />
+                  Level Drop (%)
+                  <input type="number" bind:value={strategyParams['reverse-ratio'].levelDropPercent} min="1" max="10" step="0.5" />
                 </label>
               </div>
               <div class="config-section">
                 <label>
-                  Position Step (%)
-                  <input type="number" bind:value={strategyParams['reverse-ratio'].positionStep} min="1" max="5" step="0.5" />
+                  Ratio Multiplier
+                  <input type="number" bind:value={strategyParams['reverse-ratio'].ratioMultiplier} min="1.5" max="5" step="0.5" />
                 </label>
               </div>
               <div class="config-section">
                 <label>
-                  Max Positions
-                  <input type="number" bind:value={strategyParams['reverse-ratio'].maxPositions} min="5" max="20" step="1" />
+                  Profit Target (%)
+                  <input type="number" bind:value={strategyParams['reverse-ratio'].profitTarget} min="3" max="20" step="1" />
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Max Levels
+                  <input type="number" bind:value={strategyParams['reverse-ratio'].maxLevels} min="3" max="10" step="1" />
                 </label>
               </div>
             {:else if selectedStrategyType === 'grid-trading'}
@@ -653,12 +803,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
       </div>
     </div>
     
-    <!-- Comprehensive Stats Section -->
-    {#if backtestResults}
-      <div class="stats-section">
-        <BacktestStats results={backtestResults} />
-      </div>
-    {/if}
+      <!-- Removed extra BacktestStats - results are already shown in the results panel -->
+    </div>
   </main>
 </div>
 
@@ -676,8 +822,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
     flex-direction: column;
     margin-left: 250px;
     transition: margin-left 0.3s ease;
-    overflow-y: auto;
     height: 100vh;
+    overflow: hidden;
   }
   
   .dashboard-content.expanded {
@@ -742,14 +888,20 @@ export class ${getStrategyFileName(type)} extends Strategy {
     color: #ffa726;
   }
   
-  .backtest-grid {
+  .content-wrapper {
     flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .backtest-grid {
     display: grid;
     grid-template-columns: 2fr 1fr;
     grid-template-rows: auto 1fr;
     gap: 20px;
     padding: 20px;
-    overflow: hidden;
+    min-height: calc(100vh - 200px);
   }
   
   .panel {
@@ -1067,19 +1219,20 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   .results-summary {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     margin-bottom: 20px;
   }
   
   .result-item {
     display: flex;
     justify-content: space-between;
-    padding: 10px;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 4px;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
     font-size: 14px;
+    border: 1px solid rgba(74, 0, 224, 0.15);
   }
   
   .result-label {
@@ -1189,5 +1342,47 @@ export class ${getStrategyFileName(type)} extends Strategy {
     padding: 20px;
     background: #0f0f0f;
     border-top: 1px solid rgba(74, 0, 224, 0.3);
+    margin-top: auto;
+    flex-shrink: 0;
+  }
+  
+  .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(10, 10, 10, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(167, 139, 250, 0.2);
+    border-radius: 50%;
+    border-top-color: #a78bfa;
+    animation: spin 1s ease-in-out infinite;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  .loading-text {
+    margin-top: 20px;
+    color: #a78bfa;
+    font-size: 16px;
+    font-weight: 500;
+  }
+  
+  .loading-hint {
+    margin-top: 10px;
+    color: #758696;
+    font-size: 13px;
   }
 </style>
