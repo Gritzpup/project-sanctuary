@@ -959,6 +959,51 @@ export class ${getStrategyFileName(type)} extends Strategy {
                     Parameters optimized for {selectedGranularity} timeframe
                   {/if}
                 </div>
+                
+                {#if selectedPeriod === '1H' && ['1m', '5m'].includes(selectedGranularity)}
+                  <div class="quick-scalp-buttons">
+                    <span class="preset-label">Quick presets:</span>
+                    <button 
+                      class="preset-btn ultra"
+                      on:click={() => {
+                        strategyParams['reverse-ratio'].initialDropPercent = 0.02;
+                        strategyParams['reverse-ratio'].levelDropPercent = 0.02;
+                        strategyParams['reverse-ratio'].profitTarget = 0.05;
+                        strategyParams['reverse-ratio'].basePositionPercent = 30;
+                        strategyParams['reverse-ratio'].maxPositionPercent = 90;
+                        strategyParams['reverse-ratio'].ratioMultiplier = 1.1;
+                      }}
+                    >
+                      🔥 Ultra (0.02% → 0.05%)
+                    </button>
+                    <button 
+                      class="preset-btn micro"
+                      on:click={() => {
+                        strategyParams['reverse-ratio'].initialDropPercent = 0.05;
+                        strategyParams['reverse-ratio'].levelDropPercent = 0.03;
+                        strategyParams['reverse-ratio'].profitTarget = 0.08;
+                        strategyParams['reverse-ratio'].basePositionPercent = 25;
+                        strategyParams['reverse-ratio'].maxPositionPercent = 80;
+                        strategyParams['reverse-ratio'].ratioMultiplier = 1.2;
+                      }}
+                    >
+                      ⚡ Micro (0.05% → 0.08%)
+                    </button>
+                    <button 
+                      class="preset-btn normal"
+                      on:click={() => {
+                        strategyParams['reverse-ratio'].initialDropPercent = 0.1;
+                        strategyParams['reverse-ratio'].levelDropPercent = 0.08;
+                        strategyParams['reverse-ratio'].profitTarget = 0.15;
+                        strategyParams['reverse-ratio'].basePositionPercent = 20;
+                        strategyParams['reverse-ratio'].maxPositionPercent = 70;
+                        strategyParams['reverse-ratio'].ratioMultiplier = 1.3;
+                      }}
+                    >
+                      📊 Normal (0.1% → 0.15%)
+                    </button>
+                  </div>
+                {/if}
               {/if}
               
               <!-- Position Sizing Section -->
@@ -2220,5 +2265,67 @@ export class ${getStrategyFileName(type)} extends Strategy {
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.8; }
+  }
+  
+  /* Quick Scalp Buttons */
+  .quick-scalp-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 15px;
+    padding: 12px;
+    background: rgba(167, 139, 250, 0.05);
+    border-radius: 6px;
+    border: 1px solid rgba(167, 139, 250, 0.15);
+  }
+  
+  .preset-label {
+    font-size: 0.85rem;
+    color: #9ca3af;
+    margin-right: 8px;
+  }
+  
+  .preset-btn {
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+  }
+  
+  .preset-btn.ultra {
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+  }
+  
+  .preset-btn.ultra:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: #f87171;
+    transform: scale(1.05);
+  }
+  
+  .preset-btn.micro {
+    border-color: rgba(251, 191, 36, 0.3);
+    color: #fbbf24;
+  }
+  
+  .preset-btn.micro:hover {
+    background: rgba(251, 191, 36, 0.1);
+    border-color: #fbbf24;
+    transform: scale(1.05);
+  }
+  
+  .preset-btn.normal {
+    border-color: rgba(167, 139, 250, 0.3);
+    color: #a78bfa;
+  }
+  
+  .preset-btn.normal:hover {
+    background: rgba(167, 139, 250, 0.1);
+    border-color: #a78bfa;
+    transform: scale(1.05);
   }
 </style>
