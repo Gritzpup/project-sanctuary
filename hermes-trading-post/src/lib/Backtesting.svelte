@@ -100,40 +100,40 @@
   // Timeframe-specific configurations for reverse-ratio strategy
   const reverseRatioTimeframeConfigs: Record<string, any> = {
     '1m': {
-      initialDropPercent: 0.3,    // Wait for 0.3% drop to start
-      levelDropPercent: 0.2,      // 0.2% between levels
-      profitTarget: 0.5,          // Take profit at 0.5%
+      initialDropPercent: 0.05,   // Micro scalping - 0.05% drop
+      levelDropPercent: 0.05,     // 0.05% between levels
+      profitTarget: 0.15,         // Take profit at 0.15%
       maxLevels: 10,
       lookbackPeriod: 20,
-      basePositionPercent: 10,    // Start with 10% positions
-      ratioMultiplier: 1.5        // Moderate increase per level
+      basePositionPercent: 15,    // Larger positions for small moves
+      ratioMultiplier: 1.25       // Gentle increase per level
     },
     '5m': {
-      initialDropPercent: 0.5,    // 0.5% initial drop
-      levelDropPercent: 0.3,      // 0.3% between levels
-      profitTarget: 1.0,          // 1% profit target
+      initialDropPercent: 0.1,    // 0.1% initial drop
+      levelDropPercent: 0.1,      // 0.1% between levels
+      profitTarget: 0.3,          // 0.3% profit target
       maxLevels: 12,
       lookbackPeriod: 25,
-      basePositionPercent: 8,
+      basePositionPercent: 10,
       ratioMultiplier: 1.5
     },
     '15m': {
-      initialDropPercent: 0.8,    // 0.8% initial drop
-      levelDropPercent: 0.5,      // 0.5% between levels
-      profitTarget: 1.5,          // 1.5% profit target
+      initialDropPercent: 0.2,    // 0.2% initial drop
+      levelDropPercent: 0.15,     // 0.15% between levels
+      profitTarget: 0.5,          // 0.5% profit target
       maxLevels: 15,
       lookbackPeriod: 30,
-      basePositionPercent: 7,
-      ratioMultiplier: 1.75
+      basePositionPercent: 8,
+      ratioMultiplier: 1.5
     },
     '1h': {
-      initialDropPercent: 1.2,    // 1.2% initial drop
-      levelDropPercent: 0.8,      // 0.8% between levels
-      profitTarget: 2.5,          // 2.5% profit target
+      initialDropPercent: 0.3,    // 0.3% initial drop for 1H window
+      levelDropPercent: 0.2,      // 0.2% between levels
+      profitTarget: 0.8,          // 0.8% profit target
       maxLevels: 20,
       lookbackPeriod: 50,
       basePositionPercent: 5,
-      ratioMultiplier: 2
+      ratioMultiplier: 1.75
     },
     '6h': {
       initialDropPercent: 2.0,    // 2% initial drop
@@ -945,7 +945,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
               {#if reverseRatioTimeframeConfigs[selectedGranularity]}
                 <div class="timeframe-notice">
                   <span class="notice-icon">⚡</span>
-                  Parameters optimized for {selectedGranularity} timeframe
+                  {#if ['1m', '5m'].includes(selectedGranularity) && selectedPeriod === '1H'}
+                    Micro-scalping mode: {selectedGranularity} candles in {selectedPeriod} window
+                  {:else}
+                    Parameters optimized for {selectedGranularity} timeframe
+                  {/if}
                 </div>
               {/if}
               
@@ -1028,15 +1032,20 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 <div class="config-section">
                   <label>
                     Initial Drop (%)
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].initialDropPercent} min="0.1" max="10" step="0.1" />
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].initialDropPercent} min="0.01" max="10" step="0.01" />
                     <span class="input-hint">Price drop from recent high to trigger first buy</span>
+                    {#if currentPrice > 0}
+                      <span class="price-preview">
+                        At current price ${currentPrice.toFixed(2)}, this means buying at ${(currentPrice * (1 - strategyParams['reverse-ratio'].initialDropPercent / 100)).toFixed(2)}
+                      </span>
+                    {/if}
                   </label>
                 </div>
                 
                 <div class="config-section">
                   <label>
                     Level Drop (%)
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].levelDropPercent} min="0.1" max="10" step="0.1" />
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].levelDropPercent} min="0.01" max="10" step="0.01" />
                     <span class="input-hint">Additional drop between each buy level</span>
                   </label>
                 </div>
@@ -1057,8 +1066,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 <div class="config-section">
                   <label>
                     Profit Target (%)
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].profitTarget} min="3" max="20" step="0.5" />
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].profitTarget} min="0.1" max="20" step="0.05" />
                     <span class="input-hint">Sell all positions when first entry reaches this profit</span>
+                    {#if currentPrice > 0 && strategyParams['reverse-ratio'].initialDropPercent > 0}
+                      <span class="price-preview">
+                        Sell target: ${(currentPrice * (1 - strategyParams['reverse-ratio'].initialDropPercent / 100) * (1 + strategyParams['reverse-ratio'].profitTarget / 100)).toFixed(2)}
+                      </span>
+                    {/if}
                   </label>
                 </div>
               </div>
@@ -2178,5 +2192,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
   .preview-percent {
     color: #6b7280;
     text-align: right;
+  }
+  
+  .price-preview {
+    display: block;
+    font-size: 0.7rem;
+    color: #a78bfa;
+    margin-top: 4px;
+    font-weight: 500;
   }
 </style>
