@@ -102,38 +102,38 @@
     '1m': {
       initialDropPercent: 0.05,   // Micro scalping - 0.05% drop
       levelDropPercent: 0.05,     // 0.05% between levels
-      profitTarget: 0.15,         // Take profit at 0.15%
+      profitTarget: 0.1,          // Take profit at 0.1% (super quick)
       maxLevels: 10,
       lookbackPeriod: 20,
-      basePositionPercent: 15,    // Larger positions for small moves
+      basePositionPercent: 20,    // Larger positions for tiny moves
       ratioMultiplier: 1.25       // Gentle increase per level
     },
     '5m': {
       initialDropPercent: 0.1,    // 0.1% initial drop
-      levelDropPercent: 0.1,      // 0.1% between levels
-      profitTarget: 0.3,          // 0.3% profit target
+      levelDropPercent: 0.08,     // 0.08% between levels
+      profitTarget: 0.2,          // 0.2% profit target (reduced)
       maxLevels: 12,
       lookbackPeriod: 25,
+      basePositionPercent: 15,
+      ratioMultiplier: 1.3
+    },
+    '15m': {
+      initialDropPercent: 0.15,   // 0.15% initial drop
+      levelDropPercent: 0.1,      // 0.1% between levels
+      profitTarget: 0.3,          // 0.3% profit target (reduced)
+      maxLevels: 15,
+      lookbackPeriod: 30,
       basePositionPercent: 10,
       ratioMultiplier: 1.5
     },
-    '15m': {
-      initialDropPercent: 0.2,    // 0.2% initial drop
-      levelDropPercent: 0.15,     // 0.15% between levels
-      profitTarget: 0.5,          // 0.5% profit target
-      maxLevels: 15,
-      lookbackPeriod: 30,
-      basePositionPercent: 8,
-      ratioMultiplier: 1.5
-    },
     '1h': {
-      initialDropPercent: 0.3,    // 0.3% initial drop for 1H window
-      levelDropPercent: 0.2,      // 0.2% between levels
-      profitTarget: 0.8,          // 0.8% profit target
+      initialDropPercent: 0.2,    // 0.2% initial drop for 1H window
+      levelDropPercent: 0.15,     // 0.15% between levels
+      profitTarget: 0.4,          // 0.4% profit target (much lower!)
       maxLevels: 20,
       lookbackPeriod: 50,
-      basePositionPercent: 5,
-      ratioMultiplier: 1.75
+      basePositionPercent: 8,
+      ratioMultiplier: 1.5
     },
     '6h': {
       initialDropPercent: 2.0,    // 2% initial drop

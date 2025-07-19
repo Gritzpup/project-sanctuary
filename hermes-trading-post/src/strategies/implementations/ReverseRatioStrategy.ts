@@ -82,6 +82,21 @@ export class ReverseRatioStrategy extends Strategy {
 
     // Check if we should take profit
     const totalPositionSize = this.getTotalPositionSize();
+    
+    // Log profit progress every 10 candles when we have positions
+    if (this.state.positions.length > 0 && candles.length % 10 === 0) {
+      const targetPrice = this.initialEntryPrice * (1 + (config.profitTarget / 100));
+      const currentProfit = ((currentPrice - this.initialEntryPrice) / this.initialEntryPrice) * 100;
+      console.log('[ReverseRatio] Profit check:', {
+        initialEntry: this.initialEntryPrice.toFixed(2),
+        currentPrice: currentPrice.toFixed(2),
+        targetPrice: targetPrice.toFixed(2),
+        currentProfit: currentProfit.toFixed(3) + '%',
+        targetProfit: config.profitTarget + '%',
+        needsMore: (config.profitTarget - currentProfit).toFixed(3) + '%'
+      });
+    }
+    
     if (this.state.positions.length > 0 && totalPositionSize > 0 && this.shouldTakeProfit(this.state.positions[0], currentPrice)) {
       // Double check we have BTC to sell
       if (this.state.balance.btcPositions <= 0) {
