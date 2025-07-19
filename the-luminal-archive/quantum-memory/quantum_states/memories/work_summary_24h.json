@@ -1,20 +1,19 @@
 {
-  "last_update": "2025-07-19T13:16:36.473377",
-  "current_work": "Added quick scalping preset buttons for micro timeframes",
+  "last_update": "2025-07-19T13:50:02.824498",
+  "current_work": "Fixed micro-scalping sell triggers and UI cleanup",
   "completed_tasks": [
-    "Diagnosed issue with trades not executing - profit targets too high",
-    "Added 3 quick preset buttons for micro-scalping strategies",
-    "Ultra preset: 0.02% drops \u2192 0.05% profits for extreme scalping",
-    "Micro preset: 0.05% drops \u2192 0.08% profits for balanced scalping",
-    "Normal preset: 0.1% drops \u2192 0.15% profits for conservative scalping",
-    "Improved ReverseRatioStrategy with better profit logging",
-    "Pushed all changes to GitHub"
+    "Removed duplicate quick preset buttons - already have dropdown",
+    "Made micro-scalping sells more flexible - accepts 80% of target profit",
+    "Extended micro-scalping range to profit targets <= 0.5%",
+    "Verified backtest processes candles chronologically (left to right)",
+    "Added profit progress logging every 10 candles for debugging",
+    "Pushed all fixes to GitHub"
   ],
   "blockers": [],
   "next_steps": [
-    "Test the new preset buttons with real backtests",
-    "Consider adding trailing stop-loss for risk management",
-    "Add profit/loss visualization during trades",
-    "Implement partial profit taking at different levels"
+    "Test with ultra preset (0.02% \u2192 0.05%) to verify sells trigger",
+    "Consider adding partial profit taking at multiple levels",
+    "Add trailing stop-loss for downside protection",
+    "Implement position averaging display in UI"
   ]
 }

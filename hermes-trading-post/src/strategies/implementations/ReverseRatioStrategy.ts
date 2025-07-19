@@ -87,13 +87,24 @@ export class ReverseRatioStrategy extends Strategy {
     if (this.state.positions.length > 0 && candles.length % 10 === 0) {
       const targetPrice = this.initialEntryPrice * (1 + (config.profitTarget / 100));
       const currentProfit = ((currentPrice - this.initialEntryPrice) / this.initialEntryPrice) * 100;
+      
+      // Calculate minimum acceptable profit for micro scalping
+      let minAcceptable = config.profitTarget;
+      if (config.profitTarget <= 0.1) {
+        minAcceptable = Math.max(0.02, config.profitTarget * 0.5);
+      } else if (config.profitTarget <= 0.5) {
+        minAcceptable = config.profitTarget * 0.7;
+      }
+      
       console.log('[ReverseRatio] Profit check:', {
         initialEntry: this.initialEntryPrice.toFixed(2),
         currentPrice: currentPrice.toFixed(2),
         targetPrice: targetPrice.toFixed(2),
-        currentProfit: currentProfit.toFixed(3) + '%',
+        currentProfit: currentProfit.toFixed(4) + '%',
         targetProfit: config.profitTarget + '%',
-        needsMore: (config.profitTarget - currentProfit).toFixed(3) + '%'
+        minAcceptable: minAcceptable.toFixed(4) + '%',
+        willSellAt: currentProfit >= minAcceptable ? 'YES' : 'NO',
+        needsMore: (minAcceptable - currentProfit).toFixed(4) + '%'
       });
     }
     
@@ -293,10 +304,25 @@ export class ReverseRatioStrategy extends Strategy {
       const targetPrice = this.initialEntryPrice * (1 + config.profitTarget / 100);
       const currentProfit = ((currentPrice - this.initialEntryPrice) / this.initialEntryPrice) * 100;
       
-      // MICRO SCALPING: If profit target is very small (< 0.5%), take profit more aggressively
-      if (config.profitTarget <= 0.5 && currentProfit > 0) {
-        // For micro scalping, be flexible with profit taking
-        const minAcceptableProfit = config.profitTarget * 0.8; // Accept 80% of target for micro scalps
+      // ULTRA MICRO SCALPING: For extremely small targets, take ANY meaningful profit
+      if (config.profitTarget <= 0.1 && currentProfit > 0) {
+        // For 0.02-0.1% targets, take profit at 50% of target or 0.02% minimum
+        const ultraMinProfit = Math.max(0.02, config.profitTarget * 0.5);
+        
+        if (currentProfit >= ultraMinProfit) {
+          console.log('[ReverseRatio] ULTRA MICRO PROFIT TAKEN!', {
+            currentProfit: currentProfit.toFixed(4) + '%',
+            targetProfit: config.profitTarget + '%',
+            ultraMinProfit: ultraMinProfit.toFixed(4) + '%',
+            currentPrice,
+            initialEntry: this.initialEntryPrice
+          });
+          return true;
+        }
+      }
+      // MICRO SCALPING: If profit target is small (0.1-0.5%), take profit at 70% of target
+      else if (config.profitTarget <= 0.5 && currentProfit > 0) {
+        const minAcceptableProfit = config.profitTarget * 0.7; // Accept 70% of target
         
         if (currentProfit >= minAcceptableProfit) {
           console.log('[ReverseRatio] MICRO SCALP PROFIT TAKEN!', {

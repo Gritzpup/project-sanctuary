@@ -78,6 +78,27 @@
   let isEditingPresets = false;
   let editingPresetName = '';
   
+  // Load saved preset for current timeframe combination
+  function loadSavedPresetForTimeframe() {
+    const timeframeKey = `preset_${selectedPeriod}_${selectedGranularity}`;
+    const savedIndex = localStorage.getItem(timeframeKey);
+    if (savedIndex !== null) {
+      const index = parseInt(savedIndex);
+      if (index >= 0 && index < customPresets.length) {
+        selectedPresetIndex = index;
+        applyPreset(index);
+        console.log(`Loaded saved preset ${index} for ${selectedPeriod}/${selectedGranularity}`);
+      }
+    }
+  }
+  
+  // Save preset selection for current timeframe
+  function savePresetForTimeframe(index: number) {
+    const timeframeKey = `preset_${selectedPeriod}_${selectedGranularity}`;
+    localStorage.setItem(timeframeKey, index.toString());
+    console.log(`Saved preset ${index} for ${selectedPeriod}/${selectedGranularity}`);
+  }
+  
   // Initialize with default presets if none exist
   if (customPresets.length === 0) {
     customPresets = [
@@ -137,6 +158,8 @@
     strategyParams['reverse-ratio'].ratioMultiplier = preset.ratioMultiplier;
     
     selectedPresetIndex = index;
+    // Save this preset selection for the current timeframe
+    savePresetForTimeframe(index);
   }
   
   function updatePresetName(index: number, newName: string) {
@@ -301,6 +324,9 @@
     // Update strategy params based on initial timeframe
     updateStrategyParamsForTimeframe();
     
+    // Load saved preset for initial timeframe
+    loadSavedPresetForTimeframe();
+    
     updateCurrentStrategy();
     
     // Load initial historical data for display
@@ -452,6 +478,7 @@
     if (isGranularityValid(granularity, selectedPeriod)) {
       selectedGranularity = granularity;
       updateStrategyParamsForTimeframe(); // Update strategy params for new timeframe
+      loadSavedPresetForTimeframe(); // Load saved preset for this timeframe combination
       await loadChartData(true); // Force refresh with new granularity
     }
   }
@@ -484,6 +511,7 @@
       }, 30000) as unknown as number;
     }
     
+    loadSavedPresetForTimeframe(); // Load saved preset for this timeframe combination
     await loadChartData(true); // Force refresh with new period
   }
   
