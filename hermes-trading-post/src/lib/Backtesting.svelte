@@ -1,7 +1,7 @@
 <script lang="ts">
   import BacktestChart from '../components/BacktestChart.svelte';
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
-  import { onMount, createEventDispatcher } from 'svelte';
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { BacktestingEngine } from '../services/backtestingEngine';
   import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';
   import { GridTradingStrategy } from '../strategies/implementations/GridTradingStrategy';
@@ -25,8 +25,9 @@
   let autoGranularityActive = false;
   let isLoadingChart = false;
   
-  // Cache for chart data to avoid refetching
-  const chartDataCache = new Map<string, CandleData[]>();
+  // Cache for chart data with timestamps
+  const chartDataCache = new Map<string, { data: CandleData[], timestamp: number }>();
+  const CACHE_DURATION = 60000; // 1 minute cache duration
   
   function toggleSidebar() {
     sidebarCollapsed = !sidebarCollapsed;
@@ -48,6 +49,9 @@
   // Tab state for strategy panel
   let activeTab: 'config' | 'code' = 'config';
   let strategySourceCode = '';
+  
+  // Auto-refresh interval
+  let refreshInterval: number | null = null;
   
   // Strategy-specific parameters
   let strategyParams: Record<string, any> = {
@@ -87,7 +91,24 @@
     updateCurrentStrategy();
     
     // Load initial historical data for display
-    await loadChartData();
+    await loadChartData(true); // Force refresh on mount
+    
+    // Set up auto-refresh every 30 seconds for short timeframes
+    if (['1H', '4H', '5D'].includes(selectedPeriod)) {
+      refreshInterval = setInterval(async () => {
+        console.log('Auto-refreshing chart data...');
+        await loadChartData(true);
+      }, 30000) as unknown as number; // Refresh every 30 seconds
+    }
+    
+  });
+  
+  onDestroy(() => {
+    // Cleanup on unmount
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+      refreshInterval = null;
+    }
   });
   
   // Valid granularities for each period
@@ -106,14 +127,22 @@
     return validGranularities[period]?.includes(granularity) || false;
   }
   
-  async function loadChartData() {
+  async function loadChartData(forceRefresh = false) {
     const cacheKey = `${selectedPeriod}-${selectedGranularity}`;
     
-    // Check cache first
-    if (chartDataCache.has(cacheKey)) {
-      console.log('Loading chart data from cache:', cacheKey);
-      historicalCandles = chartDataCache.get(cacheKey)!;
-      return;
+    // Check cache first (unless force refresh)
+    if (!forceRefresh && chartDataCache.has(cacheKey)) {
+      const cached = chartDataCache.get(cacheKey)!;
+      const age = Date.now() - cached.timestamp;
+      
+      if (age < CACHE_DURATION) {
+        console.log('Loading chart data from cache:', cacheKey, `(age: ${age}ms)`);
+        historicalCandles = cached.data;
+        return;
+      } else {
+        console.log('Cache expired for:', cacheKey);
+        chartDataCache.delete(cacheKey);
+      }
     }
     
     isLoadingChart = true;
@@ -174,8 +203,8 @@
         granularity: granularitySeconds
       });
       
-      // Cache the data
-      chartDataCache.set(cacheKey, historicalCandles);
+      // Cache the data with timestamp
+      chartDataCache.set(cacheKey, { data: historicalCandles, timestamp: Date.now() });
       
       console.log(`Loaded ${historicalCandles.length} candles for ${selectedPeriod}/${selectedGranularity}`);
       if (historicalCandles.length > 0) {
@@ -193,7 +222,7 @@
     console.log('selectGranularity called:', granularity, 'valid:', isGranularityValid(granularity, selectedPeriod));
     if (isGranularityValid(granularity, selectedPeriod)) {
       selectedGranularity = granularity;
-      await loadChartData(); // Reload chart with new granularity
+      await loadChartData(true); // Force refresh with new granularity
     }
   }
   
@@ -211,7 +240,21 @@
       }
     }
     
-    await loadChartData(); // Reload chart with new period
+    // Update refresh interval based on new period
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+      refreshInterval = null;
+    }
+    
+    // Set up auto-refresh for short timeframes
+    if (['1H', '4H', '5D'].includes(period)) {
+      refreshInterval = setInterval(async () => {
+        console.log('Auto-refreshing chart data...');
+        await loadChartData(true);
+      }, 30000) as unknown as number;
+    }
+    
+    await loadChartData(true); // Force refresh with new period
   }
   
   const strategies = [
@@ -492,53 +535,55 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     <div class="content-wrapper">
       <div class="backtest-grid">
-        <!-- Chart Panel -->
-      <div class="panel chart-panel">
-        <div class="granularity-transition" class:active={autoGranularityActive}>
-          Switching to {selectedGranularity}
-        </div>
-        <div class="panel-header">
-          <h2>BTC/USD Chart</h2>
-          <div class="chart-controls">
-            <div class="granularity-buttons">
-              <button class="granularity-btn" class:active={selectedGranularity === '1m'} class:disabled={!isGranularityValid('1m', selectedPeriod)} on:click={() => selectGranularity('1m')}>1m</button>
-              <button class="granularity-btn" class:active={selectedGranularity === '5m'} class:disabled={!isGranularityValid('5m', selectedPeriod)} on:click={() => selectGranularity('5m')}>5m</button>
-              <button class="granularity-btn" class:active={selectedGranularity === '15m'} class:disabled={!isGranularityValid('15m', selectedPeriod)} on:click={() => selectGranularity('15m')}>15m</button>
-              <button class="granularity-btn" class:active={selectedGranularity === '1h'} class:disabled={!isGranularityValid('1h', selectedPeriod)} on:click={() => selectGranularity('1h')}>1h</button>
-              <button class="granularity-btn" class:active={selectedGranularity === '6h'} class:disabled={!isGranularityValid('6h', selectedPeriod)} on:click={() => selectGranularity('6h')}>6h</button>
-              <button class="granularity-btn" class:active={selectedGranularity === '1D'} class:disabled={!isGranularityValid('1D', selectedPeriod)} on:click={() => selectGranularity('1D')}>1D</button>
+        <!-- Row containing Chart and Strategy panels side by side -->
+        <div class="panels-row">
+          <!-- Chart Panel -->
+          <div class="panel chart-panel">
+            <div class="granularity-transition" class:active={autoGranularityActive}>
+              Switching to {selectedGranularity}
             </div>
-          </div>
-        </div>
-        <div class="panel-content">
-          {#if isLoadingChart}
-            <div class="loading-overlay">
-              <div class="loading-spinner"></div>
-              <div class="loading-text">Loading chart data...</div>
-              {#if selectedPeriod === '5Y'}
-                <div class="loading-hint">This may take a few seconds for large datasets</div>
+            <div class="panel-header">
+              <h2>BTC/USD Chart {#if isLoadingChart}<span class="loading-indicator">🔄</span>{/if}</h2>
+              <div class="chart-controls">
+                <div class="granularity-buttons">
+                  <button class="granularity-btn" class:active={selectedGranularity === '1m'} class:disabled={!isGranularityValid('1m', selectedPeriod)} on:click={() => selectGranularity('1m')}>1m</button>
+                  <button class="granularity-btn" class:active={selectedGranularity === '5m'} class:disabled={!isGranularityValid('5m', selectedPeriod)} on:click={() => selectGranularity('5m')}>5m</button>
+                  <button class="granularity-btn" class:active={selectedGranularity === '15m'} class:disabled={!isGranularityValid('15m', selectedPeriod)} on:click={() => selectGranularity('15m')}>15m</button>
+                  <button class="granularity-btn" class:active={selectedGranularity === '1h'} class:disabled={!isGranularityValid('1h', selectedPeriod)} on:click={() => selectGranularity('1h')}>1h</button>
+                  <button class="granularity-btn" class:active={selectedGranularity === '6h'} class:disabled={!isGranularityValid('6h', selectedPeriod)} on:click={() => selectGranularity('6h')}>6h</button>
+                  <button class="granularity-btn" class:active={selectedGranularity === '1D'} class:disabled={!isGranularityValid('1D', selectedPeriod)} on:click={() => selectGranularity('1D')}>1D</button>
+                </div>
+              </div>
+            </div>
+            <div class="panel-content">
+              {#if isLoadingChart}
+                <div class="loading-overlay">
+                  <div class="loading-spinner"></div>
+                  <div class="loading-text">Loading chart data...</div>
+                  {#if selectedPeriod === '5Y'}
+                    <div class="loading-hint">This may take a few seconds for large datasets</div>
+                  {/if}
+                </div>
               {/if}
+              <BacktestChart 
+                data={historicalCandles}
+                trades={backtestResults?.trades || []}
+              />
+              <div class="period-buttons">
+                <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
+                <button class="period-btn" class:active={selectedPeriod === '4H'} on:click={() => selectPeriod('4H')}>4H</button>
+                <button class="period-btn" class:active={selectedPeriod === '5D'} on:click={() => selectPeriod('5D')}>5D</button>
+                <button class="period-btn" class:active={selectedPeriod === '1M'} on:click={() => selectPeriod('1M')}>1M</button>
+                <button class="period-btn" class:active={selectedPeriod === '3M'} on:click={() => selectPeriod('3M')}>3M</button>
+                <button class="period-btn" class:active={selectedPeriod === '6M'} on:click={() => selectPeriod('6M')}>6M</button>
+                <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
+                <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
+              </div>
             </div>
-          {/if}
-          <BacktestChart 
-            data={historicalCandles}
-            trades={backtestResults?.trades || []}
-          />
-          <div class="period-buttons">
-            <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
-            <button class="period-btn" class:active={selectedPeriod === '4H'} on:click={() => selectPeriod('4H')}>4H</button>
-            <button class="period-btn" class:active={selectedPeriod === '5D'} on:click={() => selectPeriod('5D')}>5D</button>
-            <button class="period-btn" class:active={selectedPeriod === '1M'} on:click={() => selectPeriod('1M')}>1M</button>
-            <button class="period-btn" class:active={selectedPeriod === '3M'} on:click={() => selectPeriod('3M')}>3M</button>
-            <button class="period-btn" class:active={selectedPeriod === '6M'} on:click={() => selectPeriod('6M')}>6M</button>
-            <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
-            <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
           </div>
-        </div>
-      </div>
-      
-      <!-- Strategy Configuration -->
-      <div class="panel strategy-panel">
+          
+          <!-- Strategy Configuration -->
+          <div class="panel strategy-panel">
         <div class="panel-header">
           <h2>Strategy</h2>
           <div class="tabs">
@@ -727,9 +772,10 @@ export class ${getStrategyFileName(type)} extends Strategy {
           {/if}
         </div>
       </div>
-      
-      <!-- Results Panel -->
-      <div class="panel results-panel">
+        </div><!-- End of panels-row -->
+        
+        <!-- Results Panel - Now spans full width below -->
+        <div class="panel results-panel">
         <div class="panel-header">
           <h2>Backtest Results</h2>
         </div>
@@ -801,17 +847,16 @@ export class ${getStrategyFileName(type)} extends Strategy {
           {/if}
         </div>
       </div>
-    </div>
-    
-      <!-- Removed extra BacktestStats - results are already shown in the results panel -->
-    </div>
+      
+      </div><!-- End of backtest-grid -->
+    </div><!-- End of content-wrapper -->
   </main>
 </div>
 
 <style>
   .dashboard-layout {
     display: flex;
-    height: 100vh;
+    min-height: 100vh;
     background: #0a0a0a;
     color: #d1d4dc;
   }
@@ -822,8 +867,6 @@ export class ${getStrategyFileName(type)} extends Strategy {
     flex-direction: column;
     margin-left: 250px;
     transition: margin-left 0.3s ease;
-    height: 100vh;
-    overflow: hidden;
   }
   
   .dashboard-content.expanded {
@@ -891,17 +934,19 @@ export class ${getStrategyFileName(type)} extends Strategy {
   .content-wrapper {
     flex: 1;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
   }
 
   .backtest-grid {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    grid-template-rows: auto 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 20px;
     padding: 20px;
-    min-height: calc(100vh - 200px);
+  }
+  
+  .panels-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
   }
   
   .panel {
@@ -910,12 +955,19 @@ export class ${getStrategyFileName(type)} extends Strategy {
     border-radius: 8px;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
   }
   
   .chart-panel {
-    grid-row: span 2;
     position: relative;
+    min-height: 500px;
+  }
+  
+  .strategy-panel {
+    min-height: 500px;
+  }
+  
+  .results-panel {
+    min-height: 400px;
   }
   
   .panel-header {
@@ -1007,9 +1059,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
   .panel-content {
     flex: 1;
     padding: 20px;
-    overflow-y: auto;
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
   }
   
   .chart-panel .panel-content {
@@ -1384,5 +1436,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
     margin-top: 10px;
     color: #758696;
     font-size: 13px;
+  }
+  
+  .loading-indicator {
+    display: inline-block;
+    margin-left: 10px;
+    animation: spin 1s linear infinite;
   }
 </style>

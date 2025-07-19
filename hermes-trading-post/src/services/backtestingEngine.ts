@@ -58,6 +58,18 @@ export class BacktestingEngine {
       c => c.time >= this.config.startTime && c.time <= this.config.endTime
     );
 
+    // Check if we have any candles in the backtest period
+    if (filteredCandles.length === 0) {
+      console.error('No candles found in backtest period', {
+        startTime: new Date(this.config.startTime),
+        endTime: new Date(this.config.endTime),
+        totalCandles: candles.length,
+        firstCandle: candles[0] ? new Date(candles[0].time) : 'none',
+        lastCandle: candles[candles.length - 1] ? new Date(candles[candles.length - 1].time) : 'none'
+      });
+      throw new Error('No historical data available for the selected backtest period');
+    }
+
     // Process each candle
     for (let i = 0; i < filteredCandles.length; i++) {
       const currentCandle = filteredCandles[i];
@@ -81,8 +93,9 @@ export class BacktestingEngine {
       this.updateEquityHistory(currentCandle, state);
     }
 
-    // Calculate metrics
-    const metrics = this.calculateMetrics(state, filteredCandles[filteredCandles.length - 1].close);
+    // Calculate metrics - use last candle price if available
+    const lastPrice = filteredCandles.length > 0 ? filteredCandles[filteredCandles.length - 1].close : 0;
+    const metrics = this.calculateMetrics(state, lastPrice);
 
     // Generate chart data
     const chartData = this.generateChartData();
@@ -243,8 +256,8 @@ export class BacktestingEngine {
     const totalTrades = this.trades.filter(t => t.type === 'sell').length;
     const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
 
-    const wins = this.trades.filter(t => t.type === 'sell' && (t.profit || 0) > 0).map(t => t.profit || 0);
-    const losses = this.trades.filter(t => t.type === 'sell' && (t.profit || 0) < 0).map(t => Math.abs(t.profit || 0));
+    const wins = (this.trades || []).filter(t => t.type === 'sell' && (t.profit || 0) > 0).map(t => t.profit || 0);
+    const losses = (this.trades || []).filter(t => t.type === 'sell' && (t.profit || 0) < 0).map(t => Math.abs(t.profit || 0));
     
     const averageWin = wins.length > 0 ? wins.reduce((a, b) => a + b, 0) / wins.length : 0;
     const averageLoss = losses.length > 0 ? losses.reduce((a, b) => a + b, 0) / losses.length : 0;
@@ -367,10 +380,10 @@ export class BacktestingEngine {
     }
 
     return {
-      vaultGrowth: this.vaultGrowthHistory,
-      btcGrowth: this.btcGrowthHistory,
-      equityCurve: this.equityHistory.map(e => ({ time: e.timestamp, value: e.value })),
-      drawdown: this.drawdownHistory,
+      vaultGrowth: this.vaultGrowthHistory || [],
+      btcGrowth: this.btcGrowthHistory || [],
+      equityCurve: (this.equityHistory || []).map(e => ({ time: e.timestamp, value: e.value })),
+      drawdown: this.drawdownHistory || [],
       tradeDistribution
     };
   }
