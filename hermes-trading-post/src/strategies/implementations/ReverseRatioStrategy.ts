@@ -293,13 +293,16 @@ export class ReverseRatioStrategy extends Strategy {
       const targetPrice = this.initialEntryPrice * (1 + config.profitTarget / 100);
       const currentProfit = ((currentPrice - this.initialEntryPrice) / this.initialEntryPrice) * 100;
       
-      // MICRO SCALPING: If profit target is very small (< 0.2%), take profit more aggressively
-      if (config.profitTarget < 0.2 && currentProfit > 0) {
-        // For micro scalping, take ANY profit above 0.02%
-        if (currentProfit >= Math.min(config.profitTarget, 0.02)) {
+      // MICRO SCALPING: If profit target is very small (< 0.5%), take profit more aggressively
+      if (config.profitTarget <= 0.5 && currentProfit > 0) {
+        // For micro scalping, be flexible with profit taking
+        const minAcceptableProfit = config.profitTarget * 0.8; // Accept 80% of target for micro scalps
+        
+        if (currentProfit >= minAcceptableProfit) {
           console.log('[ReverseRatio] MICRO SCALP PROFIT TAKEN!', {
             currentProfit: currentProfit.toFixed(4) + '%',
             targetProfit: config.profitTarget + '%',
+            minAcceptable: minAcceptableProfit.toFixed(4) + '%',
             currentPrice,
             initialEntry: this.initialEntryPrice
           });
@@ -307,6 +310,7 @@ export class ReverseRatioStrategy extends Strategy {
         }
       }
       
+      // Standard profit taking - wait for full target
       return currentPrice >= targetPrice;
     }
     

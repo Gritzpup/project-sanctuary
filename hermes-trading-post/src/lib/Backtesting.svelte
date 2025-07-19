@@ -62,6 +62,109 @@
   // Auto-refresh interval
   let refreshInterval: number | null = null;
   
+  // Custom presets management
+  interface StrategyPreset {
+    name: string;
+    initialDropPercent: number;
+    levelDropPercent: number;
+    profitTarget: number;
+    basePositionPercent: number;
+    maxPositionPercent: number;
+    ratioMultiplier: number;
+  }
+  
+  let customPresets: StrategyPreset[] = JSON.parse(localStorage.getItem('reverseRatioPresets') || '[]');
+  let selectedPresetIndex: number = -1;
+  let isEditingPresets = false;
+  let editingPresetName = '';
+  
+  // Initialize with default presets if none exist
+  if (customPresets.length === 0) {
+    customPresets = [
+      {
+        name: 'Preset 1 (Ultra)',
+        initialDropPercent: 0.02,
+        levelDropPercent: 0.02,
+        profitTarget: 0.05,
+        basePositionPercent: 30,
+        maxPositionPercent: 90,
+        ratioMultiplier: 1.1
+      },
+      {
+        name: 'Preset 2 (Micro)',
+        initialDropPercent: 0.05,
+        levelDropPercent: 0.03,
+        profitTarget: 0.08,
+        basePositionPercent: 25,
+        maxPositionPercent: 80,
+        ratioMultiplier: 1.2
+      },
+      {
+        name: 'Preset 3 (Normal)',
+        initialDropPercent: 0.1,
+        levelDropPercent: 0.08,
+        profitTarget: 0.15,
+        basePositionPercent: 20,
+        maxPositionPercent: 70,
+        ratioMultiplier: 1.3
+      }
+    ];
+    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
+  }
+  
+  function saveCurrentAsPreset(index: number) {
+    const preset = customPresets[index];
+    preset.initialDropPercent = strategyParams['reverse-ratio'].initialDropPercent;
+    preset.levelDropPercent = strategyParams['reverse-ratio'].levelDropPercent;
+    preset.profitTarget = strategyParams['reverse-ratio'].profitTarget;
+    preset.basePositionPercent = strategyParams['reverse-ratio'].basePositionPercent;
+    preset.maxPositionPercent = strategyParams['reverse-ratio'].maxPositionPercent;
+    preset.ratioMultiplier = strategyParams['reverse-ratio'].ratioMultiplier;
+    
+    customPresets = [...customPresets];
+    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
+  }
+  
+  function applyPreset(index: number) {
+    if (index < 0 || index >= customPresets.length) return;
+    const preset = customPresets[index];
+    
+    strategyParams['reverse-ratio'].initialDropPercent = preset.initialDropPercent;
+    strategyParams['reverse-ratio'].levelDropPercent = preset.levelDropPercent;
+    strategyParams['reverse-ratio'].profitTarget = preset.profitTarget;
+    strategyParams['reverse-ratio'].basePositionPercent = preset.basePositionPercent;
+    strategyParams['reverse-ratio'].maxPositionPercent = preset.maxPositionPercent;
+    strategyParams['reverse-ratio'].ratioMultiplier = preset.ratioMultiplier;
+    
+    selectedPresetIndex = index;
+  }
+  
+  function updatePresetName(index: number, newName: string) {
+    customPresets[index].name = newName;
+    customPresets = [...customPresets];
+    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
+  }
+  
+  function addNewPreset() {
+    const newPreset: StrategyPreset = {
+      name: `Preset ${customPresets.length + 1}`,
+      initialDropPercent: strategyParams['reverse-ratio'].initialDropPercent,
+      levelDropPercent: strategyParams['reverse-ratio'].levelDropPercent,
+      profitTarget: strategyParams['reverse-ratio'].profitTarget,
+      basePositionPercent: strategyParams['reverse-ratio'].basePositionPercent,
+      maxPositionPercent: strategyParams['reverse-ratio'].maxPositionPercent,
+      ratioMultiplier: strategyParams['reverse-ratio'].ratioMultiplier
+    };
+    customPresets = [...customPresets, newPreset];
+    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
+  }
+  
+  function deletePreset(index: number) {
+    customPresets = customPresets.filter((_, i) => i !== index);
+    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
+    if (selectedPresetIndex === index) selectedPresetIndex = -1;
+  }
+  
   // Calculate position sizes for preview
   function calculatePositionSizes(balance: number = startBalance): Array<{level: number, amount: number, percentage: number}> {
     const params = strategyParams['reverse-ratio'];
@@ -959,52 +1062,103 @@ export class ${getStrategyFileName(type)} extends Strategy {
                     Parameters optimized for {selectedGranularity} timeframe
                   {/if}
                 </div>
+              {/if}
+              
+              <!-- Preset Management -->
+              <div class="preset-management">
+                <div class="preset-controls">
+                  <select 
+                    class="preset-dropdown"
+                    bind:value={selectedPresetIndex}
+                    on:change={() => {
+                      if (selectedPresetIndex >= 0) {
+                        applyPreset(selectedPresetIndex);
+                      }
+                    }}
+                  >
+                    <option value={-1}>Select a preset...</option>
+                    {#each customPresets as preset, index}
+                      <option value={index}>
+                        {preset.name} ({preset.initialDropPercent}% → {preset.profitTarget}%)
+                      </option>
+                    {/each}
+                  </select>
+                  
+                  <button 
+                    class="preset-action-btn"
+                    on:click={() => isEditingPresets = !isEditingPresets}
+                    title={isEditingPresets ? "Close preset editor" : "Manage presets"}
+                  >
+                    {isEditingPresets ? '✕' : '⚙️'}
+                  </button>
+                </div>
                 
-                {#if selectedPeriod === '1H' && ['1m', '5m'].includes(selectedGranularity)}
-                  <div class="quick-scalp-buttons">
-                    <span class="preset-label">Quick presets:</span>
+                {#if isEditingPresets}
+                  <div class="preset-editor">
+                    <h4>Manage Presets</h4>
+                    <div class="preset-list">
+                      {#each customPresets as preset, index}
+                        <div class="preset-item">
+                          {#if editingPresetName === `${index}`}
+                            <input 
+                              type="text" 
+                              value={preset.name}
+                              on:blur={(e) => {
+                                updatePresetName(index, e.target.value);
+                                editingPresetName = '';
+                              }}
+                              on:keydown={(e) => {
+                                if (e.key === 'Enter') {
+                                  updatePresetName(index, e.target.value);
+                                  editingPresetName = '';
+                                }
+                              }}
+                              autofocus
+                              class="preset-name-input"
+                            />
+                          {:else}
+                            <span 
+                              class="preset-name"
+                              on:click={() => editingPresetName = `${index}`}
+                            >
+                              {preset.name}
+                            </span>
+                          {/if}
+                          <div class="preset-actions">
+                            <button 
+                              class="preset-mini-btn save"
+                              on:click={() => saveCurrentAsPreset(index)}
+                              title="Save current settings to this preset"
+                            >
+                              💾
+                            </button>
+                            <button 
+                              class="preset-mini-btn apply"
+                              on:click={() => applyPreset(index)}
+                              title="Apply this preset"
+                            >
+                              ✓
+                            </button>
+                            <button 
+                              class="preset-mini-btn delete"
+                              on:click={() => deletePreset(index)}
+                              title="Delete this preset"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
                     <button 
-                      class="preset-btn ultra"
-                      on:click={() => {
-                        strategyParams['reverse-ratio'].initialDropPercent = 0.02;
-                        strategyParams['reverse-ratio'].levelDropPercent = 0.02;
-                        strategyParams['reverse-ratio'].profitTarget = 0.05;
-                        strategyParams['reverse-ratio'].basePositionPercent = 30;
-                        strategyParams['reverse-ratio'].maxPositionPercent = 90;
-                        strategyParams['reverse-ratio'].ratioMultiplier = 1.1;
-                      }}
+                      class="add-preset-btn"
+                      on:click={addNewPreset}
                     >
-                      🔥 Ultra (0.02% → 0.05%)
-                    </button>
-                    <button 
-                      class="preset-btn micro"
-                      on:click={() => {
-                        strategyParams['reverse-ratio'].initialDropPercent = 0.05;
-                        strategyParams['reverse-ratio'].levelDropPercent = 0.03;
-                        strategyParams['reverse-ratio'].profitTarget = 0.08;
-                        strategyParams['reverse-ratio'].basePositionPercent = 25;
-                        strategyParams['reverse-ratio'].maxPositionPercent = 80;
-                        strategyParams['reverse-ratio'].ratioMultiplier = 1.2;
-                      }}
-                    >
-                      ⚡ Micro (0.05% → 0.08%)
-                    </button>
-                    <button 
-                      class="preset-btn normal"
-                      on:click={() => {
-                        strategyParams['reverse-ratio'].initialDropPercent = 0.1;
-                        strategyParams['reverse-ratio'].levelDropPercent = 0.08;
-                        strategyParams['reverse-ratio'].profitTarget = 0.15;
-                        strategyParams['reverse-ratio'].basePositionPercent = 20;
-                        strategyParams['reverse-ratio'].maxPositionPercent = 70;
-                        strategyParams['reverse-ratio'].ratioMultiplier = 1.3;
-                      }}
-                    >
-                      📊 Normal (0.1% → 0.15%)
+                      + Add New Preset
                     </button>
                   </div>
                 {/if}
-              {/if}
+              </div>
               
               <!-- Position Sizing Section -->
               <div class="param-group">
@@ -2267,65 +2421,174 @@ export class ${getStrategyFileName(type)} extends Strategy {
     50% { opacity: 0.8; }
   }
   
-  /* Quick Scalp Buttons */
-  .quick-scalp-buttons {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    margin-bottom: 15px;
-    padding: 12px;
+  /* Preset Management */
+  .preset-management {
+    margin-bottom: 20px;
+    padding: 15px;
     background: rgba(167, 139, 250, 0.05);
-    border-radius: 6px;
+    border-radius: 8px;
     border: 1px solid rgba(167, 139, 250, 0.15);
   }
   
-  .preset-label {
-    font-size: 0.85rem;
-    color: #9ca3af;
-    margin-right: 8px;
+  .preset-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
   }
   
-  .preset-btn {
-    padding: 6px 12px;
-    border-radius: 4px;
-    border: 1px solid;
-    font-size: 0.8rem;
-    font-weight: 600;
+  .preset-dropdown {
+    flex: 1;
+    padding: 8px 12px;
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 6px;
+    color: #e5e7eb;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+  
+  .preset-dropdown:focus {
+    outline: none;
+    border-color: #a78bfa;
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+  }
+  
+  .preset-action-btn {
+    padding: 8px 12px;
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 6px;
+    color: #e5e7eb;
+    font-size: 1rem;
     cursor: pointer;
     transition: all 0.2s;
-    background: transparent;
   }
   
-  .preset-btn.ultra {
-    border-color: rgba(239, 68, 68, 0.3);
+  .preset-action-btn:hover {
+    background: #374151;
+    border-color: #4b5563;
+  }
+  
+  .preset-editor {
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .preset-editor h4 {
+    color: #a78bfa;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  
+  .preset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  
+  .preset-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+  }
+  
+  .preset-item:hover {
+    border-color: rgba(167, 139, 250, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+  }
+  
+  .preset-name {
+    flex: 1;
+    color: #e5e7eb;
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+  
+  .preset-name:hover {
+    background: rgba(167, 139, 250, 0.1);
+  }
+  
+  .preset-name-input {
+    flex: 1;
+    padding: 4px 8px;
+    background: #1f2937;
+    border: 1px solid #a78bfa;
+    border-radius: 4px;
+    color: #e5e7eb;
+    font-size: 0.85rem;
+    outline: none;
+  }
+  
+  .preset-actions {
+    display: flex;
+    gap: 4px;
+  }
+  
+  .preset-mini-btn {
+    padding: 4px 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .preset-mini-btn.save {
+    color: #60a5fa;
+  }
+  
+  .preset-mini-btn.save:hover {
+    background: rgba(96, 165, 250, 0.1);
+    border-color: #60a5fa;
+  }
+  
+  .preset-mini-btn.apply {
+    color: #34d399;
+  }
+  
+  .preset-mini-btn.apply:hover {
+    background: rgba(52, 211, 153, 0.1);
+    border-color: #34d399;
+  }
+  
+  .preset-mini-btn.delete {
     color: #f87171;
   }
   
-  .preset-btn.ultra:hover {
-    background: rgba(239, 68, 68, 0.1);
+  .preset-mini-btn.delete:hover {
+    background: rgba(248, 113, 113, 0.1);
     border-color: #f87171;
-    transform: scale(1.05);
   }
   
-  .preset-btn.micro {
-    border-color: rgba(251, 191, 36, 0.3);
-    color: #fbbf24;
-  }
-  
-  .preset-btn.micro:hover {
-    background: rgba(251, 191, 36, 0.1);
-    border-color: #fbbf24;
-    transform: scale(1.05);
-  }
-  
-  .preset-btn.normal {
-    border-color: rgba(167, 139, 250, 0.3);
-    color: #a78bfa;
-  }
-  
-  .preset-btn.normal:hover {
+  .add-preset-btn {
+    width: 100%;
+    padding: 8px 16px;
     background: rgba(167, 139, 250, 0.1);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 6px;
+    color: #a78bfa;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .add-preset-btn:hover {
+    background: rgba(167, 139, 250, 0.2);
     border-color: #a78bfa;
-    transform: scale(1.05);
+    transform: translateY(-1px);
   }
 </style>
