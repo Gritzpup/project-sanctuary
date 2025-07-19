@@ -14,7 +14,8 @@ export abstract class Strategy {
       positions: [],
       balance: {
         usd: 0,
-        btc: 0,
+        btcVault: 0,
+        btcPositions: 0,
         vault: 0
       }
     };

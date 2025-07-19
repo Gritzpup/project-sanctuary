@@ -34,8 +34,17 @@
       rightPriceScale: {
         borderColor: '#1f2937',
       },
-      handleScroll: false,  // Disable scroll zoom
-      handleScale: false,   // Disable pinch zoom
+      handleScroll: {
+        mouseWheel: false,
+        pressedMouseMove: false,
+        horzTouchDrag: false,
+        vertTouchDrag: false
+      },
+      handleScale: {
+        mouseWheel: false,
+        pinch: false,
+        axisPressedMouseMove: false
+      }
     });
     
     // Create candlestick series
@@ -98,9 +107,23 @@
       // Debug: Log candle time range
       const candleTimeRange = {
         first: data[0]?.time,
-        last: data[data.length - 1]?.time
+        last: data[data.length - 1]?.time,
+        firstDate: data[0] ? new Date(data[0].time * 1000).toISOString() : 'none',
+        lastDate: data[data.length - 1] ? new Date(data[data.length - 1].time * 1000).toISOString() : 'none'
       };
       console.log('Candle time range:', candleTimeRange);
+      console.log('Trade timestamps:', trades.map(t => ({
+        timestamp: t.timestamp,
+        date: new Date(t.timestamp * 1000).toISOString(),
+        type: t.type,
+        price: t.price
+      })));
+      
+      // Verify trade timestamps are within candle range
+      const tradesOutOfRange = trades.filter(t => t.timestamp < candleTimeRange.first || t.timestamp > candleTimeRange.last);
+      if (tradesOutOfRange.length > 0) {
+        console.error('WARNING: Found trades outside of candle time range:', tradesOutOfRange);
+      }
       
       // Create markers for candlestick series
       const markers = trades.map((trade, index) => {
@@ -117,9 +140,9 @@
         return {
           time: time,
           position: trade.type === 'buy' ? 'belowBar' : 'aboveBar',
-          color: trade.type === 'buy' ? '#00ff00' : '#ff0000',  // Pure green/red
+          color: trade.type === 'buy' ? '#26a69a' : '#ef5350',  // Match candle colors
           shape: trade.type === 'buy' ? 'arrowUp' : 'arrowDown',
-          size: 5,  // Extra large size
+          size: 2,  // Standard size
           text: `${trade.type.toUpperCase()} @ $${trade.price.toLocaleString()}`
         };
       });
@@ -132,10 +155,12 @@
       if (candleSeries) candleSeries.setMarkers([]);
     }
     
-    // Fit content
+    // Fit content with a small delay to ensure markers are rendered
     if (chart) {
-      chart.timeScale().fitContent();
-      console.log('updateChart: Chart fitted to content');
+      setTimeout(() => {
+        chart.timeScale().fitContent();
+        console.log('updateChart: Chart fitted to content');
+      }, 100);
     }
   }
   
@@ -157,8 +182,17 @@
     updateChart();
   }
   
+  // Update chart when trades change
+  $: if (chart && candleSeries && trades) {
+    console.log('BacktestChart: Trades changed, updating chart with', trades.length, 'trades');
+    updateChart();
+  }
+  
   // Log when data prop changes
   $: console.log('BacktestChart: data prop updated:', data?.length || 0, 'candles', 'chart ready:', !!chart);
+  
+  // Log when trades prop changes
+  $: console.log('BacktestChart: trades prop updated:', trades?.length || 0, 'trades');
 </script>
 
 <div bind:this={chartContainer} class="backtest-chart-container">

@@ -1,7 +1,7 @@
 // Common types for all trading strategies
 
 // Re-export CandleData from the existing definition
-export { CandleData } from '../../types/coinbase';
+export type { CandleData } from '../../types/coinbase';
 
 export interface Position {
   entryPrice: number;
@@ -38,6 +38,8 @@ export interface Trade {
   size: number;
   value: number;
   fee?: number;
+  grossFee?: number;    // Total fee before rebates
+  feeRebate?: number;   // Fee rebate amount
   position?: Position;
   profit?: number;
   profitPercent?: number;
@@ -83,6 +85,12 @@ export interface BacktestResult {
     btcGrowthPercent: number;
     maxConsecutiveLosses: number;
     riskRewardRatio: number;
+    // Balance growth metrics
+    initialBalanceGrowth: number;        // USD growth from profit reinvestment
+    initialBalanceGrowthPercent: number; // Percentage growth of initial balance
+    finalTradingBalance: number;         // Final USD available for trading
+    totalFeeRebates: number;             // Total fee rebates received
+    netFeesAfterRebates: number;         // Net fees paid after rebates
   };
   equity: Array<{
     timestamp: number;
@@ -109,8 +117,9 @@ export interface StrategyState {
   positions: Position[];
   balance: {
     usd: number;
-    btc: number;
-    vault: number;
+    btcVault: number;    // BTC accumulated from profit allocations
+    btcPositions: number; // BTC currently held in active positions
+    vault: number;       // USDC vault balance
   };
   lastSignal?: Signal;
   metadata?: {

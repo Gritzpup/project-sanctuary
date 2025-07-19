@@ -64,6 +64,37 @@
     </div>
   </div>
   
+  <!-- Balance Growth Section -->
+  <div class="stats-section">
+    <h3 class="section-title">Compounded Balance Growth</h3>
+    <div class="balance-grid">
+      <div class="balance-card highlight">
+        <h4>Initial Balance Growth</h4>
+        <div class="balance-value">{formatMoney(results.metrics.initialBalanceGrowth || 0)}</div>
+        <div class="balance-percent">{formatPercent(results.metrics.initialBalanceGrowthPercent || 0)}</div>
+        <div class="balance-desc">Growth from 1/7 profit reinvestment</div>
+      </div>
+      
+      <div class="balance-card">
+        <h4>Final Trading Balance</h4>
+        <div class="balance-value">{formatMoney(results.metrics.finalTradingBalance || 0)}</div>
+        <div class="balance-desc">Available for trading</div>
+      </div>
+      
+      <div class="balance-card">
+        <h4>Fee Rebates</h4>
+        <div class="balance-value">{formatMoney(results.metrics.totalFeeRebates || 0)}</div>
+        <div class="balance-desc">25% of fees returned</div>
+      </div>
+      
+      <div class="balance-card">
+        <h4>Net Fees Paid</h4>
+        <div class="balance-value">{formatMoney(results.metrics.netFeesAfterRebates || 0)}</div>
+        <div class="balance-desc">After rebates</div>
+      </div>
+    </div>
+  </div>
+  
   <!-- Trading Activity Section -->
   <div class="stats-section">
     <h3 class="section-title">Trading Activity</h3>
@@ -282,9 +313,54 @@
     color: #ef5350 !important;
   }
   
+  .balance-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+  
+  .balance-card {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(74, 0, 224, 0.2);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+  }
+  
+  .balance-card.highlight {
+    background: rgba(167, 139, 250, 0.1);
+    border-color: rgba(167, 139, 250, 0.3);
+  }
+  
+  .balance-card h4 {
+    font-size: 14px;
+    color: #9ca3af;
+    margin-bottom: 10px;
+  }
+  
+  .balance-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: #d1d4dc;
+    margin-bottom: 5px;
+  }
+  
+  .balance-percent {
+    font-size: 18px;
+    font-weight: 500;
+    color: #26a69a;
+    margin-bottom: 10px;
+  }
+  
+  .balance-desc {
+    font-size: 12px;
+    color: #6b7280;
+  }
+  
   @media (max-width: 1200px) {
     .charts-grid,
-    .metrics-grid {
+    .metrics-grid,
+    .balance-grid {
       grid-template-columns: 1fr;
     }
     

@@ -9,7 +9,8 @@ export interface PaperTradingState {
   strategy: Strategy | null;
   balance: {
     usd: number;
-    btc: number;
+    btcVault: number;
+    btcPositions: number;
     vault: number;
   };
   trades: Trade[];
@@ -38,7 +39,8 @@ class PaperTradingService {
       strategy: null,
       balance: {
         usd: this.initialBalance,
-        btc: 0,
+        btcVault: 0,
+        btcPositions: 0,
         vault: 0
       },
       trades: [],
@@ -59,12 +61,23 @@ class PaperTradingService {
   }
   
   getStatus() {
-    let currentState: PaperTradingState;
+    let currentState: PaperTradingState | null = null;
     this.state.subscribe(s => currentState = s)();
+    
+    if (!currentState) {
+      return {
+        usdBalance: 0,
+        btcBalance: 0,
+        vaultBalance: 0,
+        positions: [],
+        trades: [],
+        isRunning: false
+      };
+    }
     
     return {
       usdBalance: currentState.balance.usd,
-      btcBalance: currentState.balance.btc,
+      btcBalance: (currentState.balance.btcVault || 0) + (currentState.balance.btcPositions || 0),
       vaultBalance: currentState.balance.vault,
       positions: currentState.strategy?.getState().positions || [],
       trades: currentState.trades,
@@ -82,7 +95,8 @@ class PaperTradingService {
       positions: [],
       balance: {
         usd: initialBalance,
-        btc: 0,
+        btcVault: 0,
+        btcPositions: 0,
         vault: 0
       }
     };
@@ -165,7 +179,8 @@ class PaperTradingService {
       strategy: null,
       balance: {
         usd: this.initialBalance,
-        btc: 0,
+        btcVault: 0,
+        btcPositions: 0,
         vault: 0
       },
       trades: [],
@@ -211,7 +226,8 @@ class PaperTradingService {
       }
 
       // Update performance metrics
-      const totalValue = state.balance.usd + (state.balance.btc * currentPrice) + state.balance.vault;
+      const totalBtcValue = ((state.balance.btcVault || 0) + (state.balance.btcPositions || 0)) * currentPrice;
+      const totalValue = state.balance.usd + totalBtcValue + state.balance.vault;
       const pnl = totalValue - this.initialBalance;
       const pnlPercent = (pnl / this.initialBalance) * 100;
 
@@ -247,7 +263,7 @@ class PaperTradingService {
 
       // Execute buy
       strategyState.balance.usd -= totalCost;
-      strategyState.balance.btc += size;
+      strategyState.balance.btcPositions += size;
       newState.balance = { ...strategyState.balance };
 
       // Create position
@@ -278,6 +294,12 @@ class PaperTradingService {
     else if (signal.type === 'sell') {
       const size = signal.size || state.strategy.getTotalPositionSize();
       if (size <= 0) return state;
+      
+      // Validate we have enough BTC to sell
+      if (size > strategyState.balance.btcPositions) {
+        console.error(`[PaperTrading] Cannot sell ${size.toFixed(6)} BTC - only have ${strategyState.balance.btcPositions.toFixed(6)} BTC available`);
+        return state;
+      }
 
       const proceeds = size * currentPrice;
       const fee = proceeds * (this.feePercent / 100);
@@ -308,7 +330,7 @@ class PaperTradingService {
       if (profit > 0) {
         const allocation = state.strategy.allocateProfits(profit);
         strategyState.balance.vault += allocation.vault;
-        strategyState.balance.btc += allocation.btc / currentPrice;
+        strategyState.balance.btcVault += allocation.btc / currentPrice;
         strategyState.balance.usd += netProceeds - allocation.vault;
         
         // Update vault service
@@ -323,7 +345,7 @@ class PaperTradingService {
         strategyState.balance.usd += netProceeds;
       }
 
-      strategyState.balance.btc -= size;
+      strategyState.balance.btcPositions -= size;
       newState.balance = { ...strategyState.balance };
 
       // Remove closed positions
@@ -347,7 +369,8 @@ class PaperTradingService {
     }
 
     // Update performance
-    const totalValue = newState.balance.usd + (newState.balance.btc * currentPrice) + newState.balance.vault;
+    const totalBtcValue = ((newState.balance.btcVault || 0) + (newState.balance.btcPositions || 0)) * currentPrice;
+    const totalValue = newState.balance.usd + totalBtcValue + newState.balance.vault;
     const pnl = totalValue - this.initialBalance;
     const pnlPercent = (pnl / this.initialBalance) * 100;
     
@@ -388,7 +411,7 @@ class PaperTradingService {
 
       const newState = { ...state };
       newState.balance.usd -= totalCost;
-      newState.balance.btc += size;
+      newState.balance.btcPositions += size;
 
       const trade: Trade = {
         id: `trade-${newState.trades.length + 1}`,
@@ -404,7 +427,8 @@ class PaperTradingService {
       newState.trades = [...newState.trades, trade];
 
       // Update performance
-      const totalValue = newState.balance.usd + (newState.balance.btc * currentPrice) + newState.balance.vault;
+      const totalBtcValue = ((newState.balance.btcVault || 0) + (newState.balance.btcPositions || 0)) * currentPrice;
+    const totalValue = newState.balance.usd + totalBtcValue + newState.balance.vault;
       const pnl = totalValue - this.initialBalance;
       const pnlPercent = (pnl / this.initialBalance) * 100;
 
@@ -427,7 +451,7 @@ class PaperTradingService {
       const currentPrice = this.candles[this.candles.length - 1].close;
       const size = amount / currentPrice;
 
-      if (size > state.balance.btc) return state;
+      if (size > (state.balance.btcPositions || 0)) return state;
 
       const proceeds = amount;
       const fee = proceeds * (this.feePercent / 100);
@@ -435,7 +459,7 @@ class PaperTradingService {
 
       const newState = { ...state };
       newState.balance.usd += netProceeds;
-      newState.balance.btc -= size;
+      newState.balance.btcPositions -= size;
 
       const trade: Trade = {
         id: `trade-${newState.trades.length + 1}`,
@@ -451,7 +475,8 @@ class PaperTradingService {
       newState.trades = [...newState.trades, trade];
 
       // Update performance
-      const totalValue = newState.balance.usd + (newState.balance.btc * currentPrice) + newState.balance.vault;
+      const totalBtcValue = ((newState.balance.btcVault || 0) + (newState.balance.btcPositions || 0)) * currentPrice;
+    const totalValue = newState.balance.usd + totalBtcValue + newState.balance.vault;
       const pnl = totalValue - this.initialBalance;
       const pnlPercent = (pnl / this.initialBalance) * 100;
 

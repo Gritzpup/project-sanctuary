@@ -1,6 +1,7 @@
 <script lang="ts">
   import BacktestChart from '../components/BacktestChart.svelte';
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
+  import CompoundGrowthChart from '../components/CompoundGrowthChart.svelte';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { BacktestingEngine } from '../services/backtestingEngine';
   import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';
@@ -20,8 +21,8 @@
   const dispatch = createEventDispatcher();
   
   let sidebarCollapsed = false;
-  let selectedGranularity = '1h';
-  let selectedPeriod = '1M';
+  let selectedGranularity = '1m';
+  let selectedPeriod = '1H';
   let autoGranularityActive = false;
   let isLoadingChart = false;
   
@@ -39,28 +40,132 @@
   
   // Backtesting state
   let selectedStrategyType = 'reverse-ratio'; // Default strategy
-  let startBalance = 10000;
+  let startBalance = 100;
   let backtestResults: BacktestResult | null = null;
   let isRunning = false;
   let backtestingEngine: BacktestingEngine;
   let currentStrategy: Strategy | null = null;
   let historicalCandles: CandleData[] = [];
   
+  // Fee configuration
+  let makerFeePercent = 0.35; // Coinbase maker fee
+  let takerFeePercent = 0.75; // Coinbase taker fee
+  let feeRebatePercent = 25;  // 25% fee rebate
+  
   // Tab state for strategy panel
   let activeTab: 'config' | 'code' = 'config';
   let strategySourceCode = '';
   
+  // Compound growth chart
+  let compoundCanvas: HTMLCanvasElement;
+  
   // Auto-refresh interval
   let refreshInterval: number | null = null;
   
-  // Strategy-specific parameters
+  // Calculate position sizes for preview
+  function calculatePositionSizes(balance: number = startBalance): Array<{level: number, amount: number, percentage: number}> {
+    const params = strategyParams['reverse-ratio'];
+    const sizes = [];
+    
+    for (let level = 1; level <= Math.min(params.maxLevels, 5); level++) {
+      let amount: number;
+      
+      if (params.positionSizeMode === 'fixed') {
+        if (params.ratioMultiplier === 1) {
+          amount = params.basePositionAmount * level;
+        } else {
+          const levelRatio = Math.pow(params.ratioMultiplier, level - 1);
+          amount = params.basePositionAmount * levelRatio;
+        }
+      } else {
+        const basePercent = params.basePositionPercent / 100;
+        if (params.ratioMultiplier === 1) {
+          amount = balance * (basePercent * level);
+        } else {
+          const levelRatio = Math.pow(params.ratioMultiplier, level - 1);
+          amount = balance * (basePercent * levelRatio);
+        }
+      }
+      
+      sizes.push({
+        level,
+        amount,
+        percentage: (amount / balance) * 100
+      });
+    }
+    
+    return sizes;
+  }
+  
+  // Timeframe-specific configurations for reverse-ratio strategy
+  const reverseRatioTimeframeConfigs: Record<string, any> = {
+    '1m': {
+      initialDropPercent: 0.3,    // Wait for 0.3% drop to start
+      levelDropPercent: 0.2,      // 0.2% between levels
+      profitTarget: 0.5,          // Take profit at 0.5%
+      maxLevels: 10,
+      lookbackPeriod: 20,
+      basePositionPercent: 10,    // Start with 10% positions
+      ratioMultiplier: 1.5        // Moderate increase per level
+    },
+    '5m': {
+      initialDropPercent: 0.5,    // 0.5% initial drop
+      levelDropPercent: 0.3,      // 0.3% between levels
+      profitTarget: 1.0,          // 1% profit target
+      maxLevels: 12,
+      lookbackPeriod: 25,
+      basePositionPercent: 8,
+      ratioMultiplier: 1.5
+    },
+    '15m': {
+      initialDropPercent: 0.8,    // 0.8% initial drop
+      levelDropPercent: 0.5,      // 0.5% between levels
+      profitTarget: 1.5,          // 1.5% profit target
+      maxLevels: 15,
+      lookbackPeriod: 30,
+      basePositionPercent: 7,
+      ratioMultiplier: 1.75
+    },
+    '1h': {
+      initialDropPercent: 1.2,    // 1.2% initial drop
+      levelDropPercent: 0.8,      // 0.8% between levels
+      profitTarget: 2.5,          // 2.5% profit target
+      maxLevels: 20,
+      lookbackPeriod: 50,
+      basePositionPercent: 5,
+      ratioMultiplier: 2
+    },
+    '6h': {
+      initialDropPercent: 2.0,    // 2% initial drop
+      levelDropPercent: 1.5,      // 1.5% between levels
+      profitTarget: 5,            // 5% profit target
+      maxLevels: 10,
+      lookbackPeriod: 50,
+      basePositionPercent: 5,
+      ratioMultiplier: 2
+    },
+    '1D': {
+      initialDropPercent: 3.0,    // 3% initial drop  
+      levelDropPercent: 2.0,      // 2% between levels
+      profitTarget: 7,            // 7% profit target
+      maxLevels: 5,
+      lookbackPeriod: 50
+    }
+  };
+
+  // Strategy-specific parameters (will be updated based on timeframe)
   let strategyParams: Record<string, any> = {
     'reverse-ratio': {
-      initialDropPercent: 3,  // Lowered from 5% to 3% to trigger more trades
-      levelDropPercent: 5,
-      ratioMultiplier: 2,
-      profitTarget: 7,
-      maxLevels: 5
+      initialDropPercent: 0.5,  // First buy at 0.5% drop
+      levelDropPercent: 0.5,    // Each level is 0.5% more drop
+      ratioMultiplier: 1,       // Linear increase: 1x, 2x, 3x, 4x, etc.
+      profitTarget: 7,          // Sell all when first buy hits +7%
+      maxLevels: 20,            // Can handle up to 10% total drop
+      lookbackPeriod: 50,       // Candles to look back for recent high
+      positionSizeMode: 'percentage',
+      basePositionPercent: 5,   // 5% of balance for first level
+      basePositionAmount: 50,   // $50 for first level if using fixed mode
+      maxPositionPercent: 50    // Max 50% of balance across all levels
     },
     'grid-trading': {
       gridLevels: 10,
@@ -89,6 +194,10 @@
   onMount(async () => {
     console.log('Backtesting component mounted');
     console.log('Initial state:', { selectedStrategyType, startBalance, selectedPeriod, selectedGranularity });
+    
+    // Update strategy params based on initial timeframe
+    updateStrategyParamsForTimeframe();
+    
     updateCurrentStrategy();
     
     // Load initial historical data for display
@@ -219,10 +328,27 @@
     }
   }
   
+  function updateStrategyParamsForTimeframe() {
+    if (selectedStrategyType === 'reverse-ratio' && reverseRatioTimeframeConfigs[selectedGranularity]) {
+      // Update reverse ratio strategy params based on selected timeframe
+      strategyParams['reverse-ratio'] = {
+        ...strategyParams['reverse-ratio'],
+        ...reverseRatioTimeframeConfigs[selectedGranularity]
+      };
+      console.log('[Timeframe Update] Updated reverse-ratio params for', selectedGranularity, strategyParams['reverse-ratio']);
+      
+      // Update current strategy if it's already created
+      if (currentStrategy) {
+        updateCurrentStrategy();
+      }
+    }
+  }
+
   async function selectGranularity(granularity: string) {
     console.log('selectGranularity called:', granularity, 'valid:', isGranularityValid(granularity, selectedPeriod));
     if (isGranularityValid(granularity, selectedPeriod)) {
       selectedGranularity = granularity;
+      updateStrategyParamsForTimeframe(); // Update strategy params for new timeframe
       await loadChartData(true); // Force refresh with new granularity
     }
   }
@@ -428,8 +554,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     try {
       // Set up time range for backtest
-      const endTime = new Date();
-      const startTime = new Date();
+      let endTime = new Date();
+      let startTime = new Date();
       
       // Determine time range based on selected period
       switch (selectedPeriod) {
@@ -461,40 +587,66 @@ export class ${getStrategyFileName(type)} extends Strategy {
           startTime.setMonth(startTime.getMonth() - 1);
       }
       
-      // Fetch historical data
-      console.log('Fetching historical data...');
-      const granularity = HistoricalDataService.getOptimalGranularity(startTime, endTime);
-      historicalCandles = await historicalDataService.fetchHistoricalData({
-        symbol: 'BTC-USD',
-        startTime,
-        endTime,
-        granularity
-      });
+      // Use the already loaded chart data for backtesting
+      console.log('Using loaded chart data for backtesting...');
+      // Ensure we have fresh data
+      if (!historicalCandles || historicalCandles.length === 0) {
+        await loadChartData(true);
+      }
       
-      console.log(`Fetched ${historicalCandles.length} candles`);
+      console.log(`Using ${historicalCandles.length} candles for backtesting`);
+      
+      // Use actual data time range
+      if (historicalCandles.length > 0) {
+        // Check if time is in seconds or milliseconds
+        const firstTime = historicalCandles[0].time;
+        const isMilliseconds = firstTime > 1000000000000; // Unix timestamp in ms is > 1 trillion
+        
+        startTime = new Date(isMilliseconds ? firstTime : firstTime * 1000);
+        endTime = new Date(isMilliseconds ? historicalCandles[historicalCandles.length - 1].time : historicalCandles[historicalCandles.length - 1].time * 1000);
+      }
+      
       console.log('Time range:', {
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
-        firstCandle: historicalCandles[0] ? new Date(historicalCandles[0].time).toISOString() : 'none',
-        lastCandle: historicalCandles[historicalCandles.length - 1] ? new Date(historicalCandles[historicalCandles.length - 1].time).toISOString() : 'none'
+        firstCandle: historicalCandles[0] ? new Date(historicalCandles[0].time > 1000000000000 ? historicalCandles[0].time : historicalCandles[0].time * 1000).toISOString() : 'none',
+        lastCandle: historicalCandles[historicalCandles.length - 1] ? new Date(historicalCandles[historicalCandles.length - 1].time > 1000000000000 ? historicalCandles[historicalCandles.length - 1].time : historicalCandles[historicalCandles.length - 1].time * 1000).toISOString() : 'none'
       });
       
       // Configure backtesting engine
       const config = {
         initialBalance: startBalance,
-        startTime: startTime.getTime(),
-        endTime: endTime.getTime(),
-        feePercent: 0.6, // Coinbase fee
+        startTime: Math.floor(startTime.getTime() / 1000), // Convert to seconds
+        endTime: Math.floor(endTime.getTime() / 1000),     // Convert to seconds
+        feePercent: 0.75, // Legacy fee (keeping for compatibility)
+        makerFeePercent: makerFeePercent,
+        takerFeePercent: takerFeePercent,
+        feeRebatePercent: feeRebatePercent,
         slippage: 0.1   // 0.1% slippage
       };
       
       // Create and run backtesting engine
       backtestingEngine = new BacktestingEngine(currentStrategy, config);
-      backtestResults = await backtestingEngine.runBacktest(historicalCandles);
+      
+      // Convert candles to have time in seconds for consistency
+      const candlesWithSecondsTime = historicalCandles.map(candle => ({
+        ...candle,
+        time: candle.time > 1000000000000 ? Math.floor(candle.time / 1000) : candle.time
+      }));
+      
+      backtestResults = await backtestingEngine.runBacktest(candlesWithSecondsTime);
+      
+      if (!backtestResults) {
+        throw new Error('Backtest returned no results');
+      }
       
       console.log('Backtest completed:', backtestResults);
-      console.log('Backtest metrics:', backtestResults.metrics);
-      console.log('Chart data:', backtestResults.chartData);
+      console.log('Backtest metrics:', backtestResults?.metrics);
+      console.log('Trades for chart:', backtestResults?.trades);
+      console.log('Number of trades:', backtestResults?.trades?.length || 0);
+      
+      // Force chart update
+      historicalCandles = [...historicalCandles]; // Trigger reactive update
     } catch (error) {
       console.error('Backtest failed:', error);
       console.error('Error details:', {
@@ -514,6 +666,138 @@ export class ${getStrategyFileName(type)} extends Strategy {
   function clearResults() {
     backtestResults = null;
     historicalCandles = [];
+  }
+  
+  function getBtcPositions(): string {
+    if (!backtestResults || !backtestResults.equity || backtestResults.equity.length === 0) {
+      return '0.000000';
+    }
+    
+    // Get the final equity state
+    const finalEquity = backtestResults.equity[backtestResults.equity.length - 1];
+    const btcTotal = finalEquity.btcBalance || 0;
+    const btcVault = backtestResults.metrics.btcGrowth || 0;
+    
+    // BTC positions = total BTC - BTC vault
+    const btcPositions = btcTotal - btcVault;
+    
+    return btcPositions.toFixed(6);
+  }
+  
+  function drawCompoundChart() {
+    if (!compoundCanvas || !backtestResults?.chartData) return;
+    
+    const ctx = compoundCanvas.getContext('2d');
+    if (!ctx) return;
+    
+    const width = compoundCanvas.width;
+    const height = compoundCanvas.height;
+    const padding = 40;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+    
+    // Background
+    ctx.fillStyle = '#0f1419';
+    ctx.fillRect(0, 0, width, height);
+    
+    // Get data points
+    const data = backtestResults.chartData;
+    if (!data || data.length === 0) return;
+    
+    // Calculate max values
+    const maxValue = Math.max(...data.map(d => Math.max(d.balance, d.portfolioValue)));
+    const minTime = data[0].timestamp;
+    const maxTime = data[data.length - 1].timestamp;
+    
+    // Scale functions
+    const xScale = (timestamp: number) => padding + ((timestamp - minTime) / (maxTime - minTime)) * (width - 2 * padding);
+    const yScale = (value: number) => height - padding - (value / maxValue) * (height - 2 * padding);
+    
+    // Draw grid lines
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = 1;
+    
+    // Horizontal grid lines
+    for (let i = 0; i <= 5; i++) {
+      const y = padding + (i * (height - 2 * padding)) / 5;
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(width - padding, y);
+      ctx.stroke();
+      
+      // Value labels
+      const value = maxValue * (1 - i / 5);
+      ctx.fillStyle = '#758696';
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`$${value.toFixed(0)}`, padding - 10, y + 4);
+    }
+    
+    // Draw vault balance line (compounding growth)
+    ctx.strokeStyle = '#a78bfa';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    data.forEach((point, i) => {
+      const x = xScale(point.timestamp);
+      const y = yScale(point.balance);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    
+    // Draw portfolio value line (BTC holdings + cash)
+    ctx.strokeStyle = '#26a69a';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    data.forEach((point, i) => {
+      const x = xScale(point.timestamp);
+      const y = yScale(point.portfolioValue);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Legend
+    const legendY = 20;
+    ctx.font = '14px monospace';
+    
+    // Vault balance legend
+    ctx.fillStyle = '#a78bfa';
+    ctx.fillRect(width - 200, legendY, 20, 3);
+    ctx.fillStyle = '#d1d4dc';
+    ctx.textAlign = 'left';
+    ctx.fillText('Vault Balance (Compounding)', width - 170, legendY + 5);
+    
+    // Portfolio value legend
+    ctx.strokeStyle = '#26a69a';
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(width - 200, legendY + 25);
+    ctx.lineTo(width - 180, legendY + 25);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#d1d4dc';
+    ctx.fillText('Total Portfolio Value', width - 170, legendY + 30);
+    
+    // Calculate compound growth rate
+    const startValue = data[0].balance;
+    const endValue = data[data.length - 1].balance;
+    const timeInYears = (maxTime - minTime) / (365 * 24 * 60 * 60 * 1000);
+    const compoundRate = timeInYears > 0 ? (Math.pow(endValue / startValue, 1 / timeInYears) - 1) * 100 : 0;
+    
+    // Display compound growth rate
+    ctx.fillStyle = '#ffa726';
+    ctx.font = '16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Compound Annual Growth Rate: ${compoundRate.toFixed(1)}%`, width / 2, height - 10);
+  }
+  
+  // Draw compound chart when results update
+  $: if (backtestResults && compoundCanvas) {
+    requestAnimationFrame(drawCompoundChart);
   }
 </script>
 
@@ -573,7 +857,10 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 </div>
               {/if}
               <BacktestChart 
-                data={historicalCandles}
+                data={historicalCandles.map(candle => ({
+                  ...candle,
+                  time: candle.time > 1000000000000 ? Math.floor(candle.time / 1000) : candle.time
+                }))}
                 trades={backtestResults?.trades || []}
               />
               <div class="period-buttons">
@@ -600,6 +887,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
             <button class="tab" class:active={activeTab === 'code'} on:click={() => activeTab = 'code'}>
               Source Code
             </button>
+            <button class="run-btn" on:click={() => { updateCurrentStrategy(); runBacktest(); }} disabled={isRunning}>
+              {isRunning ? 'Running...' : 'Run Backtest'}
+            </button>
           </div>
         </div>
         <div class="panel-content">
@@ -620,6 +910,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
               {/if}
             </div>
           
+          
           <div class="config-section">
             <label>
               Starting Balance
@@ -627,37 +918,149 @@ export class ${getStrategyFileName(type)} extends Strategy {
             </label>
           </div>
           
+          <div class="config-section">
+            <h4 style="color: #a78bfa; margin-bottom: 10px;">Fee Structure</h4>
+            <label>
+              Maker Fee (%)
+              <input type="number" bind:value={makerFeePercent} min="0" max="2" step="0.05" />
+            </label>
+          </div>
+          
+          <div class="config-section">
+            <label>
+              Taker Fee (%)
+              <input type="number" bind:value={takerFeePercent} min="0" max="2" step="0.05" />
+            </label>
+          </div>
+          
+          <div class="config-section">
+            <label>
+              Fee Rebate (%)
+              <input type="number" bind:value={feeRebatePercent} min="0" max="100" step="5" />
+            </label>
+          </div>
+          
           <div class="strategy-params">
             {#if selectedStrategyType === 'reverse-ratio'}
-              <div class="config-section">
-                <label>
-                  Initial Drop (%)
-                  <input type="number" bind:value={strategyParams['reverse-ratio'].initialDropPercent} min="1" max="10" step="0.5" />
-                </label>
+              {#if reverseRatioTimeframeConfigs[selectedGranularity]}
+                <div class="timeframe-notice">
+                  <span class="notice-icon">⚡</span>
+                  Parameters optimized for {selectedGranularity} timeframe
+                </div>
+              {/if}
+              
+              <!-- Position Sizing Section -->
+              <div class="param-group">
+                <h4 class="param-group-title">Position Sizing</h4>
+                
+                <div class="config-section">
+                  <label>
+                    Position Size Mode
+                    <select bind:value={strategyParams['reverse-ratio'].positionSizeMode}>
+                      <option value="percentage">Percentage of Balance</option>
+                      <option value="fixed">Fixed Dollar Amount</option>
+                    </select>
+                  </label>
+                </div>
+                
+                {#if strategyParams['reverse-ratio'].positionSizeMode === 'percentage'}
+                  <div class="config-section">
+                    <label>
+                      Base Position Size (%)
+                      <input type="number" bind:value={strategyParams['reverse-ratio'].basePositionPercent} min="1" max="20" step="0.5" />
+                      <span class="input-hint">Percentage of balance for first buy level</span>
+                    </label>
+                  </div>
+                {:else}
+                  <div class="config-section">
+                    <label>
+                      Base Position Amount ($)
+                      <input type="number" bind:value={strategyParams['reverse-ratio'].basePositionAmount} min="10" max="1000" step="10" />
+                      <span class="input-hint">Dollar amount for first buy level</span>
+                    </label>
+                  </div>
+                {/if}
+                
+                <div class="config-section">
+                  <label>
+                    Ratio Multiplier
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].ratioMultiplier} min="1" max="5" step="0.25" />
+                    <span class="input-hint">How much to increase position size per level</span>
+                  </label>
+                </div>
+                
+                <div class="config-section">
+                  <label>
+                    Max Total Position (%)
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].maxPositionPercent} min="10" max="100" step="5" />
+                    <span class="input-hint">Maximum percentage of balance to use across all levels</span>
+                  </label>
+                </div>
+                
+                <!-- Position Sizing Preview -->
+                <div class="position-preview">
+                  <h5>Position Size Preview (First 5 levels)</h5>
+                  <div class="preview-table">
+                    {#each calculatePositionSizes(startBalance) as level}
+                      <div class="preview-row">
+                        <span class="preview-level">Level {level.level}:</span>
+                        <span class="preview-amount">${level.amount.toFixed(2)}</span>
+                        <span class="preview-percent">({level.percentage.toFixed(1)}%)</span>
+                      </div>
+                    {/each}
+                    <div class="preview-row total">
+                      <span class="preview-level">Total:</span>
+                      <span class="preview-amount">
+                        ${calculatePositionSizes(startBalance).reduce((sum, l) => sum + l.amount, 0).toFixed(2)}
+                      </span>
+                      <span class="preview-percent">
+                        ({calculatePositionSizes(startBalance).reduce((sum, l) => sum + l.percentage, 0).toFixed(1)}%)
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="config-section">
-                <label>
-                  Level Drop (%)
-                  <input type="number" bind:value={strategyParams['reverse-ratio'].levelDropPercent} min="1" max="10" step="0.5" />
-                </label>
+              
+              <!-- Entry Conditions Section -->
+              <div class="param-group">
+                <h4 class="param-group-title">Entry Conditions</h4>
+                
+                <div class="config-section">
+                  <label>
+                    Initial Drop (%)
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].initialDropPercent} min="0.1" max="10" step="0.1" />
+                    <span class="input-hint">Price drop from recent high to trigger first buy</span>
+                  </label>
+                </div>
+                
+                <div class="config-section">
+                  <label>
+                    Level Drop (%)
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].levelDropPercent} min="0.1" max="10" step="0.1" />
+                    <span class="input-hint">Additional drop between each buy level</span>
+                  </label>
+                </div>
+                
+                <div class="config-section">
+                  <label>
+                    Max Levels
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].maxLevels} min="3" max="30" step="1" />
+                    <span class="input-hint">Maximum number of buy levels</span>
+                  </label>
+                </div>
               </div>
-              <div class="config-section">
-                <label>
-                  Ratio Multiplier
-                  <input type="number" bind:value={strategyParams['reverse-ratio'].ratioMultiplier} min="1.5" max="5" step="0.5" />
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Profit Target (%)
-                  <input type="number" bind:value={strategyParams['reverse-ratio'].profitTarget} min="3" max="20" step="1" />
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Max Levels
-                  <input type="number" bind:value={strategyParams['reverse-ratio'].maxLevels} min="3" max="10" step="1" />
-                </label>
+              
+              <!-- Exit Strategy Section -->
+              <div class="param-group">
+                <h4 class="param-group-title">Exit Strategy</h4>
+                
+                <div class="config-section">
+                  <label>
+                    Profit Target (%)
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].profitTarget} min="3" max="20" step="0.5" />
+                    <span class="input-hint">Sell all positions when first entry reaches this profit</span>
+                  </label>
+                </div>
               </div>
             {:else if selectedStrategyType === 'grid-trading'}
               <div class="config-section">
@@ -755,15 +1158,6 @@ export class ${getStrategyFileName(type)} extends Strategy {
               </div>
             {/if}
           </div>
-          
-          <div class="backtest-buttons">
-            <button class="run-btn" on:click={() => { updateCurrentStrategy(); runBacktest(); }} disabled={isRunning}>
-              {isRunning ? 'Running...' : 'Run Backtest'}
-            </button>
-            <button class="clear-btn" on:click={clearResults} disabled={!backtestResults || isRunning}>
-              Clear Results
-            </button>
-          </div>
           {:else if activeTab === 'code'}
             <div class="code-editor-section">
               <div class="code-header">
@@ -803,6 +1197,22 @@ export class ${getStrategyFileName(type)} extends Strategy {
                   <li>Using a different strategy like DCA or Grid Trading</li>
                 </ul>
               </div>
+            {:else if backtestResults.metrics.totalTrades === 1 && selectedStrategyType === 'reverse-ratio'}
+              <div class="single-trade-notice">
+                <h3>⚠️ Only 1 buy level was used</h3>
+                <p>The Reverse Ratio strategy only triggered one buy because:</p>
+                <ul>
+                  <li>Price dropped {strategyParams['reverse-ratio'].initialDropPercent}% to trigger the first buy</li>
+                  <li>Price didn't drop another {strategyParams['reverse-ratio'].levelDropPercent}% for the second level</li>
+                  <li>Strategy is waiting for {strategyParams['reverse-ratio'].profitTarget}% profit to sell</li>
+                </ul>
+                <p><strong>For {selectedGranularity} timeframe, consider:</strong></p>
+                <ul>
+                  <li>Use the ⚡ optimized parameters (click the timeframe to apply)</li>
+                  <li>Lower profit target for quicker exits</li>
+                  <li>Adjust position sizes to use more capital on first level</li>
+                </ul>
+              </div>
             {/if}
             <div class="results-summary">
               <div class="result-item">
@@ -832,12 +1242,16 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 <span class="result-value">{backtestResults.metrics.profitFactor.toFixed(2)}</span>
               </div>
               <div class="result-item">
-                <span class="result-label">Vault Balance</span>
+                <span class="result-label">USDC Vault Balance</span>
                 <span class="result-value profit">${backtestResults.metrics.vaultBalance.toFixed(2)}</span>
               </div>
               <div class="result-item">
-                <span class="result-label">BTC Holdings</span>
+                <span class="result-label">BTC Vault</span>
                 <span class="result-value">{backtestResults.metrics.btcGrowth.toFixed(6)} BTC</span>
+              </div>
+              <div class="result-item">
+                <span class="result-label">BTC Open Positions</span>
+                <span class="result-value">{getBtcPositions()} BTC</span>
               </div>
             </div>
             
@@ -847,7 +1261,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 <div class="trade-item" class:buy={trade.type === 'buy'} class:sell={trade.type === 'sell'}>
                   <div class="trade-header">
                     <span class="trade-type">{trade.type.toUpperCase()}</span>
-                    <span class="trade-date">{new Date(trade.timestamp).toLocaleDateString()}</span>
+                    <span class="trade-date">{new Date(trade.timestamp * 1000).toLocaleDateString()}</span>
                   </div>
                   <div class="trade-details">
                     <span>Price: ${trade.price.toLocaleString()}</span>
@@ -863,6 +1277,18 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 </div>
               {/each}
             </div>
+            
+            {#if backtestResults?.chartData}
+              <div class="compound-growth-section">
+                <h3>Compound Growth Visualization</h3>
+                <CompoundGrowthChart 
+                  vaultData={backtestResults.chartData.vaultGrowth || []}
+                  btcData={backtestResults.chartData.btcGrowth || []}
+                  totalValueData={backtestResults.equity.map(e => ({ time: e.timestamp, value: e.value }))}
+                  initialBalance={startBalance}
+                />
+              </div>
+            {/if}
           {/if}
         </div>
       </div>
@@ -966,6 +1392,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
     display: grid;
     grid-template-columns: 2fr 1fr;
     gap: 20px;
+    height: 600px;
   }
   
   .panel {
@@ -978,13 +1405,17 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .chart-panel {
     position: relative;
-    height: 500px;
-    max-height: 500px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
   }
   
   .strategy-panel {
     min-height: 500px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   
   .results-panel {
@@ -1009,6 +1440,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   .tabs {
     display: flex;
     gap: 10px;
+    align-items: center;
   }
   
   .tab {
@@ -1034,13 +1466,16 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   .code-editor-section {
-    height: 100%;
+    flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0; /* Important for proper flex behavior */
+    height: 100%;
   }
   
   .code-header {
-    margin-bottom: 20px;
+    margin-bottom: 15px;
+    flex-shrink: 0; /* Prevent header from shrinking */
   }
   
   .code-header h3 {
@@ -1063,7 +1498,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
     padding: 15px;
     overflow-y: auto;
     overflow-x: auto;
-    max-width: 100%;
+    min-height: 0; /* Important for proper scrolling */
+    max-height: 100%;
     width: 100%;
     box-sizing: border-box;
   }
@@ -1077,8 +1513,32 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .code-editor code {
     color: #d1d4dc;
-    white-space: pre-wrap;
-    word-break: break-word;
+    white-space: pre;
+    word-break: normal;
+  }
+  
+  /* Custom scrollbar for code editor */
+  .code-editor::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .code-editor::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+  }
+  
+  .code-editor::-webkit-scrollbar-thumb {
+    background: rgba(167, 139, 250, 0.3);
+    border-radius: 4px;
+  }
+  
+  .code-editor::-webkit-scrollbar-thumb:hover {
+    background: rgba(167, 139, 250, 0.5);
+  }
+  
+  .code-editor::-webkit-scrollbar-corner {
+    background: transparent;
   }
   
   .panel-content {
@@ -1087,6 +1547,32 @@ export class ${getStrategyFileName(type)} extends Strategy {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    min-height: 0; /* Important for flex children */
+  }
+  
+  .strategy-panel .panel-content {
+    overflow-y: auto; /* Enable scrolling for strategy content */
+    overflow-x: hidden;
+    max-height: calc(100vh - 400px); /* Ensure content doesn't exceed viewport */
+  }
+  
+  /* Custom scrollbar for strategy panel */
+  .strategy-panel .panel-content::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .strategy-panel .panel-content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+  }
+  
+  .strategy-panel .panel-content::-webkit-scrollbar-thumb {
+    background: rgba(167, 139, 250, 0.3);
+    border-radius: 4px;
+  }
+  
+  .strategy-panel .panel-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(167, 139, 250, 0.5);
   }
   
   .chart-panel .panel-content {
@@ -1252,43 +1738,42 @@ export class ${getStrategyFileName(type)} extends Strategy {
     border-color: #8b5cf6;
   }
   
-  .backtest-buttons {
+  .timeframe-notice {
+    background: rgba(167, 139, 250, 0.1);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 6px;
+    padding: 10px 15px;
+    margin-bottom: 15px;
     display: flex;
-    gap: 10px;
-    margin-top: 20px;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #a78bfa;
   }
   
-  .run-btn, .clear-btn {
-    flex: 1;
-    padding: 12px;
+  .notice-icon {
+    font-size: 16px;
+  }
+  
+  /* Run button in header */
+  .tabs .run-btn {
+    padding: 8px 20px;
+    background: #a78bfa;
+    color: white;
     border: none;
-    border-radius: 6px;
-    font-size: 14px;
+    border-radius: 4px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
+    margin-left: 10px;
   }
   
-  .run-btn {
-    background: #a78bfa;
-    color: white;
-  }
-  
-  .run-btn:hover:not(:disabled) {
+  .tabs .run-btn:hover:not(:disabled) {
     background: #8b5cf6;
   }
   
-  .clear-btn {
-    background: rgba(74, 0, 224, 0.2);
-    color: #a78bfa;
-    border: 1px solid rgba(74, 0, 224, 0.3);
-  }
-  
-  .clear-btn:hover:not(:disabled) {
-    background: rgba(74, 0, 224, 0.3);
-  }
-  
-  .run-btn:disabled, .clear-btn:disabled {
+  .tabs .run-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
@@ -1337,6 +1822,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
     margin: 20px 0 10px 0;
     font-size: 14px;
     color: #a78bfa;
+  }
+  
+  .compound-growth-section {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(74, 0, 224, 0.3);
   }
   
   .trades-list {
@@ -1433,6 +1924,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .strategy-params {
     margin-top: 20px;
+    flex-shrink: 0; /* Prevent params from shrinking */
   }
   
   .trade-reason {
@@ -1525,5 +2017,166 @@ export class ${getStrategyFileName(type)} extends Strategy {
     margin: 5px 0;
     color: #9ca3af;
     font-size: 13px;
+  }
+  
+  .single-trade-notice {
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .single-trade-notice h3 {
+    margin: 0 0 10px 0;
+    color: #fbbf24;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .single-trade-notice p {
+    margin: 10px 0;
+    color: #d1d4dc;
+    font-size: 14px;
+  }
+  
+  .single-trade-notice ul {
+    margin: 10px 0 0 20px;
+    padding: 0;
+    list-style-type: disc;
+  }
+  
+  .single-trade-notice li {
+    margin: 5px 0;
+    color: #9ca3af;
+    font-size: 13px;
+  }
+  
+  .single-trade-notice strong {
+    color: #fcd34d;
+  }
+  
+  .compound-chart {
+    margin-top: 20px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.2);
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .compound-chart canvas {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+  }
+  
+  /* Strategy Parameter Groups */
+  .param-group {
+    margin-bottom: 25px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  
+  .param-group-title {
+    color: #a78bfa;
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .config-section label {
+    position: relative;
+  }
+  
+  .input-hint {
+    display: block;
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 4px;
+    line-height: 1.3;
+  }
+  
+  select {
+    width: 100%;
+    padding: 8px 12px;
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 6px;
+    color: #e5e7eb;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  select:hover {
+    border-color: #4b5563;
+  }
+  
+  select:focus {
+    outline: none;
+    border-color: #a78bfa;
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+  }
+  
+  /* Position Sizing Preview */
+  .position-preview {
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(167, 139, 250, 0.05);
+    border-radius: 6px;
+    border: 1px solid rgba(167, 139, 250, 0.2);
+  }
+  
+  .position-preview h5 {
+    color: #a78bfa;
+    font-size: 0.85rem;
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  
+  .preview-table {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .preview-row {
+    display: grid;
+    grid-template-columns: 80px 100px 80px;
+    gap: 10px;
+    font-size: 0.85rem;
+    padding: 4px 0;
+  }
+  
+  .preview-row.total {
+    border-top: 1px solid rgba(167, 139, 250, 0.3);
+    padding-top: 8px;
+    margin-top: 4px;
+    font-weight: 600;
+    color: #d8b4fe;
+  }
+  
+  .preview-level {
+    color: #9ca3af;
+  }
+  
+  .preview-amount {
+    color: #e5e7eb;
+    text-align: right;
+  }
+  
+  .preview-percent {
+    color: #6b7280;
+    text-align: right;
   }
 </style>
