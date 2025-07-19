@@ -100,40 +100,40 @@
   // Timeframe-specific configurations for reverse-ratio strategy
   const reverseRatioTimeframeConfigs: Record<string, any> = {
     '1m': {
-      initialDropPercent: 0.05,   // Micro scalping - 0.05% drop
-      levelDropPercent: 0.05,     // 0.05% between levels
-      profitTarget: 0.1,          // Take profit at 0.1% (super quick)
-      maxLevels: 10,
-      lookbackPeriod: 20,
-      basePositionPercent: 20,    // Larger positions for tiny moves
-      ratioMultiplier: 1.25       // Gentle increase per level
+      initialDropPercent: 0.02,   // ULTRA micro scalping - 0.02% drop
+      levelDropPercent: 0.02,     // 0.02% between levels
+      profitTarget: 0.05,         // Take profit at 0.05% - SUPER QUICK!
+      maxLevels: 5,
+      lookbackPeriod: 10,
+      basePositionPercent: 30,    // Big positions for tiny moves
+      ratioMultiplier: 1.2        // Small increases
     },
     '5m': {
-      initialDropPercent: 0.1,    // 0.1% initial drop
-      levelDropPercent: 0.08,     // 0.08% between levels
-      profitTarget: 0.2,          // 0.2% profit target (reduced)
-      maxLevels: 12,
-      lookbackPeriod: 25,
-      basePositionPercent: 15,
-      ratioMultiplier: 1.3
+      initialDropPercent: 0.03,   // 0.03% initial drop - TINY!
+      levelDropPercent: 0.03,     // 0.03% between levels
+      profitTarget: 0.08,         // 0.08% profit - FAST EXIT!
+      maxLevels: 8,
+      lookbackPeriod: 15,
+      basePositionPercent: 25,
+      ratioMultiplier: 1.2
     },
     '15m': {
-      initialDropPercent: 0.15,   // 0.15% initial drop
-      levelDropPercent: 0.1,      // 0.1% between levels
-      profitTarget: 0.3,          // 0.3% profit target (reduced)
-      maxLevels: 15,
-      lookbackPeriod: 30,
-      basePositionPercent: 10,
-      ratioMultiplier: 1.5
+      initialDropPercent: 0.05,   // 0.05% initial drop
+      levelDropPercent: 0.04,     // 0.04% between levels
+      profitTarget: 0.1,          // 0.1% profit target - QUICK!
+      maxLevels: 10,
+      lookbackPeriod: 20,
+      basePositionPercent: 20,
+      ratioMultiplier: 1.3
     },
     '1h': {
-      initialDropPercent: 0.2,    // 0.2% initial drop for 1H window
-      levelDropPercent: 0.15,     // 0.15% between levels
-      profitTarget: 0.4,          // 0.4% profit target (much lower!)
-      maxLevels: 20,
-      lookbackPeriod: 50,
-      basePositionPercent: 8,
-      ratioMultiplier: 1.5
+      initialDropPercent: 0.08,   // 0.08% initial drop - MICRO!
+      levelDropPercent: 0.05,     // 0.05% between levels
+      profitTarget: 0.15,         // 0.15% profit - FAST SCALP!
+      maxLevels: 15,
+      lookbackPeriod: 30,
+      basePositionPercent: 15,
+      ratioMultiplier: 1.4
     },
     '6h': {
       initialDropPercent: 2.0,    // 2% initial drop
@@ -156,16 +156,16 @@
   // Strategy-specific parameters (will be updated based on timeframe)
   let strategyParams: Record<string, any> = {
     'reverse-ratio': {
-      initialDropPercent: 0.5,  // First buy at 0.5% drop
-      levelDropPercent: 0.5,    // Each level is 0.5% more drop
-      ratioMultiplier: 1,       // Linear increase: 1x, 2x, 3x, 4x, etc.
-      profitTarget: 7,          // Sell all when first buy hits +7%
-      maxLevels: 20,            // Can handle up to 10% total drop
-      lookbackPeriod: 50,       // Candles to look back for recent high
+      initialDropPercent: 0.05, // MICRO: First buy at 0.05% drop
+      levelDropPercent: 0.03,   // MICRO: Each level is 0.03% more drop
+      ratioMultiplier: 1.2,     // Gentle increase for micro scalping
+      profitTarget: 0.1,        // MICRO: Sell all at +0.1%
+      maxLevels: 10,            // Fewer levels for quick trades
+      lookbackPeriod: 20,       // Shorter lookback for micro
       positionSizeMode: 'percentage',
-      basePositionPercent: 5,   // 5% of balance for first level
+      basePositionPercent: 20,  // 20% of balance - GO BIG!
       basePositionAmount: 50,   // $50 for first level if using fixed mode
-      maxPositionPercent: 50    // Max 50% of balance across all levels
+      maxPositionPercent: 80    // Max 80% of balance - AGGRESSIVE!
     },
     'grid-trading': {
       gridLevels: 10,
@@ -943,9 +943,17 @@ export class ${getStrategyFileName(type)} extends Strategy {
           <div class="strategy-params">
             {#if selectedStrategyType === 'reverse-ratio'}
               {#if reverseRatioTimeframeConfigs[selectedGranularity]}
-                <div class="timeframe-notice">
-                  <span class="notice-icon">⚡</span>
-                  {#if ['1m', '5m'].includes(selectedGranularity) && selectedPeriod === '1H'}
+                <div class="timeframe-notice" class:ultra-scalp={strategyParams['reverse-ratio'].profitTarget <= 0.1}>
+                  <span class="notice-icon">
+                    {#if strategyParams['reverse-ratio'].profitTarget <= 0.1}
+                      🚀
+                    {:else}
+                      ⚡
+                    {/if}
+                  </span>
+                  {#if strategyParams['reverse-ratio'].profitTarget <= 0.05}
+                    ULTRA MICRO-SCALPING: {strategyParams['reverse-ratio'].profitTarget}% profits, {strategyParams['reverse-ratio'].initialDropPercent}% drops
+                  {:else if ['1m', '5m'].includes(selectedGranularity) && selectedPeriod === '1H'}
                     Micro-scalping mode: {selectedGranularity} candles in {selectedPeriod} window
                   {:else}
                     Parameters optimized for {selectedGranularity} timeframe
@@ -2200,5 +2208,17 @@ export class ${getStrategyFileName(type)} extends Strategy {
     color: #a78bfa;
     margin-top: 4px;
     font-weight: 500;
+  }
+  
+  .timeframe-notice.ultra-scalp {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
   }
 </style>

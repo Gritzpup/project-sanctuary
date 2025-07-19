@@ -291,6 +291,22 @@ export class ReverseRatioStrategy extends Strategy {
     // Sell when price reaches profit target above initial entry
     if (this.initialEntryPrice > 0) {
       const targetPrice = this.initialEntryPrice * (1 + config.profitTarget / 100);
+      const currentProfit = ((currentPrice - this.initialEntryPrice) / this.initialEntryPrice) * 100;
+      
+      // MICRO SCALPING: If profit target is very small (< 0.2%), take profit more aggressively
+      if (config.profitTarget < 0.2 && currentProfit > 0) {
+        // For micro scalping, take ANY profit above 0.02%
+        if (currentProfit >= Math.min(config.profitTarget, 0.02)) {
+          console.log('[ReverseRatio] MICRO SCALP PROFIT TAKEN!', {
+            currentProfit: currentProfit.toFixed(4) + '%',
+            targetProfit: config.profitTarget + '%',
+            currentPrice,
+            initialEntry: this.initialEntryPrice
+          });
+          return true;
+        }
+      }
+      
       return currentPrice >= targetPrice;
     }
     
