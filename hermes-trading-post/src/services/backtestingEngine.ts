@@ -1,5 +1,7 @@
 import { Strategy } from '../strategies/base/Strategy';
-import type { CandleData, Trade, BacktestResult, StrategyState } from '../strategies/base/StrategyTypes';
+import type { CandleData, Trade, BacktestResult, StrategyState, VaultAllocationConfig, OpportunityDetectionConfig } from '../strategies/base/StrategyTypes';
+import { CompoundEngine, type CompoundTransaction } from './CompoundEngine';
+import { OpportunityDetector, type OpportunitySignal } from './OpportunityDetector';
 
 export interface BacktestConfig {
   initialBalance: number;
@@ -31,10 +33,32 @@ export class BacktestingEngine {
   private totalFeesCollected: number = 0;
   private totalFeeRebates: number = 0;
   private initialBalanceGrowth: number = 0; // Tracks growth of trading balance from profits
+  private compoundEngine: CompoundEngine;
+  private compoundTransactions: CompoundTransaction[] = [];
+  private opportunityDetector: OpportunityDetector | null = null;
+  private detectedOpportunities: OpportunitySignal[] = [];
 
   constructor(strategy: Strategy, config: BacktestConfig) {
     this.strategy = strategy;
     this.config = config;
+    
+    // Initialize compound engine with default config if not provided
+    const strategyConfig = this.strategy.getConfig();
+    const vaultConfig: VaultAllocationConfig = strategyConfig.vaultConfig || {
+      btcVaultPercent: 14.3,    // 1/7
+      usdGrowthPercent: 14.3,   // 1/7
+      usdcVaultPercent: 71.4,   // 5/7
+      compoundFrequency: 'trade',
+      minCompoundAmount: 0.01,
+      autoCompound: true
+    };
+    
+    this.compoundEngine = new CompoundEngine(vaultConfig);
+    
+    // Initialize opportunity detector if config provided
+    if (strategyConfig.opportunityConfig) {
+      this.opportunityDetector = new OpportunityDetector(strategy, strategyConfig.opportunityConfig);
+    }
   }
 
   async runBacktest(candles: CandleData[]): Promise<BacktestResult> {
@@ -101,6 +125,26 @@ export class BacktestingEngine {
       const requiredData = this.strategy.getRequiredHistoricalData();
       if (historicalData.length < requiredData) continue;
 
+      // Check for opportunities first (left-side trades)
+      if (this.opportunityDetector && i >= 50) { // Need some history for multi-timeframe analysis
+        const timeframeData = this.prepareTimeframeData(filteredCandles, i);
+        const opportunities = this.opportunityDetector.analyzeOpportunities(timeframeData, currentCandle.close);
+        
+        if (opportunities.length > 0) {
+          this.detectedOpportunities.push(...opportunities);
+          
+          // Process pre-emptive opportunities
+          for (const opp of opportunities) {
+            if (opp.preEmptive && opp.triggerPrice && currentCandle.low <= opp.triggerPrice) {
+              console.log(`[OpportunityDetector] Pre-emptive buy triggered at ${currentCandle.time}:`, opp);
+              if (this.strategy.validateSignal(opp, state.balance.usd, currentCandle.close)) {
+                this.processBuySignal(opp, currentCandle, state);
+              }
+            }
+          }
+        }
+      }
+
       // Get strategy signal
       const signal = this.strategy.analyze(historicalData, currentCandle.close);
 
@@ -162,6 +206,16 @@ export class BacktestingEngine {
 
     // Calculate metrics - use last candle price if available
     const lastPrice = filteredCandles.length > 0 ? filteredCandles[filteredCandles.length - 1].close : 0;
+    
+    console.log(`[BacktestEngine] Final state before metrics calculation:`, {
+      usd: state.balance.usd.toFixed(2),
+      vault: state.balance.vault.toFixed(2),
+      btcVault: state.balance.btcVault.toFixed(6),
+      btcPositions: state.balance.btcPositions.toFixed(6),
+      initialBalanceGrowth: this.initialBalanceGrowth.toFixed(2),
+      lastPrice: lastPrice.toFixed(2)
+    });
+    
     const metrics = this.calculateMetrics(state, lastPrice);
 
     // Generate chart data
@@ -209,6 +263,34 @@ export class BacktestingEngine {
         chartData: this.generateChartData()
       };
     }
+  }
+  
+  private prepareTimeframeData(candles: CandleData[], currentIndex: number): Map<string, CandleData[]> {
+    const timeframeData = new Map<string, CandleData[]>();
+    
+    // For now, we'll simulate different timeframes by sampling the candles
+    // In a real implementation, you'd have actual multi-timeframe data
+    const timeframeSamples = {
+      '1m': 1,    // Every candle
+      '5m': 5,    // Every 5th candle
+      '15m': 15,  // Every 15th candle
+      '1h': 60,   // Every 60th candle
+      '4h': 240,  // Every 240th candle
+    };
+    
+    for (const [timeframe, sample] of Object.entries(timeframeSamples)) {
+      const sampledCandles: CandleData[] = [];
+      
+      for (let j = 0; j <= currentIndex; j += sample) {
+        if (j < candles.length) {
+          sampledCandles.push(candles[j]);
+        }
+      }
+      
+      timeframeData.set(timeframe, sampledCandles);
+    }
+    
+    return timeframeData;
   }
 
   private processBuySignal(signal: any, candle: CandleData, state: StrategyState): void {
@@ -277,13 +359,19 @@ export class BacktestingEngine {
     
     console.log(`Buy executed: ${size.toFixed(6)} BTC @ $${executionPrice.toFixed(2)}, btcPositions: ${state.balance.btcPositions.toFixed(6)}`);
 
-    // Create position
+    // Create position - store the actual cost per BTC including fees
+    const costPerBtc = totalCost / size; // This includes fees
     const position = {
       entryPrice: executionPrice,
       entryTime: candle.time,
       size: size,
       type: 'long' as const,
-      metadata: signal.metadata
+      metadata: {
+        ...signal.metadata,
+        actualCostPerBtc: costPerBtc, // Store the true cost including fees
+        executionPrice: executionPrice, // Store the raw execution price
+        fees: netFee
+      }
     };
 
     this.strategy.addPosition(position);
@@ -345,7 +433,9 @@ export class BacktestingEngine {
       if (remainingSize <= 0) break;
       
       const closeSize = Math.min(remainingSize, position.size);
-      totalCost += closeSize * position.entryPrice;
+      // Use the actual cost per BTC if available (includes buy fees)
+      const costPerBtc = position.metadata?.actualCostPerBtc || position.entryPrice;
+      totalCost += closeSize * costPerBtc;
       remainingSize -= closeSize;
       
       if (closeSize === position.size) {
@@ -355,38 +445,77 @@ export class BacktestingEngine {
 
     const profit = netProceeds - totalCost;
     const profitPercent = (profit / totalCost) * 100;
+    
+    console.log(`[BacktestEngine] Sell profit calculation:`, {
+      sellPrice: executionPrice,
+      size: size,
+      grossProceeds: proceeds,
+      sellFees: netFee,
+      netProceeds: netProceeds,
+      totalCostWithBuyFees: totalCost,
+      profit: profit,
+      profitPercent: profitPercent,
+      timestamp: new Date(candle.time * 1000).toISOString()
+    });
 
-    // Triple compounding profit distribution
+    // Compound profit distribution
     if (profit > 0) {
-      // Calculate gross profit (before fees were taken)
-      // Fees on the sell + estimated fees that were paid when buying
-      const buyFees = totalCost * (feePercent / 100) * (1 - (this.config.feeRebatePercent || 0) / 100);
-      const totalFees = netFee + buyFees;
-      const grossProfit = profit + totalFees;
-      const oneSeventhGross = grossProfit / 7;
-      
-      // Return principal to USD
+      // Return principal to USD first
       state.balance.usd += totalCost;
       
-      // 1/7 of gross to BTC vault
-      state.balance.btcVault += oneSeventhGross / executionPrice;
-      
-      // 1/7 of gross to grow USD balance
-      state.balance.usd += oneSeventhGross;
-      this.initialBalanceGrowth += oneSeventhGross; // Track growth of initial balance
-      
-      // Remaining NET profit to vault (5/7 minus fees)
-      state.balance.vault += profit - (2 * oneSeventhGross);
+      // Check if we should compound
+      if (this.compoundEngine.shouldCompound(profit, candle.time)) {
+        const transaction = this.compoundEngine.compound(profit, executionPrice, candle.time);
+        this.compoundTransactions.push(transaction);
+        
+        // Apply compound allocations to state
+        const compoundState = this.compoundEngine.getState();
+        state.balance.btcVault = compoundState.btcVault;
+        state.balance.usd += compoundState.usdGrowth; // Add USD growth to trading balance
+        state.balance.vault = compoundState.usdcVault;
+        
+        // Track the USD growth separately
+        this.initialBalanceGrowth = compoundState.usdGrowth;
+        
+        console.log(`[BacktestEngine] Compound transaction executed:`, {
+          profit: profit.toFixed(2),
+          btcAllocation: transaction.btcAllocation.toFixed(2),
+          usdAllocation: transaction.usdAllocation.toFixed(2),
+          usdcAllocation: transaction.usdcAllocation.toFixed(2),
+          btcReceived: (transaction.btcAllocation / executionPrice).toFixed(6),
+          compoundCount: compoundState.compoundCount,
+          totalCompounded: compoundState.totalCompounded.toFixed(2)
+        });
+        
+        const metrics = this.compoundEngine.getMetrics(executionPrice);
+        console.log(`[BacktestEngine] Vault balances after compound:`, {
+          btcVault: metrics.btcVault.toFixed(6),
+          btcVaultValue: metrics.btcVaultValue.toFixed(2),
+          usdGrowth: metrics.usdGrowth.toFixed(2),
+          usdcVault: metrics.usdcVault.toFixed(2),
+          totalValue: metrics.totalValue.toFixed(2),
+          allocations: {
+            btc: metrics.allocations.btc.toFixed(2) + '%',
+            usd: metrics.allocations.usd.toFixed(2) + '%',
+            usdc: metrics.allocations.usdc.toFixed(2) + '%'
+          }
+        });
+      } else {
+        // If not compounding yet, just add profit to USD
+        state.balance.usd += profit;
+        console.log(`[BacktestEngine] Profit added to USD (compound threshold not met):`, {
+          profit: profit.toFixed(2),
+          minCompoundAmount: this.compoundEngine.getState().totalCompounded
+        });
+      }
       
       console.log(`[BacktestEngine] Profit distribution:`, {
-        profit,
-        principal: totalCost,
-        btcVaultAddition: oneSeventhGross / executionPrice,
-        usdGrowthAddition: oneSeventhGross,
-        vaultAddition: profit - (2 * oneSeventhGross),
-        newUsdBalance: state.balance.usd,
-        newVaultBalance: state.balance.vault,
-        totalInitialBalanceGrowth: this.initialBalanceGrowth
+        profit: profit.toFixed(2),
+        principal: totalCost.toFixed(2),
+        newUsdBalance: state.balance.usd.toFixed(2),
+        newBtcVault: state.balance.btcVault.toFixed(6),
+        newVaultBalance: state.balance.vault.toFixed(2),
+        totalInitialBalanceGrowth: this.initialBalanceGrowth.toFixed(2)
       });
     } else {
       // Loss - return all proceeds to USD
@@ -541,6 +670,18 @@ export class BacktestingEngine {
 
     // Risk reward ratio
     const riskRewardRatio = averageLoss > 0 ? averageWin / averageLoss : 0;
+    
+    // Compound system metrics
+    const compoundMetrics = this.compoundEngine.getMetrics(lastPrice);
+    const compoundState = this.compoundEngine.getState();
+    
+    // Opportunity detection metrics
+    const opportunityMetrics = {
+      totalOpportunitiesDetected: this.detectedOpportunities.length,
+      preEmptiveOpportunities: this.detectedOpportunities.filter(o => o.preEmptive).length,
+      multiTimeframeSignals: this.detectedOpportunities.filter(o => o.timeframe === 'multi').length,
+      opportunitySuccessRate: 0 // TODO: Track which opportunities led to profitable trades
+    };
 
     return {
       totalTrades: this.trades.length,
@@ -574,7 +715,20 @@ export class BacktestingEngine {
       initialBalanceGrowthPercent: (this.initialBalanceGrowth / this.config.initialBalance) * 100,
       finalTradingBalance: state.balance.usd,
       totalFeeRebates: this.totalFeeRebates,
-      netFeesAfterRebates: this.totalFeesCollected - this.totalFeeRebates
+      netFeesAfterRebates: this.totalFeesCollected - this.totalFeeRebates,
+      finalEquity: totalValue,
+      // Compound system metrics
+      totalCompounded: compoundState.totalCompounded,
+      compoundCount: compoundState.compoundCount,
+      avgCompoundSize: compoundMetrics.avgCompoundSize,
+      compoundAllocations: compoundMetrics.allocations,
+      btcVaultValue: compoundMetrics.btcVaultValue,
+      compoundGrowthRate: compoundState.totalCompounded > 0 ? (compoundState.totalCompounded / this.config.initialBalance) * 100 : 0,
+      // Opportunity detection metrics
+      opportunitiesDetected: opportunityMetrics.totalOpportunitiesDetected,
+      preEmptiveOpportunities: opportunityMetrics.preEmptiveOpportunities,
+      multiTimeframeSignals: opportunityMetrics.multiTimeframeSignals,
+      opportunitySuccessRate: opportunityMetrics.opportunitySuccessRate
     };
   }
 
@@ -604,12 +758,22 @@ export class BacktestingEngine {
       tradeDistribution.monthly.set(monthKey, (tradeDistribution.monthly.get(monthKey) || 0) + 1);
     }
 
+    // Generate compound transaction timeline
+    const compoundTimeline = this.compoundTransactions.map(ct => ({
+      time: ct.timestamp,
+      amount: ct.profitAmount,
+      btcAllocation: ct.btcAllocation,
+      usdAllocation: ct.usdAllocation,
+      usdcAllocation: ct.usdcAllocation
+    }));
+
     return {
       vaultGrowth: this.vaultGrowthHistory || [],
       btcGrowth: this.btcGrowthHistory || [],
       equityCurve: (this.equityHistory || []).map(e => ({ time: e.timestamp, value: e.value })),
       drawdown: this.drawdownHistory || [],
-      tradeDistribution
+      tradeDistribution,
+      compoundTimeline
     };
   }
 }

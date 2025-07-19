@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Trading Presets</title>
+    <style>
+        body {
+            background: #0f1419;
+            color: white;
+            font-family: monospace;
+            padding: 2rem;
+            text-align: center;
+        }
+        button {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            margin: 1rem;
+        }
+        button:hover {
+            background: #ff5252;
+        }
+        .success {
+            color: #26a69a;
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Clear Old Trading Presets</h1>
+    <p>The old presets had profit targets below the fee threshold (0.825%).</p>
+    <p>Click below to clear them and use the new fee-aware presets.</p>
+    
+    <button onclick="clearPresets()">Clear Old Presets</button>
+    
+    <div id="result"></div>
+    
+    <script>
+        function clearPresets() {
+            // Clear the old presets
+            localStorage.removeItem('reverseRatioPresets');
+            
+            // Clear all saved preset selections for timeframes
+            const keys = Object.keys(localStorage);
+            keys.forEach(key => {
+                if (key.startsWith('preset_')) {
+                    localStorage.removeItem(key);
+                }
+            });
+            
+            document.getElementById('result').innerHTML = '<p class="success">✅ Old presets cleared! Refresh the backtesting page to see new fee-aware presets.</p>';
+        }
+    </script>
+</body>
+</html>

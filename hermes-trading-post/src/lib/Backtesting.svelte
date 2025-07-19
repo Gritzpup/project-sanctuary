@@ -103,28 +103,28 @@
   if (customPresets.length === 0) {
     customPresets = [
       {
-        name: 'Preset 1 (Ultra)',
-        initialDropPercent: 0.02,
-        levelDropPercent: 0.02,
-        profitTarget: 0.05,
+        name: 'Preset 1 (Fee-Aware Quick)',
+        initialDropPercent: 0.1,
+        levelDropPercent: 0.05,
+        profitTarget: 1.0,  // 1% to ensure profit after 0.825% fees
         basePositionPercent: 30,
         maxPositionPercent: 90,
         ratioMultiplier: 1.1
       },
       {
-        name: 'Preset 2 (Micro)',
-        initialDropPercent: 0.05,
-        levelDropPercent: 0.03,
-        profitTarget: 0.08,
+        name: 'Preset 2 (Fee-Aware Scalp)',
+        initialDropPercent: 0.2,
+        levelDropPercent: 0.1,
+        profitTarget: 1.5,  // 1.5% for ~0.7% net profit
         basePositionPercent: 25,
         maxPositionPercent: 80,
         ratioMultiplier: 1.2
       },
       {
-        name: 'Preset 3 (Normal)',
-        initialDropPercent: 0.1,
-        levelDropPercent: 0.08,
-        profitTarget: 0.15,
+        name: 'Preset 3 (Standard)',
+        initialDropPercent: 0.5,
+        levelDropPercent: 0.3,
+        profitTarget: 2.0,  // 2% for ~1.2% net profit
         basePositionPercent: 20,
         maxPositionPercent: 70,
         ratioMultiplier: 1.3
@@ -291,7 +291,19 @@
       positionSizeMode: 'percentage',
       basePositionPercent: 20,  // 20% of balance - GO BIG!
       basePositionAmount: 50,   // $50 for first level if using fixed mode
-      maxPositionPercent: 80    // Max 80% of balance - AGGRESSIVE!
+      maxPositionPercent: 80,   // Max 80% of balance - AGGRESSIVE!
+      // Vault configuration
+      vaultConfig: {
+        btcVaultPercent: 14.3,    // 1/7 of profits to BTC vault
+        usdGrowthPercent: 14.3,   // 1/7 of profits to grow USD
+        usdcVaultPercent: 71.4,   // 5/7 of profits to USDC vault
+        compoundFrequency: 'trade',
+        minCompoundAmount: 0.01,
+        autoCompound: true,
+        btcVaultTarget: 0.1,      // Target 0.1 BTC
+        usdcVaultTarget: 10000,   // Target $10k USDC
+        rebalanceThreshold: 5     // Rebalance if 5% off target
+      }
     },
     'grid-trading': {
       gridLevels: 10,
@@ -1090,6 +1102,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
                     Parameters optimized for {selectedGranularity} timeframe
                   {/if}
                 </div>
+                
+                {#if strategyParams['reverse-ratio'].profitTarget <= 0.825}
+                  <div class="fee-warning">
+                    ⚠️ <strong>FEE WARNING:</strong> Target profit ({strategyParams['reverse-ratio'].profitTarget}%) is below net fees (0.825%)!
+                    <br>
+                    Strategy will wait for {(0.825 + Math.max(0.1, strategyParams['reverse-ratio'].profitTarget)).toFixed(2)}% to ensure profit after fees.
+                  </div>
+                {/if}
               {/if}
               
               <!-- Preset Management -->
@@ -1311,6 +1331,94 @@ export class ${getStrategyFileName(type)} extends Strategy {
                   </label>
                 </div>
               </div>
+              
+              <!-- Vault Configuration Section -->
+              <div class="param-group">
+                <h4 class="param-group-title">Vault Configuration</h4>
+                
+                <div class="config-section">
+                  <h5 class="config-subtitle">Profit Distribution</h5>
+                  <label>
+                    BTC Vault Allocation (%)
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.btcVaultPercent} min="0" max="100" step="0.1" />
+                    <span class="input-hint">Percentage of profits allocated to BTC vault (default: 14.3% = 1/7)</span>
+                  </label>
+                </div>
+                
+                <div class="config-section">
+                  <label>
+                    USD Growth Allocation (%)
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.usdGrowthPercent} min="0" max="100" step="0.1" />
+                    <span class="input-hint">Percentage of profits to grow trading balance (default: 14.3% = 1/7)</span>
+                  </label>
+                </div>
+                
+                <div class="config-section">
+                  <label>
+                    USDC Vault Allocation (%)
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.usdcVaultPercent} min="0" max="100" step="0.1" />
+                    <span class="input-hint">Percentage of profits to USDC vault (default: 71.4% = 5/7)</span>
+                  </label>
+                  {#if strategyParams['reverse-ratio'].vaultConfig.btcVaultPercent + strategyParams['reverse-ratio'].vaultConfig.usdGrowthPercent + strategyParams['reverse-ratio'].vaultConfig.usdcVaultPercent !== 100}
+                    <span class="warning-text">⚠️ Allocations should sum to 100% (current: {(strategyParams['reverse-ratio'].vaultConfig.btcVaultPercent + strategyParams['reverse-ratio'].vaultConfig.usdGrowthPercent + strategyParams['reverse-ratio'].vaultConfig.usdcVaultPercent).toFixed(1)}%)</span>
+                  {/if}
+                </div>
+                
+                <div class="config-section">
+                  <h5 class="config-subtitle">Compound Settings</h5>
+                  <label>
+                    Compound Frequency
+                    <select bind:value={strategyParams['reverse-ratio'].vaultConfig.compoundFrequency}>
+                      <option value="trade">Every Trade</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                    <span class="input-hint">How often to compound profits</span>
+                  </label>
+                </div>
+                
+                <div class="config-section">
+                  <label>
+                    Min Compound Amount ($)
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.minCompoundAmount} min="0.01" max="100" step="0.01" />
+                    <span class="input-hint">Minimum profit required to trigger compound</span>
+                  </label>
+                </div>
+                
+                <div class="config-section">
+                  <label>
+                    <input type="checkbox" bind:checked={strategyParams['reverse-ratio'].vaultConfig.autoCompound} />
+                    Auto-Compound
+                    <span class="input-hint">Automatically compound vault earnings</span>
+                  </label>
+                </div>
+                
+                <div class="config-section">
+                  <h5 class="config-subtitle">Vault Targets (Optional)</h5>
+                  <label>
+                    BTC Vault Target
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.btcVaultTarget} min="0" max="10" step="0.01" />
+                    <span class="input-hint">Target BTC amount for vault (optional)</span>
+                  </label>
+                </div>
+                
+                <div class="config-section">
+                  <label>
+                    USDC Vault Target ($)
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.usdcVaultTarget} min="0" max="1000000" step="100" />
+                    <span class="input-hint">Target USDC amount for vault (optional)</span>
+                  </label>
+                </div>
+                
+                <div class="config-section">
+                  <label>
+                    Rebalance Threshold (%)
+                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.rebalanceThreshold} min="0" max="20" step="0.5" />
+                    <span class="input-hint">Rebalance when allocation deviates by this percentage</span>
+                  </label>
+                </div>
+              </div>
             {:else if selectedStrategyType === 'grid-trading'}
               <div class="config-section">
                 <label>
@@ -1502,6 +1610,26 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 <span class="result-label">BTC Open Positions</span>
                 <span class="result-value">{getBtcPositions()} BTC</span>
               </div>
+              {#if backtestResults.metrics.initialBalanceGrowth}
+                <div class="result-item">
+                  <span class="result-label">Starting Balance Growth</span>
+                  <span class="result-value profit">
+                    ${backtestResults.metrics.initialBalanceGrowth.toFixed(2)} 
+                    ({backtestResults.metrics.initialBalanceGrowthPercent.toFixed(2)}%)
+                  </span>
+                </div>
+              {/if}
+              {#if backtestResults.metrics.totalFees}
+                <div class="result-item">
+                  <span class="result-label">Total Fees Paid</span>
+                  <span class="result-value loss">
+                    ${backtestResults.metrics.totalFees.toFixed(2)}
+                    {#if backtestResults.metrics.totalFeeRebates > 0}
+                      (Rebates: ${backtestResults.metrics.totalFeeRebates.toFixed(2)})
+                    {/if}
+                  </span>
+                </div>
+              {/if}
             </div>
             
             <h3>All Trades ({backtestResults.trades.length})</h3>
@@ -2004,6 +2132,25 @@ export class ${getStrategyFileName(type)} extends Strategy {
     font-size: 16px;
   }
   
+  .fee-warning {
+    background: #ff6b6b;
+    color: white;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    animation: pulse-warning 2s ease-in-out infinite;
+  }
+  
+  .fee-warning strong {
+    font-weight: 700;
+  }
+  
+  @keyframes pulse-warning {
+    0%, 100% { opacity: 0.9; }
+    50% { opacity: 1; }
+  }
+  
   /* Run button in header */
   .tabs .run-btn {
     padding: 8px 20px;
@@ -2353,6 +2500,25 @@ export class ${getStrategyFileName(type)} extends Strategy {
     color: #6b7280;
     margin-top: 4px;
     line-height: 1.3;
+  }
+  
+  .config-subtitle {
+    color: #9ca3af;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    margin-top: 5px;
+  }
+  
+  .warning-text {
+    display: block;
+    color: #fbbf24;
+    font-size: 0.75rem;
+    margin-top: 5px;
+    background: rgba(251, 191, 36, 0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(251, 191, 36, 0.2);
   }
   
   select {

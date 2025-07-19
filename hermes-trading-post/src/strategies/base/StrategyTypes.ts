@@ -46,11 +46,51 @@ export interface Trade {
   reason: string;
 }
 
+export interface VaultAllocationConfig {
+  // Triple Compounding System
+  btcVaultPercent: number;      // % to BTC vault (default: 14.3% = 1/7)
+  usdGrowthPercent: number;     // % to USD growth (default: 14.3% = 1/7)
+  usdcVaultPercent: number;     // % to USDC vault (default: 71.4% = 5/7)
+  
+  // Compound Settings
+  compoundFrequency: 'trade' | 'daily' | 'weekly' | 'monthly';
+  minCompoundAmount: number;    // Minimum profit to trigger compound
+  autoCompound: boolean;        // Auto-compound vault earnings
+  
+  // Vault Targets
+  btcVaultTarget?: number;      // Optional target BTC amount
+  usdcVaultTarget?: number;     // Optional target USDC amount
+  rebalanceThreshold?: number;  // % deviation to trigger rebalance
+}
+
+export interface OpportunityDetectionConfig {
+  // Multi-timeframe analysis
+  timeframes: Array<{
+    period: string;
+    weight: number;
+  }>;
+  
+  // Signal thresholds
+  minSignalStrength: number;    // 0-1
+  confirmationRequired: number; // Number of timeframes to confirm
+  
+  // Pre-emptive orders
+  enablePreEmptive: boolean;
+  maxPreEmptiveOrders: number;
+  preEmptiveSpread: number;     // % below current price
+}
+
 export interface StrategyConfig {
   // Common configuration
   vaultAllocation: number;      // % of profits to vault (0-100)
   btcGrowthAllocation: number;  // % of profits to keep in BTC (0-100)
   maxDrawdown?: number;         // Optional max drawdown %
+  
+  // Enhanced vault configuration
+  vaultConfig?: VaultAllocationConfig;
+  
+  // Opportunity detection
+  opportunityConfig?: OpportunityDetectionConfig;
   
   // Strategy-specific parameters
   [key: string]: any;
@@ -91,6 +131,22 @@ export interface BacktestResult {
     finalTradingBalance: number;         // Final USD available for trading
     totalFeeRebates: number;             // Total fee rebates received
     netFeesAfterRebates: number;         // Net fees paid after rebates
+    // Compound system metrics
+    totalCompounded: number;             // Total amount compounded
+    compoundCount: number;               // Number of compound transactions
+    avgCompoundSize: number;             // Average compound size
+    compoundAllocations: {               // Current allocation percentages
+      btc: number;
+      usd: number;
+      usdc: number;
+    };
+    btcVaultValue: number;               // Current BTC vault value in USD
+    compoundGrowthRate: number;          // Compound growth as % of initial balance
+    // Opportunity detection metrics
+    opportunitiesDetected: number;       // Total opportunities detected
+    preEmptiveOpportunities: number;     // Pre-emptive orders placed
+    multiTimeframeSignals: number;       // Multi-timeframe confirmations
+    opportunitySuccessRate: number;      // Success rate of opportunities
   };
   equity: Array<{
     timestamp: number;
@@ -110,6 +166,13 @@ export interface BacktestResult {
       weekly: Map<string, number>;
       monthly: Map<string, number>;
     };
+    compoundTimeline: Array<{
+      time: number;
+      amount: number;
+      btcAllocation: number;
+      usdAllocation: number;
+      usdcAllocation: number;
+    }>;
   };
 }
 

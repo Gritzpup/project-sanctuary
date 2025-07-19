@@ -304,31 +304,45 @@ export class ReverseRatioStrategy extends Strategy {
       const targetPrice = this.initialEntryPrice * (1 + config.profitTarget / 100);
       const currentProfit = ((currentPrice - this.initialEntryPrice) / this.initialEntryPrice) * 100;
       
-      // ULTRA MICRO SCALPING: For extremely small targets, take ANY meaningful profit
+      // FEE-AWARE PROFIT CALCULATION
+      // With 0.35% maker + 0.75% taker = 1.1% total fees (0.825% after 25% rebate)
+      const estimatedFeesPercent = 0.825; // Net fees after rebates
+      
+      // ULTRA MICRO SCALPING: For extremely small targets, we need to cover fees first
       if (config.profitTarget <= 0.1 && currentProfit > 0) {
-        // For 0.02-0.1% targets, take profit at 50% of target or 0.02% minimum
-        const ultraMinProfit = Math.max(0.02, config.profitTarget * 0.5);
+        // WARNING: Ultra micro targets are below fee threshold!
+        console.warn('[ReverseRatio] ⚠️ ULTRA MICRO MODE - Profit target below fee threshold!', {
+          profitTarget: config.profitTarget + '%',
+          estimatedFees: estimatedFeesPercent + '%',
+          netLossIfSoldAtTarget: (config.profitTarget - estimatedFeesPercent).toFixed(4) + '%'
+        });
         
-        if (currentProfit >= ultraMinProfit) {
-          console.log('[ReverseRatio] ULTRA MICRO PROFIT TAKEN!', {
+        // Adjust minimum profit to cover fees + small profit
+        const feeAdjustedMinProfit = estimatedFeesPercent + Math.max(0.1, config.profitTarget);
+        
+        if (currentProfit >= feeAdjustedMinProfit) {
+          console.log('[ReverseRatio] FEE-ADJUSTED PROFIT TAKEN!', {
             currentProfit: currentProfit.toFixed(4) + '%',
-            targetProfit: config.profitTarget + '%',
-            ultraMinProfit: ultraMinProfit.toFixed(4) + '%',
+            originalTarget: config.profitTarget + '%',
+            feeAdjustedTarget: feeAdjustedMinProfit.toFixed(4) + '%',
+            estimatedNetProfit: (currentProfit - estimatedFeesPercent).toFixed(4) + '%',
             currentPrice,
             initialEntry: this.initialEntryPrice
           });
           return true;
         }
       }
-      // MICRO SCALPING: If profit target is small (0.1-0.5%), take profit at 70% of target
+      // MICRO SCALPING: If profit target is small (0.1-0.5%), adjust for fees
       else if (config.profitTarget <= 0.5 && currentProfit > 0) {
-        const minAcceptableProfit = config.profitTarget * 0.7; // Accept 70% of target
+        // For micro targets, ensure we at least cover fees
+        const feeAdjustedTarget = Math.max(estimatedFeesPercent + 0.2, config.profitTarget + estimatedFeesPercent);
         
-        if (currentProfit >= minAcceptableProfit) {
+        if (currentProfit >= feeAdjustedTarget) {
           console.log('[ReverseRatio] MICRO SCALP PROFIT TAKEN!', {
             currentProfit: currentProfit.toFixed(4) + '%',
-            targetProfit: config.profitTarget + '%',
-            minAcceptable: minAcceptableProfit.toFixed(4) + '%',
+            originalTarget: config.profitTarget + '%',
+            feeAdjustedTarget: feeAdjustedTarget.toFixed(4) + '%',
+            estimatedNetProfit: (currentProfit - estimatedFeesPercent).toFixed(4) + '%',
             currentPrice,
             initialEntry: this.initialEntryPrice
           });
