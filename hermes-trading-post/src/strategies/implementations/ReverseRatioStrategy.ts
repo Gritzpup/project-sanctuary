@@ -210,20 +210,20 @@ export class ReverseRatioStrategy extends Strategy {
       const lastLevelPrice = this.levelPrices[this.levelPrices.length - 1];
       const dropFromLastLevel = ((lastLevelPrice - currentPrice) / lastLevelPrice) * 100;
       
-      // Debug log for level entry checks
-      if (candles.length % 5 === 0 || dropFromLastLevel >= config.levelDropPercent * 0.8) {
-        console.log('[ReverseRatio] Level entry check:', {
-          currentLevel: this.currentLevel,
-          maxLevels: config.maxLevels,
-          lastLevelPrice: lastLevelPrice.toFixed(2),
-          currentPrice: currentPrice.toFixed(2),
-          dropFromLastLevel: dropFromLastLevel.toFixed(4) + '%',
-          requiredDrop: config.levelDropPercent + '%',
-          needsMoreDrop: (config.levelDropPercent - dropFromLastLevel).toFixed(4) + '%',
-          availableBalance: (this.state.balance.usd + this.state.balance.vault).toFixed(2),
-          btcHeld: this.state.balance.btcPositions.toFixed(6)
-        });
-      }
+      // ALWAYS log for ultra-scalping to debug missing levels
+      console.log('[ReverseRatio] 🎯 Level entry check:', {
+        currentLevel: this.currentLevel,
+        maxLevels: config.maxLevels,
+        lastLevelPrice: lastLevelPrice.toFixed(2),
+        currentPrice: currentPrice.toFixed(2),
+        dropFromLastLevel: dropFromLastLevel.toFixed(4) + '%',
+        requiredDrop: config.levelDropPercent + '%',
+        needsMoreDrop: Math.max(0, config.levelDropPercent - dropFromLastLevel).toFixed(4) + '%',
+        availableCapital: (this.state.balance.usd + this.state.balance.vault).toFixed(2),
+        btcHeld: this.state.balance.btcPositions.toFixed(6),
+        levelPrices: this.levelPrices.map(p => p.toFixed(2)),
+        wouldTrigger: dropFromLastLevel >= config.levelDropPercent ? '✅ YES!' : '❌ Not yet'
+      });
       
       if (dropFromLastLevel >= config.levelDropPercent) {
         this.currentLevel++;
@@ -303,16 +303,21 @@ export class ReverseRatioStrategy extends Strategy {
           // First buy uses base percent of total
           positionValue = remainingCapital * basePercent;
         } else {
-          // Subsequent buys use % of what's left
-          // E.g., 90% of remaining, then 90% of what's left after that, etc.
-          positionValue = remainingCapital * basePercent;
+          // Subsequent buys scale down based on ratio multiplier
+          // This ensures we save some capital for later levels
+          const levelMultiplier = 1 / Math.pow(config.ratioMultiplier, level - 1);
+          positionValue = remainingCapital * basePercent * levelMultiplier;
         }
         
-        console.log('[ReverseRatio] High % position sizing:', {
+        console.log('[ReverseRatio] ULTRA SCALP position sizing:', {
           level,
           remainingCapital: remainingCapital.toFixed(2),
           basePercent: (basePercent * 100).toFixed(1) + '%',
-          positionValue: positionValue.toFixed(2)
+          positionValue: positionValue.toFixed(2),
+          btcPrice: currentPrice.toFixed(2),
+          btcAmount: (positionValue / currentPrice).toFixed(6),
+          totalInvestedSoFar: (totalAvailable - remainingCapital).toFixed(2),
+          percentOfStartingCapital: ((positionValue / totalAvailable) * 100).toFixed(1) + '%'
         });
       } else if (config.ratioMultiplier === 1) {
         // Linear: 5%, 10%, 15%, 20%...
@@ -402,19 +407,39 @@ export class ReverseRatioStrategy extends Strategy {
     
     // If we have no positions, track the rolling high from recent candles
     if (this.state.positions.length === 0) {
-      const lookback = config.lookbackPeriod;
-      const startIndex = Math.max(0, candles.length - lookback);
-      const recentCandles = candles.slice(startIndex);
-      const lookbackHigh = Math.max(...recentCandles.map(c => c.high));
+      // ULTRA SCALPING FIX: Don't wait for lookback period - trade immediately!
+      if (this.recentHigh === 0 && candles.length > 0) {
+        // Initialize to the first candle's high so we can start trading immediately
+        this.recentHigh = candles[0].high;
+        console.log(`[ReverseRatio] ULTRA MODE: Initialized to first candle high ${this.recentHigh.toFixed(2)} - ready to trade immediately!`);
+      }
       
-      // If recent high was reset (0), use lookback high
-      if (this.recentHigh === 0) {
-        this.recentHigh = lookbackHigh;
-        console.log(`[ReverseRatio] Initialized recent high to ${this.recentHigh.toFixed(2)} from ${lookback} candle lookback`);
-      } else if (currentPrice > this.recentHigh) {
-        // Update to current price if it's a new high
+      // Now update based on all available candles (not just lookback period)
+      const allHighs = candles.map(c => c.high);
+      const absoluteHigh = Math.max(...allHighs, currentPrice);
+      
+      // For ultra-scalping, use a rolling window only after we have enough candles
+      if (candles.length >= config.lookbackPeriod) {
+        const lookback = config.lookbackPeriod;
+        const startIndex = Math.max(0, candles.length - lookback);
+        const recentCandles = candles.slice(startIndex);
+        const lookbackHigh = Math.max(...recentCandles.map(c => c.high));
+        
+        // Use the lookback high for more responsive trading
+        if (lookbackHigh > this.recentHigh || this.recentHigh === 0) {
+          this.recentHigh = lookbackHigh;
+          console.log(`[ReverseRatio] Updated to ${lookback}-candle high: ${this.recentHigh.toFixed(2)}`);
+        }
+      } else {
+        // Not enough candles for lookback - use absolute high
+        this.recentHigh = absoluteHigh;
+        console.log(`[ReverseRatio] Using absolute high (only ${candles.length} candles): ${this.recentHigh.toFixed(2)}`);
+      }
+      
+      // Always update if current price is a new high
+      if (currentPrice > this.recentHigh) {
         this.recentHigh = currentPrice;
-        console.log(`[ReverseRatio] Updated recent high to current price: ${this.recentHigh.toFixed(2)}`);
+        console.log(`[ReverseRatio] New absolute high: ${this.recentHigh.toFixed(2)}`);
       }
     } else {
       // When in a position, only update if we see a new high

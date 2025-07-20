@@ -115,10 +115,10 @@
         initialDropPercent: 0.02,   // Hair trigger!
         levelDropPercent: 0.02,     // Tiny 0.02% steps
         profitTarget: 0.9,          // 0.9% = 0.075% net (minimum viable profit)
-        basePositionPercent: 90,    // YOLO - 90% on first trade!
+        basePositionPercent: 70,    // 70% first buy leaves 30% for averaging
         maxPositionPercent: 98,     // Use 98% total
         maxLevels: 8,               // Many micro levels
-        ratioMultiplier: 1.089,     // 8.9% of remaining
+        ratioMultiplier: 1.5,       // 50% of remaining each time
         lookbackPeriod: 3           // Ultra fast detection
       },
       {
@@ -254,9 +254,9 @@
       profitTarget: 0.9,          // 0.9% = 0.075% net profit after 0.825% fees
       maxLevels: 8,               // More levels for micro averaging
       lookbackPeriod: 3,          // Only 3 candles - ultra responsive!
-      basePositionPercent: 90,    // YOLO MODE - 90% on first entry!
+      basePositionPercent: 70,    // 70% first buy, 30% for averaging
       maxPositionPercent: 98,     // Use 98% total capital
-      ratioMultiplier: 1.089      // Small 8.9% increases (of remaining capital)
+      ratioMultiplier: 1.5        // 50% of remaining each level
     },
     '5m': {
       initialDropPercent: 0.03,   // Slightly less sensitive than 1m
@@ -264,9 +264,9 @@
       profitTarget: 0.95,         // 0.95% = 0.125% net profit
       maxLevels: 7,
       lookbackPeriod: 3,          // Still ultra fast detection
-      basePositionPercent: 85,    // 85% initial position
+      basePositionPercent: 70,    // 70% first buy, 30% for averaging
       maxPositionPercent: 97,
-      ratioMultiplier: 1.12       // 12% increases
+      ratioMultiplier: 1.4        // 40% of remaining each level
     },
     '15m': {
       initialDropPercent: 0.05,   // Still tight for 15m
