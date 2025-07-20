@@ -47,10 +47,10 @@
   let currentStrategy: Strategy | null = null;
   let historicalCandles: CandleData[] = [];
   
-  // Fee configuration
-  let makerFeePercent = 0.35; // Coinbase maker fee
-  let takerFeePercent = 0.75; // Coinbase taker fee
-  let feeRebatePercent = 25;  // 25% fee rebate
+  // Fee configuration - ACTUAL Coinbase Advanced Trading fees
+  let makerFeePercent = 0.35;  // Correct maker fee: 0.35%
+  let takerFeePercent = 0.75;  // Correct taker fee: 0.75%
+  let feeRebatePercent = 25;   // 25% fee rebate that compounds into balance!
   
   // Tab state for strategy panel
   let activeTab: 'config' | 'code' = 'config';

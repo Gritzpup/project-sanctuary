@@ -102,7 +102,7 @@ export class ReverseRatioStrategy extends Strategy {
         targetPrice: targetPrice.toFixed(2),
         currentProfit: currentProfit.toFixed(4) + '%',
         targetProfit: config.profitTarget + '%',
-        netAfterFees: (currentProfit - 0.825).toFixed(4) + '%',
+        netAfterFees: (currentProfit - 0.825).toFixed(4) + '%',  // 0.35% + 0.75% - 0.275% rebate = 0.825% net
         needsToReach: ((targetPrice - currentPrice) / currentPrice * 100).toFixed(4) + '%'
       });
     }
@@ -305,10 +305,13 @@ export class ReverseRatioStrategy extends Strategy {
       
       // Wait for full profit target (which already accounts for fees)
       if (currentPrice >= targetPrice) {
+        // Net fees after rebate: 0.35% maker + 0.75% taker - 25% rebate = 0.825% net
+        const netFeesAfterRebate = 0.825;
         console.log('[ReverseRatio] PROFIT TARGET REACHED!', {
           currentProfit: currentProfit.toFixed(4) + '%',
           targetProfit: config.profitTarget + '%',
-          netProfitAfterFees: (currentProfit - 0.825).toFixed(4) + '%',
+          netProfitAfterFees: (currentProfit - netFeesAfterRebate).toFixed(4) + '%',
+          feeBreakdown: '0.35% maker + 0.75% taker - 0.275% rebate = 0.825% net',
           currentPrice,
           targetPrice,
           initialEntry: this.initialEntryPrice

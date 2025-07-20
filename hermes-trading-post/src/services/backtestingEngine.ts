@@ -318,13 +318,13 @@ export class BacktestingEngine {
     const executionPrice = candle.close * (1 + this.config.slippage / 100);
     const cost = size * executionPrice;
     
-    // Use taker fee for market orders (buys are typically market orders in backtesting)
-    const feePercent = this.config.takerFeePercent || this.config.feePercent || 0.75;
+    // Calculate fees: Assume maker fee for buys (limit orders)
+    const feePercent = this.config.makerFeePercent || this.config.feePercent || 0.35;
     const grossFee = cost * (feePercent / 100);
     const feeRebate = grossFee * ((this.config.feeRebatePercent || 0) / 100);
-    const netFee = grossFee - feeRebate;
     
-    const totalCost = cost + netFee;
+    // Pay full gross fee upfront
+    const totalCost = cost + grossFee;
     this.totalFeesCollected += grossFee;
     this.totalFeeRebates += feeRebate;
 
@@ -357,6 +357,12 @@ export class BacktestingEngine {
     }
     state.balance.btcPositions += size;
     
+    // Add fee rebate back to USD balance (compounds into trading capital)
+    if (feeRebate > 0) {
+      state.balance.usd += feeRebate;
+      console.log(`[BacktestEngine] Fee rebate added to balance: $${feeRebate.toFixed(4)}`);
+    }
+    
     console.log(`Buy executed: ${size.toFixed(6)} BTC @ $${executionPrice.toFixed(2)}, btcPositions: ${state.balance.btcPositions.toFixed(6)}`);
 
     // Create position - store the actual cost per BTC including fees
@@ -384,7 +390,7 @@ export class BacktestingEngine {
       price: executionPrice,
       size: size,
       value: cost,
-      fee: netFee,
+      fee: grossFee,  // Record full gross fee paid
       grossFee: grossFee,
       feeRebate: feeRebate,
       position: position,
@@ -412,13 +418,13 @@ export class BacktestingEngine {
     const executionPrice = candle.close * (1 - this.config.slippage / 100);
     const proceeds = size * executionPrice;
     
-    // Use taker fee for market orders (sells are typically market orders in backtesting)
+    // Use taker fee for sells (market orders)
     const feePercent = this.config.takerFeePercent || this.config.feePercent || 0.75;
     const grossFee = proceeds * (feePercent / 100);
     const feeRebate = grossFee * ((this.config.feeRebatePercent || 0) / 100);
-    const netFee = grossFee - feeRebate;
     
-    const netProceeds = proceeds - netFee;
+    // Deduct full gross fee from proceeds
+    const netProceeds = proceeds - grossFee;
     this.totalFeesCollected += grossFee;
     this.totalFeeRebates += feeRebate;
 
@@ -446,11 +452,18 @@ export class BacktestingEngine {
     const profit = netProceeds - totalCost;
     const profitPercent = (profit / totalCost) * 100;
     
+    // Add fee rebate back to USD balance BEFORE profit distribution
+    if (feeRebate > 0) {
+      state.balance.usd += feeRebate;
+      console.log(`[BacktestEngine] Fee rebate added to balance: $${feeRebate.toFixed(4)}`);
+    }
+    
     console.log(`[BacktestEngine] Sell profit calculation:`, {
       sellPrice: executionPrice,
       size: size,
       grossProceeds: proceeds,
-      sellFees: netFee,
+      grossFees: grossFee,
+      feeRebate: feeRebate,
       netProceeds: netProceeds,
       totalCostWithBuyFees: totalCost,
       profit: profit,
@@ -550,7 +563,7 @@ export class BacktestingEngine {
       price: executionPrice,
       size: size,
       value: proceeds,
-      fee: netFee,
+      fee: grossFee,  // Record full gross fee paid
       grossFee: grossFee,
       feeRebate: feeRebate,
       profit: profit,
