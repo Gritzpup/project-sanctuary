@@ -111,34 +111,37 @@
     }
     customPresets = [
       {
-        name: 'Preset 1 (YOLO 90%)',
-        initialDropPercent: 0.02,
-        levelDropPercent: 0.02,
-        profitTarget: 1.0,  // 1% to cover fees + tiny profit
-        basePositionPercent: 90,  // GO BIG! 90% on first trade
-        maxPositionPercent: 98,   // Can use 98% total
-        maxLevels: 2,
-        ratioMultiplier: 1.08
+        name: 'Preset 1 (ULTRA SCALP)',
+        initialDropPercent: 0.02,   // Hair trigger!
+        levelDropPercent: 0.02,     // Tiny 0.02% steps
+        profitTarget: 0.9,          // 0.9% = 0.075% net (minimum viable profit)
+        basePositionPercent: 90,    // YOLO - 90% on first trade!
+        maxPositionPercent: 98,     // Use 98% total
+        maxLevels: 8,               // Many micro levels
+        ratioMultiplier: 1.089,     // 8.9% of remaining
+        lookbackPeriod: 3           // Ultra fast detection
       },
       {
-        name: 'Preset 2 (Aggressive 70%)',
-        initialDropPercent: 0.05,
+        name: 'Preset 2 (RAPID FIRE)',
+        initialDropPercent: 0.03,
+        levelDropPercent: 0.025,
+        profitTarget: 0.95,         // 0.95% = 0.125% net
+        basePositionPercent: 85,    // 85% initial
+        maxPositionPercent: 97,
+        maxLevels: 7,
+        ratioMultiplier: 1.12,      // 12% increases
+        lookbackPeriod: 3
+      },
+      {
+        name: 'Preset 3 (HIGH FREQUENCY)',
+        initialDropPercent: 0.04,
         levelDropPercent: 0.03,
-        profitTarget: 1.2,  // 1.2% for 0.375% net profit
-        basePositionPercent: 70,  // 70% initial position
-        maxPositionPercent: 90,
-        maxLevels: 3,
-        ratioMultiplier: 1.15
-      },
-      {
-        name: 'Preset 3 (Moderate 50%)',
-        initialDropPercent: 0.1,
-        levelDropPercent: 0.05,
-        profitTarget: 1.5,  // 1.5% for 0.675% net profit
-        basePositionPercent: 50,  // 50% initial position
-        maxPositionPercent: 80,
-        maxLevels: 4,
-        ratioMultiplier: 1.2
+        profitTarget: 1.0,          // 1.0% = 0.175% net
+        basePositionPercent: 80,    // 80% initial
+        maxPositionPercent: 95,
+        maxLevels: 6,
+        ratioMultiplier: 1.15,      // 15% increases
+        lookbackPeriod: 4
       }
     ];
     localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
@@ -246,43 +249,44 @@
   // Ultra micro-scalping enabled for short timeframes
   const reverseRatioTimeframeConfigs: Record<string, any> = {
     '1m': {
-      initialDropPercent: 0.02,   // Ultra quick entries
-      levelDropPercent: 0.02,     // Ultra small levels
-      profitTarget: 1.0,          // 1% to cover fees (0.825%) + small profit
-      maxLevels: 3,               // Fewer levels with bigger positions
-      lookbackPeriod: 5,  // Reduced for faster opportunity detection
-      basePositionPercent: 80,    // USE 80% OF CAPITAL! Go big or go home
-      maxPositionPercent: 95,     // Can use up to 95% total
-      ratioMultiplier: 1.1        // Small increases since using big positions
+      initialDropPercent: 0.02,   // Hair trigger - catch EVERY micro dip!
+      levelDropPercent: 0.02,     // Tiny 0.02% increments between levels
+      profitTarget: 0.9,          // 0.9% = 0.075% net profit after 0.825% fees
+      maxLevels: 8,               // More levels for micro averaging
+      lookbackPeriod: 3,          // Only 3 candles - ultra responsive!
+      basePositionPercent: 90,    // YOLO MODE - 90% on first entry!
+      maxPositionPercent: 98,     // Use 98% total capital
+      ratioMultiplier: 1.089      // Small 8.9% increases (of remaining capital)
     },
     '5m': {
-      initialDropPercent: 0.05,
-      levelDropPercent: 0.03,
-      profitTarget: 1.2,          // 1.2% for 0.375% net after fees
-      maxLevels: 4,
-      lookbackPeriod: 8,  // Reduced for faster opportunity detection
-      basePositionPercent: 70,    // 70% of capital on first trade
-      maxPositionPercent: 90,
-      ratioMultiplier: 1.15
+      initialDropPercent: 0.03,   // Slightly less sensitive than 1m
+      levelDropPercent: 0.025,    // 0.025% increments
+      profitTarget: 0.95,         // 0.95% = 0.125% net profit
+      maxLevels: 7,
+      lookbackPeriod: 3,          // Still ultra fast detection
+      basePositionPercent: 85,    // 85% initial position
+      maxPositionPercent: 97,
+      ratioMultiplier: 1.12       // 12% increases
     },
     '15m': {
-      initialDropPercent: 0.1,
-      levelDropPercent: 0.05,
-      profitTarget: 1.5,          // 1.5% for 0.675% net after fees
-      maxLevels: 5,
-      lookbackPeriod: 10,  // Reduced for faster opportunity detection
-      basePositionPercent: 60,    // 60% initial position
-      maxPositionPercent: 85,
-      ratioMultiplier: 1.2
+      initialDropPercent: 0.05,   // Still tight for 15m
+      levelDropPercent: 0.03,     // 0.03% increments
+      profitTarget: 1.0,          // 1.0% = 0.175% net profit
+      maxLevels: 6,
+      lookbackPeriod: 4,          // 4 candles = 1 hour lookback
+      basePositionPercent: 80,    // 80% initial position
+      maxPositionPercent: 95,
+      ratioMultiplier: 1.15       // 15% increases
     },
     '1h': {
-      initialDropPercent: 0.2,
-      levelDropPercent: 0.1,
-      profitTarget: 0.3,          // Still micro for 1h
-      maxLevels: 15,
-      lookbackPeriod: 15,  // Reduced for faster opportunity detection
-      basePositionPercent: 15,
-      ratioMultiplier: 1.4
+      initialDropPercent: 0.08,   // Tighter for 1h scalping
+      levelDropPercent: 0.04,     // 0.04% increments
+      profitTarget: 1.1,          // 1.1% = 0.275% net profit
+      maxLevels: 5,
+      lookbackPeriod: 5,          // 5 hours lookback
+      basePositionPercent: 75,    // 75% initial position
+      maxPositionPercent: 93,
+      ratioMultiplier: 1.18       // 18% increases
     },
     '6h': {
       initialDropPercent: 2.0,    // 2% initial drop

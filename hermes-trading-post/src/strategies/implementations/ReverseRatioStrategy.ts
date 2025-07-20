@@ -1,6 +1,25 @@
 import { Strategy } from '../base/Strategy';
 import type { CandleData, Position, Signal, StrategyConfig } from '../base/StrategyTypes';
 
+/**
+ * ULTRA MICRO-SCALPING STRATEGY
+ * 
+ * Philosophy: Buy every micro dip, sell for tiny profits, never lose because Bitcoin always recovers
+ * 
+ * Key Features:
+ * - Hair-trigger entries: 0.02% drops trigger buys
+ * - Minimum viable profits: 0.9% target = 0.075% net after 0.825% fees
+ * - YOLO position sizing: 90% on first entry
+ * - No stop losses: We wait for recovery
+ * - Ultra-fast detection: 3-candle lookback
+ * - High frequency: 10-50+ trades per hour possible
+ * 
+ * Math:
+ * - $1000 × 90% = $900 position
+ * - 0.9% move = $8.10 gross profit
+ * - Minus 0.825% fees = $0.675 net profit per trade
+ * - 20 trades/day = $13.50 daily profit (1.35% return)
+ */
 export interface ReverseRatioConfig extends StrategyConfig {
   initialDropPercent: number;    // % drop from recent high to start buying (default: 5)
   levelDropPercent: number;      // % drop between levels (default: 5)
@@ -39,8 +58,8 @@ export class ReverseRatioStrategy extends Strategy {
     };
 
     super(
-      'Reverse Ratio Buying',
-      `Buys on the way down with increasing position sizes, sells at ${fullConfig.profitTarget}% above initial entry`,
+      'Ultra Micro-Scalping',
+      `Hair-trigger entries on ${fullConfig.initialDropPercent}% dips, exits at ${fullConfig.profitTarget}% for ${(fullConfig.profitTarget - 0.825).toFixed(3)}% net profit`,
       fullConfig
     );
   }
