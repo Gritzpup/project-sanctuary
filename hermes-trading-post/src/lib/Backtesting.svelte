@@ -40,7 +40,7 @@
   
   // Backtesting state
   let selectedStrategyType = 'reverse-ratio'; // Default strategy
-  let startBalance = 100;
+  let startBalance = 1000;  // Default $1000 for meaningful micro-scalping
   let backtestResults: BacktestResult | null = null;
   let isRunning = false;
   let backtestingEngine: BacktestingEngine;
@@ -1081,6 +1081,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
             <label>
               Starting Balance
               <input type="number" bind:value={startBalance} min="100" step="100" />
+              <span class="input-hint">$1000+ recommended for micro-scalping profitability</span>
             </label>
           </div>
           
