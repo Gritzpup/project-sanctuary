@@ -376,7 +376,7 @@ export class BacktestingEngine {
         ...signal.metadata,
         actualCostPerBtc: costPerBtc, // Store the true cost including fees
         executionPrice: executionPrice, // Store the raw execution price
-        fees: netFee
+        fees: grossFee
       }
     };
 
