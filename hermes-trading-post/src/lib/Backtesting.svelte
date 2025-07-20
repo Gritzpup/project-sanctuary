@@ -99,14 +99,10 @@
     console.log(`Saved preset ${index} for ${selectedPeriod}/${selectedGranularity}`);
   }
   
-  // Check for old presets with targets below fee threshold
+  // Check for old presets - no longer enforce fee threshold
   let hasOldPresets = false;
-  customPresets.forEach(preset => {
-    if (preset.profitTarget < 0.825) {
-      hasOldPresets = true;
-      console.warn(`[Backtesting] OLD PRESET DETECTED: "${preset.name}" has profit target ${preset.profitTarget}% which is BELOW fee threshold!`);
-    }
-  });
+  // We're allowing micro-scalping targets below fees now
+  // The strategy handles this with its ultra-micro mode
   
   // Force clear old presets or initialize with new ones
   if (customPresets.length === 0 || hasOldPresets) {
@@ -115,31 +111,34 @@
     }
     customPresets = [
       {
-        name: 'Preset 1 (Fee-Aware Quick)',
+        name: 'Preset 1 (YOLO 90%)',
+        initialDropPercent: 0.02,
+        levelDropPercent: 0.02,
+        profitTarget: 1.0,  // 1% to cover fees + tiny profit
+        basePositionPercent: 90,  // GO BIG! 90% on first trade
+        maxPositionPercent: 98,   // Can use 98% total
+        maxLevels: 2,
+        ratioMultiplier: 1.08
+      },
+      {
+        name: 'Preset 2 (Aggressive 70%)',
+        initialDropPercent: 0.05,
+        levelDropPercent: 0.03,
+        profitTarget: 1.2,  // 1.2% for 0.375% net profit
+        basePositionPercent: 70,  // 70% initial position
+        maxPositionPercent: 90,
+        maxLevels: 3,
+        ratioMultiplier: 1.15
+      },
+      {
+        name: 'Preset 3 (Moderate 50%)',
         initialDropPercent: 0.1,
         levelDropPercent: 0.05,
-        profitTarget: 1.0,  // 1% to ensure profit after 0.825% fees
-        basePositionPercent: 30,
-        maxPositionPercent: 90,
-        ratioMultiplier: 1.1
-      },
-      {
-        name: 'Preset 2 (Fee-Aware Scalp)',
-        initialDropPercent: 0.2,
-        levelDropPercent: 0.1,
-        profitTarget: 1.5,  // 1.5% for ~0.7% net profit
-        basePositionPercent: 25,
+        profitTarget: 1.5,  // 1.5% for 0.675% net profit
+        basePositionPercent: 50,  // 50% initial position
         maxPositionPercent: 80,
+        maxLevels: 4,
         ratioMultiplier: 1.2
-      },
-      {
-        name: 'Preset 3 (Standard)',
-        initialDropPercent: 0.5,
-        levelDropPercent: 0.3,
-        profitTarget: 2.0,  // 2% for ~1.2% net profit
-        basePositionPercent: 20,
-        maxPositionPercent: 70,
-        ratioMultiplier: 1.3
       }
     ];
     localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
@@ -244,39 +243,42 @@
   }
   
   // Timeframe-specific configurations for reverse-ratio strategy
-  // ALL PROFIT TARGETS MUST BE ABOVE 0.825% TO COVER FEES!
+  // Ultra micro-scalping enabled for short timeframes
   const reverseRatioTimeframeConfigs: Record<string, any> = {
     '1m': {
-      initialDropPercent: 0.1,    // Quick drops for fast trades
-      levelDropPercent: 0.05,     // Small levels
-      profitTarget: 1.0,          // 1% minimum to cover 0.825% fees
-      maxLevels: 5,
+      initialDropPercent: 0.02,   // Ultra quick entries
+      levelDropPercent: 0.02,     // Ultra small levels
+      profitTarget: 1.0,          // 1% to cover fees (0.825%) + small profit
+      maxLevels: 3,               // Fewer levels with bigger positions
       lookbackPeriod: 10,
-      basePositionPercent: 30,
-      ratioMultiplier: 1.2
+      basePositionPercent: 80,    // USE 80% OF CAPITAL! Go big or go home
+      maxPositionPercent: 95,     // Can use up to 95% total
+      ratioMultiplier: 1.1        // Small increases since using big positions
     },
     '5m': {
-      initialDropPercent: 0.15,
-      levelDropPercent: 0.08,
-      profitTarget: 1.2,          // 1.2% for ~0.375% net profit
-      maxLevels: 8,
+      initialDropPercent: 0.05,
+      levelDropPercent: 0.03,
+      profitTarget: 1.2,          // 1.2% for 0.375% net after fees
+      maxLevels: 4,
       lookbackPeriod: 15,
-      basePositionPercent: 25,
-      ratioMultiplier: 1.2
+      basePositionPercent: 70,    // 70% of capital on first trade
+      maxPositionPercent: 90,
+      ratioMultiplier: 1.15
     },
     '15m': {
-      initialDropPercent: 0.2,
-      levelDropPercent: 0.1,
-      profitTarget: 1.5,          // 1.5% for ~0.675% net profit
-      maxLevels: 10,
+      initialDropPercent: 0.1,
+      levelDropPercent: 0.05,
+      profitTarget: 1.5,          // 1.5% for 0.675% net after fees
+      maxLevels: 5,
       lookbackPeriod: 20,
-      basePositionPercent: 20,
-      ratioMultiplier: 1.3
+      basePositionPercent: 60,    // 60% initial position
+      maxPositionPercent: 85,
+      ratioMultiplier: 1.2
     },
     '1h': {
-      initialDropPercent: 0.3,
-      levelDropPercent: 0.15,
-      profitTarget: 2.0,          // 2% for ~1.175% net profit
+      initialDropPercent: 0.2,
+      levelDropPercent: 0.1,
+      profitTarget: 0.3,          // Still micro for 1h
       maxLevels: 15,
       lookbackPeriod: 30,
       basePositionPercent: 15,
@@ -1239,8 +1241,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
                   <div class="config-section">
                     <label>
                       Base Position Size (%)
-                      <input type="number" bind:value={strategyParams['reverse-ratio'].basePositionPercent} min="1" max="20" step="0.5" />
+                      <input type="number" bind:value={strategyParams['reverse-ratio'].basePositionPercent} min="1" max="95" step="1" />
                       <span class="input-hint">Percentage of balance for first buy level</span>
+                      {#if strategyParams['reverse-ratio'].basePositionPercent >= 80}
+                        <span class="position-size-warning">⚠️ HIGH RISK: Using {strategyParams['reverse-ratio'].basePositionPercent}% of capital!</span>
+                      {/if}
                     </label>
                   </div>
                 {:else}
@@ -2778,5 +2783,23 @@ export class ${getStrategyFileName(type)} extends Strategy {
     background: rgba(167, 139, 250, 0.2);
     border-color: #a78bfa;
     transform: translateY(-1px);
+  }
+  
+  .position-size-warning {
+    display: block;
+    margin-top: 4px;
+    padding: 6px 12px;
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 4px;
+    color: #fbbf24;
+    font-size: 0.85rem;
+    font-weight: 600;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
   }
 </style>
