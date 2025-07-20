@@ -210,9 +210,31 @@ export class ReverseRatioStrategy extends Strategy {
       const lastLevelPrice = this.levelPrices[this.levelPrices.length - 1];
       const dropFromLastLevel = ((lastLevelPrice - currentPrice) / lastLevelPrice) * 100;
       
+      // Debug log for level entry checks
+      if (candles.length % 5 === 0 || dropFromLastLevel >= config.levelDropPercent * 0.8) {
+        console.log('[ReverseRatio] Level entry check:', {
+          currentLevel: this.currentLevel,
+          maxLevels: config.maxLevels,
+          lastLevelPrice: lastLevelPrice.toFixed(2),
+          currentPrice: currentPrice.toFixed(2),
+          dropFromLastLevel: dropFromLastLevel.toFixed(4) + '%',
+          requiredDrop: config.levelDropPercent + '%',
+          needsMoreDrop: (config.levelDropPercent - dropFromLastLevel).toFixed(4) + '%',
+          availableBalance: (this.state.balance.usd + this.state.balance.vault).toFixed(2),
+          btcHeld: this.state.balance.btcPositions.toFixed(6)
+        });
+      }
+      
       if (dropFromLastLevel >= config.levelDropPercent) {
         this.currentLevel++;
         this.levelPrices.push(currentPrice);
+        
+        console.log('[ReverseRatio] LEVEL ENTRY TRIGGERED!', {
+          level: this.currentLevel,
+          dropFromLastLevel: dropFromLastLevel.toFixed(4) + '%',
+          price: currentPrice,
+          remainingCapital: (this.state.balance.usd + this.state.balance.vault).toFixed(2)
+        });
         
         return {
           type: 'buy',
@@ -272,7 +294,27 @@ export class ReverseRatioStrategy extends Strategy {
       // Percentage mode (default)
       const basePercent = config.basePositionPercent / 100;
       
-      if (config.ratioMultiplier === 1) {
+      // For ultra micro-scalping with high base percent, use remaining capital approach
+      if (basePercent >= 0.8) {
+        // Use % of REMAINING capital for subsequent buys
+        const remainingCapital = this.state.balance.usd + this.state.balance.vault;
+        
+        if (level === 1) {
+          // First buy uses base percent of total
+          positionValue = remainingCapital * basePercent;
+        } else {
+          // Subsequent buys use % of what's left
+          // E.g., 90% of remaining, then 90% of what's left after that, etc.
+          positionValue = remainingCapital * basePercent;
+        }
+        
+        console.log('[ReverseRatio] High % position sizing:', {
+          level,
+          remainingCapital: remainingCapital.toFixed(2),
+          basePercent: (basePercent * 100).toFixed(1) + '%',
+          positionValue: positionValue.toFixed(2)
+        });
+      } else if (config.ratioMultiplier === 1) {
         // Linear: 5%, 10%, 15%, 20%...
         positionValue = balance * (basePercent * level);
       } else {
