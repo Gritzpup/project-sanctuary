@@ -4,69 +4,194 @@
     <title>Clear Trading Presets</title>
     <style>
         body {
-            background: #0f1419;
-            color: white;
-            font-family: monospace;
-            padding: 2rem;
-            text-align: center;
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         button {
-            background: #ff6b6b;
+            background-color: #dc3545;
             color: white;
             border: none;
-            padding: 1rem 2rem;
-            font-size: 1.2rem;
-            border-radius: 0.5rem;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
             cursor: pointer;
-            margin: 1rem;
+            margin: 10px 5px;
         }
         button:hover {
-            background: #ff5252;
+            background-color: #c82333;
         }
         .success {
-            color: #26a69a;
-            margin-top: 2rem;
+            color: #28a745;
+            font-weight: bold;
+            margin-top: 20px;
         }
         .warning {
-            background: #ff6b6b;
-            padding: 1rem;
-            margin: 1rem auto;
-            max-width: 600px;
-            border-radius: 0.5rem;
+            color: #721c24;
+            background-color: #f8d7da;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            color: #004085;
+            background-color: #d1ecf1;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #bee5eb;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .preset-item {
+            background-color: #f8f9fa;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 4px solid #dc3545;
+        }
+        .new-preset {
+            border-left-color: #28a745;
         }
     </style>
 </head>
 <body>
-    <h1>Clear Old Trading Presets</h1>
-    
-    <div class="warning">
-        <p><strong>CRITICAL:</strong> The old presets had profit targets BELOW the fee threshold!</p>
-        <p>0.05% profit - 0.825% fees = <strong>-0.775% LOSS on every trade!</strong></p>
+    <div class="container">
+        <h1>Clear Trading Presets</h1>
+        
+        <div class="warning">
+            <strong>⚠️ OLD PRESETS DETECTED!</strong><br>
+            Your saved presets are using 30% position sizes. The new system uses 80-90% for profitable micro-scalping!
+        </div>
+
+        <div class="info">
+            <strong>Why this matters:</strong><br>
+            • OLD: $1000 × 30% = $300 position → 1% move = $0.495 net profit<br>
+            • NEW: $1000 × 90% = $900 position → 1% move = $1.485 net profit (3x more!)
+        </div>
+
+        <button onclick="clearPresets()">🗑️ Clear All Old Presets</button>
+        <button onclick="showCurrentPresets()">👁️ Show Current Presets</button>
+        
+        <div id="currentPresets"></div>
+        <div id="result"></div>
     </div>
-    
-    <p>Click below to clear them and use the new fee-aware presets.</p>
-    
-    <button onclick="clearPresets()">Clear Old Presets</button>
-    
-    <div id="result"></div>
-    
+
     <script>
+        function showCurrentPresets() {
+            const presets = localStorage.getItem('reverseRatioPresets');
+            const presetKeys = Object.keys(localStorage).filter(key => key.startsWith('preset_'));
+            
+            let html = '<h3>Current Stored Data:</h3>';
+            
+            if (presets) {
+                try {
+                    const parsed = JSON.parse(presets);
+                    html += '<h4>Custom Presets (OLD - Using 30% positions!):</h4>';
+                    parsed.forEach((preset, index) => {
+                        const isOld = preset.basePositionPercent <= 30;
+                        html += `<div class="preset-item ${isOld ? '' : 'new-preset'}">
+                            <strong>${preset.name}</strong><br>
+                            Position Size: ${preset.basePositionPercent}% ${isOld ? '❌ TOO SMALL!' : '✅'}<br>
+                            Profit Target: ${preset.profitTarget}%<br>
+                            Initial Drop: ${preset.initialDropPercent}%
+                        </div>`;
+                    });
+                } catch (e) {
+                    html += '<pre>' + presets + '</pre>';
+                }
+            }
+            
+            if (presetKeys.length > 0) {
+                html += '<h4>Saved Timeframe Selections:</h4>';
+                html += '<ul>';
+                presetKeys.forEach(key => {
+                    const [_, period, granularity] = key.split('_');
+                    html += `<li>${period}/${granularity}: Using preset #${localStorage.getItem(key)}</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            if (!presets && presetKeys.length === 0) {
+                html += '<p style="color: green;">✅ No old presets found! You\'re using the new system.</p>';
+            }
+            
+            document.getElementById('currentPresets').innerHTML = html;
+        }
+
         function clearPresets() {
-            // Clear the old presets
+            // Clear the main presets
+            const hadPresets = localStorage.getItem('reverseRatioPresets') !== null;
             localStorage.removeItem('reverseRatioPresets');
             
-            // Clear all saved preset selections for timeframes
-            const keys = Object.keys(localStorage);
-            let cleared = 0;
-            keys.forEach(key => {
-                if (key.startsWith('preset_')) {
-                    localStorage.removeItem(key);
-                    cleared++;
-                }
+            // Clear all preset selections for timeframes
+            const keysToRemove = Object.keys(localStorage).filter(key => 
+                key.startsWith('preset_') || 
+                key.includes('reverseRatio') ||
+                key.includes('Preset')
+            );
+            
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
             });
             
-            document.getElementById('result').innerHTML = '<p class="success">✅ Old presets cleared! ' + cleared + ' timeframe selections removed.<br><br>Refresh the backtesting page to see new fee-aware presets:<br>• Quick: 1% profit (0.175% net)<br>• Scalp: 1.5% profit (0.675% net)<br>• Standard: 2% profit (1.175% net)</p>';
+            const totalCleared = keysToRemove.length + (hadPresets ? 1 : 0);
+            
+            document.getElementById('result').innerHTML = 
+                `<div class="success">
+                    ✅ Cleared ${totalCleared} preset-related items!
+                    <br><br>
+                    <strong>New presets will be loaded:</strong>
+                    <div class="preset-item new-preset">
+                        <strong>Preset 1 (YOLO 90%)</strong><br>
+                        Position Size: 90% 🚀<br>
+                        Max Positions: 98%<br>
+                        Only 2 levels for maximum impact!
+                    </div>
+                    <div class="preset-item new-preset">
+                        <strong>Preset 2 (Aggressive 70%)</strong><br>
+                        Position Size: 70%<br>
+                        Max Positions: 90%<br>
+                        3 levels for good coverage
+                    </div>
+                    <div class="preset-item new-preset">
+                        <strong>Preset 3 (Moderate 50%)</strong><br>
+                        Position Size: 50%<br>
+                        Max Positions: 80%<br>
+                        4 levels for safer approach
+                    </div>
+                    <br>
+                    <strong>Next steps:</strong>
+                    <ol style="text-align: left;">
+                        <li>Go back to the trading interface</li>
+                        <li>Refresh the page (F5)</li>
+                        <li>Select "Preset 1 (YOLO 90%)" for maximum profits!</li>
+                        <li>Run backtest again</li>
+                    </ol>
+                </div>`;
+            
+            // Clear the current presets display
+            document.getElementById('currentPresets').innerHTML = '';
         }
+
+        // Show current presets on load
+        window.onload = () => {
+            showCurrentPresets();
+        };
     </script>
 </body>
 </html>

@@ -250,7 +250,7 @@
       levelDropPercent: 0.02,     // Ultra small levels
       profitTarget: 1.0,          // 1% to cover fees (0.825%) + small profit
       maxLevels: 3,               // Fewer levels with bigger positions
-      lookbackPeriod: 10,
+      lookbackPeriod: 5,  // Reduced for faster opportunity detection
       basePositionPercent: 80,    // USE 80% OF CAPITAL! Go big or go home
       maxPositionPercent: 95,     // Can use up to 95% total
       ratioMultiplier: 1.1        // Small increases since using big positions
@@ -260,7 +260,7 @@
       levelDropPercent: 0.03,
       profitTarget: 1.2,          // 1.2% for 0.375% net after fees
       maxLevels: 4,
-      lookbackPeriod: 15,
+      lookbackPeriod: 8,  // Reduced for faster opportunity detection
       basePositionPercent: 70,    // 70% of capital on first trade
       maxPositionPercent: 90,
       ratioMultiplier: 1.15
@@ -270,7 +270,7 @@
       levelDropPercent: 0.05,
       profitTarget: 1.5,          // 1.5% for 0.675% net after fees
       maxLevels: 5,
-      lookbackPeriod: 20,
+      lookbackPeriod: 10,  // Reduced for faster opportunity detection
       basePositionPercent: 60,    // 60% initial position
       maxPositionPercent: 85,
       ratioMultiplier: 1.2
@@ -280,7 +280,7 @@
       levelDropPercent: 0.1,
       profitTarget: 0.3,          // Still micro for 1h
       maxLevels: 15,
-      lookbackPeriod: 30,
+      lookbackPeriod: 15,  // Reduced for faster opportunity detection
       basePositionPercent: 15,
       ratioMultiplier: 1.4
     },
@@ -310,7 +310,7 @@
       ratioMultiplier: 1.2,
       profitTarget: 1.5,        // 1.5% profit (0.675% net after fees)
       maxLevels: 10,
-      lookbackPeriod: 20,
+      lookbackPeriod: 10,  // Reduced for faster opportunity detection
       positionSizeMode: 'percentage',
       basePositionPercent: 20,
       basePositionAmount: 50,
