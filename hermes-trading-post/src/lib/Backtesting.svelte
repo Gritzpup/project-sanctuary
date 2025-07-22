@@ -133,7 +133,7 @@
     }
     customPresets = [
       {
-        name: 'Preset 1 (GRID SCALP)',
+        name: 'GRID SCALP',
         initialDropPercent: 0.01,   // Hair-trigger 0.01%
         levelDropPercent: 0.008,    // Ultra-tight 0.008% grids
         profitTarget: 0.85,         // 0.85% = tiny profit
@@ -144,7 +144,7 @@
         lookbackPeriod: 2           // 2 candle ultra-fast
       },
       {
-        name: 'Preset 2 (PROGRESSIVE)',
+        name: 'PROGRESSIVE',
         initialDropPercent: 0.02,
         levelDropPercent: 0.015,
         profitTarget: 1.0,          // 1.0% = 0.175% net
@@ -155,7 +155,7 @@
         lookbackPeriod: 3
       },
       {
-        name: 'Preset 3 (SAFE GRID)',
+        name: 'SAFE GRID',
         initialDropPercent: 0.03,
         levelDropPercent: 0.02,
         profitTarget: 1.2,          // 1.2% = 0.375% net
@@ -1132,20 +1132,20 @@ export class ${getStrategyFileName(type)} extends Strategy {
           <div class="panel strategy-panel">
         <div class="panel-header">
           <h2>Strategy</h2>
-          <div class="tabs">
-            <button class="tab" class:active={activeTab === 'config'} on:click={() => activeTab = 'config'}>
-              Configuration
-            </button>
-            <button class="tab" class:active={activeTab === 'code'} on:click={() => activeTab = 'code'}>
-              Source Code
-            </button>
-            <button class="tab" class:active={activeTab === 'backup'} on:click={() => activeTab = 'backup'}>
-              Backup
-            </button>
-            <button class="run-btn" on:click={() => { updateCurrentStrategy(); runBacktest(); }} disabled={isRunning}>
-              {isRunning ? 'Running...' : 'Run Backtest'}
-            </button>
-          </div>
+          <button class="run-btn" on:click={() => { updateCurrentStrategy(); runBacktest(); }} disabled={isRunning}>
+            {isRunning ? 'Running...' : 'Run Backtest'}
+          </button>
+        </div>
+        <div class="tabs">
+          <button class="tab" class:active={activeTab === 'config'} on:click={() => activeTab = 'config'}>
+            Configuration
+          </button>
+          <button class="tab" class:active={activeTab === 'code'} on:click={() => activeTab = 'code'}>
+            Source Code
+          </button>
+          <button class="tab" class:active={activeTab === 'backup'} on:click={() => activeTab = 'backup'}>
+            Backup
+          </button>
         </div>
         <div class="panel-content">
           {#if activeTab === 'config'}
@@ -1221,23 +1221,20 @@ export class ${getStrategyFileName(type)} extends Strategy {
               
               <!-- Preset Management -->
               <div class="preset-management">
-                <div class="preset-controls">
-                  <select 
-                    class="preset-dropdown"
-                    bind:value={selectedPresetIndex}
-                    on:change={() => {
-                      if (selectedPresetIndex >= 0) {
-                        applyPreset(selectedPresetIndex);
-                      }
-                    }}
-                  >
-                    <option value={-1}>Select a preset...</option>
-                    {#each customPresets as preset, index}
-                      <option value={index}>
-                        {preset.name} ({preset.initialDropPercent}% → {preset.profitTarget}%)
-                      </option>
-                    {/each}
-                  </select>
+                <div class="preset-tabs">
+                  {#each customPresets as preset, index}
+                    <button 
+                      class="preset-tab"
+                      class:active={selectedPresetIndex === index}
+                      on:click={() => {
+                        selectedPresetIndex = index;
+                        applyPreset(index);
+                      }}
+                    >
+                      <span class="preset-tab-name">{preset.name}</span>
+                      <span class="preset-tab-info">{preset.initialDropPercent}% → {preset.profitTarget}%</span>
+                    </button>
+                  {/each}
                   
                   <button 
                     class="preset-action-btn"
@@ -2021,7 +2018,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   .panel-header {
     padding: 15px 20px;
     background: rgba(74, 0, 224, 0.1);
-    border-bottom: 1px solid rgba(74, 0, 224, 0.3);
+    border-bottom: none;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -2035,30 +2032,53 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .tabs {
     display: flex;
-    gap: 10px;
+    gap: 0;
     align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0;
+    border-bottom: 1px solid rgba(74, 0, 224, 0.3);
   }
   
   .tab {
-    padding: 8px 16px;
-    background: rgba(74, 0, 224, 0.1);
-    border: 1px solid rgba(74, 0, 224, 0.3);
+    padding: 12px 24px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
     color: #888;
     cursor: pointer;
-    border-radius: 4px;
-    font-size: 12px;
+    border-radius: 0;
+    font-size: 13px;
+    font-weight: 500;
     transition: all 0.2s;
+    position: relative;
   }
   
   .tab:hover {
-    background: rgba(74, 0, 224, 0.2);
+    background: rgba(74, 0, 224, 0.1);
     color: #a78bfa;
   }
   
   .tab.active {
-    background: rgba(74, 0, 224, 0.3);
-    border-color: #a78bfa;
+    background: rgba(74, 0, 224, 0.15);
+    border-bottom: 2px solid #a78bfa;
     color: #a78bfa;
+  }
+
+  /* Tab separators */
+  .tab:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 25%;
+    height: 50%;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Remove separator for active tab and the one before it */
+  .tab.active::after,
+  .tab.active + .tab::after {
+    display: none;
   }
   
   .code-editor-section {
@@ -2352,7 +2372,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   /* Run button in header */
-  .tabs .run-btn {
+  .panel-header .run-btn {
     padding: 8px 20px;
     background: #a78bfa;
     color: white;
@@ -2362,14 +2382,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    margin-left: 10px;
   }
   
-  .tabs .run-btn:hover:not(:disabled) {
+  .panel-header .run-btn:hover:not(:disabled) {
     background: #8b5cf6;
   }
   
-  .tabs .run-btn:disabled {
+  .panel-header .run-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
@@ -2824,27 +2843,52 @@ export class ${getStrategyFileName(type)} extends Strategy {
     border: 1px solid rgba(167, 139, 250, 0.15);
   }
   
-  .preset-controls {
+  .preset-tabs {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     align-items: center;
+    flex-wrap: wrap;
   }
   
-  .preset-dropdown {
-    flex: 1;
-    padding: 8px 12px;
+  .preset-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 16px;
     background: #1f2937;
     border: 1px solid #374151;
-    border-radius: 6px;
-    color: #e5e7eb;
-    font-size: 0.875rem;
+    border-radius: 8px;
+    color: #9ca3af;
     cursor: pointer;
+    transition: all 0.2s;
+    min-width: 140px;
   }
   
-  .preset-dropdown:focus {
-    outline: none;
+  .preset-tab:hover {
+    background: #374151;
+    border-color: #4b5563;
+    color: #e5e7eb;
+  }
+  
+  .preset-tab.active {
+    background: rgba(167, 139, 250, 0.2);
     border-color: #a78bfa;
+    color: #ffffff;
     box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+    transform: translateY(-2px);
+  }
+  
+  .preset-tab-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    text-align: center;
+  }
+  
+  .preset-tab-info {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    text-align: center;
   }
   
   .preset-action-btn {
