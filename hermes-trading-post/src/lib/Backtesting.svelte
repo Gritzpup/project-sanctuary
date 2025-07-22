@@ -99,10 +99,9 @@
     console.log(`Saved preset ${index} for ${selectedPeriod}/${selectedGranularity}`);
   }
   
-  // Check for old presets - no longer enforce fee threshold
-  let hasOldPresets = false;
-  // We're allowing micro-scalping targets below fees now
-  // The strategy handles this with its ultra-micro mode
+  // Check for old presets - FORCE CLEAR to update to new grid system
+  let hasOldPresets = true; // SET TO TRUE TO FORCE CLEAR OLD PRESETS
+  // This will reset all presets to the new grid-based approach
   
   // Force clear old presets or initialize with new ones
   if (customPresets.length === 0 || hasOldPresets) {
@@ -111,36 +110,36 @@
     }
     customPresets = [
       {
-        name: 'Preset 1 (ULTRA SCALP)',
-        initialDropPercent: 0.02,   // Hair trigger!
-        levelDropPercent: 0.02,     // Tiny 0.02% steps
-        profitTarget: 0.9,          // 0.9% = 0.075% net (minimum viable profit)
-        basePositionPercent: 70,    // 70% first buy leaves 30% for averaging
-        maxPositionPercent: 98,     // Use 98% total
-        maxLevels: 8,               // Many micro levels
-        ratioMultiplier: 1.5,       // 50% of remaining each time
-        lookbackPeriod: 3           // Ultra fast detection
+        name: 'Preset 1 (GRID SCALP)',
+        initialDropPercent: 0.01,   // Hair-trigger 0.01%
+        levelDropPercent: 0.008,    // Ultra-tight 0.008% grids
+        profitTarget: 0.85,         // 0.85% = tiny profit
+        basePositionPercent: 6,     // 6% per level
+        maxPositionPercent: 96,     // 16 levels × 6% = 96%
+        maxLevels: 16,              // 16 micro levels!
+        ratioMultiplier: 1.0,       // Equal sizing
+        lookbackPeriod: 2           // 2 candle ultra-fast
       },
       {
-        name: 'Preset 2 (RAPID FIRE)',
-        initialDropPercent: 0.03,
-        levelDropPercent: 0.025,
-        profitTarget: 0.95,         // 0.95% = 0.125% net
-        basePositionPercent: 85,    // 85% initial
-        maxPositionPercent: 97,
-        maxLevels: 7,
-        ratioMultiplier: 1.12,      // 12% increases
+        name: 'Preset 2 (PROGRESSIVE)',
+        initialDropPercent: 0.02,
+        levelDropPercent: 0.015,
+        profitTarget: 1.0,          // 1.0% = 0.175% net
+        basePositionPercent: 10,    // Start with 10%
+        maxPositionPercent: 95,
+        maxLevels: 10,
+        ratioMultiplier: 1.1,       // Gentle 10% increases
         lookbackPeriod: 3
       },
       {
-        name: 'Preset 3 (HIGH FREQUENCY)',
-        initialDropPercent: 0.04,
-        levelDropPercent: 0.03,
-        profitTarget: 1.0,          // 1.0% = 0.175% net
-        basePositionPercent: 80,    // 80% initial
-        maxPositionPercent: 95,
-        maxLevels: 6,
-        ratioMultiplier: 1.15,      // 15% increases
+        name: 'Preset 3 (SAFE GRID)',
+        initialDropPercent: 0.03,
+        levelDropPercent: 0.02,
+        profitTarget: 1.2,          // 1.2% = 0.375% net
+        basePositionPercent: 12,    // 12% per level
+        maxPositionPercent: 96,
+        maxLevels: 8,               // 8 levels × 12% = 96%
+        ratioMultiplier: 1.0,       // Equal sizing
         lookbackPeriod: 4
       }
     ];
@@ -245,80 +244,21 @@
     return sizes;
   }
   
-  // Timeframe-specific configurations for reverse-ratio strategy
-  // Ultra micro-scalping enabled for short timeframes
-  const reverseRatioTimeframeConfigs: Record<string, any> = {
-    '1m': {
-      initialDropPercent: 0.02,   // Hair trigger - catch EVERY micro dip!
-      levelDropPercent: 0.02,     // Tiny 0.02% increments between levels
-      profitTarget: 0.9,          // 0.9% = 0.075% net profit after 0.825% fees
-      maxLevels: 8,               // More levels for micro averaging
-      lookbackPeriod: 3,          // Only 3 candles - ultra responsive!
-      basePositionPercent: 70,    // 70% first buy, 30% for averaging
-      maxPositionPercent: 98,     // Use 98% total capital
-      ratioMultiplier: 1.5        // 50% of remaining each level
-    },
-    '5m': {
-      initialDropPercent: 0.03,   // Slightly less sensitive than 1m
-      levelDropPercent: 0.025,    // 0.025% increments
-      profitTarget: 0.95,         // 0.95% = 0.125% net profit
-      maxLevels: 7,
-      lookbackPeriod: 3,          // Still ultra fast detection
-      basePositionPercent: 70,    // 70% first buy, 30% for averaging
-      maxPositionPercent: 97,
-      ratioMultiplier: 1.4        // 40% of remaining each level
-    },
-    '15m': {
-      initialDropPercent: 0.05,   // Still tight for 15m
-      levelDropPercent: 0.03,     // 0.03% increments
-      profitTarget: 1.0,          // 1.0% = 0.175% net profit
-      maxLevels: 6,
-      lookbackPeriod: 4,          // 4 candles = 1 hour lookback
-      basePositionPercent: 80,    // 80% initial position
-      maxPositionPercent: 95,
-      ratioMultiplier: 1.15       // 15% increases
-    },
-    '1h': {
-      initialDropPercent: 0.08,   // Tighter for 1h scalping
-      levelDropPercent: 0.04,     // 0.04% increments
-      profitTarget: 1.1,          // 1.1% = 0.275% net profit
-      maxLevels: 5,
-      lookbackPeriod: 5,          // 5 hours lookback
-      basePositionPercent: 75,    // 75% initial position
-      maxPositionPercent: 93,
-      ratioMultiplier: 1.18       // 18% increases
-    },
-    '6h': {
-      initialDropPercent: 2.0,    // 2% initial drop
-      levelDropPercent: 1.5,      // 1.5% between levels
-      profitTarget: 5,            // 5% profit target
-      maxLevels: 10,
-      lookbackPeriod: 50,
-      basePositionPercent: 5,
-      ratioMultiplier: 2
-    },
-    '1D': {
-      initialDropPercent: 3.0,    // 3% initial drop  
-      levelDropPercent: 2.0,      // 2% between levels
-      profitTarget: 7,            // 7% profit target
-      maxLevels: 5,
-      lookbackPeriod: 50
-    }
-  };
+  // Removed automatic timeframe configs - manual control only
 
-  // Strategy-specific parameters (will be updated based on timeframe)
+  // Strategy-specific parameters - TRUE GRID SCALPING
   let strategyParams: Record<string, any> = {
     'reverse-ratio': {
-      initialDropPercent: 0.2,  // First buy at 0.2% drop
-      levelDropPercent: 0.1,    // Each level is 0.1% more drop
-      ratioMultiplier: 1.2,
-      profitTarget: 1.5,        // 1.5% profit (0.675% net after fees)
-      maxLevels: 10,
-      lookbackPeriod: 10,  // Reduced for faster opportunity detection
+      initialDropPercent: 0.02,  // First buy at 0.02% drop
+      levelDropPercent: 0.015,   // 0.015% increments between levels
+      ratioMultiplier: 1.0,      // EQUAL sizing (no multiplier!)
+      profitTarget: 0.85,        // 0.85% profit = 0.025% net (minimal but frequent)
+      maxLevels: 12,             // 12 levels for deep grids
+      lookbackPeriod: 3,         // Ultra-fast 3 candle lookback
       positionSizeMode: 'percentage',
-      basePositionPercent: 20,
+      basePositionPercent: 8,    // Only 8% per level (12 levels × 8% = 96%)
       basePositionAmount: 50,
-      maxPositionPercent: 80,
+      maxPositionPercent: 96,    // Use up to 96% of total capital
       // Vault configuration
       vaultConfig: {
         btcVaultPercent: 14.3,    // 1/7 of profits to BTC vault
@@ -359,9 +299,6 @@
   onMount(async () => {
     console.log('Backtesting component mounted');
     console.log('Initial state:', { selectedStrategyType, startBalance, selectedPeriod, selectedGranularity });
-    
-    // Update strategy params based on initial timeframe
-    updateStrategyParamsForTimeframe();
     
     // Load saved preset for initial timeframe
     loadSavedPresetForTimeframe();
@@ -496,27 +433,12 @@
     }
   }
   
-  function updateStrategyParamsForTimeframe() {
-    if (selectedStrategyType === 'reverse-ratio' && reverseRatioTimeframeConfigs[selectedGranularity]) {
-      // Update reverse ratio strategy params based on selected timeframe
-      strategyParams['reverse-ratio'] = {
-        ...strategyParams['reverse-ratio'],
-        ...reverseRatioTimeframeConfigs[selectedGranularity]
-      };
-      console.log('[Timeframe Update] Updated reverse-ratio params for', selectedGranularity, strategyParams['reverse-ratio']);
-      
-      // Update current strategy if it's already created
-      if (currentStrategy) {
-        updateCurrentStrategy();
-      }
-    }
-  }
+  // Removed automatic timeframe updates - manual control only
 
   async function selectGranularity(granularity: string) {
     console.log('selectGranularity called:', granularity, 'valid:', isGranularityValid(granularity, selectedPeriod));
     if (isGranularityValid(granularity, selectedPeriod)) {
       selectedGranularity = granularity;
-      updateStrategyParamsForTimeframe(); // Update strategy params for new timeframe
       loadSavedPresetForTimeframe(); // Load saved preset for this timeframe combination
       await loadChartData(true); // Force refresh with new granularity
     }
@@ -1113,24 +1035,26 @@ export class ${getStrategyFileName(type)} extends Strategy {
           
           <div class="strategy-params">
             {#if selectedStrategyType === 'reverse-ratio'}
-              {#if reverseRatioTimeframeConfigs[selectedGranularity]}
-                <div class="timeframe-notice" class:ultra-scalp={strategyParams['reverse-ratio'].profitTarget <= 0.1}>
-                  <span class="notice-icon">
-                    {#if strategyParams['reverse-ratio'].profitTarget <= 0.1}
-                      🚀
-                    {:else}
-                      ⚡
-                    {/if}
-                  </span>
-                  {#if strategyParams['reverse-ratio'].profitTarget <= 1.0}
-                    QUICK SCALPING: {strategyParams['reverse-ratio'].profitTarget}% profit ({(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% net)
-                  {:else if strategyParams['reverse-ratio'].profitTarget <= 1.5}
-                    SCALP MODE: {strategyParams['reverse-ratio'].profitTarget}% profit ({(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% net)
+              <div class="timeframe-notice" class:ultra-scalp={strategyParams['reverse-ratio'].profitTarget <= 1.0}>
+                <span class="notice-icon">
+                  {#if strategyParams['reverse-ratio'].profitTarget < 0.825}
+                    ⚠️
+                  {:else if strategyParams['reverse-ratio'].profitTarget <= 1.0}
+                    🚀
                   {:else}
-                    STANDARD: {strategyParams['reverse-ratio'].profitTarget}% profit ({(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% net)
+                    ⚡
                   {/if}
-                </div>
-              {/if}
+                </span>
+                {#if strategyParams['reverse-ratio'].profitTarget < 0.825}
+                  WARNING: {strategyParams['reverse-ratio'].profitTarget}% profit = {(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% NET LOSS!
+                {:else if strategyParams['reverse-ratio'].profitTarget <= 1.0}
+                  MICRO SCALP: {strategyParams['reverse-ratio'].profitTarget}% profit ({(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% net)
+                {:else if strategyParams['reverse-ratio'].profitTarget <= 1.5}
+                  QUICK PROFIT: {strategyParams['reverse-ratio'].profitTarget}% profit ({(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% net)
+                {:else}
+                  SAFE PROFIT: {strategyParams['reverse-ratio'].profitTarget}% profit ({(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% net)
+                {/if}
+              </div>
               
               <!-- Preset Management -->
               <div class="preset-management">

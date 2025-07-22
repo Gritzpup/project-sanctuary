@@ -1,0 +1,58 @@
+{
+  "timestamp": "2025-01-20T10:15:00Z",
+  "context": "Ultra micro-scalping strategy fixes",
+  "fixes_applied": [
+    {
+      "issue": "Strategy missing opportunities at beginning of chart",
+      "cause": "Lookback initialization delay - waited for 3 candles before establishing recent high",
+      "fix": "Initialize recentHigh to first candle's high immediately, allowing trading from candle 1",
+      "file": "ReverseRatioStrategy.ts",
+      "line": "406-438"
+    },
+    {
+      "issue": "Only getting 1 buy instead of multiple levels",
+      "cause": "90% position on first buy leaves only 10% for all subsequent levels",
+      "fix": "Reduced first buy to 70%, leaving 30% for averaging down across multiple levels",
+      "files": [
+        "Backtesting.svelte - presets and timeframe configs",
+        "ReverseRatioStrategy.ts - position sizing logic"
+      ]
+    },
+    {
+      "issue": "Position sizing not scaling properly for subsequent levels",
+      "cause": "All levels used same % of remaining capital",
+      "fix": "Added scaling based on ratio multiplier for high base % strategies",
+      "calculation": "levelMultiplier = 1 / Math.pow(ratioMultiplier, level - 1)"
+    }
+  ],
+  "current_settings": {
+    "initialDropPercent": 0.02,
+    "levelDropPercent": 0.02,
+    "profitTarget": 0.9,
+    "basePositionPercent": 70,
+    "maxPositionPercent": 98,
+    "ratioMultiplier": 1.5,
+    "lookbackPeriod": 3,
+    "feeStructure": {
+      "maker": 0.35,
+      "taker": 0.75,
+      "rebate": 25,
+      "netFees": 0.825
+    }
+  },
+  "position_sizing_example": {
+    "starting_balance": 1000,
+    "level_1": "70% = $700",
+    "remaining_after_1": "$300",
+    "level_2": "50% of $300 = $150",
+    "remaining_after_2": "$150",
+    "level_3": "50% of $150 = $75",
+    "total_invested": "$925 (92.5% of capital)"
+  },
+  "next_steps": [
+    "Clear browser presets with clear-presets.html",
+    "Run backtesting to verify multiple buy levels trigger",
+    "Monitor debug logs for level entry checks",
+    "Verify immediate trading from first candle"
+  ]
+}

@@ -110,7 +110,8 @@ export class ReverseRatioStrategy extends Strategy {
       const totalInvested = this.state.positions.reduce((sum, p) => sum + (p.size * p.entryPrice), 0);
       const unrealizedPnL = totalPositionValue - totalInvested;
       
-      console.log('[ReverseRatio] Position Status:', {
+      console.log('[ReverseRatio] 📊 Position Status (every 10 candles):', {
+        configProfitTarget: config.profitTarget + '%',  // Show actual config value!
         positions: this.state.positions.length,
         totalBTC: totalPositionSize.toFixed(6),
         totalInvested: totalInvested.toFixed(2),
@@ -120,42 +121,66 @@ export class ReverseRatioStrategy extends Strategy {
         currentPrice: currentPrice.toFixed(2),
         targetPrice: targetPrice.toFixed(2),
         currentProfit: currentProfit.toFixed(4) + '%',
-        targetProfit: config.profitTarget + '%',
         netAfterFees: (currentProfit - 0.825).toFixed(4) + '%',  // 0.35% + 0.75% - 0.275% rebate = 0.825% net
-        needsToReach: ((targetPrice - currentPrice) / currentPrice * 100).toFixed(4) + '%'
+        needsToReach: ((targetPrice - currentPrice) / currentPrice * 100).toFixed(4) + '%',
+        progressToTarget: ((currentProfit / config.profitTarget) * 100).toFixed(1) + '%'
       });
     }
     
-    if (this.state.positions.length > 0 && totalPositionSize > 0 && this.shouldTakeProfit(this.state.positions[0], currentPrice)) {
-      // Double check we have BTC to sell
-      if (this.state.balance.btcPositions <= 0) {
-        console.warn('Strategy has positions but btcPositions is 0 - skipping sell signal');
-        return {
-          type: 'hold',
-          strength: 0,
-          price: currentPrice,
-          reason: 'No BTC balance to sell'
-        };
+    if (this.state.positions.length > 0 && totalPositionSize > 0) {
+      const shouldSell = this.shouldTakeProfit(this.state.positions[0], currentPrice);
+      
+      // Log sell check result every 5 candles for debugging
+      if (candles.length % 5 === 0) {
+        console.log('[ReverseRatio] 💰 Sell check:', {
+          shouldSell,
+          hasPositions: this.state.positions.length > 0,
+          totalBTC: totalPositionSize.toFixed(6),
+          btcBalance: this.state.balance.btcPositions.toFixed(6),
+          currentPrice: currentPrice.toFixed(2),
+          initialEntry: this.initialEntryPrice.toFixed(2),
+          profitTarget: config.profitTarget + '%'
+        });
       }
       
-      // Use the minimum of our tracked positions and actual BTC balance
-      const sellSize = Math.min(totalPositionSize, this.state.balance.btcPositions);
-      
-      // This is a complete exit - we're selling all positions
-      const signal = {
-        type: 'sell' as const,
-        strength: 1.0,
-        price: currentPrice,
-        size: sellSize,
-        reason: `Taking profit at ${config.profitTarget}% above initial entry`,
-        metadata: {
-          targetPrice: this.initialEntryPrice * (1 + config.profitTarget / 100),
-          totalProfit: (currentPrice - this.getAverageEntryPrice()) * sellSize,
-          isCompleteExit: true
+      if (shouldSell) {
+        // Double check we have BTC to sell
+        if (this.state.balance.btcPositions <= 0) {
+          console.warn('Strategy has positions but btcPositions is 0 - skipping sell signal');
+          return {
+            type: 'hold',
+            strength: 0,
+            price: currentPrice,
+            reason: 'No BTC balance to sell'
+          };
         }
-      };
-      
-      return signal;
+        
+        // Use the minimum of our tracked positions and actual BTC balance
+        const sellSize = Math.min(totalPositionSize, this.state.balance.btcPositions);
+        
+        console.log('[ReverseRatio] 🎉 GENERATING SELL SIGNAL!', {
+          sellSize: sellSize.toFixed(6),
+          currentPrice: currentPrice.toFixed(2),
+          profitTarget: config.profitTarget + '%',
+          reason: `Taking profit at ${config.profitTarget}% above initial entry`
+        });
+        
+        // This is a complete exit - we're selling all positions
+        const signal = {
+          type: 'sell' as const,
+          strength: 1.0,
+          price: currentPrice,
+          size: sellSize,
+          reason: `Taking profit at ${config.profitTarget}% above initial entry`,
+          metadata: {
+            targetPrice: this.initialEntryPrice * (1 + config.profitTarget / 100),
+            totalProfit: (currentPrice - this.getAverageEntryPrice()) * sellSize,
+            isCompleteExit: true
+          }
+        };
+        
+        return signal;
+      }
     }
 
     // Check if we should buy
@@ -294,38 +319,28 @@ export class ReverseRatioStrategy extends Strategy {
       // Percentage mode (default)
       const basePercent = config.basePositionPercent / 100;
       
-      // For ultra micro-scalping with high base percent, use remaining capital approach
-      if (basePercent >= 0.8) {
-        // Use % of REMAINING capital for subsequent buys
-        const remainingCapital = this.state.balance.usd + this.state.balance.vault;
-        
-        if (level === 1) {
-          // First buy uses base percent of total
-          positionValue = remainingCapital * basePercent;
-        } else {
-          // Subsequent buys scale down based on ratio multiplier
-          // This ensures we save some capital for later levels
-          const levelMultiplier = 1 / Math.pow(config.ratioMultiplier, level - 1);
-          positionValue = remainingCapital * basePercent * levelMultiplier;
-        }
-        
-        console.log('[ReverseRatio] ULTRA SCALP position sizing:', {
+      // ALWAYS use the INITIAL balance passed in, not remaining capital
+      // This ensures consistent position sizes regardless of how much we've spent
+      if (config.ratioMultiplier === 1) {
+        // Equal sizing: each level gets the same percentage of INITIAL balance
+        positionValue = balance * basePercent;
+        console.log('[ReverseRatio] GRID position sizing (equal):', {
           level,
-          remainingCapital: remainingCapital.toFixed(2),
           basePercent: (basePercent * 100).toFixed(1) + '%',
           positionValue: positionValue.toFixed(2),
-          btcPrice: currentPrice.toFixed(2),
-          btcAmount: (positionValue / currentPrice).toFixed(6),
-          totalInvestedSoFar: (totalAvailable - remainingCapital).toFixed(2),
-          percentOfStartingCapital: ((positionValue / totalAvailable) * 100).toFixed(1) + '%'
+          initialBalance: balance.toFixed(2)
         });
-      } else if (config.ratioMultiplier === 1) {
-        // Linear: 5%, 10%, 15%, 20%...
-        positionValue = balance * (basePercent * level);
       } else {
-        // Exponential based on ratio multiplier
+        // Progressive sizing: each level gets more based on multiplier
         const levelRatio = Math.pow(config.ratioMultiplier, level - 1);
         positionValue = balance * (basePercent * levelRatio);
+        console.log('[ReverseRatio] PROGRESSIVE position sizing:', {
+          level,
+          basePercent: (basePercent * 100).toFixed(1) + '%',
+          levelRatio: levelRatio.toFixed(2),
+          positionValue: positionValue.toFixed(2),
+          initialBalance: balance.toFixed(2)
+        });
       }
     }
     
@@ -369,18 +384,33 @@ export class ReverseRatioStrategy extends Strategy {
       const targetPrice = this.initialEntryPrice * (1 + config.profitTarget / 100);
       const currentProfit = ((currentPrice - this.initialEntryPrice) / this.initialEntryPrice) * 100;
       
+      // ULTRA MICRO SCALPING DEBUG: Log every check when we're close
+      if (currentProfit >= config.profitTarget * 0.8) {  // When we're 80% of the way there
+        console.log('[ReverseRatio] 🎯 CLOSE TO TARGET - Profit check:', {
+          currentPrice: currentPrice.toFixed(2),
+          initialEntry: this.initialEntryPrice.toFixed(2),
+          targetPrice: targetPrice.toFixed(2),
+          currentProfit: currentProfit.toFixed(4) + '%',
+          targetProfit: config.profitTarget + '%',
+          needsToRise: ((targetPrice - currentPrice) / currentPrice * 100).toFixed(4) + '%',
+          distanceToTarget: (targetPrice - currentPrice).toFixed(2),
+          wouldSell: currentPrice >= targetPrice ? '✅ YES!' : '❌ Not yet'
+        });
+      }
+      
       // Wait for full profit target (which already accounts for fees)
       if (currentPrice >= targetPrice) {
         // Net fees after rebate: 0.35% maker + 0.75% taker - 25% rebate = 0.825% net
         const netFeesAfterRebate = 0.825;
-        console.log('[ReverseRatio] PROFIT TARGET REACHED!', {
+        console.log('[ReverseRatio] 🚀 PROFIT TARGET REACHED! SELLING NOW!', {
           currentProfit: currentProfit.toFixed(4) + '%',
           targetProfit: config.profitTarget + '%',
           netProfitAfterFees: (currentProfit - netFeesAfterRebate).toFixed(4) + '%',
           feeBreakdown: '0.35% maker + 0.75% taker - 0.275% rebate = 0.825% net',
           currentPrice,
           targetPrice,
-          initialEntry: this.initialEntryPrice
+          initialEntry: this.initialEntryPrice,
+          totalBTC: this.getTotalPositionSize().toFixed(6)
         });
         return true;
       }
