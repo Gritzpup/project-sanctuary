@@ -1,0 +1,65 @@
+{
+  "strategyName": "Grid Trading v1",
+  "date": "2025-01-22",
+  "commit": "1cd7eff",
+  "status": "WORKING",
+  "defaultParams": {
+    "initialDropPercent": 0.02,
+    "levelDropPercent": 0.015,
+    "ratioMultiplier": 1.0,
+    "profitTarget": 0.85,
+    "maxLevels": 12,
+    "lookbackPeriod": 3,
+    "positionSizeMode": "percentage",
+    "basePositionPercent": 8,
+    "basePositionAmount": 50,
+    "maxPositionPercent": 96
+  },
+  "presets": {
+    "gridScalp": {
+      "name": "GRID SCALP",
+      "initialDropPercent": 0.01,
+      "levelDropPercent": 0.008,
+      "profitTarget": 0.85,
+      "basePositionPercent": 6,
+      "maxPositionPercent": 96,
+      "maxLevels": 16,
+      "ratioMultiplier": 1.0,
+      "lookbackPeriod": 2
+    },
+    "progressive": {
+      "name": "PROGRESSIVE",
+      "initialDropPercent": 0.02,
+      "levelDropPercent": 0.015,
+      "profitTarget": 1.0,
+      "basePositionPercent": 10,
+      "maxPositionPercent": 95,
+      "maxLevels": 10,
+      "ratioMultiplier": 1.1,
+      "lookbackPeriod": 3
+    },
+    "safeGrid": {
+      "name": "SAFE GRID",
+      "initialDropPercent": 0.03,
+      "levelDropPercent": 0.02,
+      "profitTarget": 1.2,
+      "basePositionPercent": 12,
+      "maxPositionPercent": 96,
+      "maxLevels": 8,
+      "ratioMultiplier": 1.0,
+      "lookbackPeriod": 4
+    }
+  },
+  "criticalFixes": {
+    "positionSizing": "Uses INITIAL balance for all calculations, not remaining capital",
+    "ratioMultiplier": "Set to 1.0 for equal sizing to prevent capital exhaustion",
+    "profitTarget": "Minimum 0.85% to cover 0.825% net fees"
+  },
+  "backtestResults": {
+    "timeframe": "5D/15m",
+    "typicalWinRate": "40-60%",
+    "typicalTradeCount": "10-30",
+    "typicalNetReturn": "0.5-2%",
+    "maxDrawdown": "<3%"
+  }
+}
