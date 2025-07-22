@@ -53,8 +53,31 @@
   let feeRebatePercent = 25;   // 25% fee rebate that compounds into balance!
   
   // Tab state for strategy panel
-  let activeTab: 'config' | 'code' = 'config';
+  let activeTab: 'config' | 'code' | 'backup' = 'config';
   let strategySourceCode = '';
+  
+  // Backup system state
+  let savedStrategies: SavedStrategy[] = [];
+  let backupName = '';
+  let backupDescription = '';
+  let showImportDialog = false;
+  let importJsonText = '';
+  
+  interface SavedStrategy {
+    id: string;
+    name: string;
+    description: string;
+    savedDate: number;
+    strategyType: string;
+    parameters: any;
+    backtestResults?: {
+      winRate: number;
+      totalReturn: number;
+      trades: number;
+      profitFactor: number;
+      sharpeRatio: number;
+    };
+  }
   
   // Compound growth chart
   let compoundCanvas: HTMLCanvasElement;
@@ -325,6 +348,143 @@
       refreshInterval = null;
     }
   });
+  
+  // Load saved strategies on mount
+  onMount(() => {
+    loadSavedStrategies();
+  });
+  
+  // Backup System Functions
+  const STORAGE_KEY = 'hermes_saved_strategies';
+  
+  function loadSavedStrategies() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        savedStrategies = JSON.parse(saved);
+        console.log(`Loaded ${savedStrategies.length} saved strategies`);
+      }
+    } catch (error) {
+      console.error('Error loading saved strategies:', error);
+      savedStrategies = [];
+    }
+  }
+  
+  function saveCurrentStrategy() {
+    if (!currentStrategy || !backupName.trim()) return;
+    
+    const newStrategy: SavedStrategy = {
+      id: `${selectedStrategyType}-${Date.now()}`,
+      name: backupName.trim(),
+      description: backupDescription.trim(),
+      savedDate: Date.now(),
+      strategyType: selectedStrategyType,
+      parameters: { ...strategyParams[selectedStrategyType] },
+      backtestResults: backtestResults ? {
+        winRate: backtestResults.metrics.winRate || 0,
+        totalReturn: backtestResults.metrics.totalReturn || 0,
+        trades: backtestResults.metrics.totalTrades || 0,
+        profitFactor: backtestResults.metrics.profitFactor || 0,
+        sharpeRatio: backtestResults.metrics.sharpeRatio || 0
+      } : undefined
+    };
+    
+    savedStrategies = [...savedStrategies, newStrategy];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedStrategies));
+    
+    // Clear form
+    backupName = '';
+    backupDescription = '';
+    
+    // Show success (you could add a toast notification here)
+    console.log('Strategy saved:', newStrategy.name);
+  }
+  
+  function restoreStrategy(strategy: SavedStrategy) {
+    if (!confirm(`Restore strategy "${strategy.name}"? This will overwrite current settings.`)) {
+      return;
+    }
+    
+    // Update strategy type
+    selectedStrategyType = strategy.strategyType;
+    
+    // Restore parameters
+    strategyParams[strategy.strategyType] = { ...strategy.parameters };
+    
+    // Update current strategy
+    updateCurrentStrategy();
+    
+    // Switch to config tab to show restored settings
+    activeTab = 'config';
+    
+    console.log('Strategy restored:', strategy.name);
+  }
+  
+  function deleteStrategy(id: string) {
+    const strategy = savedStrategies.find(s => s.id === id);
+    if (!strategy || !confirm(`Delete strategy "${strategy.name}"?`)) {
+      return;
+    }
+    
+    savedStrategies = savedStrategies.filter(s => s.id !== id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedStrategies));
+    
+    console.log('Strategy deleted:', strategy.name);
+  }
+  
+  function exportStrategy(strategy: SavedStrategy) {
+    const exportData = JSON.stringify(strategy, null, 2);
+    const blob = new Blob([exportData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${strategy.name.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  
+  function importStrategy() {
+    try {
+      const strategy = JSON.parse(importJsonText);
+      
+      // Validate structure
+      if (!strategy.name || !strategy.strategyType || !strategy.parameters) {
+        throw new Error('Invalid strategy format');
+      }
+      
+      // Generate new ID to avoid conflicts
+      strategy.id = `${strategy.strategyType}-${Date.now()}`;
+      strategy.savedDate = Date.now();
+      
+      savedStrategies = [...savedStrategies, strategy];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(savedStrategies));
+      
+      // Close dialog and clear
+      showImportDialog = false;
+      importJsonText = '';
+      
+      console.log('Strategy imported:', strategy.name);
+    } catch (error) {
+      alert('Error importing strategy: ' + error.message);
+    }
+  }
+  
+  function isStrategyActive(strategy: SavedStrategy): boolean {
+    if (selectedStrategyType !== strategy.strategyType) return false;
+    
+    const currentParams = strategyParams[selectedStrategyType];
+    const savedParams = strategy.parameters;
+    
+    // Compare key parameters
+    return (
+      currentParams.profitTarget === savedParams.profitTarget &&
+      currentParams.initialDropPercent === savedParams.initialDropPercent &&
+      currentParams.basePositionPercent === savedParams.basePositionPercent &&
+      currentParams.maxLevels === savedParams.maxLevels
+    );
+  }
   
   // Valid granularities for each period
   const validGranularities: Record<string, string[]> = {
@@ -979,6 +1139,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
             <button class="tab" class:active={activeTab === 'code'} on:click={() => activeTab = 'code'}>
               Source Code
             </button>
+            <button class="tab" class:active={activeTab === 'backup'} on:click={() => activeTab = 'backup'}>
+              Backup
+            </button>
             <button class="run-btn" on:click={() => { updateCurrentStrategy(); runBacktest(); }} disabled={isRunning}>
               {isRunning ? 'Running...' : 'Run Backtest'}
             </button>
@@ -1473,6 +1636,115 @@ export class ${getStrategyFileName(type)} extends Strategy {
               <div class="code-editor">
                 <pre><code class="typescript">{strategySourceCode}</code></pre>
               </div>
+            </div>
+          {:else if activeTab === 'backup'}
+            <div class="backup-section">
+              <!-- Save Current Strategy -->
+              <div class="save-strategy-form">
+                <h3>💾 Save Current Strategy</h3>
+                <div class="form-group">
+                  <input 
+                    type="text" 
+                    bind:value={backupName} 
+                    placeholder="Strategy name..."
+                    class="backup-input"
+                  />
+                  <textarea 
+                    bind:value={backupDescription} 
+                    placeholder="Description (optional)..."
+                    class="backup-textarea"
+                    rows="2"
+                  />
+                  <button 
+                    class="save-btn"
+                    on:click={saveCurrentStrategy}
+                    disabled={!backupName.trim() || !currentStrategy}
+                  >
+                    Save Strategy
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Saved Strategies List -->
+              <div class="saved-strategies-section">
+                <div class="section-header">
+                  <h3>📁 Saved Strategies</h3>
+                  <button class="import-btn" on:click={() => showImportDialog = true}>
+                    📥 Import
+                  </button>
+                </div>
+                
+                {#if savedStrategies.length === 0}
+                  <div class="empty-state">
+                    <p>No saved strategies yet. Run a backtest and save your winning configurations!</p>
+                  </div>
+                {:else}
+                  <div class="strategy-grid">
+                    {#each savedStrategies as strategy (strategy.id)}
+                      <div class="saved-strategy-card" class:active-strategy={isStrategyActive(strategy)}>
+                        <div class="strategy-header">
+                          <h4>{strategy.name}</h4>
+                          <span class="strategy-date">
+                            {new Date(strategy.savedDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                        
+                        <div class="strategy-type">
+                          {strategies.find(s => s.value === strategy.strategyType)?.label || strategy.strategyType}
+                        </div>
+                        
+                        {#if strategy.description}
+                          <p class="strategy-description">{strategy.description}</p>
+                        {/if}
+                        
+                        {#if strategy.backtestResults}
+                          <div class="strategy-stats">
+                            <span class="stat">
+                              <strong>Win Rate:</strong> {strategy.backtestResults.winRate.toFixed(1)}%
+                            </span>
+                            <span class="stat">
+                              <strong>Return:</strong> {strategy.backtestResults.totalReturn.toFixed(2)}%
+                            </span>
+                            <span class="stat">
+                              <strong>Trades:</strong> {strategy.backtestResults.trades}
+                            </span>
+                          </div>
+                        {/if}
+                        
+                        <div class="strategy-actions">
+                          <button class="action-btn restore" on:click={() => restoreStrategy(strategy)}>
+                            🔄 Restore
+                          </button>
+                          <button class="action-btn export" on:click={() => exportStrategy(strategy)}>
+                            📤 Export
+                          </button>
+                          <button class="action-btn delete" on:click={() => deleteStrategy(strategy.id)}>
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+              
+              <!-- Import Dialog -->
+              {#if showImportDialog}
+                <div class="import-dialog-overlay" on:click={() => showImportDialog = false}>
+                  <div class="import-dialog" on:click|stopPropagation>
+                    <h3>Import Strategy</h3>
+                    <textarea
+                      bind:value={importJsonText}
+                      placeholder="Paste exported strategy JSON here..."
+                      rows="10"
+                    />
+                    <div class="dialog-actions">
+                      <button on:click={importStrategy}>Import</button>
+                      <button on:click={() => { showImportDialog = false; importJsonText = ''; }}>Cancel</button>
+                    </div>
+                  </div>
+                </div>
+              {/if}
             </div>
           {/if}
         </div>
@@ -2730,5 +3002,331 @@ export class ${getStrategyFileName(type)} extends Strategy {
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.7; }
+  }
+
+  /* Backup Tab Styles */
+  .backup-section {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  .save-strategy-form {
+    background: rgba(74, 0, 224, 0.05);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    padding: 20px;
+  }
+
+  .save-strategy-form h3 {
+    margin: 0 0 15px 0;
+    color: #a78bfa;
+    font-size: 16px;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .backup-input,
+  .backup-textarea {
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 4px;
+    color: #d1d4dc;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+
+  .backup-input:focus,
+  .backup-textarea:focus {
+    outline: none;
+    border-color: #a78bfa;
+    background: rgba(74, 0, 224, 0.1);
+  }
+
+  .backup-textarea {
+    resize: vertical;
+    min-height: 60px;
+    font-family: inherit;
+  }
+
+  .save-btn {
+    padding: 10px 20px;
+    background: #a78bfa;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .save-btn:hover:not(:disabled) {
+    background: #8b5cf6;
+    transform: translateY(-1px);
+  }
+
+  .save-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .saved-strategies-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+  }
+
+  .section-header h3 {
+    margin: 0;
+    color: #a78bfa;
+    font-size: 16px;
+  }
+
+  .import-btn {
+    padding: 8px 16px;
+    background: rgba(74, 0, 224, 0.2);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    color: #a78bfa;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .import-btn:hover {
+    background: rgba(74, 0, 224, 0.3);
+    border-color: #a78bfa;
+  }
+
+  .empty-state {
+    text-align: center;
+    color: #758696;
+    padding: 40px 20px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px dashed rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+  }
+
+  .strategy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
+    overflow-y: auto;
+    padding-right: 5px;
+  }
+
+  .saved-strategy-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    padding: 15px;
+    transition: all 0.2s;
+  }
+
+  .saved-strategy-card:hover {
+    background: rgba(74, 0, 224, 0.05);
+    border-color: rgba(74, 0, 224, 0.5);
+  }
+
+  .saved-strategy-card.active-strategy {
+    border-color: #a78bfa;
+    background: rgba(167, 139, 250, 0.1);
+  }
+
+  .strategy-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 8px;
+  }
+
+  .strategy-header h4 {
+    margin: 0;
+    font-size: 14px;
+    color: #d1d4dc;
+  }
+
+  .strategy-date {
+    font-size: 11px;
+    color: #758696;
+  }
+
+  .strategy-type {
+    font-size: 12px;
+    color: #a78bfa;
+    margin-bottom: 8px;
+  }
+
+  .strategy-description {
+    font-size: 12px;
+    color: #9ca3af;
+    margin: 8px 0;
+    line-height: 1.4;
+  }
+
+  .strategy-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 12px 0;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    font-size: 11px;
+  }
+
+  .strategy-stats .stat {
+    display: flex;
+    justify-content: space-between;
+    color: #9ca3af;
+  }
+
+  .strategy-stats .stat strong {
+    color: #d1d4dc;
+  }
+
+  .strategy-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .action-btn {
+    flex: 1;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #9ca3af;
+  }
+
+  .action-btn.restore {
+    color: #26a69a;
+    border-color: rgba(38, 166, 154, 0.3);
+  }
+
+  .action-btn.restore:hover {
+    background: rgba(38, 166, 154, 0.1);
+    border-color: #26a69a;
+  }
+
+  .action-btn.export {
+    color: #60a5fa;
+    border-color: rgba(96, 165, 250, 0.3);
+  }
+
+  .action-btn.export:hover {
+    background: rgba(96, 165, 250, 0.1);
+    border-color: #60a5fa;
+  }
+
+  .action-btn.delete {
+    color: #ef5350;
+    border-color: rgba(239, 83, 80, 0.3);
+  }
+
+  .action-btn.delete:hover {
+    background: rgba(239, 83, 80, 0.1);
+    border-color: #ef5350;
+  }
+
+  /* Import Dialog Styles */
+  .import-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .import-dialog {
+    background: #1a1a1a;
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    padding: 25px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  }
+
+  .import-dialog h3 {
+    margin: 0 0 15px 0;
+    color: #a78bfa;
+    font-size: 18px;
+  }
+
+  .import-dialog textarea {
+    width: 100%;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 4px;
+    color: #d1d4dc;
+    font-family: monospace;
+    font-size: 12px;
+    resize: vertical;
+  }
+
+  .import-dialog textarea:focus {
+    outline: none;
+    border-color: #a78bfa;
+    background: rgba(74, 0, 224, 0.1);
+  }
+
+  .dialog-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    justify-content: flex-end;
+  }
+
+  .dialog-actions button {
+    padding: 8px 20px;
+    background: rgba(74, 0, 224, 0.2);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    color: #d1d4dc;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .dialog-actions button:first-child {
+    background: #a78bfa;
+    border-color: #a78bfa;
+    color: white;
+  }
+
+  .dialog-actions button:first-child:hover {
+    background: #8b5cf6;
+  }
+
+  .dialog-actions button:last-child:hover {
+    background: rgba(74, 0, 224, 0.3);
+    border-color: rgba(74, 0, 224, 0.5);
   }
 </style>
