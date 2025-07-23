@@ -63,6 +63,7 @@
   
   // Cleanup handlers
   let resizeHandler: (() => void) | null = null;
+  let resizeObserver: ResizeObserver | null = null;
   
   // Track previous period to detect changes
   let previousPeriod = period;
@@ -386,6 +387,12 @@
     
     resizeHandler = handleResize;
     window.addEventListener('resize', handleResize);
+    
+    // Also observe container size changes (for sidebar collapse/expand)
+    resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    resizeObserver.observe(chartContainer);
   });
 
   // Load initial data
@@ -928,6 +935,9 @@
     }
     if (resizeHandler) {
       window.removeEventListener('resize', resizeHandler);
+    }
+    if (resizeObserver) {
+      resizeObserver.disconnect();
     }
     // if (redisUnsubscribe) {
     //   redisUnsubscribe();
