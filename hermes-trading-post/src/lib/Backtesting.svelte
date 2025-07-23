@@ -20,7 +20,7 @@
   
   const dispatch = createEventDispatcher();
   
-  let sidebarCollapsed = false;
+  let sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
   let selectedGranularity = '1m';
   let selectedPeriod = '1H';
   let autoGranularityActive = false;
@@ -32,6 +32,7 @@
   
   function toggleSidebar() {
     sidebarCollapsed = !sidebarCollapsed;
+    localStorage.setItem('sidebarCollapsed', sidebarCollapsed.toString());
   }
   
   function handleNavigation(event: CustomEvent) {

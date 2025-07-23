@@ -154,6 +154,7 @@
     padding: 20px;
     border-top: 1px solid rgba(74, 0, 224, 0.2);
     position: relative;
+    gap: 10px;
   }
   
   .settings-btn {
@@ -176,7 +177,19 @@
     color: #d1d4dc;
   }
   
+  .sidebar.collapsed .sidebar-footer {
+    justify-content: center;
+    flex-direction: column;
+    gap: 15px;
+    padding: 15px;
+  }
+  
   .sidebar.collapsed .settings-btn {
-    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+  
+  .sidebar.collapsed .toggle-btn {
+    position: relative;
   }
 </style>
