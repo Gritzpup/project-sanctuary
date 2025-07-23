@@ -298,14 +298,18 @@
   
   .dashboard-content {
     flex: 1;
+    display: flex;
+    flex-direction: column;
     margin-left: 250px;
-    transition: margin-left 0.3s ease;
+    width: calc(100% - 250px);
+    transition: all 0.3s ease;
     overflow-y: auto;
     padding: 20px;
   }
   
   .dashboard-content.expanded {
     margin-left: 80px;
+    width: calc(100% - 80px);
   }
   
   .header {
