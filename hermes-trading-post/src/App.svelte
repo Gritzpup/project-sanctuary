@@ -7,23 +7,25 @@
   import News from './lib/News.svelte';
   import { CoinbaseAPI } from './services/coinbaseApi';
   import { onMount } from 'svelte';
+  import { sidebarStore } from './stores/sidebarStore';
 
   let currentPrice: number = 0;
   let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   let api: CoinbaseAPI;
   let currentSection: 'dashboard' | 'paper-trading' | 'backtesting' | 'trading' | 'vault' | 'news' = 'dashboard';
+  
+  // Subscribe to sidebar store
   let sidebarCollapsed = false;
+  sidebarStore.subscribe(value => {
+    sidebarCollapsed = value;
+  });
 
   let priceInterval: number;
 
   onMount(() => {
-    // Load sidebar state from localStorage
-    const savedCollapsedState = localStorage.getItem('sidebarCollapsed');
-    if (savedCollapsedState !== null) {
-      sidebarCollapsed = savedCollapsedState === 'true';
-      console.log('App: Loaded sidebar collapsed state:', sidebarCollapsed);
-    }
-
+    // Initialize sidebar store from localStorage
+    sidebarStore.init();
+    
     api = new CoinbaseAPI();
     
     // Get initial price
@@ -54,9 +56,7 @@
   }
 
   function toggleSidebar() {
-    sidebarCollapsed = !sidebarCollapsed;
-    localStorage.setItem('sidebarCollapsed', sidebarCollapsed.toString());
-    console.log('App: Sidebar toggled, new state:', sidebarCollapsed);
+    sidebarStore.toggle();
   }
 </script>
 
