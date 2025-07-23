@@ -23,9 +23,6 @@
   let priceInterval: number;
 
   onMount(() => {
-    // Initialize sidebar store from localStorage
-    sidebarStore.init();
-    
     api = new CoinbaseAPI();
     
     // Get initial price
