@@ -14,6 +14,7 @@
   let btcSeries: ISeriesApi<'Line'> | null = null;
   let totalSeries: ISeriesApi<'Line'> | null = null;
   let buyHoldSeries: ISeriesApi<'Line'> | null = null;
+  let resizeObserver: ResizeObserver | null = null;
   
   function initChart() {
     if (!chartContainer) return;
@@ -91,8 +92,18 @@
     
     window.addEventListener('resize', handleResize);
     
+    // Also observe container size changes (for sidebar collapse/expand)
+    resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    resizeObserver.observe(chartContainer);
+    
     return () => {
       window.removeEventListener('resize', handleResize);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+        resizeObserver = null;
+      }
     };
   }
   
