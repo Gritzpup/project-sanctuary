@@ -17,10 +17,9 @@
   
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
+  export let sidebarCollapsed = false;
   
   const dispatch = createEventDispatcher();
-  
-  let sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
   let selectedGranularity = '1m';
   let selectedPeriod = '1H';
   let autoGranularityActive = false;
@@ -31,8 +30,7 @@
   const CACHE_DURATION = 60000; // 1 minute cache duration
   
   function toggleSidebar() {
-    sidebarCollapsed = !sidebarCollapsed;
-    localStorage.setItem('sidebarCollapsed', sidebarCollapsed.toString());
+    dispatch('toggle');
   }
   
   function handleNavigation(event: CustomEvent) {

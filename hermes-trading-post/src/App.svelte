@@ -12,10 +12,18 @@
   let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   let api: CoinbaseAPI;
   let currentSection: 'dashboard' | 'paper-trading' | 'backtesting' | 'trading' | 'vault' | 'news' = 'dashboard';
+  let sidebarCollapsed = false;
 
   let priceInterval: number;
 
   onMount(() => {
+    // Load sidebar state from localStorage
+    const savedCollapsedState = localStorage.getItem('sidebarCollapsed');
+    if (savedCollapsedState !== null) {
+      sidebarCollapsed = savedCollapsedState === 'true';
+      console.log('App: Loaded sidebar collapsed state:', sidebarCollapsed);
+    }
+
     api = new CoinbaseAPI();
     
     // Get initial price
@@ -44,21 +52,27 @@
   function handleNavigation(event: CustomEvent) {
     currentSection = event.detail.section;
   }
+
+  function toggleSidebar() {
+    sidebarCollapsed = !sidebarCollapsed;
+    localStorage.setItem('sidebarCollapsed', sidebarCollapsed.toString());
+    console.log('App: Sidebar toggled, new state:', sidebarCollapsed);
+  }
 </script>
 
 <main>
   {#if currentSection === 'dashboard'}
-    <Dashboard {currentPrice} bind:connectionStatus on:navigate={handleNavigation} />
+    <Dashboard {currentPrice} bind:connectionStatus {sidebarCollapsed} on:toggle={toggleSidebar} on:navigate={handleNavigation} />
   {:else if currentSection === 'paper-trading'}
-    <PaperTrading {currentPrice} bind:connectionStatus on:navigate={handleNavigation} />
+    <PaperTrading {currentPrice} bind:connectionStatus {sidebarCollapsed} on:toggle={toggleSidebar} on:navigate={handleNavigation} />
   {:else if currentSection === 'backtesting'}
-    <Backtesting {currentPrice} bind:connectionStatus on:navigate={handleNavigation} />
+    <Backtesting {currentPrice} bind:connectionStatus {sidebarCollapsed} on:toggle={toggleSidebar} on:navigate={handleNavigation} />
   {:else if currentSection === 'trading'}
-    <Trading {currentPrice} bind:connectionStatus on:navigate={handleNavigation} />
+    <Trading {currentPrice} bind:connectionStatus {sidebarCollapsed} on:toggle={toggleSidebar} on:navigate={handleNavigation} />
   {:else if currentSection === 'vault'}
-    <Vault {currentPrice} bind:connectionStatus on:navigate={handleNavigation} />
+    <Vault {currentPrice} bind:connectionStatus {sidebarCollapsed} on:toggle={toggleSidebar} on:navigate={handleNavigation} />
   {:else if currentSection === 'news'}
-    <News {currentPrice} bind:connectionStatus on:navigate={handleNavigation} />
+    <News {currentPrice} bind:connectionStatus {sidebarCollapsed} on:toggle={toggleSidebar} on:navigate={handleNavigation} />
   {/if}
 </main>
 
