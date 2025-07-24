@@ -119,6 +119,11 @@
     border-left: 3px solid #a78bfa;
   }
   
+  .sidebar.collapsed .nav-item.active {
+    border-left: none;
+    border-bottom: 2px solid #a78bfa;
+  }
+  
   .nav-icon {
     font-size: 20px;
     width: 24px;
@@ -179,6 +184,7 @@
   
   .sidebar.collapsed .sidebar-footer {
     justify-content: center;
+    align-items: center;
     flex-direction: column;
     gap: 15px;
     padding: 15px;
@@ -191,5 +197,24 @@
   
   .sidebar.collapsed .toggle-btn {
     position: relative;
+  }
+  
+  .sidebar.collapsed .nav-item {
+    justify-content: center;
+    padding: 12px 0;
+  }
+  
+  .sidebar.collapsed .nav-icon {
+    margin: 0;
+  }
+  
+  .sidebar.collapsed .sidebar-header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .sidebar.collapsed .sidebar-title {
+    text-align: center;
   }
 </style>
