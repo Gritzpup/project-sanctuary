@@ -1137,7 +1137,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
         </div>
         <div class="tabs">
           <button class="tab" class:active={activeTab === 'config'} on:click={() => activeTab = 'config'}>
-            Configuration
+            Config
           </button>
           <button class="tab" class:active={activeTab === 'code'} on:click={() => activeTab = 'code'}>
             Source Code
