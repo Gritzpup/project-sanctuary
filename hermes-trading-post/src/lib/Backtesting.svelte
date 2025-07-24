@@ -512,6 +512,7 @@
       if (age < CACHE_DURATION) {
         console.log('Loading chart data from cache:', cacheKey, `(age: ${age}ms)`);
         historicalCandles = cached.data;
+        connectionStatus = 'connected';
         return;
       } else {
         console.log('Cache expired for:', cacheKey);
@@ -520,6 +521,7 @@
     }
     
     isLoadingChart = true;
+    connectionStatus = 'loading';
     
     try {
       console.log('Loading chart data for:', selectedPeriod, selectedGranularity);
@@ -587,8 +589,12 @@
       }
     } catch (error) {
       console.error('Failed to load chart data:', error);
+      connectionStatus = 'error';
     } finally {
       isLoadingChart = false;
+      if (connectionStatus === 'loading') {
+        connectionStatus = 'connected';
+      }
     }
   }
   
