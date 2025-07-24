@@ -8,11 +8,17 @@
   import { CoinbaseAPI } from './services/coinbaseApi';
   import { onMount } from 'svelte';
   import { sidebarStore } from './stores/sidebarStore';
+  import { navigationStore } from './stores/navigationStore';
 
   let currentPrice: number = 0;
   let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   let api: CoinbaseAPI;
+  
+  // Subscribe to navigation store
   let currentSection: 'dashboard' | 'paper-trading' | 'backtesting' | 'trading' | 'vault' | 'news' = 'dashboard';
+  navigationStore.subscribe(value => {
+    currentSection = value;
+  });
   
   // Subscribe to sidebar store
   let sidebarCollapsed = false;
@@ -49,7 +55,7 @@
   });
 
   function handleNavigation(event: CustomEvent) {
-    currentSection = event.detail.section;
+    navigationStore.navigate(event.detail.section);
   }
 
   function toggleSidebar() {
