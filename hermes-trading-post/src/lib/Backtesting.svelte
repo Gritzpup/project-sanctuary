@@ -57,6 +57,8 @@
   
   // Backup system state
   let savedStrategies: SavedStrategy[] = [];
+  let selectedStrategies = new Set<string>();
+  let bulkDeleteMode = false;
   let backupName = '';
   let backupDescription = '';
   let showImportDialog = false;
@@ -372,6 +374,17 @@
   function saveCurrentStrategy() {
     if (!currentStrategy || !backupName.trim()) return;
     
+    // Check if a strategy with the same name exists
+    const existingStrategy = savedStrategies.find(s => s.name === backupName.trim());
+    
+    if (existingStrategy) {
+      if (!confirm(`A strategy named "${backupName.trim()}" already exists. Do you want to overwrite it?`)) {
+        return;
+      }
+      // Remove the existing strategy
+      savedStrategies = savedStrategies.filter(s => s.id !== existingStrategy.id);
+    }
+    
     const newStrategy: SavedStrategy = {
       id: `${selectedStrategyType}-${Date.now()}`,
       name: backupName.trim(),
@@ -429,6 +442,39 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(savedStrategies));
     
     console.log('Strategy deleted:', strategy.name);
+  }
+  
+  function toggleStrategySelection(id: string) {
+    if (selectedStrategies.has(id)) {
+      selectedStrategies.delete(id);
+    } else {
+      selectedStrategies.add(id);
+    }
+    selectedStrategies = new Set(selectedStrategies); // Trigger reactivity
+  }
+  
+  function toggleSelectAll() {
+    if (selectedStrategies.size === savedStrategies.length) {
+      selectedStrategies.clear();
+    } else {
+      selectedStrategies = new Set(savedStrategies.map(s => s.id));
+    }
+    selectedStrategies = new Set(selectedStrategies); // Trigger reactivity
+  }
+  
+  function deleteSelectedStrategies() {
+    if (selectedStrategies.size === 0) return;
+    
+    if (!confirm(`Delete ${selectedStrategies.size} selected strategies?`)) {
+      return;
+    }
+    
+    savedStrategies = savedStrategies.filter(s => !selectedStrategies.has(s.id));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedStrategies));
+    selectedStrategies.clear();
+    bulkDeleteMode = false;
+    
+    console.log(`Deleted ${selectedStrategies.size} strategies`);
   }
   
   function exportStrategy(strategy: SavedStrategy) {
@@ -1671,10 +1717,37 @@ export class ${getStrategyFileName(type)} extends Strategy {
               <div class="saved-strategies-section">
                 <div class="section-header">
                   <h3>📁 Saved Strategies</h3>
-                  <button class="import-btn" on:click={() => showImportDialog = true}>
-                    📥 Import
-                  </button>
+                  <div class="header-actions">
+                    {#if savedStrategies.length > 0}
+                      <button class="bulk-delete-btn" on:click={() => bulkDeleteMode = !bulkDeleteMode}>
+                        {bulkDeleteMode ? '✖ Cancel' : '🗑️ Bulk Delete'}
+                      </button>
+                    {/if}
+                    <button class="import-btn" on:click={() => showImportDialog = true}>
+                      📥 Import
+                    </button>
+                  </div>
                 </div>
+                
+                {#if bulkDeleteMode && savedStrategies.length > 0}
+                  <div class="bulk-delete-controls">
+                    <label class="select-all">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedStrategies.size === savedStrategies.length}
+                        on:change={toggleSelectAll}
+                      />
+                      Select All ({selectedStrategies.size}/{savedStrategies.length})
+                    </label>
+                    <button 
+                      class="delete-selected-btn" 
+                      disabled={selectedStrategies.size === 0}
+                      on:click={deleteSelectedStrategies}
+                    >
+                      🗑️ Delete Selected ({selectedStrategies.size})
+                    </button>
+                  </div>
+                {/if}
                 
                 {#if savedStrategies.length === 0}
                   <div class="empty-state">
@@ -1683,7 +1756,15 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 {:else}
                   <div class="strategy-grid">
                     {#each savedStrategies as strategy (strategy.id)}
-                      <div class="saved-strategy-card" class:active-strategy={isStrategyActive(strategy)}>
+                      <div class="saved-strategy-card" class:active-strategy={isStrategyActive(strategy)} class:selected={bulkDeleteMode && selectedStrategies.has(strategy.id)}>
+                        {#if bulkDeleteMode}
+                          <input 
+                            type="checkbox" 
+                            class="strategy-checkbox"
+                            checked={selectedStrategies.has(strategy.id)}
+                            on:change={() => toggleStrategySelection(strategy.id)}
+                          />
+                        {/if}
                         <div class="strategy-header">
                           <h4>{strategy.name}</h4>
                           <span class="strategy-date">
@@ -3188,6 +3269,21 @@ export class ${getStrategyFileName(type)} extends Strategy {
     border-radius: 8px;
     padding: 15px;
     transition: all 0.2s;
+    position: relative;
+  }
+  
+  .saved-strategy-card.selected {
+    background: rgba(74, 0, 224, 0.15);
+    border-color: #a78bfa;
+  }
+  
+  .strategy-checkbox {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
   }
 
   .saved-strategy-card:hover {
