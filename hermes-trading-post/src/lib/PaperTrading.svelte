@@ -47,6 +47,10 @@
   let totalReturn = 0;
   let winRate = 0;
   
+  // UI state
+  let isEditingBalance = false;
+  let editingBalance = '10000';
+  
   const strategies = [
     { value: 'reverse-ratio', label: 'Reverse Ratio Buying' },
     { value: 'grid-trading', label: 'Grid Trading' },
@@ -263,52 +267,181 @@ export class ${getStrategyFileName(type)} extends Strategy {
     }
   }
   
+  function resetTrading() {
+    if (!paperTradingService) return;
+    
+    // Stop if running
+    if (isRunning) {
+      stopTrading();
+    }
+    
+    // Reset the service
+    paperTradingService.resetStrategy();
+    
+    // Reset local state
+    balance = 10000;
+    btcBalance = 0;
+    vaultBalance = 0;
+    trades = [];
+    positions = [];
+    totalReturn = 0;
+    winRate = 0;
+    editingBalance = '10000';
+  }
+  
+  function startEditingBalance() {
+    if (!isRunning) {
+      isEditingBalance = true;
+      editingBalance = balance.toString();
+    }
+  }
+  
+  function saveBalance() {
+    const newBalance = parseFloat(editingBalance);
+    if (!isNaN(newBalance) && newBalance > 0) {
+      balance = newBalance;
+      isEditingBalance = false;
+    } else {
+      // Reset to current balance if invalid
+      editingBalance = balance.toString();
+      isEditingBalance = false;
+    }
+  }
+  
+  function cancelEditBalance() {
+    editingBalance = balance.toString();
+    isEditingBalance = false;
+  }
+  
   $: totalValue = balance + (btcBalance * currentPrice) + vaultBalance;
   $: unrealizedPnl = positions.reduce((total, pos) => {
     return total + ((currentPrice - pos.entryPrice) * pos.size);
   }, 0);
   $: returnPercent = ((totalValue - 10000) / 10000) * 100;
   
-  // Calculate next buy trigger for reverse ratio strategy
+  // Calculate next buy trigger for all strategies
   let recentHigh = currentPrice || 0;
+  let recentLow = currentPrice || 0;
   let tradingHistory: number[] = [];
+  let lastTradeTime = 0;
   
   $: {
-    // Track price history for recent high calculation
+    // Track price history for calculations
     if (currentPrice > 0) {
       tradingHistory = [...tradingHistory.slice(-300), currentPrice];
       if (tradingHistory.length > 0) {
         recentHigh = Math.max(...tradingHistory);
+        recentLow = Math.min(...tradingHistory);
       } else {
         recentHigh = currentPrice;
+        recentLow = currentPrice;
+      }
+    }
+    
+    // Update last trade time if we have trades
+    if (trades.length > 0) {
+      const lastBuyTrade = [...trades].reverse().find(t => t.side === 'buy');
+      if (lastBuyTrade) {
+        lastTradeTime = lastBuyTrade.timestamp;
       }
     }
   }
   
   $: dropFromHigh = recentHigh > 0 ? ((recentHigh - currentPrice) / recentHigh) * 100 : 0;
+  $: riseFromLow = recentLow > 0 ? ((currentPrice - recentLow) / recentLow) * 100 : 0;
   
-  // Calculate next buy level based on reverse ratio strategy levels
+  // Calculate next buy level based on selected strategy
   $: nextBuyLevel = (() => {
-    if (selectedStrategyType !== 'reverse-ratio') return null;
-    
-    const levels = [5, 10, 15, 20, 25]; // Drop percentages for each level
     const currentPositionCount = positions.length;
     
-    // If we have max positions, no next level
-    if (currentPositionCount >= 5) return null;
-    
-    // Find the next level based on current drop
-    for (let level of levels) {
-      if (dropFromHigh < level) {
+    switch (selectedStrategyType) {
+      case 'reverse-ratio': {
+        const levels = [5, 10, 15, 20, 25]; // Drop percentages for each level
+        if (currentPositionCount >= 5) return null;
+        
+        for (let level of levels) {
+          if (dropFromHigh < level) {
+            return {
+              type: 'price',
+              label: 'Drop Target',
+              value: `${level}%`,
+              price: recentHigh * (1 - level / 100),
+              progress: (dropFromHigh / level) * 100,
+              description: `${level}% drop from high`
+            };
+          }
+        }
+        return null;
+      }
+      
+      case 'grid-trading': {
+        // Grid trading: Buy at regular intervals below current price
+        const gridSpacing = 2; // 2% grid spacing
+        const nextGridLevel = Math.floor(dropFromHigh / gridSpacing) + 1;
+        const targetDrop = nextGridLevel * gridSpacing;
+        
         return {
-          dropPercent: level,
-          price: recentHigh * (1 - level / 100),
-          progress: (dropFromHigh / level) * 100
+          type: 'price',
+          label: 'Grid Level',
+          value: `Level ${nextGridLevel}`,
+          price: recentHigh * (1 - targetDrop / 100),
+          progress: ((dropFromHigh % gridSpacing) / gridSpacing) * 100,
+          description: `Grid level at ${targetDrop}% drop`
         };
       }
+      
+      case 'rsi-mean-reversion': {
+        // RSI strategy: Estimate based on price movement (simplified)
+        // In reality, would need actual RSI calculation
+        const oversoldTarget = 30; // RSI 30 is typical oversold
+        const estimatedDropForOversold = 7; // Rough estimate
+        
+        return {
+          type: 'indicator',
+          label: 'RSI Target',
+          value: 'RSI < 30',
+          price: currentPrice * (1 - estimatedDropForOversold / 100),
+          progress: Math.min((dropFromHigh / estimatedDropForOversold) * 100, 95),
+          description: 'Waiting for oversold RSI'
+        };
+      }
+      
+      case 'dca': {
+        // DCA: Buy at regular time intervals
+        const intervalHours = 24; // Daily DCA
+        const intervalMs = intervalHours * 60 * 60 * 1000;
+        const timeSinceLastTrade = Date.now() - (lastTradeTime * 1000);
+        const progress = Math.min((timeSinceLastTrade / intervalMs) * 100, 100);
+        
+        return {
+          type: 'time',
+          label: 'Next DCA',
+          value: progress >= 100 ? 'Now' : `${Math.round((intervalMs - timeSinceLastTrade) / (60 * 60 * 1000))}h`,
+          price: currentPrice, // DCA buys at market price
+          progress: progress,
+          description: 'Daily accumulation'
+        };
+      }
+      
+      case 'vwap-bounce': {
+        // VWAP strategy: Buy when price is below VWAP (simplified)
+        const vwapDiscount = 2; // Buy 2% below VWAP
+        const estimatedVWAP = recentHigh * 0.98; // Simplified VWAP estimate
+        const targetPrice = estimatedVWAP * (1 - vwapDiscount / 100);
+        
+        return {
+          type: 'indicator',
+          label: 'VWAP Target',
+          value: 'Below VWAP',
+          price: targetPrice,
+          progress: Math.max(0, Math.min(100, ((estimatedVWAP - currentPrice) / (estimatedVWAP - targetPrice)) * 100)),
+          description: `${vwapDiscount}% below VWAP`
+        };
+      }
+      
+      default:
+        return null;
     }
-    
-    return null;
   })();
 </script>
 
@@ -388,13 +521,20 @@ export class ${getStrategyFileName(type)} extends Strategy {
       <div class="panel trading-panel">
         <div class="panel-header">
           <h2>Automated Trading</h2>
-          <div class="tabs">
-            <button class="tab" class:active={activeTab === 'config'} on:click={() => activeTab = 'config'}>
-              Configuration
-            </button>
-            <button class="tab" class:active={activeTab === 'code'} on:click={() => activeTab = 'code'}>
-              Source Code
-            </button>
+          <div class="header-actions">
+            {#if trades.length > 0 || btcBalance > 0 || vaultBalance > 0}
+              <button class="reset-btn" title="Reset Trading" on:click={resetTrading}>
+                🔄
+              </button>
+            {/if}
+            <div class="tabs">
+              <button class="tab" class:active={activeTab === 'config'} on:click={() => activeTab = 'config'}>
+                Configuration
+              </button>
+              <button class="tab" class:active={activeTab === 'code'} on:click={() => activeTab = 'code'}>
+                Source Code
+              </button>
+            </div>
           </div>
         </div>
         <div class="panel-content">
@@ -413,7 +553,27 @@ export class ${getStrategyFileName(type)} extends Strategy {
           <div class="balances">
             <div class="balance-item">
               <span>USD Balance:</span>
-              <span>${balance.toFixed(2)}</span>
+              {#if isEditingBalance}
+                <div class="balance-edit">
+                  $<input 
+                    type="number" 
+                    bind:value={editingBalance} 
+                    on:keydown={(e) => {
+                      if (e.key === 'Enter') saveBalance();
+                      if (e.key === 'Escape') cancelEditBalance();
+                    }}
+                    on:blur={saveBalance}
+                    autofocus
+                  />
+                </div>
+              {:else}
+                <span class="balance-value" class:editable={!isRunning} on:click={startEditingBalance}>
+                  ${balance.toFixed(2)}
+                  {#if !isRunning}
+                    <span class="edit-icon">✏️</span>
+                  {/if}
+                </span>
+              {/if}
             </div>
             <div class="balance-item">
               <span>BTC Balance:</span>
@@ -532,7 +692,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
       </div>
       
       <!-- Next Buy Trigger Indicator -->
-      {#if selectedStrategyType === 'reverse-ratio' && nextBuyLevel}
+      {#if nextBuyLevel}
         <div class="trigger-gauge-panel">
           <div class="gauge-container">
             <div class="gauge-header">
@@ -582,7 +742,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 
                 <div class="gauge-center">
                   <div class="gauge-percentage">{nextBuyLevel.progress.toFixed(1)}%</div>
-                  <div class="gauge-subtitle">to trigger</div>
+                  <div class="gauge-subtitle">{nextBuyLevel.description || 'to trigger'}</div>
                 </div>
               </div>
               
@@ -605,24 +765,32 @@ export class ${getStrategyFileName(type)} extends Strategy {
             <div class="gauge-stats">
               <div class="gauge-stat">
                 <div class="stat-info">
-                  <span class="stat-icon">📊</span>
-                  <span class="stat-label">Recent High</span>
+                  <span class="stat-icon">💵</span>
+                  <span class="stat-label">Current Price</span>
                 </div>
-                <span class="stat-value">${recentHigh.toFixed(2)}</span>
+                <span class="stat-value">${currentPrice.toFixed(2)}</span>
               </div>
               <div class="gauge-stat">
                 <div class="stat-info">
-                  <span class="stat-icon">📉</span>
-                  <span class="stat-label">Current Drop</span>
+                  <span class="stat-icon">
+                    {#if nextBuyLevel.type === 'time'}
+                      ⏰
+                    {:else if nextBuyLevel.type === 'indicator'}
+                      📊
+                    {:else}
+                      📉
+                    {/if}
+                  </span>
+                  <span class="stat-label">{nextBuyLevel.label}</span>
                 </div>
-                <span class="stat-value">{dropFromHigh.toFixed(2)}%</span>
+                <span class="stat-value">{nextBuyLevel.value}</span>
               </div>
               <div class="gauge-stat">
                 <div class="stat-info">
                   <span class="stat-icon">🎯</span>
-                  <span class="stat-label">Target Drop</span>
+                  <span class="stat-label">Target Price</span>
                 </div>
-                <span class="stat-value highlight">{nextBuyLevel.dropPercent}%</span>
+                <span class="stat-value highlight">${nextBuyLevel.price.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -742,6 +910,29 @@ export class ${getStrategyFileName(type)} extends Strategy {
     margin: 0;
     font-size: 16px;
     color: #a78bfa;
+  }
+  
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+  
+  .reset-btn {
+    padding: 6px 10px;
+    background: rgba(239, 83, 80, 0.1);
+    border: 1px solid rgba(239, 83, 80, 0.3);
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #ef5350;
+  }
+  
+  .reset-btn:hover {
+    background: rgba(239, 83, 80, 0.2);
+    border-color: rgba(239, 83, 80, 0.5);
+    transform: rotate(180deg);
   }
   
   .tabs {
@@ -949,6 +1140,53 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .balance-item span:last-child {
     font-weight: 600;
+  }
+  
+  .balance-value {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: default;
+  }
+  
+  .balance-value.editable {
+    cursor: pointer;
+  }
+  
+  .balance-value.editable:hover {
+    color: #a78bfa;
+  }
+  
+  .edit-icon {
+    font-size: 12px;
+    opacity: 0.5;
+  }
+  
+  .balance-value:hover .edit-icon {
+    opacity: 1;
+  }
+  
+  .balance-edit {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  
+  .balance-edit input {
+    background: rgba(74, 0, 224, 0.1);
+    border: 1px solid rgba(74, 0, 224, 0.5);
+    color: #d1d4dc;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    width: 100px;
+    outline: none;
+  }
+  
+  .balance-edit input:focus {
+    border-color: #a78bfa;
+    background: rgba(74, 0, 224, 0.2);
   }
   
   .balance-item span.long {
