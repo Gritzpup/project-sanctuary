@@ -465,6 +465,72 @@ export class ${getStrategyFileName(type)} extends Strategy {
         </div>
       </div>
       
+      <!-- Positions Panel -->
+      <div class="panel positions-panel">
+        <div class="panel-header">
+          <h2>Open Positions</h2>
+        </div>
+        <div class="panel-content">
+          <div class="positions-list">
+            {#if positions.length === 0}
+              <p class="no-positions">No open positions</p>
+            {:else}
+              {#each positions as position}
+                <div class="position-item">
+                  <div class="position-header">
+                    <span>Entry: ${position.entryPrice.toFixed(2)}</span>
+                    <span>{position.size.toFixed(8)} BTC</span>
+                  </div>
+                  <div class="position-details">
+                    <span>Current: ${currentPrice.toFixed(2)}</span>
+                    <span class:profit={(currentPrice - position.entryPrice) > 0} 
+                          class:loss={(currentPrice - position.entryPrice) < 0}>
+                      P&L: ${((currentPrice - position.entryPrice) * position.size).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              {/each}
+            {/if}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Trade History -->
+      <div class="panel history-panel">
+        <div class="panel-header">
+          <h2>Trade History</h2>
+        </div>
+        <div class="panel-content">
+          <div class="trades-list">
+            {#if trades.length === 0}
+              <p class="no-trades">No trades yet</p>
+            {:else}
+              {#each trades.slice(-20).reverse() as trade}
+                <div class="trade-item" class:buy={trade.side === 'buy'} class:sell={trade.side === 'sell'}>
+                  <div class="trade-header">
+                    <span class="trade-type">{trade.side.toUpperCase()}</span>
+                    <span class="trade-time">{new Date(trade.timestamp).toLocaleString()}</span>
+                  </div>
+                  <div class="trade-details">
+                    <span>Price: ${trade.price.toFixed(2)}</span>
+                    <span>Size: {trade.size.toFixed(8)} BTC</span>
+                    <span>Value: ${(trade.price * trade.size).toFixed(2)}</span>
+                    {#if trade.profit !== undefined}
+                      <span class:profit={trade.profit > 0} class:loss={trade.profit < 0}>
+                        P&L: ${trade.profit.toFixed(2)}
+                      </span>
+                    {/if}
+                    {#if trade.profitToVault}
+                      <span class="vault-allocation">Vault: ${trade.profitToVault.toFixed(2)}</span>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+            {/if}
+          </div>
+        </div>
+      </div>
+      
       <!-- Next Buy Trigger Indicator -->
       {#if selectedStrategyType === 'reverse-ratio' && nextBuyLevel}
         <div class="trigger-gauge-panel">
@@ -538,90 +604,30 @@ export class ${getStrategyFileName(type)} extends Strategy {
             
             <div class="gauge-stats">
               <div class="gauge-stat">
-                <span class="stat-icon">📊</span>
-                <span class="stat-label">Recent High</span>
+                <div class="stat-info">
+                  <span class="stat-icon">📊</span>
+                  <span class="stat-label">Recent High</span>
+                </div>
                 <span class="stat-value">${recentHigh.toFixed(2)}</span>
               </div>
               <div class="gauge-stat">
-                <span class="stat-icon">📉</span>
-                <span class="stat-label">Current Drop</span>
+                <div class="stat-info">
+                  <span class="stat-icon">📉</span>
+                  <span class="stat-label">Current Drop</span>
+                </div>
                 <span class="stat-value">{dropFromHigh.toFixed(2)}%</span>
               </div>
               <div class="gauge-stat">
-                <span class="stat-icon">🎯</span>
-                <span class="stat-label">Target Drop</span>
+                <div class="stat-info">
+                  <span class="stat-icon">🎯</span>
+                  <span class="stat-label">Target Drop</span>
+                </div>
                 <span class="stat-value highlight">{nextBuyLevel.dropPercent}%</span>
               </div>
             </div>
           </div>
         </div>
       {/if}
-      
-      <!-- Positions Panel -->
-      <div class="panel positions-panel">
-        <div class="panel-header">
-          <h2>Open Positions</h2>
-        </div>
-        <div class="panel-content">
-          <div class="positions-list">
-            {#if positions.length === 0}
-              <p class="no-positions">No open positions</p>
-            {:else}
-              {#each positions as position}
-                <div class="position-item">
-                  <div class="position-header">
-                    <span>Entry: ${position.entryPrice.toFixed(2)}</span>
-                    <span>{position.size.toFixed(8)} BTC</span>
-                  </div>
-                  <div class="position-details">
-                    <span>Current: ${currentPrice.toFixed(2)}</span>
-                    <span class:profit={(currentPrice - position.entryPrice) > 0} 
-                          class:loss={(currentPrice - position.entryPrice) < 0}>
-                      P&L: ${((currentPrice - position.entryPrice) * position.size).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              {/each}
-            {/if}
-          </div>
-        </div>
-      </div>
-      
-      <!-- Trade History -->
-      <div class="panel history-panel">
-        <div class="panel-header">
-          <h2>Trade History</h2>
-        </div>
-        <div class="panel-content">
-          <div class="trades-list">
-            {#if trades.length === 0}
-              <p class="no-trades">No trades yet</p>
-            {:else}
-              {#each trades.slice(-20).reverse() as trade}
-                <div class="trade-item" class:buy={trade.side === 'buy'} class:sell={trade.side === 'sell'}>
-                  <div class="trade-header">
-                    <span class="trade-type">{trade.side.toUpperCase()}</span>
-                    <span class="trade-time">{new Date(trade.timestamp).toLocaleString()}</span>
-                  </div>
-                  <div class="trade-details">
-                    <span>Price: ${trade.price.toFixed(2)}</span>
-                    <span>Size: {trade.size.toFixed(8)} BTC</span>
-                    <span>Value: ${(trade.price * trade.size).toFixed(2)}</span>
-                    {#if trade.profit !== undefined}
-                      <span class:profit={trade.profit > 0} class:loss={trade.profit < 0}>
-                        P&L: ${trade.profit.toFixed(2)}
-                      </span>
-                    {/if}
-                    {#if trade.profitToVault}
-                      <span class="vault-allocation">Vault: ${trade.profitToVault.toFixed(2)}</span>
-                    {/if}
-                  </div>
-                </div>
-              {/each}
-            {/if}
-          </div>
-        </div>
-      </div>
     </div>
   </main>
 </div>
@@ -701,7 +707,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .trading-grid {
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     grid-auto-rows: auto;
     gap: 20px;
     padding: 20px;
@@ -718,9 +724,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   .chart-panel {
-    grid-row: span 2;
     position: relative;
     min-height: 500px;
+    grid-column: span 2;
   }
   
   .panel-header {
@@ -1079,11 +1085,10 @@ export class ${getStrategyFileName(type)} extends Strategy {
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(74, 0, 224, 0.3);
     border-radius: 8px;
-    padding: 25px;
+    padding: 20px;
     position: relative;
     overflow: hidden;
-    grid-column: 1 / -1;
-    margin-bottom: 20px;
+    min-height: 300px;
   }
   
   .trigger-gauge-panel::before {
@@ -1109,14 +1114,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .gauge-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 15px;
   }
   
   .gauge-header h3 {
     margin: 0;
-    font-size: 18px;
+    font-size: 16px;
     color: #a78bfa;
     display: flex;
     align-items: center;
@@ -1126,7 +1131,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   .gauge-price {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
+    align-items: flex-start;
   }
   
   .price-label {
@@ -1136,7 +1141,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   .price-value {
-    font-size: 24px;
+    font-size: 20px;
     font-weight: 700;
     color: #26a69a;
     text-shadow: 0 0 20px rgba(38, 166, 154, 0.3);
@@ -1144,7 +1149,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .gauge-visual {
     position: relative;
-    margin: 20px 0;
+    margin: 15px 0;
   }
   
   .gauge-arc {
@@ -1174,7 +1179,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   .gauge-percentage {
-    font-size: 36px;
+    font-size: 28px;
     font-weight: 700;
     color: #a78bfa;
     text-shadow: 0 0 20px rgba(167, 139, 250, 0.5);
@@ -1213,21 +1218,29 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .gauge-stats {
     display: flex;
-    justify-content: space-around;
-    margin-top: 30px;
-    padding-top: 20px;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+    padding-top: 15px;
     border-top: 1px solid rgba(74, 0, 224, 0.2);
   }
   
   .gauge-stat {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 8px;
+    justify-content: space-between;
+    gap: 10px;
   }
   
   .stat-icon {
-    font-size: 24px;
+    font-size: 20px;
+  }
+  
+  .stat-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   
   .gauge-stat .stat-label {
@@ -1237,7 +1250,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   .gauge-stat .stat-value {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
     color: #d1d4dc;
   }
