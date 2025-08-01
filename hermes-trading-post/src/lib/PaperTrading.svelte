@@ -268,6 +268,48 @@ export class ${getStrategyFileName(type)} extends Strategy {
     return total + ((currentPrice - pos.entryPrice) * pos.size);
   }, 0);
   $: returnPercent = ((totalValue - 10000) / 10000) * 100;
+  
+  // Calculate next buy trigger for reverse ratio strategy
+  let recentHigh = currentPrice || 0;
+  let tradingHistory: number[] = [];
+  
+  $: {
+    // Track price history for recent high calculation
+    if (currentPrice > 0) {
+      tradingHistory = [...tradingHistory.slice(-300), currentPrice];
+      if (tradingHistory.length > 0) {
+        recentHigh = Math.max(...tradingHistory);
+      } else {
+        recentHigh = currentPrice;
+      }
+    }
+  }
+  
+  $: dropFromHigh = recentHigh > 0 ? ((recentHigh - currentPrice) / recentHigh) * 100 : 0;
+  
+  // Calculate next buy level based on reverse ratio strategy levels
+  $: nextBuyLevel = (() => {
+    if (selectedStrategyType !== 'reverse-ratio') return null;
+    
+    const levels = [5, 10, 15, 20, 25]; // Drop percentages for each level
+    const currentPositionCount = positions.length;
+    
+    // If we have max positions, no next level
+    if (currentPositionCount >= 5) return null;
+    
+    // Find the next level based on current drop
+    for (let level of levels) {
+      if (dropFromHigh < level) {
+        return {
+          dropPercent: level,
+          price: recentHigh * (1 - level / 100),
+          progress: (dropFromHigh / level) * 100
+        };
+      }
+    }
+    
+    return null;
+  })();
 </script>
 
 <div class="dashboard-layout">
@@ -423,6 +465,98 @@ export class ${getStrategyFileName(type)} extends Strategy {
         </div>
       </div>
       
+      <!-- Next Buy Trigger Indicator -->
+      {#if selectedStrategyType === 'reverse-ratio' && nextBuyLevel}
+        <div class="trigger-gauge-panel">
+          <div class="gauge-container">
+            <div class="gauge-header">
+              <h3>🎯 Next Buy Zone</h3>
+              <div class="gauge-price">
+                <span class="price-label">Trigger at</span>
+                <span class="price-value">${nextBuyLevel.price.toFixed(2)}</span>
+              </div>
+            </div>
+            
+            <div class="gauge-visual">
+              <div class="gauge-arc">
+                <svg viewBox="0 0 200 120" class="gauge-svg">
+                  <!-- Background arc -->
+                  <path d="M 20 100 A 80 80 0 0 1 180 100" 
+                        fill="none" 
+                        stroke="rgba(74, 0, 224, 0.2)" 
+                        stroke-width="15"
+                        stroke-linecap="round"/>
+                  
+                  <!-- Progress arc -->
+                  <path d="M 20 100 A 80 80 0 0 1 180 100" 
+                        fill="none" 
+                        stroke="url(#gaugeGradient)" 
+                        stroke-width="15"
+                        stroke-linecap="round"
+                        stroke-dasharray="{251.33 * (nextBuyLevel.progress / 100)} 251.33"
+                        class="gauge-progress"/>
+                  
+                  <!-- Gradient definition -->
+                  <defs>
+                    <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" style="stop-color:#4a00e0;stop-opacity:1" />
+                      <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:1" />
+                    </linearGradient>
+                  </defs>
+                  
+                  <!-- Pointer -->
+                  <circle cx="{20 + 160 * (nextBuyLevel.progress / 100)}" 
+                          cy="{100 - 80 * Math.sin(Math.PI * nextBuyLevel.progress / 100)}" 
+                          r="8" 
+                          fill="#a78bfa" 
+                          class="gauge-pointer">
+                    <animate attributeName="r" values="8;10;8" dur="2s" repeatCount="indefinite"/>
+                  </circle>
+                </svg>
+                
+                <div class="gauge-center">
+                  <div class="gauge-percentage">{nextBuyLevel.progress.toFixed(1)}%</div>
+                  <div class="gauge-subtitle">to trigger</div>
+                </div>
+              </div>
+              
+              <div class="gauge-levels">
+                <div class="level-marker" style="left: 0%">
+                  <div class="marker-line"></div>
+                  <div class="marker-label">0%</div>
+                </div>
+                <div class="level-marker" style="left: 50%">
+                  <div class="marker-line"></div>
+                  <div class="marker-label">{(nextBuyLevel.dropPercent / 2).toFixed(1)}%</div>
+                </div>
+                <div class="level-marker" style="left: 100%">
+                  <div class="marker-line"></div>
+                  <div class="marker-label">{nextBuyLevel.dropPercent}%</div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="gauge-stats">
+              <div class="gauge-stat">
+                <span class="stat-icon">📊</span>
+                <span class="stat-label">Recent High</span>
+                <span class="stat-value">${recentHigh.toFixed(2)}</span>
+              </div>
+              <div class="gauge-stat">
+                <span class="stat-icon">📉</span>
+                <span class="stat-label">Current Drop</span>
+                <span class="stat-value">{dropFromHigh.toFixed(2)}%</span>
+              </div>
+              <div class="gauge-stat">
+                <span class="stat-icon">🎯</span>
+                <span class="stat-label">Target Drop</span>
+                <span class="stat-value highlight">{nextBuyLevel.dropPercent}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      {/if}
+      
       <!-- Positions Panel -->
       <div class="panel positions-panel">
         <div class="panel-header">
@@ -495,7 +629,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
 <style>
   .dashboard-layout {
     display: flex;
-    height: 100vh;
+    min-height: 100vh;
     background: #0a0a0a;
     color: #d1d4dc;
   }
@@ -507,7 +641,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
     margin-left: 250px;
     width: calc(100% - 250px);
     transition: all 0.3s ease;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
   
   .dashboard-content.expanded {
@@ -565,13 +700,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   .trading-grid {
-    flex: 1;
     display: grid;
     grid-template-columns: 2fr 1fr;
-    grid-template-rows: auto 1fr;
+    grid-auto-rows: auto;
     gap: 20px;
     padding: 20px;
-    overflow: hidden;
+    padding-bottom: 40px;
   }
   
   .panel {
@@ -580,12 +714,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
     border-radius: 8px;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    min-height: 300px;
   }
   
   .chart-panel {
     grid-row: span 2;
     position: relative;
+    min-height: 500px;
   }
   
   .panel-header {
@@ -680,6 +815,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    max-height: 600px;
   }
   
   .chart-panel .panel-content {
@@ -690,6 +826,15 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .chart-panel .panel-content > :global(.chart-container) {
     flex: 1;
+    min-height: 400px;
+  }
+  
+  .trading-panel {
+    min-height: 400px;
+  }
+  
+  .history-panel {
+    min-height: 400px;
   }
   
   .granularity-transition {
@@ -831,11 +976,34 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .strategy-section select {
     padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(74, 0, 224, 0.1);
     border: 1px solid rgba(74, 0, 224, 0.3);
     border-radius: 4px;
     color: #d1d4dc;
     font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .strategy-section select:hover {
+    background: rgba(74, 0, 224, 0.2);
+    border-color: rgba(74, 0, 224, 0.5);
+  }
+  
+  .strategy-section select:focus {
+    outline: none;
+    border-color: #a78bfa;
+    background: rgba(74, 0, 224, 0.2);
+  }
+  
+  .strategy-section select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .strategy-section select option {
+    background: #1a1a1a;
+    color: #d1d4dc;
   }
   
   .control-buttons {
@@ -904,7 +1072,286 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   .positions-panel {
+    min-height: 400px;
+  }
+  
+  .trigger-gauge-panel {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    padding: 25px;
+    position: relative;
     overflow: hidden;
+    grid-column: 1 / -1;
+    margin-bottom: 20px;
+  }
+  
+  .trigger-gauge-panel::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(167, 139, 250, 0.05) 0%, transparent 70%);
+    animation: pulse-glow 4s ease-in-out infinite;
+  }
+  
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  
+  .gauge-container {
+    position: relative;
+    z-index: 1;
+  }
+  
+  .gauge-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .gauge-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #a78bfa;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .gauge-price {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  
+  .price-label {
+    font-size: 12px;
+    color: #758696;
+    text-transform: uppercase;
+  }
+  
+  .price-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #26a69a;
+    text-shadow: 0 0 20px rgba(38, 166, 154, 0.3);
+  }
+  
+  .gauge-visual {
+    position: relative;
+    margin: 20px 0;
+  }
+  
+  .gauge-arc {
+    position: relative;
+    height: 120px;
+  }
+  
+  .gauge-svg {
+    width: 100%;
+    height: 100%;
+  }
+  
+  .gauge-progress {
+    transition: stroke-dasharray 0.5s ease;
+  }
+  
+  .gauge-pointer {
+    filter: drop-shadow(0 0 8px rgba(167, 139, 250, 0.8));
+  }
+  
+  .gauge-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -20%);
+    text-align: center;
+  }
+  
+  .gauge-percentage {
+    font-size: 36px;
+    font-weight: 700;
+    color: #a78bfa;
+    text-shadow: 0 0 20px rgba(167, 139, 250, 0.5);
+  }
+  
+  .gauge-subtitle {
+    font-size: 14px;
+    color: #758696;
+    margin-top: 5px;
+  }
+  
+  .gauge-levels {
+    position: relative;
+    height: 20px;
+    margin-top: 20px;
+  }
+  
+  .level-marker {
+    position: absolute;
+    transform: translateX(-50%);
+  }
+  
+  .marker-line {
+    width: 2px;
+    height: 10px;
+    background: rgba(74, 0, 224, 0.3);
+    margin: 0 auto;
+  }
+  
+  .marker-label {
+    font-size: 11px;
+    color: #758696;
+    margin-top: 4px;
+    white-space: nowrap;
+  }
+  
+  .gauge-stats {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(74, 0, 224, 0.2);
+  }
+  
+  .gauge-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .stat-icon {
+    font-size: 24px;
+  }
+  
+  .gauge-stat .stat-label {
+    font-size: 12px;
+    color: #758696;
+    text-transform: uppercase;
+  }
+  
+  .gauge-stat .stat-value {
+    font-size: 18px;
+    font-weight: 600;
+    color: #d1d4dc;
+  }
+  
+  .gauge-stat .stat-value.highlight {
+    color: #a78bfa;
+    text-shadow: 0 0 10px rgba(167, 139, 250, 0.3);
+  }
+  
+  .next-trigger-section {
+    background: rgba(74, 0, 224, 0.05);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .trigger-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .trigger-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #a78bfa;
+  }
+  
+  .recent-high {
+    font-size: 14px;
+    color: #758696;
+  }
+  
+  .trigger-info {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .trigger-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  
+  .trigger-stats .stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .trigger-stats .label {
+    font-size: 12px;
+    color: #758696;
+    text-transform: uppercase;
+  }
+  
+  .trigger-stats .value {
+    font-size: 16px;
+    font-weight: 600;
+    color: #d1d4dc;
+  }
+  
+  .trigger-stats .value.highlight {
+    color: #a78bfa;
+  }
+  
+  .trigger-stats .value.price {
+    color: #26a69a;
+  }
+  
+  .trigger-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .progress-bar {
+    position: relative;
+    height: 24px;
+    background: rgba(74, 0, 224, 0.1);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  
+  .progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: linear-gradient(90deg, rgba(74, 0, 224, 0.3), rgba(167, 139, 250, 0.5));
+    border-radius: 12px;
+    transition: width 0.3s ease;
+  }
+  
+  .progress-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    font-weight: 600;
+    color: #d1d4dc;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  
+  .progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #758696;
   }
   
   .positions-list {
