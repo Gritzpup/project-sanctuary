@@ -52,32 +52,43 @@
   let feeRebatePercent = 25;   // 25% fee rebate that compounds into balance!
   
   // Tab state for strategy panel
-  let activeTab: 'config' | 'code' | 'backup' = 'config';
+  let activeTab: 'config' | 'code' | 'backups' = 'config';
   let strategySourceCode = '';
   
-  // Backup system state
-  let savedStrategies: SavedStrategy[] = [];
-  let selectedStrategies = new Set<string>();
-  let bulkDeleteMode = false;
+  // Strategy management state
   let backupName = '';
   let backupDescription = '';
   let showImportDialog = false;
   let importJsonText = '';
   
-  interface SavedStrategy {
-    id: string;
+  // Backup management state
+  let savedBackups: Array<{
+    key: string;
     name: string;
     description: string;
-    savedDate: number;
     strategyType: string;
+    savedDate: number;
     parameters: any;
-    backtestResults?: {
-      winRate: number;
-      totalReturn: number;
-      trades: number;
-      profitFactor: number;
-      sharpeRatio: number;
-    };
+  }> = [];
+  let selectedBackupKey: string = '';
+  let showBackupDialog = false;
+  let editingBackupKey: string = '';
+  
+  // Strategy development IDE state
+  let showStrategyEditor = false;
+  let newStrategyName = '';
+  let newStrategyLabel = '';
+  let newStrategyDescription = '';
+  let newStrategyCode = '';
+  let editingStrategy: string | null = null;
+  let customStrategies: CustomStrategy[] = [];
+  
+  interface CustomStrategy {
+    value: string;
+    label: string;
+    description: string;
+    code: string;
+    isCustom: true;
   }
   
   // Compound growth chart
@@ -85,6 +96,18 @@
   
   // Auto-refresh interval
   let refreshInterval: number | null = null;
+  
+  // Built-in strategy definitions
+  const builtInStrategies = [
+    { value: 'reverse-ratio', label: 'Reverse Ratio', description: 'Grid trading with reverse position sizing', isCustom: false },
+    { value: 'grid-trading', label: 'Grid Trading', description: 'Classic grid trading strategy', isCustom: false },
+    { value: 'rsi-mean-reversion', label: 'RSI Mean Reversion', description: 'Trade RSI oversold/overbought', isCustom: false },
+    { value: 'dca', label: 'Dollar Cost Averaging', description: 'Regular periodic purchases', isCustom: false },
+    { value: 'vwap-bounce', label: 'VWAP Bounce', description: 'Trade VWAP support/resistance', isCustom: false }
+  ];
+  
+  // Reactive combined strategies list
+  $: strategies = [...builtInStrategies, ...customStrategies];
   
   // Custom presets management
   interface StrategyPreset {
@@ -98,29 +121,37 @@
   }
   
   let customPresets: StrategyPreset[] = JSON.parse(localStorage.getItem('reverseRatioPresets') || '[]');
-  let selectedPresetIndex: number = -1;
+  let selectedPresetIndex: number = 0;
   let isEditingPresets = false;
   let editingPresetName = '';
   
-  // Load saved preset for current timeframe combination
+  // Load saved preset for current strategy/timeframe combination
   function loadSavedPresetForTimeframe() {
-    const timeframeKey = `preset_${selectedPeriod}_${selectedGranularity}`;
+    const timeframeKey = `preset_${selectedStrategyType}_${selectedPeriod}_${selectedGranularity}`;
     const savedIndex = localStorage.getItem(timeframeKey);
     if (savedIndex !== null) {
       const index = parseInt(savedIndex);
       if (index >= 0 && index < customPresets.length) {
         selectedPresetIndex = index;
         applyPreset(index);
-        console.log(`Loaded saved preset ${index} for ${selectedPeriod}/${selectedGranularity}`);
+        console.log(`Loaded saved preset ${index} for ${selectedStrategyType}/${selectedPeriod}/${selectedGranularity}`);
+        return;
       }
+    }
+    
+    // If no saved preset, select the first one by default
+    if (customPresets.length > 0) {
+      selectedPresetIndex = 0;
+      applyPreset(0);
+      console.log(`No saved preset found, applying default preset 0`);
     }
   }
   
-  // Save preset selection for current timeframe
+  // Save preset selection for current strategy/timeframe
   function savePresetForTimeframe(index: number) {
-    const timeframeKey = `preset_${selectedPeriod}_${selectedGranularity}`;
+    const timeframeKey = `preset_${selectedStrategyType}_${selectedPeriod}_${selectedGranularity}`;
     localStorage.setItem(timeframeKey, index.toString());
-    console.log(`Saved preset ${index} for ${selectedPeriod}/${selectedGranularity}`);
+    console.log(`Saved preset ${index} for ${selectedStrategyType}/${selectedPeriod}/${selectedGranularity}`);
   }
   
   // Check for old presets - FORCE CLEAR to update to new grid system
@@ -352,183 +383,358 @@
   
   // Load saved strategies on mount
   onMount(() => {
-    loadSavedStrategies();
+    loadCustomStrategies();
+    // Initialize current strategy
+    updateCurrentStrategy();
   });
   
-  // Backup System Functions
-  const STORAGE_KEY = 'hermes_saved_strategies';
-  
-  function loadSavedStrategies() {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        savedStrategies = JSON.parse(saved);
-        console.log(`Loaded ${savedStrategies.length} saved strategies`);
-      }
-    } catch (error) {
-      console.error('Error loading saved strategies:', error);
-      savedStrategies = [];
-    }
-  }
   
   function saveCurrentStrategy() {
     if (!currentStrategy || !backupName.trim()) return;
     
-    // Check if a strategy with the same name exists
-    const existingStrategy = savedStrategies.find(s => s.name === backupName.trim());
+    // Create a unique key for this configuration
+    const configKey = `strategy_config_${selectedStrategyType}_${backupName.trim().replace(/\s+/g, '_')}`;
     
-    if (existingStrategy) {
-      if (!confirm(`A strategy named "${backupName.trim()}" already exists. Do you want to overwrite it?`)) {
-        return;
-      }
-      // Remove the existing strategy
-      savedStrategies = savedStrategies.filter(s => s.id !== existingStrategy.id);
-    }
-    
-    const newStrategy: SavedStrategy = {
-      id: `${selectedStrategyType}-${Date.now()}`,
+    const config = {
       name: backupName.trim(),
       description: backupDescription.trim(),
-      savedDate: Date.now(),
       strategyType: selectedStrategyType,
       parameters: { ...strategyParams[selectedStrategyType] },
-      backtestResults: backtestResults ? {
-        winRate: backtestResults.metrics.winRate || 0,
-        totalReturn: backtestResults.metrics.totalReturn || 0,
-        trades: backtestResults.metrics.totalTrades || 0,
-        profitFactor: backtestResults.metrics.profitFactor || 0,
-        sharpeRatio: backtestResults.metrics.sharpeRatio || 0
-      } : undefined
+      savedDate: Date.now()
     };
     
-    savedStrategies = [...savedStrategies, newStrategy];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedStrategies));
+    // Save to localStorage
+    localStorage.setItem(configKey, JSON.stringify(config));
     
     // Clear form
     backupName = '';
     backupDescription = '';
     
-    // Show success (you could add a toast notification here)
-    console.log('Strategy saved:', newStrategy.name);
+    // Show success
+    console.log('Configuration saved:', config.name);
+    alert(`Configuration "${config.name}" saved successfully!`);
   }
   
-  function restoreStrategy(strategy: SavedStrategy) {
-    if (!confirm(`Restore strategy "${strategy.name}"? This will overwrite current settings.`)) {
-      return;
+  // Load all saved backups from localStorage
+  function loadSavedBackups() {
+    savedBackups = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('strategy_config_')) {
+        try {
+          const backup = JSON.parse(localStorage.getItem(key));
+          savedBackups.push({ key, ...backup });
+        } catch (e) {
+          console.error('Failed to parse backup:', key);
+        }
+      }
     }
-    
-    // Update strategy type
-    selectedStrategyType = strategy.strategyType;
-    
-    // Restore parameters
-    strategyParams[strategy.strategyType] = { ...strategy.parameters };
-    
-    // Update current strategy
-    updateCurrentStrategy();
-    
-    // Switch to config tab to show restored settings
-    activeTab = 'config';
-    
-    console.log('Strategy restored:', strategy.name);
+    savedBackups.sort((a, b) => b.savedDate - a.savedDate);
   }
-  
-  function deleteStrategy(id: string) {
-    const strategy = savedStrategies.find(s => s.id === id);
-    if (!strategy || !confirm(`Delete strategy "${strategy.name}"?`)) {
-      return;
+
+  // Delete a backup
+  function deleteBackup(key: string) {
+    if (confirm('Are you sure you want to delete this backup?')) {
+      localStorage.removeItem(key);
+      loadSavedBackups();
     }
-    
-    savedStrategies = savedStrategies.filter(s => s.id !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedStrategies));
-    
-    console.log('Strategy deleted:', strategy.name);
   }
-  
-  function toggleStrategySelection(id: string) {
-    if (selectedStrategies.has(id)) {
-      selectedStrategies.delete(id);
-    } else {
-      selectedStrategies.add(id);
+
+  // Load backup configuration
+  function loadBackup(key: string) {
+    const backup = savedBackups.find(b => b.key === key);
+    if (backup) {
+      selectedStrategyType = backup.strategyType;
+      strategyParams[backup.strategyType] = { ...backup.parameters };
+      updateCurrentStrategy();
+      activeTab = 'config';
+      alert(`Configuration "${backup.name}" loaded successfully!`);
     }
-    selectedStrategies = new Set(selectedStrategies); // Trigger reactivity
   }
-  
-  function toggleSelectAll() {
-    if (selectedStrategies.size === savedStrategies.length) {
-      selectedStrategies.clear();
-    } else {
-      selectedStrategies = new Set(savedStrategies.map(s => s.id));
+
+  // Rename backup
+  function renameBackup(key: string, newName: string) {
+    const item = localStorage.getItem(key);
+    if (item) {
+      const backup = JSON.parse(item);
+      backup.name = newName;
+      localStorage.setItem(key, JSON.stringify(backup));
+      loadSavedBackups();
     }
-    selectedStrategies = new Set(selectedStrategies); // Trigger reactivity
-  }
-  
-  function deleteSelectedStrategies() {
-    if (selectedStrategies.size === 0) return;
-    
-    if (!confirm(`Delete ${selectedStrategies.size} selected strategies?`)) {
-      return;
-    }
-    
-    savedStrategies = savedStrategies.filter(s => !selectedStrategies.has(s.id));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedStrategies));
-    selectedStrategies.clear();
-    bulkDeleteMode = false;
-    
-    console.log(`Deleted ${selectedStrategies.size} strategies`);
-  }
-  
-  function exportStrategy(strategy: SavedStrategy) {
-    const exportData = JSON.stringify(strategy, null, 2);
-    const blob = new Blob([exportData], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${strategy.name.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   }
   
   function importStrategy() {
     try {
-      const strategy = JSON.parse(importJsonText);
+      const imported = JSON.parse(importJsonText);
       
-      // Validate structure
-      if (!strategy.name || !strategy.strategyType || !strategy.parameters) {
-        throw new Error('Invalid strategy format');
+      // Check if it's a custom strategy or just configuration
+      if (imported.code && imported.label && imported.value) {
+        // Import custom strategy
+        const newStrategy = {
+          value: imported.value || `imported-${Date.now()}`,
+          label: imported.label,
+          description: imported.description || '',
+          code: imported.code,
+          isCustom: true
+        };
+        
+        // Add to custom strategies
+        customStrategies = [...customStrategies, newStrategy];
+        saveCustomStrategies();
+        
+        // Initialize parameters
+        strategyParams[newStrategy.value] = imported.parameters || {
+          positionSize: 0.1,
+          stopLoss: 2,
+          takeProfit: 3,
+          lookbackPeriod: 20,
+          threshold: 1
+        };
+        
+        // Select the imported strategy
+        selectedStrategyType = newStrategy.value;
+        updateCurrentStrategy();
+      } else if (imported.parameters && imported.strategyType) {
+        // Import configuration only
+        if (!strategyParams[imported.strategyType]) {
+          alert('Strategy type not found: ' + imported.strategyType);
+          return;
+        }
+        
+        // Apply parameters
+        strategyParams[imported.strategyType] = { ...imported.parameters };
+        selectedStrategyType = imported.strategyType;
+        updateCurrentStrategy();
+      } else {
+        alert('Invalid import format');
+        return;
       }
-      
-      // Generate new ID to avoid conflicts
-      strategy.id = `${strategy.strategyType}-${Date.now()}`;
-      strategy.savedDate = Date.now();
-      
-      savedStrategies = [...savedStrategies, strategy];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(savedStrategies));
       
       // Close dialog and clear
       showImportDialog = false;
       importJsonText = '';
       
-      console.log('Strategy imported:', strategy.name);
+      console.log('Import successful');
     } catch (error) {
-      alert('Error importing strategy: ' + error.message);
+      alert('Error importing: ' + error.message);
     }
   }
   
-  function isStrategyActive(strategy: SavedStrategy): boolean {
-    if (selectedStrategyType !== strategy.strategyType) return false;
+  
+  // Custom Strategy Development Functions
+  const CUSTOM_STRATEGIES_KEY = 'hermes_custom_strategies';
+  
+  function loadCustomStrategies() {
+    try {
+      const saved = localStorage.getItem(CUSTOM_STRATEGIES_KEY);
+      if (saved) {
+        customStrategies = JSON.parse(saved);
+        console.log(`Loaded ${customStrategies.length} custom strategies`);
+        
+        // Initialize parameters for each custom strategy
+        customStrategies.forEach(strategy => {
+          if (!strategyParams[strategy.value]) {
+            strategyParams[strategy.value] = {
+              positionSize: 0.1,
+              stopLoss: 2,
+              takeProfit: 3,
+              lookbackPeriod: 20,
+              threshold: 1
+            };
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error loading custom strategies:', error);
+      customStrategies = [];
+    }
+  }
+  
+  function saveCustomStrategies() {
+    localStorage.setItem(CUSTOM_STRATEGIES_KEY, JSON.stringify(customStrategies));
+  }
+  
+  
+  function editStrategy(strategyValue: string) {
+    const strategy = customStrategies.find(s => s.value === strategyValue);
+    if (strategy) {
+      showStrategyEditor = true;
+      editingStrategy = strategyValue;
+      newStrategyName = strategy.value;
+      newStrategyLabel = strategy.label;
+      newStrategyDescription = strategy.description;
+      newStrategyCode = strategy.code;
+    }
+  }
+  
+  function saveStrategy() {
+    if (!newStrategyName.trim() || !newStrategyLabel.trim() || !newStrategyCode.trim()) {
+      alert('Please fill in all required fields');
+      return;
+    }
     
-    const currentParams = strategyParams[selectedStrategyType];
-    const savedParams = strategy.parameters;
+    // Validate strategy name (alphanumeric and hyphens only)
+    if (!/^[a-z0-9-]+$/.test(newStrategyName)) {
+      alert('Strategy name must be lowercase alphanumeric with hyphens only');
+      return;
+    }
     
-    // Compare key parameters
-    return (
-      currentParams.profitTarget === savedParams.profitTarget &&
-      currentParams.initialDropPercent === savedParams.initialDropPercent &&
-      currentParams.basePositionPercent === savedParams.basePositionPercent &&
-      currentParams.maxLevels === savedParams.maxLevels
-    );
+    // Check if name already exists in built-in strategies
+    if (builtInStrategies.some(s => s.value === newStrategyName)) {
+      alert('Cannot override built-in strategies');
+      return;
+    }
+    
+    if (editingStrategy) {
+      // Update existing strategy
+      customStrategies = customStrategies.map(s => 
+        s.value === editingStrategy 
+          ? { value: newStrategyName, label: newStrategyLabel, description: newStrategyDescription, code: newStrategyCode, isCustom: true }
+          : s
+      );
+    } else {
+      // Add new strategy
+      customStrategies = [...customStrategies, {
+        value: newStrategyName,
+        label: newStrategyLabel,
+        description: newStrategyDescription,
+        code: newStrategyCode,
+        isCustom: true
+      }];
+      
+      // Initialize parameters for the new custom strategy
+      strategyParams[newStrategyName] = {
+        // Default parameters that custom strategies can use
+        positionSize: 0.1,
+        stopLoss: 2,
+        takeProfit: 3,
+        lookbackPeriod: 20,
+        threshold: 1
+      };
+    }
+    
+    saveCustomStrategies();
+    showStrategyEditor = false;
+    
+    // Select the new/edited strategy
+    selectedStrategyType = newStrategyName;
+    updateCurrentStrategy();
+  }
+  
+  function deleteCustomStrategy(strategyValue: string) {
+    if (!confirm(`Delete custom strategy "${strategyValue}"? This cannot be undone.`)) {
+      return;
+    }
+    
+    customStrategies = customStrategies.filter(s => s.value !== strategyValue);
+    saveCustomStrategies();
+    
+    // If the deleted strategy was selected, switch to first strategy
+    if (selectedStrategyType === strategyValue) {
+      selectedStrategyType = strategies[0].value;
+      updateCurrentStrategy();
+    }
+  }
+  
+  
+  function saveStrategyConfig() {
+    // Open the modal dialog instead of using prompts
+    backupName = '';
+    backupDescription = '';
+    showBackupDialog = true;
+  }
+  
+  function exportCurrentStrategy() {
+    const strategy = customStrategies.find(s => s.value === selectedStrategyType);
+    if (strategy) {
+      const exportData = JSON.stringify(strategy, null, 2);
+      const blob = new Blob([exportData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${strategy.value}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      // Export current configuration
+      const configExport = {
+        strategyType: selectedStrategyType,
+        label: strategies.find(s => s.value === selectedStrategyType)?.label,
+        parameters: strategyParams[selectedStrategyType],
+        exportedDate: Date.now()
+      };
+      const exportData = JSON.stringify(configExport, null, 2);
+      const blob = new Blob([exportData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${selectedStrategyType}-config.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  }
+  
+  function getStrategyTemplate(): string {
+    return `// Custom Strategy Implementation
+import { Strategy } from '../base/Strategy';
+import { StrategySignal, StrategyParams, CandleData, BacktestMetrics } from '../base/StrategyTypes';
+
+export class CustomStrategy extends Strategy {
+  private params: StrategyParams;
+  
+  constructor(params: StrategyParams) {
+    super('Custom Strategy');
+    this.params = params;
+  }
+  
+  analyze(candles: CandleData[], currentPrice: number): StrategySignal {
+    // Implement your strategy logic here
+    
+    // Example: Simple moving average crossover
+    if (candles.length < 20) {
+      return { action: 'HOLD', confidence: 0 };
+    }
+    
+    const sma5 = this.calculateSMA(candles.slice(-5));
+    const sma20 = this.calculateSMA(candles.slice(-20));
+    
+    if (sma5 > sma20 * 1.01) {
+      return {
+        action: 'BUY',
+        confidence: 0.7,
+        amount: 100, // Buy $100 worth
+        reason: 'SMA5 crossed above SMA20'
+      };
+    } else if (sma5 < sma20 * 0.99) {
+      return {
+        action: 'SELL',
+        confidence: 0.7,
+        percentage: 100, // Sell all
+        reason: 'SMA5 crossed below SMA20'
+      };
+    }
+    
+    return { action: 'HOLD', confidence: 0.5 };
+  }
+  
+  private calculateSMA(candles: CandleData[]): number {
+    const sum = candles.reduce((acc, candle) => acc + candle.close, 0);
+    return sum / candles.length;
+  }
+  
+  getMetrics(): BacktestMetrics {
+    return {
+      totalTrades: 0,
+      winningTrades: 0,
+      losingTrades: 0,
+      totalReturn: 0,
+      maxDrawdown: 0,
+      sharpeRatio: 0,
+      winRate: 0,
+      profitFactor: 0
+    };
+  }
+}`;
   }
   
   // Valid granularities for each period
@@ -687,19 +893,19 @@
     await loadChartData(true); // Force refresh with new period
   }
   
-  const strategies = [
-    { value: 'reverse-ratio', label: 'Reverse Ratio Buying', description: 'Buy on drops, sell at 7% profit' },
-    { value: 'grid-trading', label: 'Grid Trading', description: 'Place orders at regular intervals' },
-    { value: 'rsi-mean-reversion', label: 'RSI Mean Reversion', description: 'Trade RSI oversold/overbought' },
-    { value: 'dca', label: 'Dollar Cost Averaging', description: 'Buy at regular intervals' },
-    { value: 'vwap-bounce', label: 'VWAP Bounce', description: 'Trade bounces off VWAP' }
-  ];
-  
   function createStrategy(type: string): Strategy {
     try {
-      const params = strategyParams[type];
+      const params = strategyParams[type] || {};
       console.log('Creating strategy:', type, 'with params:', params);
       
+      // Check if it's a custom strategy
+      const customStrategy = customStrategies.find(s => s.value === type);
+      if (customStrategy) {
+        // Create custom strategy from code
+        return createCustomStrategyInstance(customStrategy.code, params);
+      }
+      
+      // Built-in strategies
       switch (type) {
         case 'reverse-ratio':
           return new ReverseRatioStrategy(params);
@@ -720,12 +926,65 @@
     }
   }
   
+  function createCustomStrategyInstance(code: string, params: any): Strategy {
+    try {
+      // Remove imports and prepare code
+      const cleanCode = code
+        .replace(/import\s+.*?from\s+.*?;/gs, '')
+        .replace(/export\s+class\s+/g, 'class ');
+      
+      // Create a wrapper function that returns the strategy instance
+      const strategyFactory = new Function('params', `
+        // Base Strategy class
+        class Strategy {
+          constructor(name) {
+            this.name = name;
+          }
+          getName() { return this.name; }
+          getMetrics() { 
+            return { 
+              totalTrades: 0, 
+              winningTrades: 0, 
+              losingTrades: 0, 
+              totalReturn: 0, 
+              maxDrawdown: 0, 
+              sharpeRatio: 0, 
+              winRate: 0, 
+              profitFactor: 0 
+            }; 
+          }
+        }
+        
+        // Inject custom strategy code
+        ${cleanCode}
+        
+        // Create and return instance
+        if (typeof CustomStrategy !== 'undefined') {
+          return new CustomStrategy(params);
+        } else {
+          throw new Error('CustomStrategy class not found in code');
+        }
+      `);
+      
+      return strategyFactory(params);
+    } catch (error) {
+      console.error('Error creating custom strategy:', error);
+      console.error('Strategy code:', code);
+      throw new Error(`Failed to compile custom strategy: ${error.message}`);
+    }
+  }
+  
   function updateCurrentStrategy() {
     try {
       console.log('Updating strategy to:', selectedStrategyType);
       currentStrategy = createStrategy(selectedStrategyType);
       console.log('Strategy created successfully:', currentStrategy.getName());
       loadStrategySourceCode();
+      
+      // Load saved preset for the new strategy
+      if (selectedStrategyType === 'reverse-ratio') {
+        loadSavedPresetForTimeframe();
+      }
     } catch (error) {
       console.error('Failed to update strategy:', error);
       console.error('Error details:', {
@@ -740,7 +999,14 @@
   }
   
   async function loadStrategySourceCode() {
-    // Fetch the source code for the selected strategy
+    // Check if it's a custom strategy first
+    const customStrategy = customStrategies.find(s => s.value === selectedStrategyType);
+    if (customStrategy) {
+      strategySourceCode = customStrategy.code;
+      return;
+    }
+    
+    // Fetch the source code for built-in strategies
     try {
       const strategyPath = `/src/strategies/implementations/${getStrategyFileName(selectedStrategyType)}.ts`;
       const response = await fetch(strategyPath);
@@ -1194,21 +1460,65 @@ export class ${getStrategyFileName(type)} extends Strategy {
           <button class="tab" class:active={activeTab === 'code'} on:click={() => activeTab = 'code'}>
             Source Code
           </button>
-          <button class="tab" class:active={activeTab === 'backup'} on:click={() => activeTab = 'backup'}>
-            Backup
+          <button class="tab" class:active={activeTab === 'backups'} on:click={() => { activeTab = 'backups'; loadSavedBackups(); }}>
+            Backups
           </button>
         </div>
         <div class="panel-content">
           {#if activeTab === 'config'}
             <div class="config-section">
-              <label>
-                Strategy
-                <select bind:value={selectedStrategyType} on:change={updateCurrentStrategy}>
-                  {#each strategies as strat}
-                    <option value={strat.value}>{strat.label}</option>
-                  {/each}
-                </select>
-              </label>
+              <div class="strategy-header">
+                <label class="strategy-label">
+                  Strategy
+                  <select bind:value={selectedStrategyType} on:change={updateCurrentStrategy}>
+                    {#each strategies as strat}
+                      <option value={strat.value}>
+                        {strat.label}
+                        {#if strat.isCustom}[CUSTOM]{/if}
+                      </option>
+                    {/each}
+                  </select>
+                </label>
+                <div class="strategy-actions">
+                  <button 
+                    class="icon-btn save-btn" 
+                    on:click={saveStrategyConfig}
+                    title="Save current configuration"
+                  >
+                    💾
+                  </button>
+                  <button 
+                    class="icon-btn import-btn" 
+                    on:click={() => showImportDialog = true}
+                    title="Import strategy"
+                  >
+                    📥
+                  </button>
+                  <button 
+                    class="icon-btn export-btn" 
+                    on:click={exportCurrentStrategy}
+                    title="Export current strategy"
+                  >
+                    📤
+                  </button>
+                  {#if customStrategies.some(s => s.value === selectedStrategyType)}
+                    <button 
+                      class="icon-btn edit-btn" 
+                      on:click={() => editStrategy(selectedStrategyType)}
+                      title="Edit strategy code"
+                    >
+                      ✏️
+                    </button>
+                    <button 
+                      class="icon-btn delete-btn" 
+                      on:click={() => deleteCustomStrategy(selectedStrategyType)}
+                      title="Delete custom strategy"
+                    >
+                      🗑️
+                    </button>
+                  {/if}
+                </div>
+              </div>
               {#if strategies.find(s => s.value === selectedStrategyType)}
                 <div class="strategy-description">
                   {strategies.find(s => s.value === selectedStrategyType).description}
@@ -1249,118 +1559,26 @@ export class ${getStrategyFileName(type)} extends Strategy {
           
           <div class="strategy-params">
             {#if selectedStrategyType === 'reverse-ratio'}
-              <div class="timeframe-notice" class:ultra-scalp={strategyParams['reverse-ratio'].profitTarget <= 1.0}>
-                <span class="notice-icon">
-                  {#if strategyParams['reverse-ratio'].profitTarget < 0.825}
-                    ⚠️
-                  {:else if strategyParams['reverse-ratio'].profitTarget <= 1.0}
-                    🚀
-                  {:else}
-                    ⚡
-                  {/if}
-                </span>
-                {#if strategyParams['reverse-ratio'].profitTarget < 0.825}
-                  WARNING: {strategyParams['reverse-ratio'].profitTarget}% profit = {(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% NET LOSS!
-                {:else if strategyParams['reverse-ratio'].profitTarget <= 1.0}
-                  MICRO SCALP: {strategyParams['reverse-ratio'].profitTarget}% profit ({(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% net)
-                {:else if strategyParams['reverse-ratio'].profitTarget <= 1.5}
-                  QUICK PROFIT: {strategyParams['reverse-ratio'].profitTarget}% profit ({(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% net)
-                {:else}
-                  SAFE PROFIT: {strategyParams['reverse-ratio'].profitTarget}% profit ({(strategyParams['reverse-ratio'].profitTarget - 0.825).toFixed(3)}% net)
-                {/if}
-              </div>
-              
               <!-- Preset Management -->
               <div class="preset-management">
-                <div class="preset-tabs">
-                  {#each customPresets as preset, index}
-                    <button 
-                      class="preset-tab"
-                      class:active={selectedPresetIndex === index}
-                      on:click={() => {
-                        selectedPresetIndex = index;
-                        applyPreset(index);
+                <div class="preset-controls">
+                  <label class="preset-select-label">
+                    Quick Presets
+                    <select 
+                      bind:value={selectedPresetIndex}
+                      on:change={() => {
+                        applyPreset(selectedPresetIndex);
                       }}
+                      class="preset-dropdown"
                     >
-                      <span class="preset-tab-name">{preset.name}</span>
-                      <span class="preset-tab-info">{preset.initialDropPercent}% → {preset.profitTarget}%</span>
-                    </button>
-                  {/each}
-                  
-                  <button 
-                    class="preset-action-btn"
-                    on:click={() => isEditingPresets = !isEditingPresets}
-                    title={isEditingPresets ? "Close preset editor" : "Manage presets"}
-                  >
-                    {isEditingPresets ? '✕' : '⚙️'}
-                  </button>
-                </div>
-                
-                {#if isEditingPresets}
-                  <div class="preset-editor">
-                    <h4>Manage Presets</h4>
-                    <div class="preset-list">
                       {#each customPresets as preset, index}
-                        <div class="preset-item">
-                          {#if editingPresetName === `${index}`}
-                            <input 
-                              type="text" 
-                              value={preset.name}
-                              on:blur={(e) => {
-                                updatePresetName(index, e.target.value);
-                                editingPresetName = '';
-                              }}
-                              on:keydown={(e) => {
-                                if (e.key === 'Enter') {
-                                  updatePresetName(index, e.target.value);
-                                  editingPresetName = '';
-                                }
-                              }}
-                              autofocus
-                              class="preset-name-input"
-                            />
-                          {:else}
-                            <span 
-                              class="preset-name"
-                              on:click={() => editingPresetName = `${index}`}
-                            >
-                              {preset.name}
-                            </span>
-                          {/if}
-                          <div class="preset-actions">
-                            <button 
-                              class="preset-mini-btn save"
-                              on:click={() => saveCurrentAsPreset(index)}
-                              title="Save current settings to this preset"
-                            >
-                              💾
-                            </button>
-                            <button 
-                              class="preset-mini-btn apply"
-                              on:click={() => applyPreset(index)}
-                              title="Apply this preset"
-                            >
-                              ✓
-                            </button>
-                            <button 
-                              class="preset-mini-btn delete"
-                              on:click={() => deletePreset(index)}
-                              title="Delete this preset"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </div>
+                        <option value={index}>
+                          {preset.name} ({preset.initialDropPercent}% → {preset.profitTarget}%)
+                        </option>
                       {/each}
-                    </div>
-                    <button 
-                      class="add-preset-btn"
-                      on:click={addNewPreset}
-                    >
-                      + Add New Preset
-                    </button>
-                  </div>
-                {/if}
+                    </select>
+                  </label>
+                </div>
               </div>
               
               <!-- Position Sizing Section -->
@@ -1671,6 +1889,92 @@ export class ${getStrategyFileName(type)} extends Strategy {
                   <input type="number" bind:value={strategyParams['vwap-bounce'].positionSize} min="0.01" max="1" step="0.01" />
                 </label>
               </div>
+            {:else if customStrategies.some(s => s.value === selectedStrategyType)}
+              <!-- Custom Strategy Parameters -->
+              <div class="custom-strategy-params">
+                <h4>Custom Strategy Parameters</h4>
+                <p class="params-hint">Edit these parameters to control your custom strategy behavior:</p>
+                
+                {#if !strategyParams[selectedStrategyType]}
+                  <div class="config-section">
+                    <p>Initializing parameters...</p>
+                  </div>
+                {:else}
+                  <div class="config-section">
+                    <label>
+                      Position Size (0-1)
+                      <input 
+                        type="number" 
+                        bind:value={strategyParams[selectedStrategyType].positionSize} 
+                        min="0.01" 
+                        max="1" 
+                        step="0.01" 
+                      />
+                      <span class="input-hint">Fraction of balance to use per trade</span>
+                    </label>
+                  </div>
+                  
+                  <div class="config-section">
+                    <label>
+                      Stop Loss (%)
+                      <input 
+                        type="number" 
+                        bind:value={strategyParams[selectedStrategyType].stopLoss} 
+                        min="0.5" 
+                        max="10" 
+                        step="0.5" 
+                      />
+                      <span class="input-hint">Exit position if price drops by this %</span>
+                    </label>
+                  </div>
+                  
+                  <div class="config-section">
+                    <label>
+                      Take Profit (%)
+                      <input 
+                        type="number" 
+                        bind:value={strategyParams[selectedStrategyType].takeProfit} 
+                        min="0.5" 
+                        max="20" 
+                        step="0.5" 
+                      />
+                      <span class="input-hint">Exit position if price rises by this %</span>
+                    </label>
+                  </div>
+                  
+                  <div class="config-section">
+                    <label>
+                      Lookback Period
+                      <input 
+                        type="number" 
+                        bind:value={strategyParams[selectedStrategyType].lookbackPeriod} 
+                        min="5" 
+                        max="200" 
+                        step="5" 
+                      />
+                      <span class="input-hint">Number of candles to analyze</span>
+                    </label>
+                  </div>
+                  
+                  <div class="config-section">
+                    <label>
+                      Threshold
+                      <input 
+                        type="number" 
+                        bind:value={strategyParams[selectedStrategyType].threshold} 
+                        min="0.1" 
+                        max="10" 
+                        step="0.1" 
+                      />
+                      <span class="input-hint">Generic threshold parameter for your strategy logic</span>
+                    </label>
+                  </div>
+                  
+                  <div class="custom-params-note">
+                    💡 Your custom strategy code can access these parameters via <code>this.params</code>
+                  </div>
+                {/if}
+              </div>
             {/if}
           </div>
           {:else if activeTab === 'code'}
@@ -1685,152 +1989,164 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 <pre><code class="typescript">{strategySourceCode}</code></pre>
               </div>
             </div>
-          {:else if activeTab === 'backup'}
-            <div class="backup-section">
-              <!-- Save Current Strategy -->
-              <div class="save-strategy-form">
-                <h3>💾 Save Current Strategy</h3>
-                <div class="form-group">
-                  <input 
-                    type="text" 
-                    bind:value={backupName} 
-                    placeholder="Strategy name..."
-                    class="backup-input"
-                  />
-                  <textarea 
-                    bind:value={backupDescription} 
-                    placeholder="Description (optional)..."
-                    class="backup-textarea"
-                    rows="2"
-                  />
-                  <button 
-                    class="save-btn"
-                    on:click={saveCurrentStrategy}
-                    disabled={!backupName.trim() || !currentStrategy}
-                  >
-                    Save Strategy
-                  </button>
-                </div>
+          {:else if activeTab === 'backups'}
+            <div class="backups-section">
+              <div class="backups-header">
+                <h3>Saved Strategy Configurations</h3>
+                <button class="btn-primary" on:click={() => { showBackupDialog = true; }}>
+                  Save Current Config
+                </button>
               </div>
               
-              <!-- Saved Strategies List -->
-              <div class="saved-strategies-section">
-                <div class="section-header">
-                  <h3>📁 Saved Strategies</h3>
-                  <div class="header-actions">
-                    {#if savedStrategies.length > 0}
-                      <button class="bulk-delete-btn" on:click={() => bulkDeleteMode = !bulkDeleteMode}>
-                        {bulkDeleteMode ? '✖ Cancel' : '🗑️ Bulk Delete'}
-                      </button>
-                    {/if}
-                    <button class="import-btn" on:click={() => showImportDialog = true}>
-                      📥 Import
-                    </button>
-                  </div>
+              {#if savedBackups.length === 0}
+                <div class="empty-state">
+                  <p>No saved configurations yet</p>
+                  <p class="hint">Save your current configuration to create a backup</p>
                 </div>
-                
-                {#if bulkDeleteMode && savedStrategies.length > 0}
-                  <div class="bulk-delete-controls">
-                    <label class="select-all">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedStrategies.size === savedStrategies.length}
-                        on:change={toggleSelectAll}
-                      />
-                      Select All ({selectedStrategies.size}/{savedStrategies.length})
-                    </label>
-                    <button 
-                      class="delete-selected-btn" 
-                      disabled={selectedStrategies.size === 0}
-                      on:click={deleteSelectedStrategies}
-                    >
-                      🗑️ Delete Selected ({selectedStrategies.size})
-                    </button>
-                  </div>
-                {/if}
-                
-                {#if savedStrategies.length === 0}
-                  <div class="empty-state">
-                    <p>No saved strategies yet. Run a backtest and save your winning configurations!</p>
-                  </div>
-                {:else}
-                  <div class="strategy-grid">
-                    {#each savedStrategies as strategy (strategy.id)}
-                      <div class="saved-strategy-card" class:active-strategy={isStrategyActive(strategy)} class:selected={bulkDeleteMode && selectedStrategies.has(strategy.id)}>
-                        {#if bulkDeleteMode}
-                          <input 
-                            type="checkbox" 
-                            class="strategy-checkbox"
-                            checked={selectedStrategies.has(strategy.id)}
-                            on:change={() => toggleStrategySelection(strategy.id)}
-                          />
+              {:else}
+                <div class="backups-list">
+                  {#each savedBackups as backup}
+                    <div class="backup-item" class:selected={selectedBackupKey === backup.key}>
+                      <div class="backup-info">
+                        <h4>{backup.name}</h4>
+                        <p class="backup-meta">
+                          {backup.strategyType} • {new Date(backup.savedDate).toLocaleString()}
+                        </p>
+                        {#if backup.description}
+                          <p class="backup-description">{backup.description}</p>
                         {/if}
-                        <div class="strategy-header">
-                          <h4>{strategy.name}</h4>
-                          <span class="strategy-date">
-                            {new Date(strategy.savedDate).toLocaleDateString()}
-                          </span>
-                        </div>
-                        
-                        <div class="strategy-type">
-                          {strategies.find(s => s.value === strategy.strategyType)?.label || strategy.strategyType}
-                        </div>
-                        
-                        {#if strategy.description}
-                          <p class="strategy-description">{strategy.description}</p>
-                        {/if}
-                        
-                        {#if strategy.backtestResults}
-                          <div class="strategy-stats">
-                            <span class="stat">
-                              <strong>Win Rate:</strong> {strategy.backtestResults.winRate.toFixed(1)}%
-                            </span>
-                            <span class="stat">
-                              <strong>Return:</strong> {strategy.backtestResults.totalReturn.toFixed(2)}%
-                            </span>
-                            <span class="stat">
-                              <strong>Trades:</strong> {strategy.backtestResults.trades}
-                            </span>
-                          </div>
-                        {/if}
-                        
-                        <div class="strategy-actions">
-                          <button class="action-btn restore" on:click={() => restoreStrategy(strategy)}>
-                            🔄 Restore
-                          </button>
-                          <button class="action-btn export" on:click={() => exportStrategy(strategy)}>
-                            📤 Export
-                          </button>
-                          <button class="action-btn delete" on:click={() => deleteStrategy(strategy.id)}>
-                            🗑️ Delete
-                          </button>
-                        </div>
                       </div>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-              
-              <!-- Import Dialog -->
-              {#if showImportDialog}
-                <div class="import-dialog-overlay" on:click={() => showImportDialog = false}>
-                  <div class="import-dialog" on:click|stopPropagation>
-                    <h3>Import Strategy</h3>
-                    <textarea
-                      bind:value={importJsonText}
-                      placeholder="Paste exported strategy JSON here..."
-                      rows="10"
-                    />
-                    <div class="dialog-actions">
-                      <button on:click={importStrategy}>Import</button>
-                      <button on:click={() => { showImportDialog = false; importJsonText = ''; }}>Cancel</button>
+                      <div class="backup-actions">
+                        <button class="icon-btn" on:click={() => loadBackup(backup.key)} title="Load this configuration">
+                          📥
+                        </button>
+                        <button class="icon-btn" on:click={() => { editingBackupKey = backup.key; }} title="Rename">
+                          ✏️
+                        </button>
+                        <button class="icon-btn delete" on:click={() => deleteBackup(backup.key)} title="Delete">
+                          🗑️
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  {/each}
                 </div>
               {/if}
             </div>
           {/if}
         </div>
+        
+        <!-- Save Backup Dialog -->
+        {#if showBackupDialog}
+          <div class="modal-overlay" on:click={() => showBackupDialog = false}>
+            <div class="modal-content" on:click|stopPropagation>
+              <h3>Save Configuration Backup</h3>
+              <input 
+                type="text" 
+                placeholder="Backup name" 
+                bind:value={backupName}
+                autofocus
+              />
+              <textarea 
+                placeholder="Description (optional)" 
+                bind:value={backupDescription}
+              />
+              <div class="modal-actions">
+                <button class="btn-secondary" on:click={() => showBackupDialog = false}>
+                  Cancel
+                </button>
+                <button 
+                  class="btn-primary" 
+                  on:click={() => {
+                    saveCurrentStrategy();
+                    showBackupDialog = false;
+                    loadSavedBackups();
+                  }}
+                  disabled={!backupName.trim()}
+                >
+                  Save Backup
+                </button>
+              </div>
+            </div>
+          </div>
+        {/if}
+        
+        <!-- Strategy Editor Dialog -->
+        {#if showStrategyEditor}
+          <div class="strategy-editor-overlay" on:click={() => showStrategyEditor = false}>
+            <div class="strategy-editor-dialog" on:click|stopPropagation>
+              <h3>{editingStrategy ? 'Edit' : 'Create New'} Strategy</h3>
+              
+              <div class="editor-form">
+                <label>
+                  Strategy ID (lowercase, hyphens only)
+                  <input 
+                    type="text" 
+                    bind:value={newStrategyName} 
+                    placeholder="my-custom-strategy"
+                    pattern="[a-z0-9-]+"
+                    disabled={editingStrategy !== null}
+                  />
+                </label>
+                
+                <label>
+                  Display Name
+                  <input 
+                    type="text" 
+                    bind:value={newStrategyLabel} 
+                    placeholder="My Custom Strategy"
+                  />
+                </label>
+                
+                <label>
+                  Description
+                  <input 
+                    type="text" 
+                    bind:value={newStrategyDescription} 
+                    placeholder="Brief description of your strategy"
+                  />
+                </label>
+                
+                <label>
+                  Strategy Code
+                  <div class="code-editor-wrapper">
+                    <textarea
+                      bind:value={newStrategyCode}
+                      class="strategy-code-editor"
+                      rows="20"
+                      spellcheck="false"
+                    />
+                  </div>
+                </label>
+              </div>
+              
+              <div class="dialog-actions">
+                <button class="save-strategy-btn" on:click={saveStrategy}>
+                  {editingStrategy ? 'Update' : 'Create'} Strategy
+                </button>
+                <button on:click={() => showStrategyEditor = false}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        {/if}
+        
+        <!-- Import Dialog -->
+        {#if showImportDialog}
+          <div class="import-dialog-overlay" on:click={() => showImportDialog = false}>
+            <div class="import-dialog" on:click|stopPropagation>
+              <h3>Import Strategy</h3>
+              <textarea
+                bind:value={importJsonText}
+                placeholder="Paste exported strategy JSON here..."
+                rows="10"
+              />
+              <div class="dialog-actions">
+                <button on:click={importStrategy}>Import</button>
+                <button on:click={() => { showImportDialog = false; importJsonText = ''; }}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        {/if}
+        
       </div>
         </div><!-- End of panels-row -->
         
@@ -2874,7 +3190,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .preview-row {
     display: grid;
-    grid-template-columns: 80px 100px 80px;
+    grid-template-columns: minmax(60px, 1fr) minmax(80px, 1.5fr) minmax(60px, 1fr);
     gap: 10px;
     font-size: 0.85rem;
     padding: 4px 0;
@@ -2900,6 +3216,29 @@ export class ${getStrategyFileName(type)} extends Strategy {
   .preview-percent {
     color: #6b7280;
     text-align: right;
+  }
+
+  /* Responsive adjustments for position preview */
+  @media (max-width: 768px) {
+    .preview-row {
+      font-size: 0.75rem;
+      gap: 5px;
+    }
+    
+    .position-preview {
+      padding: 10px;
+    }
+    
+    .position-preview h5 {
+      font-size: 0.8rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .preview-row {
+      grid-template-columns: minmax(50px, 1fr) minmax(60px, 1.5fr) minmax(50px, 1fr);
+      font-size: 0.7rem;
+    }
   }
   
   .price-preview {
@@ -2929,6 +3268,45 @@ export class ${getStrategyFileName(type)} extends Strategy {
     background: rgba(167, 139, 250, 0.05);
     border-radius: 8px;
     border: 1px solid rgba(167, 139, 250, 0.15);
+  }
+  
+  .preset-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  
+  .preset-select-label {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: #e5e7eb;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  
+  .preset-dropdown {
+    width: 100%;
+    padding: 10px 14px;
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 6px;
+    color: #e5e7eb;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .preset-dropdown:hover {
+    background: #374151;
+    border-color: #4b5563;
+  }
+  
+  .preset-dropdown:focus {
+    outline: none;
+    border-color: #a78bfa;
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
   }
   
   .preset-tabs {
@@ -3136,61 +3514,97 @@ export class ${getStrategyFileName(type)} extends Strategy {
     50% { opacity: 0.7; }
   }
 
-  /* Backup Tab Styles */
-  .backup-section {
+  /* Strategy Editor Dialog Styles */
+  .strategy-editor-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
     display: flex;
-    flex-direction: column;
-    gap: 30px;
-    height: 100%;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  
+  .strategy-editor-dialog {
+    background: #1a1a1a;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 8px;
+    padding: 30px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
     overflow-y: auto;
   }
-
-  .save-strategy-form {
-    background: rgba(74, 0, 224, 0.05);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 8px;
-    padding: 20px;
-  }
-
-  .save-strategy-form h3 {
-    margin: 0 0 15px 0;
+  
+  .strategy-editor-dialog h3 {
+    margin: 0 0 20px 0;
     color: #a78bfa;
-    font-size: 16px;
+    font-size: 20px;
   }
-
-  .form-group {
+  
+  .editor-form {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 15px;
   }
-
-  .backup-input,
-  .backup-textarea {
-    padding: 10px;
+  
+  .editor-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    color: #d1d4dc;
+    font-size: 14px;
+  }
+  
+  .editor-form input {
+    padding: 8px 12px;
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(74, 0, 224, 0.3);
+    border: 1px solid rgba(139, 92, 246, 0.3);
     border-radius: 4px;
     color: #d1d4dc;
     font-size: 14px;
-    transition: all 0.2s;
   }
-
-  .backup-input:focus,
-  .backup-textarea:focus {
+  
+  .editor-form input:focus {
     outline: none;
     border-color: #a78bfa;
-    background: rgba(74, 0, 224, 0.1);
+    background: rgba(139, 92, 246, 0.1);
   }
-
-  .backup-textarea {
+  
+  .editor-form input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  .code-editor-wrapper {
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  
+  .strategy-code-editor {
+    width: 100%;
+    padding: 12px;
+    background: #0d0d0d;
+    border: none;
+    color: #d1d4dc;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
     resize: vertical;
-    min-height: 60px;
-    font-family: inherit;
+    min-height: 400px;
   }
-
-  .save-btn {
+  
+  .strategy-code-editor:focus {
+    outline: none;
+  }
+  
+  .save-strategy-btn {
     padding: 10px 20px;
-    background: #a78bfa;
+    background: #8b5cf6;
     color: white;
     border: none;
     border-radius: 4px;
@@ -3199,46 +3613,110 @@ export class ${getStrategyFileName(type)} extends Strategy {
     cursor: pointer;
     transition: all 0.2s;
   }
-
-  .save-btn:hover:not(:disabled) {
-    background: #8b5cf6;
+  
+  .save-strategy-btn:hover {
+    background: #7c3aed;
     transform: translateY(-1px);
   }
-
-  .save-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  
+  /* Strategy Header Styles */
+  .strategy-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    margin-bottom: 10px;
   }
-
-  .saved-strategies-section {
+  
+  .strategy-label {
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
   }
-
-  .section-header {
+  
+  .strategy-actions {
     display: flex;
-    justify-content: space-between;
+    gap: 8px;
+    margin-top: 25px;
+  }
+  
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
     align-items: center;
-    margin-bottom: 15px;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
   }
-
-  .section-header h3 {
-    margin: 0;
+  
+  .icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+  }
+  
+  .icon-btn.save-btn:hover {
+    background: rgba(167, 139, 250, 0.2);
+    border-color: #a78bfa;
+  }
+  
+  .icon-btn.import-btn:hover {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: #60a5fa;
+  }
+  
+  .icon-btn.export-btn:hover {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: #4ade80;
+  }
+  
+  .icon-btn.edit-btn:hover {
+    background: rgba(251, 191, 36, 0.2);
+    border-color: #fbbf24;
+  }
+  
+  .icon-btn.delete-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #f87171;
+  }
+  
+  /* Custom Strategy Parameters Styles */
+  .custom-strategy-params {
+    padding: 20px;
+    background: rgba(139, 92, 246, 0.05);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 8px;
+  }
+  
+  .custom-strategy-params h4 {
+    margin: 0 0 10px 0;
     color: #a78bfa;
     font-size: 16px;
   }
-
-  .import-btn {
-    padding: 8px 16px;
-    background: rgba(74, 0, 224, 0.2);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    color: #a78bfa;
+  
+  .params-hint {
+    margin: 0 0 20px 0;
+    color: #888;
+    font-size: 13px;
+  }
+  
+  .custom-params-note {
+    margin-top: 20px;
+    padding: 10px;
+    background: rgba(139, 92, 246, 0.1);
     border-radius: 4px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
+    font-size: 13px;
+    color: #d1d4dc;
+  }
+  
+  .custom-params-note code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: monospace;
   }
 
   .import-btn:hover {
@@ -3475,5 +3953,187 @@ export class ${getStrategyFileName(type)} extends Strategy {
   .dialog-actions button:last-child:hover {
     background: rgba(74, 0, 224, 0.3);
     border-color: rgba(74, 0, 224, 0.5);
+  }
+
+  /* Backups section */
+  .backups-section {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .backups-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .backups-header h3 {
+    margin: 0;
+    color: #a78bfa;
+    font-size: 1.1rem;
+  }
+
+  .backups-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .backup-item {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.2);
+    border-radius: 6px;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    transition: all 0.2s;
+  }
+
+  .backup-item:hover {
+    background: rgba(74, 0, 224, 0.1);
+    border-color: rgba(74, 0, 224, 0.4);
+  }
+
+  .backup-item.selected {
+    background: rgba(74, 0, 224, 0.2);
+    border-color: #a78bfa;
+  }
+
+  .backup-info h4 {
+    margin: 0 0 5px 0;
+    color: #a78bfa;
+  }
+
+  .backup-meta {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin: 5px 0;
+  }
+
+  .backup-description {
+    font-size: 0.85rem;
+    color: #9ca3af;
+    margin-top: 8px;
+  }
+
+  .backup-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #6b7280;
+  }
+
+  .empty-state .hint {
+    font-size: 0.85rem;
+    margin-top: 10px;
+  }
+
+  /* Modal styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .modal-content {
+    background: #1a1a1a;
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    padding: 20px;
+    width: 400px;
+    max-width: 90vw;
+  }
+
+  .modal-content h3 {
+    margin: 0 0 20px 0;
+    color: #a78bfa;
+  }
+
+  .modal-content input,
+  .modal-content textarea {
+    width: 100%;
+    margin-bottom: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    color: #d1d4dc;
+    padding: 10px;
+    border-radius: 4px;
+  }
+
+  .modal-content input:focus,
+  .modal-content textarea:focus {
+    outline: none;
+    border-color: #a78bfa;
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+  }
+
+  .modal-content textarea {
+    min-height: 80px;
+    resize: vertical;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  .icon-btn.delete:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef5350;
+  }
+
+  .btn-primary {
+    background: #a78bfa;
+    border: 1px solid #a78bfa;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #8b5cf6;
+    border-color: #8b5cf6;
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    color: #9ca3af;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-secondary:hover {
+    background: rgba(74, 0, 224, 0.1);
+    border-color: rgba(74, 0, 224, 0.5);
+    color: #d1d4dc;
   }
 </style>
