@@ -69,6 +69,10 @@
     strategyType: string;
     savedDate: number;
     parameters: any;
+    startBalance?: number;
+    makerFeePercent?: number;
+    takerFeePercent?: number;
+    feeRebatePercent?: number;
   }> = [];
   let selectedBackupKey: string = '';
   let showBackupDialog = false;
@@ -400,6 +404,10 @@
       description: backupDescription.trim(),
       strategyType: selectedStrategyType,
       parameters: { ...strategyParams[selectedStrategyType] },
+      startBalance: startBalance,
+      makerFeePercent: makerFeePercent,
+      takerFeePercent: takerFeePercent,
+      feeRebatePercent: feeRebatePercent,
       savedDate: Date.now()
     };
     
@@ -446,6 +454,13 @@
     if (backup) {
       selectedStrategyType = backup.strategyType;
       strategyParams[backup.strategyType] = { ...backup.parameters };
+      
+      // Restore balance and fee settings
+      if (backup.startBalance !== undefined) startBalance = backup.startBalance;
+      if (backup.makerFeePercent !== undefined) makerFeePercent = backup.makerFeePercent;
+      if (backup.takerFeePercent !== undefined) takerFeePercent = backup.takerFeePercent;
+      if (backup.feeRebatePercent !== undefined) feeRebatePercent = backup.feeRebatePercent;
+      
       updateCurrentStrategy();
       activeTab = 'config';
       alert(`Configuration "${backup.name}" loaded successfully!`);
@@ -504,6 +519,13 @@
         // Apply parameters
         strategyParams[imported.strategyType] = { ...imported.parameters };
         selectedStrategyType = imported.strategyType;
+        
+        // Apply balance and fee settings if present
+        if (imported.startBalance !== undefined) startBalance = imported.startBalance;
+        if (imported.makerFeePercent !== undefined) makerFeePercent = imported.makerFeePercent;
+        if (imported.takerFeePercent !== undefined) takerFeePercent = imported.takerFeePercent;
+        if (imported.feeRebatePercent !== undefined) feeRebatePercent = imported.feeRebatePercent;
+        
         updateCurrentStrategy();
       } else {
         alert('Invalid import format');
@@ -661,6 +683,10 @@
         strategyType: selectedStrategyType,
         label: strategies.find(s => s.value === selectedStrategyType)?.label,
         parameters: strategyParams[selectedStrategyType],
+        startBalance: startBalance,
+        makerFeePercent: makerFeePercent,
+        takerFeePercent: takerFeePercent,
+        feeRebatePercent: feeRebatePercent,
         exportedDate: Date.now()
       };
       const exportData = JSON.stringify(configExport, null, 2);
