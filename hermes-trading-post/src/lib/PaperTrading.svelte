@@ -9,6 +9,7 @@
   import { DCAStrategy } from '../strategies/implementations/DCAStrategy';
   import { VWAPBounceStrategy } from '../strategies/implementations/VWAPBounceStrategy';
   import type { Strategy } from '../strategies/base/Strategy';
+  import { strategyStore } from '../stores/strategyStore';
   
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
@@ -51,34 +52,70 @@
   let isEditingBalance = false;
   let editingBalance = '10000';
   
-  const strategies = [
-    { value: 'reverse-ratio', label: 'Reverse Ratio Buying' },
-    { value: 'grid-trading', label: 'Grid Trading' },
-    { value: 'rsi-mean-reversion', label: 'RSI Mean Reversion' },
-    { value: 'dca', label: 'Dollar Cost Averaging' },
-    { value: 'vwap-bounce', label: 'VWAP Bounce' }
+  // Built-in strategies (same as in Backtesting)
+  const builtInStrategies = [
+    { value: 'reverse-ratio', label: 'Reverse Ratio', description: 'Grid trading with reverse position sizing', isCustom: false },
+    { value: 'grid-trading', label: 'Grid Trading', description: 'Classic grid trading strategy', isCustom: false },
+    { value: 'rsi-mean-reversion', label: 'RSI Mean Reversion', description: 'Trade RSI oversold/overbought', isCustom: false },
+    { value: 'dca', label: 'Dollar Cost Averaging', description: 'Regular periodic purchases', isCustom: false },
+    { value: 'vwap-bounce', label: 'VWAP Bounce', description: 'Trade VWAP support/resistance', isCustom: false }
   ];
   
+  let customStrategies: any[] = [];
+  let strategyParameters: Record<string, any> = {};
+  
+  // Subscribe to strategy store
+  let unsubscribe: () => void;
+  
+  // Reactive combined strategies list
+  $: strategies = [...builtInStrategies, ...customStrategies];
+  
   function createStrategy(type: string): Strategy {
-    // Use default parameters for now
+    // Check if it's a custom strategy
+    const customStrategy = customStrategies.find(s => s.value === type);
+    
+    if (customStrategy) {
+      // For custom strategies, we need to evaluate the code
+      // This is a simplified version - in production you'd want more safety
+      try {
+        const StrategyClass = eval(`(${customStrategy.code})`);
+        return new StrategyClass(strategyParameters);
+      } catch (error) {
+        console.error('Failed to create custom strategy:', error);
+        throw error;
+      }
+    }
+    
+    // Use parameters from store, fallback to empty object
+    const params = strategyParameters || {};
+    
     switch (type) {
       case 'reverse-ratio':
-        return new ReverseRatioStrategy({});
+        return new ReverseRatioStrategy(params);
       case 'grid-trading':
-        return new GridTradingStrategy({});
+        return new GridTradingStrategy(params);
       case 'rsi-mean-reversion':
-        return new RSIMeanReversionStrategy({});
+        return new RSIMeanReversionStrategy(params);
       case 'dca':
-        return new DCAStrategy({});
+        return new DCAStrategy(params);
       case 'vwap-bounce':
-        return new VWAPBounceStrategy({});
+        return new VWAPBounceStrategy(params);
       default:
         throw new Error(`Unknown strategy type: ${type}`);
     }
   }
   
   async function loadStrategySourceCode() {
-    // Fetch the source code for the selected strategy
+    // Check if it's a custom strategy first
+    const customStrategy = customStrategies.find(s => s.value === selectedStrategyType);
+    
+    if (customStrategy) {
+      // For custom strategies, show the actual code
+      strategySourceCode = customStrategy.code || 'Custom strategy code not available';
+      return;
+    }
+    
+    // Fetch the source code for built-in strategies
     try {
       const strategyPath = `/src/strategies/implementations/${getStrategyFileName(selectedStrategyType)}.ts`;
       const response = await fetch(strategyPath);
@@ -161,11 +198,34 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   onMount(() => {
     updateStatus();
-    currentStrategy = createStrategy(selectedStrategyType);
-    loadStrategySourceCode();
+    
+    // Subscribe to strategy store to sync with backtesting
+    unsubscribe = strategyStore.subscribe(config => {
+      console.log('Paper Trading: Received strategy update:', config);
+      
+      // Update local state from store
+      selectedStrategyType = config.selectedType;
+      strategyParameters = config.parameters || {};
+      
+      // Update custom strategies if provided
+      if (config.customStrategies) {
+        customStrategies = config.customStrategies;
+      }
+      
+      // Recreate strategy with new configuration
+      try {
+        currentStrategy = createStrategy(selectedStrategyType);
+        loadStrategySourceCode();
+      } catch (error) {
+        console.error('Failed to create strategy from store:', error);
+      }
+    });
   });
   
   onDestroy(() => {
+    if (unsubscribe) {
+      unsubscribe();
+    }
     if (statusInterval) {
       clearInterval(statusInterval);
     }
@@ -540,11 +600,25 @@ export class ${getStrategyFileName(type)} extends Strategy {
         <div class="panel-content">
           {#if activeTab === 'config'}
           <div class="strategy-section">
+            <div class="sync-indicator">
+              <span class="sync-icon">🔗</span>
+              <span class="sync-text">Synced with Backtesting</span>
+            </div>
             <label>
               Strategy
-              <select bind:value={selectedStrategyType} disabled={isRunning} on:change={loadStrategySourceCode}>
+              <select bind:value={selectedStrategyType} disabled={isRunning} on:change={() => {
+                try {
+                  currentStrategy = createStrategy(selectedStrategyType);
+                  loadStrategySourceCode();
+                } catch (error) {
+                  console.error('Failed to create strategy:', error);
+                }
+              }}>
                 {#each strategies as strat}
-                  <option value={strat.value}>{strat.label}</option>
+                  <option value={strat.value}>
+                    {strat.label}
+                    {#if strat.isCustom}[CUSTOM]{/if}
+                  </option>
                 {/each}
               </select>
             </label>
@@ -1719,5 +1793,26 @@ export class ${getStrategyFileName(type)} extends Strategy {
   .vault-allocation {
     color: #a78bfa;
     font-size: 12px;
+  }
+  
+  .sync-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    padding: 6px 12px;
+    background: rgba(167, 139, 250, 0.1);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  
+  .sync-icon {
+    font-size: 14px;
+  }
+  
+  .sync-text {
+    color: #a78bfa;
+    font-weight: 500;
   }
 </style>

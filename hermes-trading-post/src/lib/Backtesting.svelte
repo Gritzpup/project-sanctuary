@@ -14,6 +14,7 @@
   import type { CandleData } from '../types/coinbase';
   import { historicalDataService, HistoricalDataService } from '../services/historicalDataService';
   import BacktestStats from '../components/BacktestStats.svelte';
+  import { strategyStore } from '../stores/strategyStore';
   
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
@@ -112,6 +113,11 @@
   
   // Reactive combined strategies list
   $: strategies = [...builtInStrategies, ...customStrategies];
+  
+  // Reactively update store when parameters change
+  $: if (strategyParams[selectedStrategyType]) {
+    strategyStore.updateParameters(strategyParams[selectedStrategyType]);
+  }
   
   // Custom presets management
   interface StrategyPreset {
@@ -226,6 +232,27 @@
     localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
   }
   
+  // Helper function to update parameters and sync with store
+  function updateStrategyParam(paramPath: string, value: any) {
+    // Update the parameter using the path (e.g., 'reverse-ratio.initialDropPercent')
+    const pathParts = paramPath.split('.');
+    let obj = strategyParams;
+    
+    // Navigate to the nested property
+    for (let i = 0; i < pathParts.length - 1; i++) {
+      obj = obj[pathParts[i]];
+    }
+    
+    // Set the value
+    obj[pathParts[pathParts.length - 1]] = value;
+    
+    // Trigger reactivity
+    strategyParams = strategyParams;
+    
+    // Update the store
+    strategyStore.updateParameters(strategyParams[selectedStrategyType]);
+  }
+
   function applyPreset(index: number) {
     if (index < 0 || index >= customPresets.length) return;
     const preset = customPresets[index];
@@ -240,6 +267,9 @@
     selectedPresetIndex = index;
     // Save this preset selection for the current timeframe
     savePresetForTimeframe(index);
+    
+    // Update strategy store
+    strategyStore.updateParameters(strategyParams['reverse-ratio']);
   }
   
   function updatePresetName(index: number, newName: string) {
@@ -1011,6 +1041,19 @@ export class CustomStrategy extends Strategy {
       if (selectedStrategyType === 'reverse-ratio') {
         loadSavedPresetForTimeframe();
       }
+      
+      // Update the strategy store for paper trading
+      const isCustom = customStrategies.some(s => s.value === selectedStrategyType);
+      const customStrategy = customStrategies.find(s => s.value === selectedStrategyType);
+      strategyStore.setStrategy(
+        selectedStrategyType, 
+        strategyParams[selectedStrategyType] || {},
+        isCustom,
+        customStrategy?.code
+      );
+      
+      // Also share the custom strategies list
+      strategyStore.setCustomStrategies(customStrategies);
     } catch (error) {
       console.error('Failed to update strategy:', error);
       console.error('Error details:', {
