@@ -9,6 +9,7 @@
   import { RSIMeanReversionStrategy } from '../strategies/implementations/RSIMeanReversionStrategy';
   import { DCAStrategy } from '../strategies/implementations/DCAStrategy';
   import { VWAPBounceStrategy } from '../strategies/implementations/VWAPBounceStrategy';
+  import { MicroScalpingStrategy } from '../strategies/implementations/MicroScalpingStrategy';
   import type { Strategy } from '../strategies/base/Strategy';
   import type { BacktestConfig, BacktestResult } from '../strategies/base/StrategyTypes';
   import type { CandleData } from '../types/coinbase';
@@ -108,15 +109,97 @@
     { value: 'grid-trading', label: 'Grid Trading', description: 'Classic grid trading strategy', isCustom: false },
     { value: 'rsi-mean-reversion', label: 'RSI Mean Reversion', description: 'Trade RSI oversold/overbought', isCustom: false },
     { value: 'dca', label: 'Dollar Cost Averaging', description: 'Regular periodic purchases', isCustom: false },
-    { value: 'vwap-bounce', label: 'VWAP Bounce', description: 'Trade VWAP support/resistance', isCustom: false }
+    { value: 'vwap-bounce', label: 'VWAP Bounce', description: 'Trade VWAP support/resistance', isCustom: false },
+    { value: 'micro-scalping', label: 'Micro Scalping (1H)', description: 'High-frequency 1H trading with 0.8% entries', isCustom: false },
+    { value: 'proper-scalping', label: 'Proper Scalping', description: 'Professional scalping with RSI, MACD, and stop losses', isCustom: false }
   ];
   
   // Reactive combined strategies list
   $: strategies = [...builtInStrategies, ...customStrategies];
   
-  // Reactively update store when parameters change
-  $: if (strategyParams[selectedStrategyType]) {
-    strategyStore.updateParameters(strategyParams[selectedStrategyType]);
+  // Manual sync state
+  let isSynced = false;
+  let lastSyncedStrategy = '';
+  let lastSyncedParams = {};
+  let lastSyncedBalance = 0;
+  let lastSyncedMakerFee = 0;
+  let lastSyncedTakerFee = 0;
+  let paperTradingActive = false;
+  
+  // Check if current configuration matches synced configuration
+  // This reactive statement will re-run whenever any of these values change
+  $: {
+    // Access all variables to ensure reactivity
+    selectedStrategyType;
+    strategyParams[selectedStrategyType];
+    startBalance;
+    makerFeePercent;
+    takerFeePercent;
+    
+    // Now check if synced
+    isSynced = checkIfSynced(
+      selectedStrategyType,
+      strategyParams[selectedStrategyType],
+      startBalance,
+      makerFeePercent,
+      takerFeePercent
+    );
+  }
+  
+  function checkIfSynced(
+    currentStrategy: string,
+    currentParams: any,
+    currentBalance: number,
+    currentMakerFee: number,
+    currentTakerFee: number
+  ): boolean {
+    if (!lastSyncedStrategy) return false;
+    if (lastSyncedStrategy !== currentStrategy) return false;
+    if (JSON.stringify(lastSyncedParams) !== JSON.stringify(currentParams)) return false;
+    if (lastSyncedBalance !== currentBalance) return false;
+    if (lastSyncedMakerFee !== currentMakerFee) return false;
+    if (lastSyncedTakerFee !== currentTakerFee) return false;
+    return true;
+  }
+  
+  function syncToPaperTrading() {
+    // Check if paper trading is active
+    if (paperTradingActive) {
+      const shouldSync = confirm('Paper Trading is currently active. Syncing will update the strategy for the next trading session. Continue?');
+      if (!shouldSync) return;
+    }
+    
+    // Update the strategy store for paper trading
+    const isCustom = customStrategies.some(s => s.value === selectedStrategyType);
+    const customStrategy = customStrategies.find(s => s.value === selectedStrategyType);
+    
+    strategyStore.setStrategy(
+      selectedStrategyType, 
+      strategyParams[selectedStrategyType] || {},
+      isCustom,
+      customStrategy?.code
+    );
+    
+    // Sync balance and fees
+    strategyStore.setBalanceAndFees(startBalance, {
+      maker: makerFeePercent / 100,
+      taker: takerFeePercent / 100
+    });
+    
+    // Share the custom strategies list
+    strategyStore.setCustomStrategies(customStrategies);
+    
+    // Update sync tracking - store all synced values
+    lastSyncedStrategy = selectedStrategyType;
+    lastSyncedParams = { ...strategyParams[selectedStrategyType] };
+    lastSyncedBalance = startBalance;
+    lastSyncedMakerFee = makerFeePercent;
+    lastSyncedTakerFee = takerFeePercent;
+    
+    // Force update to trigger reactive statement
+    isSynced = true;
+    
+    console.log('Strategy synced to Paper Trading:', selectedStrategyType);
   }
   
   // Custom presets management
@@ -248,9 +331,6 @@
     
     // Trigger reactivity
     strategyParams = strategyParams;
-    
-    // Update the store
-    strategyStore.updateParameters(strategyParams[selectedStrategyType]);
   }
 
   function applyPreset(index: number) {
@@ -267,9 +347,6 @@
     selectedPresetIndex = index;
     // Save this preset selection for the current timeframe
     savePresetForTimeframe(index);
-    
-    // Update strategy store
-    strategyStore.updateParameters(strategyParams['reverse-ratio']);
   }
   
   function updatePresetName(index: number, newName: string) {
@@ -382,6 +459,34 @@
       vwapPeriod: 20,
       deviationBuy: 2,
       deviationSell: 2
+    },
+    'micro-scalping': {
+      initialDropPercent: 0.3,
+      levelDropPercent: 0.4,
+      ratioMultiplier: 1.5,
+      profitTarget: 0.8,
+      maxLevels: 3,
+      lookbackPeriod: 12,
+      basePositionPercent: 25,
+      maxPositionPercent: 85
+    },
+    'proper-scalping': {
+      positionSize: 5,
+      maxOpenPositions: 3,
+      rsiPeriod: 7,
+      rsiOverbought: 75,
+      rsiOversold: 25,
+      macdFast: 3,
+      macdSlow: 10,
+      macdSignal: 16,
+      stopLoss: 0.5,
+      profitTarget: 1.0,
+      trailingStop: true,
+      trailingStopPercent: 0.3,
+      minVolume: 1000000,
+      trendAlignment: true,
+      emaFast: 9,
+      emaSlow: 21
     }
   };
   
@@ -418,19 +523,53 @@
   // Load saved strategies on mount
   onMount(() => {
     loadCustomStrategies();
+    
+    // Load balance and fees from store if available
+    const unsubscribe = strategyStore.subscribe(state => {
+      if (state.balance !== undefined) {
+        startBalance = state.balance;
+      }
+      if (state.fees) {
+        // Convert from decimal to percentage
+        makerFeePercent = state.fees.maker * 100;
+        takerFeePercent = state.fees.taker * 100;
+      }
+      // Track paper trading status
+      paperTradingActive = state.paperTradingActive || false;
+    });
+    
     // Initialize current strategy
     updateCurrentStrategy();
+    
+    // Clean up subscription on destroy
+    return () => {
+      unsubscribe();
+    };
   });
   
   
   function saveCurrentStrategy() {
-    if (!currentStrategy || !backupName.trim()) return;
+    if (!currentStrategy) return;
     
-    // Create a unique key for this configuration
-    const configKey = `strategy_config_${selectedStrategyType}_${backupName.trim().replace(/\s+/g, '_')}`;
+    // Always create a unique timestamp for the key
+    const timestamp = Date.now();
+    const dateStr = new Date(timestamp).toLocaleString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit'
+    });
+    
+    // Create backup name with timestamp
+    const backupNameWithTime = backupName.trim() 
+      ? `${backupName.trim()} (${dateStr})`
+      : `${selectedStrategyType} - ${dateStr}`;
+    
+    // Always use unique timestamp-based key to prevent overwrites
+    const configKey = `strategy_config_${selectedStrategyType}_${timestamp}`;
     
     const config = {
-      name: backupName.trim(),
+      name: backupNameWithTime,
       description: backupDescription.trim(),
       strategyType: selectedStrategyType,
       parameters: { ...strategyParams[selectedStrategyType] },
@@ -438,7 +577,7 @@
       makerFeePercent: makerFeePercent,
       takerFeePercent: takerFeePercent,
       feeRebatePercent: feeRebatePercent,
-      savedDate: Date.now()
+      savedDate: timestamp
     };
     
     // Save to localStorage
@@ -973,6 +1112,8 @@ export class CustomStrategy extends Strategy {
           return new DCAStrategy(params);
         case 'vwap-bounce':
           return new VWAPBounceStrategy(params);
+        case 'micro-scalping':
+          return new MicroScalpingStrategy(params);
         default:
           throw new Error(`Unknown strategy type: ${type}`);
       }
@@ -1042,18 +1183,8 @@ export class CustomStrategy extends Strategy {
         loadSavedPresetForTimeframe();
       }
       
-      // Update the strategy store for paper trading
-      const isCustom = customStrategies.some(s => s.value === selectedStrategyType);
-      const customStrategy = customStrategies.find(s => s.value === selectedStrategyType);
-      strategyStore.setStrategy(
-        selectedStrategyType, 
-        strategyParams[selectedStrategyType] || {},
-        isCustom,
-        customStrategy?.code
-      );
-      
-      // Also share the custom strategies list
-      strategyStore.setCustomStrategies(customStrategies);
+      // Don't auto-sync to paper trading anymore
+      // User must manually sync when ready
     } catch (error) {
       console.error('Failed to update strategy:', error);
       console.error('Error details:', {
@@ -1517,10 +1648,32 @@ export class ${getStrategyFileName(type)} extends Strategy {
           <!-- Strategy Configuration -->
           <div class="panel strategy-panel">
         <div class="panel-header">
-          <h2>Strategy</h2>
-          <button class="run-btn" on:click={() => { updateCurrentStrategy(); runBacktest(); }} disabled={isRunning}>
-            {isRunning ? 'Running...' : 'Run Backtest'}
-          </button>
+          <h2>
+            Strategy 
+            {#if isSynced}
+              <span class="sync-indicator synced" title="Strategy synced to Paper Trading">
+                ✅ Synced
+              </span>
+            {:else}
+              <span class="sync-indicator out-of-sync" title="Strategy not synced to Paper Trading">
+                ⚠️ Not Synced
+              </span>
+            {/if}
+          </h2>
+          <div class="header-buttons">
+            <button class="sync-btn" class:warning={paperTradingActive} on:click={syncToPaperTrading} disabled={isSynced}>
+              {#if paperTradingActive && !isSynced}
+                ⚠️ Sync to Paper Trading (Active)
+              {:else if isSynced}
+                Already Synced
+              {:else}
+                Sync to Paper Trading
+              {/if}
+            </button>
+            <button class="run-btn" on:click={() => { updateCurrentStrategy(); runBacktest(); }} disabled={isRunning}>
+              {isRunning ? 'Running...' : 'Run Backtest'}
+            </button>
+          </div>
         </div>
         <div class="tabs">
           <button class="tab" class:active={activeTab === 'config'} on:click={() => activeTab = 'config'}>
@@ -1599,7 +1752,18 @@ export class ${getStrategyFileName(type)} extends Strategy {
           <div class="config-section">
             <label>
               Starting Balance
-              <input type="number" bind:value={startBalance} min="100" step="100" />
+              <input 
+                type="number" 
+                value={startBalance}
+                on:input={(e) => {
+                  startBalance = Number(e.currentTarget.value) || 1000;
+                }}
+                on:change={(e) => {
+                  startBalance = Number(e.currentTarget.value) || 1000;
+                }}
+                min="100" 
+                step="100" 
+              />
               <span class="input-hint">$1000+ recommended for micro-scalping profitability</span>
             </label>
           </div>
@@ -1608,21 +1772,57 @@ export class ${getStrategyFileName(type)} extends Strategy {
             <h4 style="color: #a78bfa; margin-bottom: 10px;">Fee Structure</h4>
             <label>
               Maker Fee (%)
-              <input type="number" bind:value={makerFeePercent} min="0" max="2" step="0.05" />
+              <input 
+                type="number" 
+                value={makerFeePercent}
+                on:input={(e) => {
+                  makerFeePercent = Number(e.currentTarget.value) || 0;
+                }}
+                on:change={(e) => {
+                  makerFeePercent = Number(e.currentTarget.value) || 0;
+                }}
+                min="0" 
+                max="2" 
+                step="0.05" 
+              />
             </label>
           </div>
           
           <div class="config-section">
             <label>
               Taker Fee (%)
-              <input type="number" bind:value={takerFeePercent} min="0" max="2" step="0.05" />
+              <input 
+                type="number" 
+                value={takerFeePercent}
+                on:input={(e) => {
+                  takerFeePercent = Number(e.currentTarget.value) || 0;
+                }}
+                on:change={(e) => {
+                  takerFeePercent = Number(e.currentTarget.value) || 0;
+                }}
+                min="0" 
+                max="2" 
+                step="0.05" 
+              />
             </label>
           </div>
           
           <div class="config-section">
             <label>
               Fee Rebate (%)
-              <input type="number" bind:value={feeRebatePercent} min="0" max="100" step="5" />
+              <input 
+                type="number" 
+                value={feeRebatePercent}
+                on:input={(e) => {
+                  feeRebatePercent = Number(e.currentTarget.value) || 0;
+                }}
+                on:change={(e) => {
+                  feeRebatePercent = Number(e.currentTarget.value) || 0;
+                }}
+                min="0" 
+                max="100" 
+                step="5" 
+              />
             </label>
           </div>
           
@@ -1942,21 +2142,181 @@ export class ${getStrategyFileName(type)} extends Strategy {
               </div>
               <div class="config-section">
                 <label>
-                  Bounce Threshold (%)
-                  <input type="number" bind:value={strategyParams['vwap-bounce'].bounceThreshold} min="0.1" max="2" step="0.1" />
+                  Buy Deviation
+                  <input type="number" bind:value={strategyParams['vwap-bounce'].deviationBuy} min="0.5" max="5" step="0.5" />
                 </label>
               </div>
               <div class="config-section">
                 <label>
-                  Volume Multiplier
-                  <input type="number" bind:value={strategyParams['vwap-bounce'].volumeMultiplier} min="1" max="3" step="0.1" />
+                  Sell Deviation
+                  <input type="number" bind:value={strategyParams['vwap-bounce'].deviationSell} min="0.5" max="5" step="0.5" />
+                </label>
+              </div>
+            {:else if selectedStrategyType === 'micro-scalping'}
+              <div class="config-section">
+                <label>
+                  Initial Drop (%)
+                  <input type="number" bind:value={strategyParams['micro-scalping'].initialDropPercent} min="0.1" max="3" step="0.1" />
+                  <span class="input-hint">% drop from recent high to trigger first entry</span>
                 </label>
               </div>
               <div class="config-section">
                 <label>
-                  Position Size
-                  <input type="number" bind:value={strategyParams['vwap-bounce'].positionSize} min="0.01" max="1" step="0.01" />
+                  Level Drop (%)
+                  <input type="number" bind:value={strategyParams['micro-scalping'].levelDropPercent} min="0.1" max="2" step="0.1" />
+                  <span class="input-hint">% drop between additional levels</span>
                 </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Ratio Multiplier
+                  <input type="number" bind:value={strategyParams['micro-scalping'].ratioMultiplier} min="1" max="3" step="0.1" />
+                  <span class="input-hint">Position size multiplier for each level</span>
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Profit Target (%)
+                  <input type="number" bind:value={strategyParams['micro-scalping'].profitTarget} min="0.5" max="5" step="0.1" />
+                  <span class="input-hint">% profit target (0.5% net after 0.3% fees)</span>
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Max Levels
+                  <input type="number" bind:value={strategyParams['micro-scalping'].maxLevels} min="1" max="5" step="1" />
+                  <span class="input-hint">Maximum number of entry levels</span>
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Lookback Period
+                  <input type="number" bind:value={strategyParams['micro-scalping'].lookbackPeriod} min="3" max="50" step="1" />
+                  <span class="input-hint">Candles to look back for recent high</span>
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Base Position (%)
+                  <input type="number" bind:value={strategyParams['micro-scalping'].basePositionPercent} min="5" max="50" step="5" />
+                  <span class="input-hint">% of balance for first position</span>
+                </label>
+              </div>
+              <div class="config-section">
+                <label>
+                  Max Position (%)
+                  <input type="number" bind:value={strategyParams['micro-scalping'].maxPositionPercent} min="50" max="100" step="5" />
+                  <span class="input-hint">Maximum total % of balance to use</span>
+                </label>
+              </div>
+            {:else if selectedStrategyType === 'proper-scalping'}
+              <!-- Position Sizing -->
+              <div class="config-section">
+                <h4>Position Management</h4>
+                <label>
+                  Position Size (%)
+                  <input type="number" bind:value={strategyParams['proper-scalping'].positionSize} min="1" max="20" step="1" />
+                  <span class="input-hint">% of balance per trade</span>
+                </label>
+                <label>
+                  Max Open Positions
+                  <input type="number" bind:value={strategyParams['proper-scalping'].maxOpenPositions} min="1" max="10" step="1" />
+                  <span class="input-hint">Maximum simultaneous positions</span>
+                </label>
+              </div>
+              
+              <!-- RSI Settings -->
+              <div class="config-section">
+                <h4>RSI Settings</h4>
+                <label>
+                  RSI Period
+                  <input type="number" bind:value={strategyParams['proper-scalping'].rsiPeriod} min="2" max="20" step="1" />
+                  <span class="input-hint">Number of periods for RSI calculation</span>
+                </label>
+                <label>
+                  RSI Overbought
+                  <input type="number" bind:value={strategyParams['proper-scalping'].rsiOverbought} min="60" max="90" step="5" />
+                  <span class="input-hint">RSI level to consider overbought</span>
+                </label>
+                <label>
+                  RSI Oversold
+                  <input type="number" bind:value={strategyParams['proper-scalping'].rsiOversold} min="10" max="40" step="5" />
+                  <span class="input-hint">RSI level to consider oversold</span>
+                </label>
+              </div>
+              
+              <!-- MACD Settings -->
+              <div class="config-section">
+                <h4>MACD Settings</h4>
+                <label>
+                  MACD Fast
+                  <input type="number" bind:value={strategyParams['proper-scalping'].macdFast} min="1" max="20" step="1" />
+                  <span class="input-hint">Fast EMA period</span>
+                </label>
+                <label>
+                  MACD Slow
+                  <input type="number" bind:value={strategyParams['proper-scalping'].macdSlow} min="5" max="50" step="1" />
+                  <span class="input-hint">Slow EMA period</span>
+                </label>
+                <label>
+                  MACD Signal
+                  <input type="number" bind:value={strategyParams['proper-scalping'].macdSignal} min="5" max="20" step="1" />
+                  <span class="input-hint">Signal line EMA period</span>
+                </label>
+              </div>
+              
+              <!-- Risk Management -->
+              <div class="config-section">
+                <h4>Risk Management</h4>
+                <label>
+                  Stop Loss (%)
+                  <input type="number" bind:value={strategyParams['proper-scalping'].stopLoss} min="0.1" max="2" step="0.1" />
+                  <span class="input-hint">% stop loss per trade</span>
+                </label>
+                <label>
+                  Profit Target (%)
+                  <input type="number" bind:value={strategyParams['proper-scalping'].profitTarget} min="0.2" max="5" step="0.1" />
+                  <span class="input-hint">% profit target (2:1 risk/reward recommended)</span>
+                </label>
+                <label>
+                  Trailing Stop
+                  <input type="checkbox" bind:checked={strategyParams['proper-scalping'].trailingStop} />
+                  <span class="input-hint">Enable trailing stop loss</span>
+                </label>
+                {#if strategyParams['proper-scalping'].trailingStop}
+                  <label>
+                    Trailing Stop (%)
+                    <input type="number" bind:value={strategyParams['proper-scalping'].trailingStopPercent} min="0.1" max="2" step="0.1" />
+                    <span class="input-hint">% below peak to trigger trailing stop</span>
+                  </label>
+                {/if}
+              </div>
+              
+              <!-- Entry Filters -->
+              <div class="config-section">
+                <h4>Entry Filters</h4>
+                <label>
+                  Min Volume ($)
+                  <input type="number" bind:value={strategyParams['proper-scalping'].minVolume} min="100000" max="10000000" step="100000" />
+                  <span class="input-hint">Minimum volume requirement</span>
+                </label>
+                <label>
+                  Trend Alignment
+                  <input type="checkbox" bind:checked={strategyParams['proper-scalping'].trendAlignment} />
+                  <span class="input-hint">Require EMA trend alignment</span>
+                </label>
+                {#if strategyParams['proper-scalping'].trendAlignment}
+                  <label>
+                    Fast EMA
+                    <input type="number" bind:value={strategyParams['proper-scalping'].emaFast} min="5" max="20" step="1" />
+                    <span class="input-hint">Fast EMA period for trend</span>
+                  </label>
+                  <label>
+                    Slow EMA
+                    <input type="number" bind:value={strategyParams['proper-scalping'].emaSlow} min="10" max="50" step="1" />
+                    <span class="input-hint">Slow EMA period for trend</span>
+                  </label>
+                {/if}
               </div>
             {:else if customStrategies.some(s => s.value === selectedStrategyType)}
               <!-- Custom Strategy Parameters -->
@@ -2062,9 +2422,17 @@ export class ${getStrategyFileName(type)} extends Strategy {
             <div class="backups-section">
               <div class="backups-header">
                 <h3>Saved Strategy Configurations</h3>
-                <button class="btn-primary" on:click={() => { showBackupDialog = true; }}>
-                  Save Current Config
-                </button>
+                <div class="backup-buttons">
+                  <button class="btn-secondary" on:click={() => { 
+                    saveCurrentStrategy(); 
+                    loadSavedBackups(); 
+                  }} title="Quick save with auto-generated name">
+                    Quick Save
+                  </button>
+                  <button class="btn-primary" on:click={() => { showBackupDialog = true; }}>
+                    Save with Name
+                  </button>
+                </div>
               </div>
               
               {#if savedBackups.length === 0}
@@ -2111,7 +2479,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
               <h3>Save Configuration Backup</h3>
               <input 
                 type="text" 
-                placeholder="Backup name" 
+                placeholder="Backup name (optional - timestamp will be added)" 
                 bind:value={backupName}
                 autofocus
               />
@@ -2130,7 +2498,6 @@ export class ${getStrategyFileName(type)} extends Strategy {
                     showBackupDialog = false;
                     loadSavedBackups();
                   }}
-                  disabled={!backupName.trim()}
                 >
                   Save Backup
                 </button>
@@ -4043,6 +4410,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
     color: #a78bfa;
     font-size: 1.1rem;
   }
+  
+  .backup-buttons {
+    display: flex;
+    gap: 10px;
+  }
 
   .backups-list {
     flex: 1;
@@ -4204,5 +4576,68 @@ export class ${getStrategyFileName(type)} extends Strategy {
     background: rgba(74, 0, 224, 0.1);
     border-color: rgba(74, 0, 224, 0.5);
     color: #d1d4dc;
+  }
+  
+  .sync-indicator {
+    display: inline-block;
+    font-size: 0.75em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 10px;
+    font-weight: normal;
+    vertical-align: middle;
+  }
+  
+  .sync-indicator.synced {
+    color: #4ade80;
+    background: rgba(74, 222, 128, 0.1);
+  }
+  
+  .sync-indicator.out-of-sync {
+    color: #ffa500;
+    background: rgba(255, 165, 0, 0.1);
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  
+  .header-buttons {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .sync-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .sync-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+  
+  .sync-btn:disabled {
+    background: #333;
+    color: #666;
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  
+  .sync-btn.warning {
+    background: linear-gradient(135deg, #ff9800 0%, #ff6b00 100%);
+  }
+  
+  .sync-btn.warning:hover:not(:disabled) {
+    box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
   }
 </style>

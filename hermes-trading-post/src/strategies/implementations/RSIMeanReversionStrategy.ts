@@ -154,6 +154,15 @@ export class RSIMeanReversionStrategy extends Strategy {
     const config = this.config as RSIConfig;
     return config.rsiPeriod * 2 + 10; // Extra buffer for calculations
   }
+  
+  // RSI works best with 15m candles for stability
+  getRequiredGranularity(): string | null {
+    return '15m'; // 15-minute candles provide good balance for RSI
+  }
+  
+  getRequiredPeriod(): string | null {
+    return '1D'; // 1 day of data is sufficient for RSI calculation
+  }
 
   // Helper methods
   private calculateRSI(candles: CandleData[], period: number): number | null {

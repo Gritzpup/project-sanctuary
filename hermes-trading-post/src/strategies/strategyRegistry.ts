@@ -3,13 +3,15 @@ import { GridTradingStrategy } from './implementations/GridTradingStrategy';
 import { RSIMeanReversionStrategy } from './implementations/RSIMeanReversionStrategy';
 import { DCAStrategy } from './implementations/DCAStrategy';
 import { VWAPBounceStrategy } from './implementations/VWAPBounceStrategy';
+import { MicroScalpingStrategy } from './implementations/MicroScalpingStrategy';
+import { ProperScalpingStrategy } from './implementations/ProperScalpingStrategy';
 import type { Strategy } from './base/Strategy';
 
 export interface StrategyInfo {
   id: string;
   name: string;
   description: string;
-  category: 'Trend Following' | 'Mean Reversion' | 'Grid' | 'DCA' | 'Custom';
+  category: 'Trend Following' | 'Mean Reversion' | 'Grid' | 'DCA' | 'Scalping' | 'Custom';
   riskLevel: 'Low' | 'Medium' | 'High';
   StrategyClass: new () => Strategy;
 }
@@ -54,6 +56,22 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
     category: 'Mean Reversion',
     riskLevel: 'High',
     StrategyClass: VWAPBounceStrategy
+  },
+  microScalping: {
+    id: 'microScalping',
+    name: 'Micro Scalping (1H)',
+    description: 'High-frequency 1H trading with 0.8% entries and 1.5% profit targets.',
+    category: 'Scalping',
+    riskLevel: 'High',
+    StrategyClass: MicroScalpingStrategy
+  },
+  properScalping: {
+    id: 'properScalping',
+    name: 'Proper Scalping',
+    description: 'Professional scalping with RSI, MACD, stop losses, and proper risk management.',
+    category: 'Scalping',
+    riskLevel: 'High',
+    StrategyClass: ProperScalpingStrategy
   }
 };
 

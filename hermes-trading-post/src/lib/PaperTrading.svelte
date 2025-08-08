@@ -795,6 +795,17 @@ export class ${getStrategyFileName(type)} extends Strategy {
       isTrading: true
     };
   })();
+  
+  // Helper function to calculate angle for a price on the gauge
+  function calculateAngleForPrice(price: number, buyPrice: number, sellPrice: number): number {
+    // Map price to 0-180 degree range
+    // buyPrice maps to ~30 degrees, sellPrice maps to ~150 degrees
+    if (price <= buyPrice) return 30;
+    if (price >= sellPrice) return 150;
+    
+    const position = (price - buyPrice) / (sellPrice - buyPrice);
+    return 30 + (position * 120); // 30 to 150 degrees
+  }
 </script>
 
 <div class="dashboard-layout">
@@ -1113,55 +1124,87 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 <!-- Gauge background -->
                 <defs>
                   <linearGradient id="buyGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" style="stop-color:#ef4444;stop-opacity:0.2" />
-                    <stop offset="100%" style="stop-color:#ef4444;stop-opacity:0.1" />
+                    <stop offset="0%" style="stop-color:#ef4444;stop-opacity:0.3" />
+                    <stop offset="100%" style="stop-color:#ef4444;stop-opacity:0.15" />
                   </linearGradient>
                   <linearGradient id="holdGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.2" />
-                    <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.1" />
+                    <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.3" />
+                    <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.15" />
                   </linearGradient>
                   <linearGradient id="sellGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" style="stop-color:#22c55e;stop-opacity:0.1" />
-                    <stop offset="100%" style="stop-color:#22c55e;stop-opacity:0.2" />
+                    <stop offset="0%" style="stop-color:#22c55e;stop-opacity:0.15" />
+                    <stop offset="100%" style="stop-color:#22c55e;stop-opacity:0.3" />
                   </linearGradient>
                 </defs>
                 
-                <!-- Gauge arc sections -->
+                <!-- Gauge arc sections with correct paths -->
                 <!-- Buy zone: 0-60 degrees -->
-                <path d="M 40 120 A 80 80 0 0 1 120 40" 
+                <path d="M 40 120 A 80 80 0 0 1 80 50.7" 
                       fill="none" 
                       stroke="url(#buyGradient)" 
                       stroke-width="30" 
                       class="gauge-section buy-section"/>
                 
                 <!-- Hold zone: 60-120 degrees -->
-                <path d="M 120 40 A 80 80 0 0 1 200 120" 
+                <path d="M 80 50.7 A 80 80 0 0 1 160 50.7" 
                       fill="none" 
                       stroke="url(#holdGradient)" 
                       stroke-width="30" 
                       class="gauge-section hold-section"/>
                 
                 <!-- Sell zone: 120-180 degrees -->
-                <path d="M 120 40 A 80 80 0 0 1 200 120" 
+                <path d="M 160 50.7 A 80 80 0 0 1 200 120" 
                       fill="none" 
                       stroke="url(#sellGradient)" 
                       stroke-width="30" 
                       class="gauge-section sell-section"/>
                 
-                <!-- Zone dividers -->
-                <line x1="120" y1="40" x2="120" y2="25" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
-                <line x1="120" y1="40" x2="105" y2="25" stroke="rgba(255,255,255,0.3)" stroke-width="1" transform="rotate(-60 120 40)"/>
-                <line x1="120" y1="40" x2="105" y2="25" stroke="rgba(255,255,255,0.3)" stroke-width="1" transform="rotate(60 120 40)"/>
-                
                 <!-- Gauge outline -->
                 <path d="M 40 120 A 80 80 0 0 1 200 120" 
                       fill="none" 
-                      stroke="rgba(255,255,255,0.1)" 
+                      stroke="rgba(255,255,255,0.2)" 
                       stroke-width="1" 
                       class="gauge-outline"/>
                 
+                <!-- Zone dividers -->
+                <line x1="80" y1="50.7" x2="80" y2="35" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+                <line x1="160" y1="50.7" x2="160" y2="35" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+                
+                <!-- Buy/Sell indicators -->
+                {#if threeZoneData.isTrading && positions.length > 0}
+                  <!-- Buy position indicators -->
+                  {#each positions as position}
+                    {@const buyAngle = calculateAngleForPrice(position.entry_price, threeZoneData.buyZone.price, threeZoneData.sellZone.price)}
+                    <g transform="rotate({buyAngle - 90} 120 120)">
+                      <circle cx="120" cy="65" r="3" fill="#ef4444" opacity="0.8">
+                        <title>Buy at ${position.entry_price.toFixed(2)}</title>
+                      </circle>
+                    </g>
+                  {/each}
+                {/if}
+                
+                <!-- Next buy level indicator -->
+                {#if threeZoneData.isTrading && nextBuyLevel}
+                  {@const nextBuyAngle = calculateAngleForPrice(nextBuyLevel.price, threeZoneData.buyZone.price, threeZoneData.sellZone.price)}
+                  <g transform="rotate({nextBuyAngle - 90} 120 120)">
+                    <path d="M 120 60 L 115 70 L 125 70 Z" fill="#ef4444" opacity="0.5">
+                      <title>Next buy at ${nextBuyLevel.price.toFixed(2)}</title>
+                    </path>
+                  </g>
+                {/if}
+                
+                <!-- Sell target indicator -->
+                {#if threeZoneData.isTrading && sellTarget}
+                  {@const sellAngle = calculateAngleForPrice(sellTarget.price, threeZoneData.buyZone.price, threeZoneData.sellZone.price)}
+                  <g transform="rotate({sellAngle - 90} 120 120)">
+                    <rect x="117" y="60" width="6" height="10" fill="#22c55e" opacity="0.5">
+                      <title>Sell target at ${sellTarget.price.toFixed(2)}</title>
+                    </rect>
+                  </g>
+                {/if}
+                
                 <!-- Center point -->
-                <circle cx="120" cy="120" r="3" fill="rgba(255,255,255,0.2)"/>
+                <circle cx="120" cy="120" r="3" fill="rgba(255,255,255,0.3)"/>
                 
                 <!-- Price indicator needle -->
                 <g transform="rotate({threeZoneData.current.angle - 90} 120 120)">
@@ -2313,8 +2356,20 @@ export class ${getStrategyFileName(type)} extends Strategy {
     transition: stroke-opacity 0.3s ease;
   }
   
-  .gauge-section:hover {
+  .gauge-section.buy-section {
     stroke-opacity: 0.8;
+  }
+  
+  .gauge-section.hold-section {
+    stroke-opacity: 0.7;
+  }
+  
+  .gauge-section.sell-section {
+    stroke-opacity: 0.8;
+  }
+  
+  .gauge-section:hover {
+    stroke-opacity: 1;
   }
   
   .gauge-needle {

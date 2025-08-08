@@ -60,6 +60,9 @@ export class ChartDataFeed {
     
     console.log(`ChartDataFeed: Initialized with granularity ${this.currentGranularity}`);
     
+    // Clear stale data on initialization
+    this.clearInMemoryData();
+    
     // Setup WebSocket but don't start aggregation yet
     this.setupWebSocket();
     
@@ -325,6 +328,15 @@ export class ChartDataFeed {
       return [];
     }
     
+    // Log for debugging
+    console.log(`ChartDataFeed: Getting data for range ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
+    console.log(`ChartDataFeed: Current data length: ${this.currentData.length}, Active granularity: ${this.activeGranularity}`);
+    
+    // If we have no data yet, ensure we try to fetch it
+    if (this.currentData.length === 0) {
+      console.log('ChartDataFeed: No cached data, will fetch fresh data...');
+    }
+    
     startTime = validatedRange.start;
     endTime = validatedRange.end;
     
@@ -346,6 +358,7 @@ export class ChartDataFeed {
     
     // Fill gaps if any
     if (cacheResult.gaps.length > 0) {
+      console.log(`ChartDataFeed: Found ${cacheResult.gaps.length} gaps, filling...`);
       await this.fillGaps(cacheResult.gaps, this.activeGranularity);
       
       // Re-fetch from cache after filling gaps
@@ -357,8 +370,26 @@ export class ChartDataFeed {
       );
       
       this.currentData = updatedResult.candles;
+      console.log(`ChartDataFeed: After filling gaps, have ${this.currentData.length} candles`);
     } else {
       this.currentData = cacheResult.candles;
+      console.log(`ChartDataFeed: Using cached data, have ${this.currentData.length} candles`);
+    }
+    
+    // If still no data, force load it
+    if (this.currentData.length === 0) {
+      console.log('ChartDataFeed: No data after cache check, forcing load...');
+      const days = Math.ceil((endTime - startTime) / 86400) + 1;
+      await this.loadHistoricalData(this.activeGranularity, days);
+      
+      // Try cache again
+      const finalResult = await this.cache.getCachedCandles(
+        this.symbol,
+        this.activeGranularity,
+        startTime,
+        endTime
+      );
+      this.currentData = finalResult.candles;
     }
     
     return this.currentData;
@@ -606,6 +637,16 @@ export class ChartDataFeed {
   unsubscribe(id: string) {
     this.subscribers.delete(id);
   }
+  
+  // Get current candle data for strategies
+  getCurrentCandles(): CandleData[] {
+    return [...this.currentData];
+  }
+  
+  // Get current granularity
+  getCurrentGranularity(): string {
+    return this.currentGranularity;
+  }
 
   // Append a single candle to the current data
   async appendCandle(candle: CandleData) {
@@ -776,5 +817,16 @@ export class ChartDataFeed {
       this.realtimeUnsubscribe();
       this.realtimeUnsubscribe = null;
     }
+    // Clear in-memory data on disconnect
+    this.clearInMemoryData();
+    console.log('ChartDataFeed: Disconnected');
+  }
+  
+  // Clear all in-memory data to prevent stale data when switching views
+  private clearInMemoryData() {
+    console.log('ChartDataFeed: Clearing in-memory data');
+    this.currentData = [];
+    this.dataByGranularity.clear();
+    this.loadingPromises.clear();
   }
 }

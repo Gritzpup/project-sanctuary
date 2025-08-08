@@ -27,6 +27,15 @@ export abstract class Strategy {
   abstract shouldTakeProfit(position: Position, currentPrice: number): boolean;
   abstract shouldStopLoss(position: Position, currentPrice: number): boolean;
   abstract getRequiredHistoricalData(): number; // Number of candles needed
+  
+  // Optional: Strategy can specify required timeframe
+  getRequiredGranularity(): string | null {
+    return null; // null means any granularity is acceptable
+  }
+  
+  getRequiredPeriod(): string | null {
+    return null; // null means any period is acceptable
+  }
 
   // Common methods with default implementations
   getName(): string {

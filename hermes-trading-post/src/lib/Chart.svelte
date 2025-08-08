@@ -17,6 +17,7 @@
   export let onGranularityChange: ((g: string) => void) | undefined = undefined;
   export let onDataFeedReady: ((feed: ChartDataFeed) => void) | undefined = undefined;
   export let trades: Array<{timestamp: number, type: string, price: number}> = [];
+  export let autoScroll: boolean = true;  // Enable auto-scrolling to new candles by default
   
   // Debug prop changes
   $: console.log('Chart props changed:', { period, granularity, isInitialized });
@@ -340,6 +341,24 @@
                 // Candle exists, update it
                 candleSeries.update(chartCandle);
                 console.log('Chart: Successfully updated candle');
+                
+                // If auto-scroll is enabled and this is the last candle, ensure it's visible
+                if (chart && autoScroll && existingIndex === currentData.length - 1) {
+                  try {
+                    const visibleRange = chart.timeScale().getVisibleRange();
+                    if (visibleRange && Number(visibleRange.to) < chartCandle.time) {
+                      // The last candle is outside the visible range, scroll to show it
+                      console.log('Chart: Scrolling to keep last candle visible');
+                      const rangeWidth = Number(visibleRange.to) - Number(visibleRange.from);
+                      chart.timeScale().setVisibleRange({
+                        from: (chartCandle.time - rangeWidth + 60) as Time,
+                        to: (chartCandle.time + 60) as Time
+                      });
+                    }
+                  } catch (e) {
+                    console.debug('Chart: Unable to check/adjust visible range:', e);
+                  }
+                }
               } else if (chartCandle.time < firstCandle.time) {
                 // New candle is older than first candle, prepend and reset data
                 console.log('Chart: Prepending older candle');
@@ -348,6 +367,24 @@
                 // New candle is newer than last candle, append
                 console.log('Chart: Appending newer candle');
                 candleSeries.setData([...currentData, chartCandle]);
+                
+                // Auto-scroll to show the new candle if enabled
+                if (chart && isNew && autoScroll) {
+                  console.log('Chart: Auto-scrolling to show new candle');
+                  try {
+                    const visibleRange = chart.timeScale().getVisibleRange();
+                    if (visibleRange) {
+                      const rangeWidth = Number(visibleRange.to) - Number(visibleRange.from);
+                      // Shift the range to include the new candle with some buffer
+                      chart.timeScale().setVisibleRange({
+                        from: (chartCandle.time - rangeWidth + 60) as Time,  // Keep most of the range
+                        to: (chartCandle.time + 60) as Time // Add 60s buffer to see the new candle clearly
+                      });
+                    }
+                  } catch (e) {
+                    console.debug('Chart: Unable to auto-scroll:', e);
+                  }
+                }
               } else {
                 // Insert in the middle
                 console.log('Chart: Inserting candle in the middle');
