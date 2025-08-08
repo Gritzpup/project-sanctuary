@@ -3,11 +3,14 @@
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { paperTradingService } from '../services/paperTradingService';
+  import type { ChartDataFeed } from '../services/chartDataFeed';
   import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';
   import { GridTradingStrategy } from '../strategies/implementations/GridTradingStrategy';
   import { RSIMeanReversionStrategy } from '../strategies/implementations/RSIMeanReversionStrategy';
   import { DCAStrategy } from '../strategies/implementations/DCAStrategy';
   import { VWAPBounceStrategy } from '../strategies/implementations/VWAPBounceStrategy';
+  import { MicroScalpingStrategy } from '../strategies/implementations/MicroScalpingStrategy';
+  import { ProperScalpingStrategy } from '../strategies/implementations/ProperScalpingStrategy';
   import type { Strategy } from '../strategies/base/Strategy';
   import { strategyStore } from '../stores/strategyStore';
   
@@ -48,6 +51,10 @@
   let totalReturn = 0;
   let winRate = 0;
   
+  // Chart data feed for strategy
+  let chartDataFeed: ChartDataFeed | null = null;
+  let dataFeedInterval: NodeJS.Timer | null = null;
+  
   // UI state
   let isEditingBalance = false;
   let editingBalance = '10000';
@@ -58,7 +65,9 @@
     { value: 'grid-trading', label: 'Grid Trading', description: 'Classic grid trading strategy', isCustom: false },
     { value: 'rsi-mean-reversion', label: 'RSI Mean Reversion', description: 'Trade RSI oversold/overbought', isCustom: false },
     { value: 'dca', label: 'Dollar Cost Averaging', description: 'Regular periodic purchases', isCustom: false },
-    { value: 'vwap-bounce', label: 'VWAP Bounce', description: 'Trade VWAP support/resistance', isCustom: false }
+    { value: 'vwap-bounce', label: 'VWAP Bounce', description: 'Trade VWAP support/resistance', isCustom: false },
+    { value: 'micro-scalping', label: 'Micro Scalping (1H)', description: 'High-frequency 1H trading with 0.8% entries', isCustom: false },
+    { value: 'proper-scalping', label: 'Proper Scalping', description: 'Professional scalping with RSI, MACD, and stop losses', isCustom: false }
   ];
   
   let customStrategies: any[] = [];
@@ -100,6 +109,10 @@
         return new DCAStrategy(params);
       case 'vwap-bounce':
         return new VWAPBounceStrategy(params);
+      case 'micro-scalping':
+        return new MicroScalpingStrategy(params);
+      case 'proper-scalping':
+        return new ProperScalpingStrategy(params);
       default:
         throw new Error(`Unknown strategy type: ${type}`);
     }
@@ -137,7 +150,8 @@
       'grid-trading': 'GridTradingStrategy',
       'rsi-mean-reversion': 'RSIMeanReversionStrategy',
       'dca': 'DCAStrategy',
-      'vwap-bounce': 'VWAPBounceStrategy'
+      'vwap-bounce': 'VWAPBounceStrategy',
+      'micro-scalping': 'MicroScalpingStrategy'
     };
     return fileNames[type] || 'Strategy';
   }
@@ -196,8 +210,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
 }`;
   }
   
-  onMount(() => {
+  onMount(async () => {
+    console.log('PaperTrading: Component mounted');
     updateStatus();
+    
+    // Add a small delay to ensure chart component is fully mounted
+    await new Promise(resolve => setTimeout(resolve, 200));
+    console.log('PaperTrading: Ready to initialize');
     
     // Subscribe to strategy store to sync with backtesting
     unsubscribe = strategyStore.subscribe(config => {
@@ -206,6 +225,19 @@ export class ${getStrategyFileName(type)} extends Strategy {
       // Update local state from store
       selectedStrategyType = config.selectedType;
       strategyParameters = config.parameters || {};
+      
+      // Update balance if provided
+      if (config.balance !== undefined) {
+        balance = config.balance;
+        console.log('Paper Trading: Updated balance from store:', balance);
+      }
+      
+      // Update fees if provided (Note: Paper trading service might need these in the future)
+      if (config.fees) {
+        // Store fees for potential future use in paper trading service
+        // Currently paper trading doesn't simulate fees, but this ensures consistency
+        console.log('Paper Trading: Received fee configuration:', config.fees);
+      }
       
       // Update custom strategies if provided
       if (config.customStrategies) {
@@ -228,6 +260,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
     }
     if (statusInterval) {
       clearInterval(statusInterval);
+    }
+    if (dataFeedInterval) {
+      clearInterval(dataFeedInterval);
     }
     if (isRunning) {
       paperTradingService.stop();
@@ -269,6 +304,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   function handleChartGranularityChange(newGranularity: string) {
+    // Prevent granularity changes during active trading
+    if (isRunning) {
+      console.warn('Cannot change timeframe while trading is active');
+      return;
+    }
+    
     if (selectedGranularity !== newGranularity) {
       selectedGranularity = newGranularity;
       autoGranularityActive = true;
@@ -279,13 +320,73 @@ export class ${getStrategyFileName(type)} extends Strategy {
     }
   }
   
+  function handleDataFeedReady(feed: ChartDataFeed) {
+    console.log('Paper Trading: Chart data feed ready');
+    chartDataFeed = feed;
+    
+    // If trading is running, start feeding data to the strategy
+    if (isRunning) {
+      startDataFeedToStrategy();
+    }
+  }
+  
+  function startDataFeedToStrategy() {
+    if (!chartDataFeed || !paperTradingService) return;
+    
+    // Clear any existing interval
+    if (dataFeedInterval) {
+      clearInterval(dataFeedInterval);
+    }
+    
+    // Update strategy with current candles every second
+    dataFeedInterval = setInterval(() => {
+      if (chartDataFeed && isRunning) {
+        const candles = chartDataFeed.getCurrentCandles();
+        if (candles && candles.length > 0) {
+          paperTradingService.updateCandles(candles);
+          console.log('Paper Trading: Fed', candles.length, 'candles to strategy');
+        }
+      }
+    }, 1000);
+  }
+  
+  function stopDataFeedToStrategy() {
+    if (dataFeedInterval) {
+      clearInterval(dataFeedInterval);
+      dataFeedInterval = null;
+    }
+  }
+  
   async function startTrading() {
     if (!paperTradingService || isRunning) return;
     
     currentStrategy = createStrategy(selectedStrategyType);
     await loadStrategySourceCode();
+    
+    // Check if strategy has required timeframe
+    const requiredGranularity = currentStrategy.getRequiredGranularity?.();
+    const requiredPeriod = currentStrategy.getRequiredPeriod?.();
+    
+    if (requiredGranularity && requiredGranularity !== selectedGranularity) {
+      console.warn(`Strategy requires ${requiredGranularity} granularity, but chart is set to ${selectedGranularity}`);
+      // Optionally auto-switch to required granularity
+      selectedGranularity = requiredGranularity;
+    }
+    
+    if (requiredPeriod && requiredPeriod !== selectedPeriod) {
+      console.warn(`Strategy requires ${requiredPeriod} period, but chart is set to ${selectedPeriod}`);
+      // Optionally auto-switch to required period
+      selectedPeriod = requiredPeriod;
+    }
+    
     paperTradingService.start(currentStrategy, 'BTC-USD', balance);
     isRunning = true;
+    
+    // Update store to indicate paper trading is active
+    strategyStore.setPaperTradingActive(true);
+    
+    // Start feeding chart data to strategy
+    startDataFeedToStrategy();
     
     // Start periodic status updates
     statusInterval = setInterval(updateStatus, 1000);
@@ -296,6 +397,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     paperTradingService.stop();
     isRunning = false;
+    
+    // Update store to indicate paper trading is not active
+    strategyStore.setPaperTradingActive(false);
+    
+    // Stop feeding chart data to strategy
+    stopDataFeedToStrategy();
     
     if (statusInterval) {
       clearInterval(statusInterval);
@@ -380,21 +487,29 @@ export class ${getStrategyFileName(type)} extends Strategy {
   $: returnPercent = ((totalValue - 10000) / 10000) * 100;
   
   // Calculate next buy trigger for all strategies
-  let recentHigh = currentPrice || 0;
-  let recentLow = currentPrice || 0;
-  let tradingHistory: number[] = [];
+  let recentHigh = 0;
+  let recentLow = 0;
   let lastTradeTime = 0;
   
+  // Get recent high/low from chart data instead of trading history
   $: {
-    // Track price history for calculations
-    if (currentPrice > 0) {
-      tradingHistory = [...tradingHistory.slice(-300), currentPrice];
-      if (tradingHistory.length > 0) {
-        recentHigh = Math.max(...tradingHistory);
-        recentLow = Math.min(...tradingHistory);
-      } else {
+    if (chartDataFeed && currentPrice > 0) {
+      const candles = chartDataFeed.getCurrentCandles();
+      if (candles && candles.length > 0) {
+        // Look at last 24-48 candles for recent high/low (24-48 hours for 1H candles)
+        const lookbackCandles = candles.slice(-48);
+        if (lookbackCandles.length > 0) {
+          recentHigh = Math.max(...lookbackCandles.map(c => c.high));
+          recentLow = Math.min(...lookbackCandles.map(c => c.low));
+          console.log(`Paper Trading: Recent high: $${recentHigh.toFixed(2)}, Recent low: $${recentLow.toFixed(2)}, Current: $${currentPrice.toFixed(2)}`);
+        }
+      }
+      
+      // Fallback only if we have no candle data
+      if (recentHigh === 0) {
         recentHigh = currentPrice;
         recentLow = currentPrice;
+        console.log('Paper Trading: No candle data, using current price as recent high/low');
       }
     }
     
@@ -410,6 +525,48 @@ export class ${getStrategyFileName(type)} extends Strategy {
   $: dropFromHigh = recentHigh > 0 ? ((recentHigh - currentPrice) / recentHigh) * 100 : 0;
   $: riseFromLow = recentLow > 0 ? ((currentPrice - recentLow) / recentLow) * 100 : 0;
   
+  // Calculate sell target based on positions
+  $: sellTarget = (() => {
+    if (positions.length === 0) return null;
+    
+    // Find the lowest entry price (the position bought at the lowest price)
+    const lowestEntry = Math.min(...positions.map(p => p.entryPrice));
+    
+    // Get profit target from strategy parameters or use default
+    let profitTarget = 7; // Default 7%
+    
+    // Strategy-specific profit targets
+    switch (selectedStrategyType) {
+      case 'reverse-ratio':
+        profitTarget = strategyParameters.profitTarget || 7;
+        break;
+      case 'grid-trading':
+        profitTarget = strategyParameters.profitTarget || 2;
+        break;
+      case 'rsi-mean-reversion':
+        profitTarget = strategyParameters.profitTarget || 5;
+        break;
+      case 'micro-scalping':
+        profitTarget = 0.9; // Fixed 0.9% for micro scalping
+        break;
+      case 'proper-scalping':
+        profitTarget = strategyParameters.profitTarget || 1.5;
+        break;
+      case 'vwap-bounce':
+        profitTarget = strategyParameters.profitTarget || 3;
+        break;
+      case 'dca':
+        profitTarget = strategyParameters.profitTarget || 10;
+        break;
+    }
+    
+    return {
+      price: lowestEntry * (1 + profitTarget / 100),
+      profitTarget: profitTarget,
+      lowestEntry: lowestEntry
+    };
+  })();
+  
   // Calculate next buy level based on selected strategy
   $: nextBuyLevel = (() => {
     const currentPositionCount = positions.length;
@@ -419,19 +576,39 @@ export class ${getStrategyFileName(type)} extends Strategy {
         const levels = [5, 10, 15, 20, 25]; // Drop percentages for each level
         if (currentPositionCount >= 5) return null;
         
+        // Find the next level that hasn't been reached yet
+        // If we've already dropped past a level without buying, skip to the next one
+        let nextLevel = null;
         for (let level of levels) {
-          if (dropFromHigh < level) {
-            return {
-              type: 'price',
-              label: 'Drop Target',
-              value: `${level}%`,
-              price: recentHigh * (1 - level / 100),
-              progress: (dropFromHigh / level) * 100,
-              description: `${level}% drop from high`
-            };
+          // Only show levels that are BELOW current price
+          const targetPrice = recentHigh * (1 - level / 100);
+          if (targetPrice < currentPrice) {
+            // This is a valid buy level below current price
+            // Check if we've already bought at this level
+            const hasPositionAtLevel = positions.some(p => {
+              const positionDropPercent = ((recentHigh - p.entry_price) / recentHigh) * 100;
+              return Math.abs(positionDropPercent - level) < 1; // Within 1% tolerance
+            });
+            
+            if (!hasPositionAtLevel) {
+              nextLevel = level;
+              break;
+            }
           }
         }
-        return null;
+        
+        if (!nextLevel) return null;
+        
+        return {
+          type: 'price',
+          label: 'Drop Target',
+          value: `${nextLevel}%`,
+          price: recentHigh * (1 - nextLevel / 100),
+          progress: (dropFromHigh / nextLevel) * 100,
+          dropPercent: nextLevel,
+          currentDrop: dropFromHigh,
+          description: `${nextLevel}% drop from high`
+        };
       }
       
       case 'grid-trading': {
@@ -479,6 +656,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
           value: progress >= 100 ? 'Now' : `${Math.round((intervalMs - timeSinceLastTrade) / (60 * 60 * 1000))}h`,
           price: currentPrice, // DCA buys at market price
           progress: progress,
+          dropPercent: 0,
+          currentDrop: dropFromHigh,
           description: 'Daily accumulation'
         };
       }
@@ -495,6 +674,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
           value: 'Below VWAP',
           price: targetPrice,
           progress: Math.max(0, Math.min(100, ((estimatedVWAP - currentPrice) / (estimatedVWAP - targetPrice)) * 100)),
+          dropPercent: vwapDiscount,
+          currentDrop: dropFromHigh,
           description: `${vwapDiscount}% below VWAP`
         };
       }
@@ -502,6 +683,46 @@ export class ${getStrategyFileName(type)} extends Strategy {
       default:
         return null;
     }
+  })();
+  
+  // Calculate 3-section chart data
+  $: threeZoneData = (() => {
+    if (!nextBuyLevel || currentPrice <= 0) return null;
+    
+    const buyZone = nextBuyLevel.price;
+    const sellZone = sellTarget?.price || currentPrice * 1.07; // Default 7% if no positions
+    
+    // Calculate the price range and positions
+    const minPrice = Math.min(buyZone, currentPrice);
+    const maxPrice = Math.max(sellZone, currentPrice);
+    const range = maxPrice - minPrice;
+    
+    // Calculate percentages for each zone
+    const buyDistance = currentPrice - buyZone;
+    const sellDistance = sellZone - currentPrice;
+    
+    return {
+      buyZone: {
+        price: buyZone,
+        distance: buyDistance,
+        percent: (buyDistance / currentPrice) * 100
+      },
+      current: {
+        price: currentPrice,
+        positionInRange: ((currentPrice - minPrice) / range) * 100
+      },
+      sellZone: {
+        price: sellZone,
+        distance: sellDistance,
+        percent: (sellDistance / currentPrice) * 100,
+        hasPositions: positions.length > 0
+      },
+      range: {
+        min: minPrice,
+        max: maxPrice,
+        total: range
+      }
+    };
   })();
 </script>
 
@@ -562,17 +783,33 @@ export class ${getStrategyFileName(type)} extends Strategy {
             bind:status={connectionStatus} 
             granularity={selectedGranularity} 
             period={selectedPeriod} 
-            onGranularityChange={handleChartGranularityChange} 
+            onGranularityChange={handleChartGranularityChange}
+            onDataFeedReady={handleDataFeedReady}
+            trades={trades.map(t => ({
+              timestamp: t.timestamp,
+              type: t.type || t.side,  // Handle both 'type' and 'side' properties
+              price: t.price
+            }))}
           />
+          {#if isRunning}
+            <div class="timeframe-locked-indicator">
+              🔒 Timeframe locked during trading ({selectedGranularity} / {selectedPeriod})
+              {#if currentStrategy?.getRequiredGranularity?.()}
+                <div class="required-timeframe">
+                  Strategy requires: {currentStrategy.getRequiredGranularity()} / {currentStrategy.getRequiredPeriod() || 'any period'}
+                </div>
+              {/if}
+            </div>
+          {/if}
           <div class="period-buttons">
-            <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
-            <button class="period-btn" class:active={selectedPeriod === '4H'} on:click={() => selectPeriod('4H')}>4H</button>
-            <button class="period-btn" class:active={selectedPeriod === '5D'} on:click={() => selectPeriod('5D')}>5D</button>
-            <button class="period-btn" class:active={selectedPeriod === '1M'} on:click={() => selectPeriod('1M')}>1M</button>
-            <button class="period-btn" class:active={selectedPeriod === '3M'} on:click={() => selectPeriod('3M')}>3M</button>
-            <button class="period-btn" class:active={selectedPeriod === '6M'} on:click={() => selectPeriod('6M')}>6M</button>
-            <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
-            <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
+            <button class="period-btn" class:active={selectedPeriod === '1H'} disabled={isRunning} on:click={() => selectPeriod('1H')}>1H</button>
+            <button class="period-btn" class:active={selectedPeriod === '4H'} disabled={isRunning} on:click={() => selectPeriod('4H')}>4H</button>
+            <button class="period-btn" class:active={selectedPeriod === '5D'} disabled={isRunning} on:click={() => selectPeriod('5D')}>5D</button>
+            <button class="period-btn" class:active={selectedPeriod === '1M'} disabled={isRunning} on:click={() => selectPeriod('1M')}>1M</button>
+            <button class="period-btn" class:active={selectedPeriod === '3M'} disabled={isRunning} on:click={() => selectPeriod('3M')}>3M</button>
+            <button class="period-btn" class:active={selectedPeriod === '6M'} disabled={isRunning} on:click={() => selectPeriod('6M')}>6M</button>
+            <button class="period-btn" class:active={selectedPeriod === '1Y'} disabled={isRunning} on:click={() => selectPeriod('1Y')}>1Y</button>
+            <button class="period-btn" class:active={selectedPeriod === '5Y'} disabled={isRunning} on:click={() => selectPeriod('5Y')}>5Y</button>
           </div>
         </div>
       </div>
@@ -580,7 +817,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
       <!-- Trading Controls -->
       <div class="panel trading-panel">
         <div class="panel-header">
-          <h2>Automated Trading</h2>
+          <h2>
+            Automated Trading
+          </h2>
           <div class="header-actions">
             {#if trades.length > 0 || btcBalance > 0 || vaultBalance > 0}
               <button class="reset-btn" title="Reset Trading" on:click={resetTrading}>
@@ -740,10 +979,10 @@ export class ${getStrategyFileName(type)} extends Strategy {
               <p class="no-trades">No trades yet</p>
             {:else}
               {#each trades.slice(-20).reverse() as trade}
-                <div class="trade-item" class:buy={trade.side === 'buy'} class:sell={trade.side === 'sell'}>
+                <div class="trade-item" class:buy={(trade.type || trade.side) === 'buy'} class:sell={(trade.type || trade.side) === 'sell'}>
                   <div class="trade-header">
-                    <span class="trade-type">{trade.side.toUpperCase()}</span>
-                    <span class="trade-time">{new Date(trade.timestamp).toLocaleString()}</span>
+                    <span class="trade-type">{(trade.type || trade.side || '').toUpperCase()}</span>
+                    <span class="trade-time">{new Date((trade.timestamp || 0) * 1000).toLocaleString()}</span>
                   </div>
                   <div class="trade-details">
                     <span>Price: ${trade.price.toFixed(2)}</span>
@@ -765,86 +1004,105 @@ export class ${getStrategyFileName(type)} extends Strategy {
         </div>
       </div>
       
-      <!-- Next Buy Trigger Indicator -->
-      {#if nextBuyLevel}
+      <!-- Trading Zones Indicator -->
+      {#if threeZoneData}
         <div class="trigger-gauge-panel">
           <div class="gauge-container">
             <div class="gauge-header">
-              <h3>🎯 Next Buy Zone</h3>
-              <div class="gauge-price">
-                <span class="price-label">Trigger at</span>
-                <span class="price-value">${nextBuyLevel.price.toFixed(2)}</span>
+              <h3>📊 Trading Zones</h3>
+              <div class="zone-prices">
+                <div class="zone-price buy">
+                  <span class="zone-label">Buy Zone</span>
+                  <span class="zone-value">${threeZoneData.buyZone.price.toFixed(2)}</span>
+                </div>
+                <div class="zone-price current">
+                  <span class="zone-label">Current</span>
+                  <span class="zone-value">${threeZoneData.current.price.toFixed(2)}</span>
+                </div>
+                <div class="zone-price sell">
+                  <span class="zone-label">Sell Target</span>
+                  <span class="zone-value">${threeZoneData.sellZone.price.toFixed(2)}</span>
+                </div>
               </div>
             </div>
             
-            <div class="gauge-visual">
-              <div class="gauge-arc">
-                <svg viewBox="0 0 200 120" class="gauge-svg">
-                  <!-- Background arc -->
-                  <path d="M 20 100 A 80 80 0 0 1 180 100" 
-                        fill="none" 
-                        stroke="rgba(74, 0, 224, 0.2)" 
-                        stroke-width="15"
-                        stroke-linecap="round"/>
-                  
-                  <!-- Progress arc -->
-                  <path d="M 20 100 A 80 80 0 0 1 180 100" 
-                        fill="none" 
-                        stroke="url(#gaugeGradient)" 
-                        stroke-width="15"
-                        stroke-linecap="round"
-                        stroke-dasharray="{251.33 * (nextBuyLevel.progress / 100)} 251.33"
-                        class="gauge-progress"/>
-                  
-                  <!-- Gradient definition -->
-                  <defs>
-                    <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" style="stop-color:#4a00e0;stop-opacity:1" />
-                      <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:1" />
-                    </linearGradient>
-                  </defs>
-                  
-                  <!-- Pointer -->
-                  <circle cx="{20 + 160 * (nextBuyLevel.progress / 100)}" 
-                          cy="{100 - 80 * Math.sin(Math.PI * nextBuyLevel.progress / 100)}" 
-                          r="8" 
-                          fill="#a78bfa" 
-                          class="gauge-pointer">
+            <div class="three-zone-chart">
+              <svg viewBox="0 0 400 200" class="zone-svg">
+                <!-- Background -->
+                <rect x="50" y="50" width="300" height="100" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                
+                <!-- Buy zone section -->
+                <rect x="50" y="50" width="100" height="100" fill="rgba(239, 68, 68, 0.1)" class="buy-zone-bg"/>
+                <line x1="150" y1="50" x2="150" y2="150" stroke="rgba(239, 68, 68, 0.3)" stroke-width="2" stroke-dasharray="5,5"/>
+                
+                <!-- Current position section -->
+                <rect x="150" y="50" width="100" height="100" fill="rgba(59, 130, 246, 0.1)" class="current-zone-bg"/>
+                <line x1="250" y1="50" x2="250" y2="150" stroke="rgba(59, 130, 246, 0.3)" stroke-width="2" stroke-dasharray="5,5"/>
+                
+                <!-- Sell zone section -->
+                <rect x="250" y="50" width="100" height="100" fill="rgba(34, 197, 94, 0.1)" class="sell-zone-bg"/>
+                
+                <!-- Price position indicator -->
+                {#if threeZoneData.current.positionInRange <= 33.33}
+                  <!-- In buy zone -->
+                  <circle cx="{50 + (threeZoneData.current.positionInRange * 3)}" cy="100" r="8" fill="#ef4444" class="price-indicator">
                     <animate attributeName="r" values="8;10;8" dur="2s" repeatCount="indefinite"/>
                   </circle>
-                </svg>
+                {:else if threeZoneData.current.positionInRange <= 66.66}
+                  <!-- In middle zone -->
+                  <circle cx="{50 + (threeZoneData.current.positionInRange * 3)}" cy="100" r="8" fill="#3b82f6" class="price-indicator">
+                    <animate attributeName="r" values="8;10;8" dur="2s" repeatCount="indefinite"/>
+                  </circle>
+                {:else}
+                  <!-- In sell zone -->
+                  <circle cx="{50 + (threeZoneData.current.positionInRange * 3)}" cy="100" r="8" fill="#22c55e" class="price-indicator">
+                    <animate attributeName="r" values="8;10;8" dur="2s" repeatCount="indefinite"/>
+                  </circle>
+                {/if}
                 
-                <div class="gauge-center">
-                  <div class="gauge-percentage">{nextBuyLevel.progress.toFixed(1)}%</div>
-                  <div class="gauge-subtitle">{nextBuyLevel.description || 'to trigger'}</div>
-                </div>
-              </div>
-              
-              <div class="gauge-levels">
-                <div class="level-marker" style="left: 0%">
-                  <div class="marker-line"></div>
-                  <div class="marker-label">0%</div>
-                </div>
-                <div class="level-marker" style="left: 50%">
-                  <div class="marker-line"></div>
-                  <div class="marker-label">{(nextBuyLevel.dropPercent / 2).toFixed(1)}%</div>
-                </div>
-                <div class="level-marker" style="left: 100%">
-                  <div class="marker-line"></div>
-                  <div class="marker-label">{nextBuyLevel.dropPercent}%</div>
-                </div>
-              </div>
+                <!-- Zone labels -->
+                <text x="100" y="180" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="12">Buy Zone</text>
+                <text x="200" y="180" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="12">Current</text>
+                <text x="300" y="180" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="12">Sell Zone</text>
+                
+                <!-- Percentage indicators -->
+                <text x="100" y="30" text-anchor="middle" fill="#ef4444" font-size="14" font-weight="bold">
+                  -{threeZoneData.buyZone.percent.toFixed(1)}%
+                </text>
+                <text x="300" y="30" text-anchor="middle" fill="#22c55e" font-size="14" font-weight="bold">
+                  +{threeZoneData.sellZone.percent.toFixed(1)}%
+                </text>
+              </svg>
             </div>
             
-            <div class="gauge-stats">
-              <div class="gauge-stat">
+            <div class="zone-stats">
+              <div class="zone-stat">
                 <div class="stat-info">
-                  <span class="stat-icon">💵</span>
-                  <span class="stat-label">Current Price</span>
+                  <span class="stat-icon">📉</span>
+                  <span class="stat-label">To Buy Zone</span>
                 </div>
-                <span class="stat-value">${currentPrice.toFixed(2)}</span>
+                <span class="stat-value">${Math.abs(threeZoneData.buyZone.distance).toFixed(2)} ({threeZoneData.buyZone.percent.toFixed(1)}%)</span>
               </div>
-              <div class="gauge-stat">
+              <div class="zone-stat">
+                <div class="stat-info">
+                  <span class="stat-icon">
+                    {#if threeZoneData.sellZone.hasPositions}
+                      💰
+                    {:else}
+                      📊
+                    {/if}
+                  </span>
+                  <span class="stat-label">
+                    {#if threeZoneData.sellZone.hasPositions}
+                      To Profit Target
+                    {:else}
+                      Est. Sell Target
+                    {/if}
+                  </span>
+                </div>
+                <span class="stat-value highlight">${threeZoneData.sellZone.distance.toFixed(2)} ({threeZoneData.sellZone.percent.toFixed(1)}%)</span>
+              </div>
+              <div class="zone-stat">
                 <div class="stat-info">
                   <span class="stat-icon">
                     {#if nextBuyLevel.type === 'time'}
@@ -852,19 +1110,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
                     {:else if nextBuyLevel.type === 'indicator'}
                       📊
                     {:else}
-                      📉
+                      🎯
                     {/if}
                   </span>
                   <span class="stat-label">{nextBuyLevel.label}</span>
                 </div>
                 <span class="stat-value">{nextBuyLevel.value}</span>
-              </div>
-              <div class="gauge-stat">
-                <div class="stat-info">
-                  <span class="stat-icon">🎯</span>
-                  <span class="stat-label">Target Price</span>
-                </div>
-                <span class="stat-value highlight">${nextBuyLevel.price.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -1814,5 +2065,170 @@ export class ${getStrategyFileName(type)} extends Strategy {
   .sync-text {
     color: #a78bfa;
     font-weight: 500;
+  }
+  
+  .sync-indicator {
+    display: inline-block;
+    font-size: 0.75em;
+    color: #4ade80;
+    background: rgba(74, 222, 128, 0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 10px;
+    font-weight: normal;
+    vertical-align: middle;
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  
+  .timeframe-locked-indicator {
+    background: rgba(255, 165, 0, 0.1);
+    color: #ffa500;
+    padding: 8px 12px;
+    margin: 10px 0;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 165, 0, 0.3);
+    text-align: center;
+    font-size: 0.9em;
+    animation: pulse 2s infinite;
+  }
+  
+  .required-timeframe {
+    margin-top: 5px;
+    font-size: 0.85em;
+    color: #ff9999;
+  }
+  
+  .period-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: rgba(30, 30, 30, 0.5);
+  }
+  
+  .period-btn:disabled:hover {
+    background: rgba(30, 30, 30, 0.5);
+    border-color: rgba(74, 0, 224, 0.2);
+  }
+  
+  /* Three Zone Chart Styles */
+  .zone-prices {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    margin-top: 10px;
+  }
+  
+  .zone-price {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .zone-price.buy .zone-label {
+    color: #ef4444;
+  }
+  
+  .zone-price.current .zone-label {
+    color: #3b82f6;
+  }
+  
+  .zone-price.sell .zone-label {
+    color: #22c55e;
+  }
+  
+  .zone-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .zone-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: #d1d4dc;
+  }
+  
+  .zone-price.buy .zone-value {
+    color: #ef4444;
+  }
+  
+  .zone-price.current .zone-value {
+    color: #3b82f6;
+  }
+  
+  .zone-price.sell .zone-value {
+    color: #22c55e;
+  }
+  
+  .three-zone-chart {
+    margin: 20px 0;
+    position: relative;
+  }
+  
+  .zone-svg {
+    width: 100%;
+    height: auto;
+  }
+  
+  .buy-zone-bg {
+    transition: fill 0.3s ease;
+  }
+  
+  .current-zone-bg {
+    transition: fill 0.3s ease;
+  }
+  
+  .sell-zone-bg {
+    transition: fill 0.3s ease;
+  }
+  
+  .price-indicator {
+    filter: drop-shadow(0 0 8px currentColor);
+    transition: cx 0.5s ease;
+  }
+  
+  .zone-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(74, 0, 224, 0.2);
+  }
+  
+  .zone-stat {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  
+  .zone-stat .stat-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .zone-stat .stat-label {
+    font-size: 12px;
+    color: #758696;
+    text-transform: uppercase;
+  }
+  
+  .zone-stat .stat-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: #d1d4dc;
+  }
+  
+  .zone-stat .stat-value.highlight {
+    color: #a78bfa;
+    text-shadow: 0 0 10px rgba(167, 139, 250, 0.3);
   }
 </style>

@@ -252,17 +252,27 @@ class PaperTradingService {
     const strategyState = state.strategy.getState();
 
     if (signal.type === 'buy') {
-      const size = state.strategy.calculatePositionSize(strategyState.balance.usd, signal, currentPrice);
+      // FIXED: Pass total available balance (USD + vault) to strategy
+      const totalAvailable = strategyState.balance.usd + strategyState.balance.vault;
+      const size = state.strategy.calculatePositionSize(totalAvailable, signal, currentPrice);
       if (size <= 0) return state;
 
       const cost = size * currentPrice;
       const fee = cost * (this.feePercent / 100);
       const totalCost = cost + fee;
 
-      if (totalCost > strategyState.balance.usd) return state;
+      // FIXED: Check against total available balance (USD + vault)
+      if (totalCost > totalAvailable) return state;
 
-      // Execute buy
-      strategyState.balance.usd -= totalCost;
+      // Execute buy - deduct from USD first, then vault if needed
+      if (totalCost <= strategyState.balance.usd) {
+        strategyState.balance.usd -= totalCost;
+      } else {
+        // Need to use vault funds too
+        const fromVault = totalCost - strategyState.balance.usd;
+        strategyState.balance.vault -= fromVault;
+        strategyState.balance.usd = 0;
+      }
       strategyState.balance.btcPositions += size;
       newState.balance = { ...strategyState.balance };
 

@@ -15,6 +15,8 @@
   export let granularity: string = '1m';
   export let period: string = '1H';
   export let onGranularityChange: ((g: string) => void) | undefined = undefined;
+  export let onDataFeedReady: ((feed: ChartDataFeed) => void) | undefined = undefined;
+  export let trades: Array<{timestamp: number, type: string, price: number}> = [];
   
   // Debug prop changes
   $: console.log('Chart props changed:', { period, granularity, isInitialized });
@@ -122,6 +124,16 @@
     }, 50); // Small delay to let both props settle
   }
   
+  // Update trade markers when trades change
+  $: if (candleSeries && trades) {
+    console.log('Chart: Trades prop changed, updating markers', {
+      tradesLength: trades.length,
+      candleSeries: !!candleSeries,
+      chart: !!chart
+    });
+    updateTradeMarkers();
+  }
+  
   function handleManualGranularityChange(newGranularity: string) {
     if (!dataFeed || !chart || !candleSeries) return;
     
@@ -180,11 +192,13 @@
             top: 0.1,
             bottom: 0.2,
           },
+          autoScale: true,
+          mode: 0, // Normal mode (not logarithmic)
         },
         timeScale: {
           rightOffset: 5,
-          barSpacing: 3,
-          minBarSpacing: 1,
+          barSpacing: 6,      // Increased from 3 to make candles wider
+          minBarSpacing: 2,   // Increased from 1
           fixLeftEdge: true,  // Lock left edge (no zoom)
           fixRightEdge: true, // Lock right edge (no zoom)
           lockVisibleTimeRangeOnResize: true,
@@ -229,6 +243,11 @@
           type: 'price',
           precision: 2,
           minMove: 0.01
+        },
+        // Add minimum visible price range to prevent candle compression
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.1
         }
       });
 
@@ -242,6 +261,14 @@
 
       // Initialize data feed with real Coinbase data
       dataFeed = new ChartDataFeed();
+      
+      // Force clear any cached data to ensure fresh start
+      console.log('Chart: Ensuring fresh data on initialization');
+      
+      // Notify parent component that dataFeed is ready
+      if (onDataFeedReady && dataFeed) {
+        onDataFeedReady(dataFeed);
+      }
       
       // IMPORTANT: Subscribe IMMEDIATELY before any data arrives
       dataFeed.subscribe('chart', (candle, isNew) => {
@@ -274,6 +301,19 @@
             low: candle.low,
             close: candle.close
           };
+          
+          // Debug: Log candle with body size
+          const bodySize = Math.abs(candle.close - candle.open);
+          const bodyPercent = (bodySize / candle.open) * 100;
+          if (bodyPercent < 0.01) {
+            console.log('WARNING: Very thin candle body detected:', {
+              time: new Date(candle.time * 1000).toISOString(),
+              open: candle.open,
+              close: candle.close,
+              bodySize,
+              bodyPercent: bodyPercent.toFixed(4) + '%'
+            });
+          }
           
           if (isNew) {
             console.log(`Chart: Received new ${effectiveGranularity} candle at ${new Date(candle.time * 1000).toISOString()}`);
@@ -333,6 +373,13 @@
         dataFeed.onGranularityChange(onGranularityChange);
       }
 
+      // Add small delay to ensure all components are ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Force set the initial granularity to ensure it's properly set
+      effectiveGranularity = granularity;
+      console.log('Chart: Initial mount - Setting effectiveGranularity to:', effectiveGranularity);
+      
       // Load initial data
       await loadInitialData();
       
@@ -399,6 +446,7 @@
   async function loadInitialData() {
     console.log('=== loadInitialData called ===');
     console.log('chart:', !!chart, 'dataFeed:', !!dataFeed, 'candleSeries:', !!candleSeries);
+    console.log('Current settings:', { period, granularity: effectiveGranularity });
     
     if (!chart || !dataFeed || !candleSeries) {
       console.error('Missing required components:', { chart: !!chart, dataFeed: !!dataFeed, candleSeries: !!candleSeries });
@@ -540,8 +588,18 @@
           time: candle.time as Time
         }));
         
-        console.log('Setting chart data...');
+        console.log(`Setting chart data... ${chartData.length} candles`);
         candleSeries.setData(chartData);
+        
+        // Update total candle count display
+        totalCandleCount = chartData.length;
+        visibleCandleCount = chartData.length;
+        
+        // Update trade markers after data is set
+        if (trades && trades.length > 0) {
+          console.log('Chart: Updating trade markers after data load');
+          updateTradeMarkers();
+        }
         
         // IMPORTANT: Force the visible range to show ONLY the requested period
         console.log('Setting visible range to REQUESTED time period...');
@@ -614,6 +672,16 @@
       status = 'connected';
       cacheStatus = 'ready';
       // errorMessage = ''; // Clear any previous errors
+      
+      // Force chart to fit content to ensure all candles are visible
+      setTimeout(() => {
+        try {
+          chart?.timeScale().fitContent();
+          console.log('Chart: Fit content called to ensure all candles are visible');
+        } catch (e) {
+          console.debug('Unable to fit content:', e);
+        }
+      }, 100);
     } catch (error: any) {
       console.error('Error loading initial data:', error);
       console.error('Error stack:', error.stack);
@@ -744,6 +812,12 @@
         // Update chart data
         candleSeries.setData(chartData);
         
+        // Update trade markers after data reload
+        if (trades && trades.length > 0) {
+          console.log('Chart: Updating trade markers after data reload');
+          updateTradeMarkers();
+        }
+        
         // Force the chart to show all data
         if (chartData.length > 0) {
           console.log('VERSION 5: Setting data and fitting content');
@@ -823,8 +897,59 @@
       granularity: effectiveGranularity,
       visibleCount: visibleCandleCount,
       expected: expected || 'calculated',
-      isCorrect: expected ? Math.abs(visibleCandleCount - expected) <= 1 : 'N/A'
+      range: `${(range / 60).toFixed(1)} minutes`
     });
+  }
+  
+  // Update trade markers on the chart
+  function updateTradeMarkers() {
+    if (!candleSeries || !trades) {
+      console.log('Chart: Cannot update markers - missing requirements', {
+        candleSeries: !!candleSeries,
+        trades: !!trades
+      });
+      return;
+    }
+    
+    console.log('Chart: Updating trade markers', trades.length);
+    
+    if (trades.length === 0) {
+      candleSeries.setMarkers([]);
+      return;
+    }
+    
+    // Create markers for trades
+    const markers = trades.map((trade, index) => {
+      // Ensure timestamp is an integer
+      const timestamp = Math.floor(trade.timestamp);
+      
+      const marker = {
+        time: timestamp as Time,
+        position: trade.type === 'buy' ? 'belowBar' : 'aboveBar',
+        color: trade.type === 'buy' ? '#26a69a' : '#ef5350',
+        shape: trade.type === 'buy' ? 'arrowUp' : 'arrowDown',
+        size: 2,
+        text: `${trade.type.toUpperCase()} @ $${trade.price.toLocaleString()}`
+      };
+      
+      console.log(`Chart: Trade ${index} marker:`, {
+        time: marker.time,
+        timestamp: new Date(marker.time * 1000).toISOString(),
+        type: trade.type,
+        price: trade.price
+      });
+      
+      return marker;
+    });
+    
+    console.log('Chart: Setting markers:', markers);
+    
+    try {
+      candleSeries.setMarkers(markers);
+      console.log('Chart: Markers set successfully');
+    } catch (error) {
+      console.error('Chart: Error setting markers:', error);
+    }
   }
 
   // Update total candle count
@@ -954,9 +1079,11 @@
 
 <div class="chart-container" bind:this={chartContainer}>
   
+  <!-- Debug: Candle count display hidden
   <div class="candle-count">
     {visibleCandleCount} / {totalCandleCount} candles
   </div>
+  -->
   
   <div class="status-container">
     <span class="status-dot {displayStatus}"></span>

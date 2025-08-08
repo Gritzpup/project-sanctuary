@@ -289,8 +289,8 @@ export class ReverseRatioStrategy extends Strategy {
     const config = this.config as ReverseRatioConfig;
     const level = signal.metadata.level;
     
-    // Use total available balance (USD + vault)
-    const totalAvailable = this.state.balance.usd + this.state.balance.vault;
+    // Paper trading service now correctly passes total available balance (USD + vault)
+    const totalAvailable = balance;
     
     console.log('[ReverseRatio] Calculating position size:', {
       balancePassedIn: balance,
