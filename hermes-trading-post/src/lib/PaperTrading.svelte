@@ -212,6 +212,23 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   onMount(async () => {
     console.log('PaperTrading: Component mounted');
+    
+    // Check for restored state from persistence
+    const restored = paperTradingService.restoreFromSavedState();
+    if (restored) {
+      console.log('PaperTrading: Restored saved trading state');
+      isRunning = true;
+      
+      // Start status updates
+      statusInterval = setInterval(updateStatus, 1000);
+      
+      // Wait for chart to be ready then start data feed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      if (chartDataFeed) {
+        startDataFeedToStrategy();
+      }
+    }
+    
     updateStatus();
     
     // Add a small delay to ensure chart component is fully mounted
@@ -687,9 +704,27 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   // Calculate 3-section chart data
   $: threeZoneData = (() => {
-    if (!nextBuyLevel || currentPrice <= 0) return null;
+    if (currentPrice <= 0) return null;
     
-    const buyZone = nextBuyLevel.price;
+    // If no next buy level (max positions or no valid levels), show last buy price or a default
+    let buyZone = currentPrice * 0.95; // Default 5% below current
+    let buyZoneType = 'default';
+    
+    if (nextBuyLevel) {
+      buyZone = nextBuyLevel.price;
+      buyZoneType = 'next';
+    } else if (positions.length >= 5) {
+      // At max positions - show lowest entry
+      if (positions.length > 0) {
+        buyZone = Math.min(...positions.map(p => p.entry_price));
+        buyZoneType = 'lowest';
+      }
+    } else if (positions.length > 0) {
+      // Show the lowest entry price as reference
+      buyZone = Math.min(...positions.map(p => p.entry_price));
+      buyZoneType = 'lowest';
+    }
+    
     const sellZone = sellTarget?.price || currentPrice * 1.07; // Default 7% if no positions
     
     // Calculate the price range and positions
@@ -701,27 +736,63 @@ export class ${getStrategyFileName(type)} extends Strategy {
     const buyDistance = currentPrice - buyZone;
     const sellDistance = sellZone - currentPrice;
     
+    // When not trading, show centered position
+    if (!isRunning) {
+      return {
+        buyZone: {
+          price: currentPrice * 0.95,
+          distance: currentPrice * 0.05,
+          percent: 5,
+          type: 'default'
+        },
+        current: {
+          price: currentPrice,
+          angle: 90 // Center of gauge (0-180 degrees)
+        },
+        sellZone: {
+          price: currentPrice * 1.05,
+          distance: currentPrice * 0.05,
+          percent: 5,
+          hasPositions: false
+        },
+        isTrading: false
+      };
+    }
+    
+    // When trading, calculate actual angle based on position
+    // Angle: 0° = buy zone, 90° = neutral, 180° = sell zone
+    let angle = 90; // Default to center
+    
+    if (currentPrice <= buyZone) {
+      // In buy zone: 0-60 degrees
+      angle = 30;
+    } else if (currentPrice >= sellZone) {
+      // In sell zone: 120-180 degrees
+      angle = 150;
+    } else {
+      // Between buy and sell: map to 60-120 degrees
+      const position = (currentPrice - buyZone) / (sellZone - buyZone);
+      angle = 60 + (position * 60);
+    }
+    
     return {
       buyZone: {
         price: buyZone,
         distance: buyDistance,
-        percent: (buyDistance / currentPrice) * 100
+        percent: Math.abs((buyDistance / currentPrice) * 100),
+        type: buyZoneType
       },
       current: {
         price: currentPrice,
-        positionInRange: ((currentPrice - minPrice) / range) * 100
+        angle: Math.max(0, Math.min(180, angle))
       },
       sellZone: {
         price: sellZone,
         distance: sellDistance,
-        percent: (sellDistance / currentPrice) * 100,
+        percent: Math.abs((sellDistance / currentPrice) * 100),
         hasPositions: positions.length > 0
       },
-      range: {
-        min: minPrice,
-        max: maxPrice,
-        total: range
-      }
+      isTrading: true
     };
   })();
 </script>
@@ -914,6 +985,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 Stop Trading
               </button>
             {/if}
+            <button class="reset-btn" on:click={resetTrading} title="Reset balance and clear all positions">
+              Reset
+            </button>
           </div>
           
           {#if isRunning}
@@ -1012,7 +1086,15 @@ export class ${getStrategyFileName(type)} extends Strategy {
               <h3>📊 Trading Zones</h3>
               <div class="zone-prices">
                 <div class="zone-price buy">
-                  <span class="zone-label">Buy Zone</span>
+                  <span class="zone-label">
+                    {#if threeZoneData.buyZone.type === 'next'}
+                      Next Buy
+                    {:else if threeZoneData.buyZone.type === 'lowest'}
+                      Lowest Entry
+                    {:else}
+                      Buy Zone
+                    {/if}
+                  </span>
                   <span class="zone-value">${threeZoneData.buyZone.price.toFixed(2)}</span>
                 </div>
                 <div class="zone-price current">
@@ -1027,51 +1109,86 @@ export class ${getStrategyFileName(type)} extends Strategy {
             </div>
             
             <div class="three-zone-chart">
-              <svg viewBox="0 0 400 200" class="zone-svg">
-                <!-- Background -->
-                <rect x="50" y="50" width="300" height="100" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+              <svg viewBox="0 0 240 140" class="zone-svg">
+                <!-- Gauge background -->
+                <defs>
+                  <linearGradient id="buyGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#ef4444;stop-opacity:0.2" />
+                    <stop offset="100%" style="stop-color:#ef4444;stop-opacity:0.1" />
+                  </linearGradient>
+                  <linearGradient id="holdGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.2" />
+                    <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.1" />
+                  </linearGradient>
+                  <linearGradient id="sellGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#22c55e;stop-opacity:0.1" />
+                    <stop offset="100%" style="stop-color:#22c55e;stop-opacity:0.2" />
+                  </linearGradient>
+                </defs>
                 
-                <!-- Buy zone section -->
-                <rect x="50" y="50" width="100" height="100" fill="rgba(239, 68, 68, 0.1)" class="buy-zone-bg"/>
-                <line x1="150" y1="50" x2="150" y2="150" stroke="rgba(239, 68, 68, 0.3)" stroke-width="2" stroke-dasharray="5,5"/>
+                <!-- Gauge arc sections -->
+                <!-- Buy zone: 0-60 degrees -->
+                <path d="M 40 120 A 80 80 0 0 1 120 40" 
+                      fill="none" 
+                      stroke="url(#buyGradient)" 
+                      stroke-width="30" 
+                      class="gauge-section buy-section"/>
                 
-                <!-- Current position section -->
-                <rect x="150" y="50" width="100" height="100" fill="rgba(59, 130, 246, 0.1)" class="current-zone-bg"/>
-                <line x1="250" y1="50" x2="250" y2="150" stroke="rgba(59, 130, 246, 0.3)" stroke-width="2" stroke-dasharray="5,5"/>
+                <!-- Hold zone: 60-120 degrees -->
+                <path d="M 120 40 A 80 80 0 0 1 200 120" 
+                      fill="none" 
+                      stroke="url(#holdGradient)" 
+                      stroke-width="30" 
+                      class="gauge-section hold-section"/>
                 
-                <!-- Sell zone section -->
-                <rect x="250" y="50" width="100" height="100" fill="rgba(34, 197, 94, 0.1)" class="sell-zone-bg"/>
+                <!-- Sell zone: 120-180 degrees -->
+                <path d="M 120 40 A 80 80 0 0 1 200 120" 
+                      fill="none" 
+                      stroke="url(#sellGradient)" 
+                      stroke-width="30" 
+                      class="gauge-section sell-section"/>
                 
-                <!-- Price position indicator -->
-                {#if threeZoneData.current.positionInRange <= 33.33}
-                  <!-- In buy zone -->
-                  <circle cx="{50 + (threeZoneData.current.positionInRange * 3)}" cy="100" r="8" fill="#ef4444" class="price-indicator">
-                    <animate attributeName="r" values="8;10;8" dur="2s" repeatCount="indefinite"/>
+                <!-- Zone dividers -->
+                <line x1="120" y1="40" x2="120" y2="25" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+                <line x1="120" y1="40" x2="105" y2="25" stroke="rgba(255,255,255,0.3)" stroke-width="1" transform="rotate(-60 120 40)"/>
+                <line x1="120" y1="40" x2="105" y2="25" stroke="rgba(255,255,255,0.3)" stroke-width="1" transform="rotate(60 120 40)"/>
+                
+                <!-- Gauge outline -->
+                <path d="M 40 120 A 80 80 0 0 1 200 120" 
+                      fill="none" 
+                      stroke="rgba(255,255,255,0.1)" 
+                      stroke-width="1" 
+                      class="gauge-outline"/>
+                
+                <!-- Center point -->
+                <circle cx="120" cy="120" r="3" fill="rgba(255,255,255,0.2)"/>
+                
+                <!-- Price indicator needle -->
+                <g transform="rotate({threeZoneData.current.angle - 90} 120 120)">
+                  <line x1="120" y1="120" x2="120" y2="50" 
+                        stroke="#a78bfa" 
+                        stroke-width="3" 
+                        class="gauge-needle"
+                        filter="drop-shadow(0 0 6px rgba(167, 139, 250, 0.6))"/>
+                  <circle cx="120" cy="50" r="6" fill="#a78bfa" class="needle-tip">
+                    <animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite"/>
                   </circle>
-                {:else if threeZoneData.current.positionInRange <= 66.66}
-                  <!-- In middle zone -->
-                  <circle cx="{50 + (threeZoneData.current.positionInRange * 3)}" cy="100" r="8" fill="#3b82f6" class="price-indicator">
-                    <animate attributeName="r" values="8;10;8" dur="2s" repeatCount="indefinite"/>
-                  </circle>
-                {:else}
-                  <!-- In sell zone -->
-                  <circle cx="{50 + (threeZoneData.current.positionInRange * 3)}" cy="100" r="8" fill="#22c55e" class="price-indicator">
-                    <animate attributeName="r" values="8;10;8" dur="2s" repeatCount="indefinite"/>
-                  </circle>
-                {/if}
+                </g>
                 
                 <!-- Zone labels -->
-                <text x="100" y="180" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="12">Buy Zone</text>
-                <text x="200" y="180" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="12">Current</text>
-                <text x="300" y="180" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="12">Sell Zone</text>
+                <text x="40" y="135" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="600">BUY</text>
+                <text x="120" y="15" text-anchor="middle" fill="#3b82f6" font-size="11" font-weight="600">HOLD</text>
+                <text x="200" y="135" text-anchor="middle" fill="#22c55e" font-size="11" font-weight="600">SELL</text>
                 
                 <!-- Percentage indicators -->
-                <text x="100" y="30" text-anchor="middle" fill="#ef4444" font-size="14" font-weight="bold">
-                  -{threeZoneData.buyZone.percent.toFixed(1)}%
-                </text>
-                <text x="300" y="30" text-anchor="middle" fill="#22c55e" font-size="14" font-weight="bold">
-                  +{threeZoneData.sellZone.percent.toFixed(1)}%
-                </text>
+                {#if threeZoneData.isTrading}
+                  <text x="60" y="100" text-anchor="middle" fill="#ef4444" font-size="10">
+                    -{threeZoneData.buyZone.percent.toFixed(1)}%
+                  </text>
+                  <text x="180" y="100" text-anchor="middle" fill="#22c55e" font-size="10">
+                    +{threeZoneData.sellZone.percent.toFixed(1)}%
+                  </text>
+                {/if}
               </svg>
             </div>
             
@@ -1079,9 +1196,19 @@ export class ${getStrategyFileName(type)} extends Strategy {
               <div class="zone-stat">
                 <div class="stat-info">
                   <span class="stat-icon">📉</span>
-                  <span class="stat-label">To Buy Zone</span>
+                  <span class="stat-label">
+                    {#if threeZoneData.buyZone.type === 'next'}
+                      To Next Buy
+                    {:else if threeZoneData.buyZone.type === 'lowest'}
+                      From Lowest
+                    {:else if positions.length >= 5}
+                      Max Positions
+                    {:else}
+                      To Buy Zone
+                    {/if}
+                  </span>
                 </div>
-                <span class="stat-value">${Math.abs(threeZoneData.buyZone.distance).toFixed(2)} ({threeZoneData.buyZone.percent.toFixed(1)}%)</span>
+                <span class="stat-value">${Math.abs(threeZoneData.buyZone.distance).toFixed(2)} ({Math.abs(threeZoneData.buyZone.percent).toFixed(1)}%)</span>
               </div>
               <div class="zone-stat">
                 <div class="stat-info">
@@ -1244,20 +1371,22 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   .reset-btn {
-    padding: 6px 10px;
-    background: rgba(239, 83, 80, 0.1);
-    border: 1px solid rgba(239, 83, 80, 0.3);
-    border-radius: 4px;
+    padding: 15px 20px;
+    background: rgba(156, 163, 175, 0.1);
+    border: 1px solid rgba(156, 163, 175, 0.3);
+    border-radius: 6px;
     font-size: 16px;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    color: #ef5350;
+    color: #9ca3af;
+    white-space: nowrap;
   }
   
   .reset-btn:hover {
-    background: rgba(239, 83, 80, 0.2);
-    border-color: rgba(239, 83, 80, 0.5);
-    transform: rotate(180deg);
+    background: rgba(156, 163, 175, 0.2);
+    border-color: rgba(156, 163, 175, 0.5);
+    color: #d1d5db;
   }
   
   .tabs {
@@ -1577,10 +1706,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   .control-buttons {
     margin-top: 20px;
+    display: flex;
+    gap: 10px;
   }
   
   .start-btn, .stop-btn {
-    width: 100%;
+    flex: 1;
     padding: 15px;
     border: none;
     border-radius: 6px;
@@ -2168,28 +2299,35 @@ export class ${getStrategyFileName(type)} extends Strategy {
   .three-zone-chart {
     margin: 20px 0;
     position: relative;
+    display: flex;
+    justify-content: center;
   }
   
   .zone-svg {
     width: 100%;
+    max-width: 240px;
     height: auto;
   }
   
-  .buy-zone-bg {
-    transition: fill 0.3s ease;
+  .gauge-section {
+    transition: stroke-opacity 0.3s ease;
   }
   
-  .current-zone-bg {
-    transition: fill 0.3s ease;
+  .gauge-section:hover {
+    stroke-opacity: 0.8;
   }
   
-  .sell-zone-bg {
-    transition: fill 0.3s ease;
+  .gauge-needle {
+    transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
+    transform-origin: 120px 120px;
   }
   
-  .price-indicator {
-    filter: drop-shadow(0 0 8px currentColor);
-    transition: cx 0.5s ease;
+  .needle-tip {
+    filter: drop-shadow(0 0 8px rgba(167, 139, 250, 0.6));
+  }
+  
+  .gauge-outline {
+    opacity: 0.3;
   }
   
   .zone-stats {

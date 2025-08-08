@@ -3,6 +3,8 @@ import type { CandleData, Trade, StrategyState, Signal } from '../strategies/bas
 import { writable } from 'svelte/store';
 import type { Writable } from 'svelte/store';
 import { vaultService } from './vaultService';
+import { paperTradingPersistence } from './paperTradingPersistence';
+import type { PersistentTradingState } from './paperTradingPersistence';
 
 export interface PaperTradingState {
   isRunning: boolean;
@@ -54,10 +56,111 @@ class PaperTradingService {
       },
       lastUpdate: Date.now()
     });
+    
+    // Subscribe to state changes to auto-save
+    let saveTimeout: NodeJS.Timeout | null = null;
+    this.state.subscribe(state => {
+      if (state.isRunning) {
+        // Debounce saves to avoid excessive localStorage writes
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+          this.saveState();
+        }, 1000);
+      }
+    });
   }
 
   getState(): Writable<PaperTradingState> {
     return this.state;
+  }
+  
+  private saveState(): void {
+    let currentState: PaperTradingState | null = null;
+    this.state.subscribe(s => currentState = s)();
+    
+    if (!currentState || !currentState.strategy) return;
+    
+    const persistentState: PersistentTradingState = {
+      isRunning: currentState.isRunning,
+      strategyType: currentState.strategy.getName(),
+      strategyConfig: (currentState.strategy as any).config || {},
+      balance: currentState.balance,
+      positions: currentState.strategy.getState().positions,
+      trades: currentState.trades,
+      startTime: currentState.lastUpdate,
+      lastUpdateTime: Date.now()
+    };
+    
+    paperTradingPersistence.saveState(persistentState);
+  }
+  
+  restoreFromSavedState(): boolean {
+    const savedState = paperTradingPersistence.loadState();
+    if (!savedState || !savedState.isRunning) return false;
+    
+    // Import strategy classes to recreate strategy
+    import('../strategies').then((strategies) => {
+      let strategy: Strategy | null = null;
+      
+      // Map strategy names to classes
+      switch (savedState.strategyType) {
+        case 'Reverse Ratio Buying':
+          strategy = new strategies.ReverseRatioStrategy(savedState.strategyConfig);
+          break;
+        case 'Grid Trading':
+          strategy = new strategies.GridTradingStrategy(savedState.strategyConfig);
+          break;
+        case 'RSI Mean Reversion':
+          strategy = new strategies.RSIMeanReversionStrategy(savedState.strategyConfig);
+          break;
+        case 'Dollar Cost Averaging':
+          strategy = new strategies.DCAStrategy(savedState.strategyConfig);
+          break;
+        case 'VWAP Bounce':
+          strategy = new strategies.VWAPBounceStrategy(savedState.strategyConfig);
+          break;
+        case 'Micro Scalping (1H)':
+          strategy = new strategies.MicroScalpingStrategy(savedState.strategyConfig);
+          break;
+        case 'Proper Scalping':
+          strategy = new strategies.ProperScalpingStrategy(savedState.strategyConfig);
+          break;
+        default:
+          console.error('Strategy not found:', savedState.strategyType);
+          return;
+      }
+      
+      if (!strategy) return;
+      
+      // Restore strategy state
+      const strategyState: StrategyState = {
+        positions: savedState.positions,
+        balance: savedState.balance
+      };
+      strategy.setState(strategyState);
+      
+      // Update our state
+      this.state.update(s => ({
+        ...s,
+        isRunning: true,
+        strategy,
+        balance: savedState.balance,
+        trades: savedState.trades,
+        currentSignal: null,
+        performance: {
+          totalValue: savedState.balance.usd + savedState.balance.vault,
+          pnl: 0,
+          pnlPercent: 0,
+          winRate: 0,
+          totalTrades: savedState.trades.length
+        },
+        lastUpdate: savedState.lastUpdateTime
+      }));
+      
+      // Recalculate performance metrics on next candle update
+    });
+    
+    return true;
   }
   
   getStatus() {
@@ -170,9 +273,21 @@ class PaperTradingService {
       isRunning: false,
       currentSignal: null
     }));
+    
+    // Clear persisted state when stopped
+    paperTradingPersistence.clearState();
   }
 
   resetStrategy(): void {
+    // Clear persisted state
+    paperTradingPersistence.clearState();
+    
+    // Reset vault bot if exists
+    if (this.botId) {
+      vaultService.updateBotStatus(this.botId, 'stopped');
+      this.botId = null;
+    }
+    
     this.state.update(s => ({
       ...s,
       isRunning: false,
