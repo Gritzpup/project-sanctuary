@@ -377,6 +377,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
   async function startTrading() {
     if (!paperTradingService || isRunning) return;
     
+    console.log('Starting trading - checking data:', {
+      chartDataFeed: !!chartDataFeed,
+      recentHigh,
+      currentPrice
+    });
+    
     currentStrategy = createStrategy(selectedStrategyType);
     await loadStrategySourceCode();
     
@@ -398,6 +404,15 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     paperTradingService.start(currentStrategy, 'BTC-USD', balance);
     isRunning = true;
+    
+    // Capture initial trading price and recent high
+    initialTradingPrice = currentPrice;
+    initialRecentHigh = recentHigh > 0 ? recentHigh : currentPrice;
+    
+    // Capture initial trading angle (where the needle is right now)
+    if (threeZoneData && threeZoneData.current) {
+      initialTradingAngle = threeZoneData.current.angle;
+    }
     
     // Update store to indicate paper trading is active
     strategyStore.setPaperTradingActive(true);
@@ -471,6 +486,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
     totalReturn = 0;
     winRate = 0;
     editingBalance = '10000';
+    initialTradingPrice = 0;
+    initialRecentHigh = 0;
+    initialTradingAngle = 90;
   }
   
   function startEditingBalance() {
@@ -497,6 +515,93 @@ export class ${getStrategyFileName(type)} extends Strategy {
     isEditingBalance = false;
   }
   
+  // Find linked trades (buy-sell pairs)
+  function findLinkedTrades(tradeId: string): string[] {
+    const trade = trades.find(t => t.id === tradeId);
+    if (!trade) return [];
+    
+    const linked: string[] = [];
+    
+    if (trade.type === 'buy') {
+      // Find the next sell after this buy
+      const buyIndex = trades.findIndex(t => t.id === tradeId);
+      const nextSell = trades.slice(buyIndex + 1).find(t => t.type === 'sell');
+      if (nextSell) linked.push(nextSell.id);
+    } else if (trade.type === 'sell') {
+      // Find the most recent buy before this sell
+      const sellIndex = trades.findIndex(t => t.id === tradeId);
+      const prevBuy = trades.slice(0, sellIndex).reverse().find(t => t.type === 'buy');
+      if (prevBuy) linked.push(prevBuy.id);
+    }
+    
+    return linked;
+  }
+  
+  function handleTradeHover(tradeId: string) {
+    hoveredTradeId = tradeId;
+    linkedTradeIds = findLinkedTrades(tradeId);
+  }
+  
+  function handleTradeLeave() {
+    hoveredTradeId = null;
+    linkedTradeIds = [];
+  }
+  
+  // Helper function to calculate angle for a price on the gauge
+  function calculateAngleForPrice(price: number, buyPrice: number, sellPrice: number): number {
+    // This function is used to position trade indicators (dots/squares) on the gauge
+    // For the Reverse Ratio strategy:
+    // - Buy trades (red dots) ALWAYS appear on the LEFT side (0-60 degrees)
+    // - Sell trades (green squares) ALWAYS appear on the RIGHT side (120-180 degrees)
+    
+    const highPrice = recentHigh || currentPrice;
+    const dropPercent = ((highPrice - price) / highPrice) * 100;
+    
+    // First, determine if this is a buy or sell by looking at the actual trade
+    // We'll be called with the trade price, and we can compare it to recent high
+    // In Reverse Ratio, buys only happen when price drops from recent high
+    
+    // If price is below recent high by more than 3%, it's definitely a buy
+    if (dropPercent >= 3) {
+      // BUY trade - position on LEFT side based on drop percentage
+      if (dropPercent >= 25) {
+        return 20; // Far left for 25% drop
+      } else if (dropPercent >= 20) {
+        return 28; // 20% drop
+      } else if (dropPercent >= 15) {
+        return 36; // 15% drop  
+      } else if (dropPercent >= 10) {
+        return 44; // 10% drop
+      } else if (dropPercent >= 5) {
+        return 52; // 5% drop
+      } else {
+        return 58; // 3-5% drop
+      }
+    }
+    
+    // If we have positions and price is near or above recent high, it's likely a sell
+    if (positions.length > 0 && dropPercent < 3) {
+      // SELL trade - position on RIGHT side based on profit
+      const lowestEntry = Math.min(...positions.map(p => p.entryPrice));
+      const profitFromLowest = ((price - lowestEntry) / lowestEntry) * 100;
+      
+      if (profitFromLowest >= 10) {
+        return 170; // Far right for high profit
+      } else if (profitFromLowest >= 7) {
+        return 160; // At target
+      } else if (profitFromLowest >= 5) {
+        return 150; // Near target
+      } else if (profitFromLowest >= 3) {
+        return 140; // Moderate profit
+      } else {
+        return 130; // Small profit
+      }
+    }
+    
+    // Default: if unclear, put in center
+    return 90;
+  }
+  
   $: totalValue = balance + (btcBalance * currentPrice) + vaultBalance;
   $: unrealizedPnl = positions.reduce((total, pos) => {
     return total + ((currentPrice - pos.entryPrice) * pos.size);
@@ -507,10 +612,17 @@ export class ${getStrategyFileName(type)} extends Strategy {
   let recentHigh = 0;
   let recentLow = 0;
   let lastTradeTime = 0;
+  let initialTradingPrice = 0;
+  let initialRecentHigh = 0;
+  let initialTradingAngle = 90;
+  
+  // Hover state tracking
+  let hoveredTradeId: string | null = null;
+  let linkedTradeIds: string[] = [];
   
   // Get recent high/low from chart data instead of trading history
   $: {
-    if (chartDataFeed && currentPrice > 0) {
+    if (chartDataFeed && currentPrice > 0 && isRunning) {
       const candles = chartDataFeed.getCurrentCandles();
       if (candles && candles.length > 0) {
         // Look at last 24-48 candles for recent high/low (24-48 hours for 1H candles)
@@ -519,6 +631,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
           recentHigh = Math.max(...lookbackCandles.map(c => c.high));
           recentLow = Math.min(...lookbackCandles.map(c => c.low));
           console.log(`Paper Trading: Recent high: $${recentHigh.toFixed(2)}, Recent low: $${recentLow.toFixed(2)}, Current: $${currentPrice.toFixed(2)}`);
+          console.log('Updated recentHigh from candles:', recentHigh);
         }
       }
       
@@ -532,7 +645,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     // Update last trade time if we have trades
     if (trades.length > 0) {
-      const lastBuyTrade = [...trades].reverse().find(t => t.side === 'buy');
+      const lastBuyTrade = [...trades].reverse().find(t => t.type === 'buy');
       if (lastBuyTrade) {
         lastTradeTime = lastBuyTrade.timestamp;
       }
@@ -587,6 +700,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   // Calculate next buy level based on selected strategy
   $: nextBuyLevel = (() => {
     const currentPositionCount = positions.length;
+    const dropFromHigh = recentHigh > 0 ? ((recentHigh - currentPrice) / recentHigh) * 100 : 0;
     
     switch (selectedStrategyType) {
       case 'reverse-ratio': {
@@ -594,17 +708,33 @@ export class ${getStrategyFileName(type)} extends Strategy {
         if (currentPositionCount >= 5) return null;
         
         // Find the next level that hasn't been reached yet
-        // If we've already dropped past a level without buying, skip to the next one
         let nextLevel = null;
+        
+        // First, find the next level we haven't bought at yet
         for (let level of levels) {
-          // Only show levels that are BELOW current price
-          const targetPrice = recentHigh * (1 - level / 100);
-          if (targetPrice < currentPrice) {
-            // This is a valid buy level below current price
-            // Check if we've already bought at this level
+          const hasPositionAtLevel = positions.some(p => {
+            const positionDropPercent = ((recentHigh - p.entryPrice) / recentHigh) * 100;
+            return Math.abs(positionDropPercent - level) < 1; // Within 1% tolerance
+          });
+          
+          if (!hasPositionAtLevel) {
+            // This is a level we haven't bought at yet
+            const targetPrice = recentHigh * (1 - level / 100);
+            // Only show if it's below current price (a future buy opportunity)
+            if (targetPrice < currentPrice) {
+              nextLevel = level;
+              break;
+            }
+          }
+        }
+        
+        // If we haven't found a level yet, it means we're above all unbought levels
+        // So show the first unbought level
+        if (!nextLevel && currentPositionCount < levels.length) {
+          for (let level of levels) {
             const hasPositionAtLevel = positions.some(p => {
-              const positionDropPercent = ((recentHigh - p.entry_price) / recentHigh) * 100;
-              return Math.abs(positionDropPercent - level) < 1; // Within 1% tolerance
+              const positionDropPercent = ((recentHigh - p.entryPrice) / recentHigh) * 100;
+              return Math.abs(positionDropPercent - level) < 1;
             });
             
             if (!hasPositionAtLevel) {
@@ -702,39 +832,18 @@ export class ${getStrategyFileName(type)} extends Strategy {
     }
   })();
   
-  // Calculate 3-section chart data
+  // Calculate 3-section chart data - depend on all necessary variables
   $: threeZoneData = (() => {
     if (currentPrice <= 0) return null;
     
-    // If no next buy level (max positions or no valid levels), show last buy price or a default
-    let buyZone = currentPrice * 0.95; // Default 5% below current
-    let buyZoneType = 'default';
+    // Force reactivity by referencing these variables
+    positions.length; // Force dependency on positions array changes
+    isRunning; // Force dependency on trading state
     
-    if (nextBuyLevel) {
-      buyZone = nextBuyLevel.price;
-      buyZoneType = 'next';
-    } else if (positions.length >= 5) {
-      // At max positions - show lowest entry
-      if (positions.length > 0) {
-        buyZone = Math.min(...positions.map(p => p.entry_price));
-        buyZoneType = 'lowest';
-      }
-    } else if (positions.length > 0) {
-      // Show the lowest entry price as reference
-      buyZone = Math.min(...positions.map(p => p.entry_price));
-      buyZoneType = 'lowest';
-    }
-    
-    const sellZone = sellTarget?.price || currentPrice * 1.07; // Default 7% if no positions
-    
-    // Calculate the price range and positions
-    const minPrice = Math.min(buyZone, currentPrice);
-    const maxPrice = Math.max(sellZone, currentPrice);
-    const range = maxPrice - minPrice;
-    
-    // Calculate percentages for each zone
-    const buyDistance = currentPrice - buyZone;
-    const sellDistance = sellZone - currentPrice;
+    // For Reverse Ratio strategy, the gauge represents:
+    // LEFT (Red) - "Buy Triggers": Where drops trigger buys (5-25% below recent high)
+    // MIDDLE (Blue) - "Hold Zone": Normal trading range
+    // RIGHT (Green) - "Sell Triggers": Where profit targets trigger sells
     
     // When not trading, show centered position
     if (!isRunning) {
@@ -747,7 +856,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
         },
         current: {
           price: currentPrice,
-          angle: 90 // Center of gauge (0-180 degrees)
+          angle: 90 // Center of gauge
         },
         sellZone: {
           price: currentPrice * 1.05,
@@ -759,52 +868,149 @@ export class ${getStrategyFileName(type)} extends Strategy {
       };
     }
     
-    // When trading, calculate actual angle based on position
-    // Angle: 0° = buy zone, 90° = neutral, 180° = sell zone
-    let angle = 90; // Default to center
+    // When trading, calculate zones based on strategy behavior
+    // Ensure we have a valid recentHigh
+    const highPrice = (recentHigh && recentHigh > 0) ? recentHigh : currentPrice;
+    const dropFromHigh = ((highPrice - currentPrice) / highPrice) * 100;
     
-    if (currentPrice <= buyZone) {
-      // In buy zone: 0-60 degrees
-      angle = 30;
-    } else if (currentPrice >= sellZone) {
-      // In sell zone: 120-180 degrees
-      angle = 150;
-    } else {
-      // Between buy and sell: map to 60-120 degrees
-      const position = (currentPrice - buyZone) / (sellZone - buyZone);
-      angle = 60 + (position * 60);
+    // Calculate average entry price first (needed for multiple calculations)
+    let avgEntryPrice = currentPrice; // Default if no positions
+    let profitPercent = 0;
+    
+    if (positions.length > 0) {
+      const totalValue = positions.reduce((sum, p) => {
+        const entryPrice = p.entryPrice || 0;
+        const size = p.size || 0;
+        return sum + (entryPrice * size);
+      }, 0);
+      const totalSize = positions.reduce((sum, p) => sum + (p.size || 0), 0);
+      avgEntryPrice = totalSize > 0 ? totalValue / totalSize : currentPrice;
+      profitPercent = avgEntryPrice > 0 ? ((currentPrice - avgEntryPrice) / avgEntryPrice) * 100 : 0;
     }
+    
+    // Calculate angle for the needle - this represents where we are in the trading cycle
+    // The gauge shows our position relative to buy/sell triggers
+    let angle = 90; // Default center
+    
+    // IMPORTANT: The angle represents our READINESS to buy or sell
+    // LEFT side (0-60°) = Buy zone - we're in territory where buys can happen
+    // MIDDLE (60-120°) = Hold zone - neutral territory 
+    // RIGHT side (120-180°) = Sell zone - we have positions ready to sell
+    
+    // Make needle responsive to every price change by using currentPrice directly
+    const currentDropFromHigh = ((highPrice - currentPrice) / highPrice) * 100;
+    
+    if (positions.length === 0) {
+      // No positions - needle position based on drop from high
+      if (currentDropFromHigh <= 0) {
+        // At or above recent high - center/right (no buy opportunity)
+        angle = 120;
+      } else if (currentDropFromHigh < 5) {
+        // Approaching first buy level - moving left smoothly
+        // Map 0-5% drop to 120-60 degrees
+        angle = 120 - (currentDropFromHigh / 5) * 60;
+      } else if (currentDropFromHigh >= 25) {
+        // Deep drop - far left (maximum buy opportunity)
+        angle = 20;
+      } else {
+        // In active buy zone (5-25% drop) - left side
+        // Map 5-25% drop to 60-20 degrees
+        angle = 60 - ((currentDropFromHigh - 5) / 20) * 40;
+      }
+    } else {
+      // We have positions - needle shows profit/loss status
+      // profitPercent already calculated above
+      
+      if (profitPercent >= 7) {
+        // At or above profit target - far right (sell zone)
+        angle = 160;
+      } else if (profitPercent > 3) {
+        // Meaningful profit - moving right
+        // Map 3-7% profit to 120-160 degrees
+        angle = 120 + ((profitPercent - 3) / 4) * 40;
+      } else if (profitPercent > 0) {
+        // Small profit - center-right
+        // Map 0-3% profit to 90-120 degrees
+        angle = 90 + (profitPercent / 3) * 30;
+      } else if (profitPercent > -5) {
+        // Small loss - center-left area
+        // Map -5-0% loss to 60-90 degrees
+        angle = 60 + ((profitPercent + 5) / 5) * 30;
+      } else {
+        // Larger loss - left side (may trigger more buys)
+        // Map losses below -5% to left side
+        angle = Math.max(20, 60 - (Math.abs(profitPercent) - 5) / 20 * 40);
+      }
+    }
+    
+    // Get actual next buy and sell levels
+    let buyZone = currentPrice * 0.95;
+    let buyZoneType = 'default';
+    
+    if (nextBuyLevel) {
+      buyZone = nextBuyLevel.price;
+      buyZoneType = 'next';
+    } else if (positions.length >= 5) {
+      // At max positions
+      if (positions.length > 0) {
+        buyZone = Math.min(...positions.map(p => p.entryPrice));
+        buyZoneType = 'lowest';
+      }
+    }
+    
+    const sellZone = sellTarget?.price || currentPrice * 1.07;
+    const buyDistance = currentPrice - buyZone;
+    const sellDistance = sellZone - currentPrice;
     
     return {
       buyZone: {
         price: buyZone,
         distance: buyDistance,
         percent: Math.abs((buyDistance / currentPrice) * 100),
+        dropToNext: nextBuyLevel ? ((currentPrice - nextBuyLevel.price) / currentPrice * 100) : 5,
         type: buyZoneType
       },
       current: {
         price: currentPrice,
-        angle: Math.max(0, Math.min(180, angle))
+        angle: Math.max(0, Math.min(180, angle)),
+        dropFromHigh: dropFromHigh
       },
       sellZone: {
         price: sellZone,
         distance: sellDistance,
-        percent: Math.abs((sellDistance / currentPrice) * 100),
+        percent: positions.length > 0 ? 
+          Math.abs((sellDistance / avgEntryPrice) * 100) : 
+          Math.abs((sellDistance / currentPrice) * 100),
         hasPositions: positions.length > 0
       },
-      isTrading: true
+      isTrading: true,
+      recentHigh: highPrice
     };
   })();
   
-  // Helper function to calculate angle for a price on the gauge
-  function calculateAngleForPrice(price: number, buyPrice: number, sellPrice: number): number {
-    // Map price to 0-180 degree range
-    // buyPrice maps to ~30 degrees, sellPrice maps to ~150 degrees
-    if (price <= buyPrice) return 30;
-    if (price >= sellPrice) return 150;
-    
-    const position = (price - buyPrice) / (sellPrice - buyPrice);
-    return 30 + (position * 120); // 30 to 150 degrees
+  // Debug logging for trading zone
+  $: {
+    if (threeZoneData && isRunning) {
+      const totalValue = positions.reduce((sum, p) => sum + (p.entryPrice || 0) * (p.size || 0), 0);
+      const totalSize = positions.reduce((sum, p) => sum + (p.size || 0), 0);
+      const avgEntry = totalSize > 0 ? totalValue / totalSize : 0;
+      const profitPercent = avgEntry > 0 ? ((currentPrice - avgEntry) / avgEntry) * 100 : 0;
+      
+      console.log('Trading Zone Data:', {
+        isTrading: threeZoneData.isTrading,
+        recentHigh: threeZoneData.recentHigh,
+        currentPrice: threeZoneData.current.price,
+        dropFromHigh: threeZoneData.current.dropFromHigh,
+        angle: threeZoneData.current.angle,
+        positionCount: positions.length,
+        avgEntryPrice: avgEntry,
+        positions: positions.map(p => ({ entryPrice: p.entryPrice, size: p.size })),
+        currentProfit: profitPercent.toFixed(2) + '%',
+        buyZone: threeZoneData.buyZone,
+        sellZone: threeZoneData.sellZone,
+        nextBuyLevel: nextBuyLevel
+      });
+    }
   }
 </script>
 
@@ -1094,11 +1300,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
         <div class="trigger-gauge-panel">
           <div class="gauge-container">
             <div class="gauge-header">
-              <h3>📊 Trading Zones</h3>
+              <h3>📊 Market Position</h3>
               <div class="zone-prices">
                 <div class="zone-price buy">
                   <span class="zone-label">
-                    {#if threeZoneData.buyZone.type === 'next'}
+                    {#if positions.length === 0}
+                      Drop Level
+                    {:else if threeZoneData.buyZone.type === 'next'}
                       Next Buy
                     {:else if threeZoneData.buyZone.type === 'lowest'}
                       Lowest Entry
@@ -1113,7 +1321,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
                   <span class="zone-value">${threeZoneData.current.price.toFixed(2)}</span>
                 </div>
                 <div class="zone-price sell">
-                  <span class="zone-label">Sell Target</span>
+                  <span class="zone-label">
+                    {#if positions.length > 0}
+                      Profit Target
+                    {:else}
+                      Est. Target
+                    {/if}
+                  </span>
                   <span class="zone-value">${threeZoneData.sellZone.price.toFixed(2)}</span>
                 </div>
               </div>
@@ -1170,36 +1384,134 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 <line x1="80" y1="50.7" x2="80" y2="35" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
                 <line x1="160" y1="50.7" x2="160" y2="35" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
                 
-                <!-- Buy/Sell indicators -->
-                {#if threeZoneData.isTrading && positions.length > 0}
-                  <!-- Buy position indicators -->
-                  {#each positions as position}
-                    {@const buyAngle = calculateAngleForPrice(position.entry_price, threeZoneData.buyZone.price, threeZoneData.sellZone.price)}
-                    <g transform="rotate({buyAngle - 90} 120 120)">
-                      <circle cx="120" cy="65" r="3" fill="#ef4444" opacity="0.8">
-                        <title>Buy at ${position.entry_price.toFixed(2)}</title>
+                <!-- Buy/Sell indicators on outer edge -->
+                {#if threeZoneData.isTrading && trades.length > 0}
+                  <!-- Buy trade indicators (all historical buys) -->
+                  {#each trades.filter(t => t.type === 'buy') as trade, i}
+                    {@const priceRange = threeZoneData.sellZone.price - threeZoneData.buyZone.price}
+                    {@const pricePosition = (trade.price - threeZoneData.buyZone.price) / priceRange}
+                    {@const tradeAngle = 0 + pricePosition * 180} 
+                    {@const zoneColor = tradeAngle <= 60 ? '#ef4444' : tradeAngle >= 120 ? '#22c55e' : '#3b82f6'}
+                    {@const isHighlighted = hoveredTradeId === trade.id || linkedTradeIds.includes(trade.id)}
+                    {@const openPosition = positions.find(p => p.id === trade.position?.id)}
+                    {@const currentPnL = openPosition ? ((currentPrice - openPosition.entryPrice) * openPosition.size) : null}
+                    {@const currentPnLPercent = openPosition ? ((currentPrice - openPosition.entryPrice) / openPosition.entryPrice * 100) : null}
+                    <g transform="rotate({tradeAngle - 90} 120 120)">
+                      <circle 
+                        cx="120" 
+                        cy="20" 
+                        r="5" 
+                        fill={zoneColor} 
+                        stroke="white" 
+                        stroke-width="1" 
+                        fill-opacity="0.9"
+                        class="trade-indicator"
+                      >
+                        <title>Buy #{i + 1}
+Price: ${trade.price.toFixed(2)}
+Size: {trade.size.toFixed(6)} BTC
+Value: ${trade.value.toFixed(2)}
+Fee: ${(trade.fee || 0).toFixed(2)}
+{#if openPosition}
+Status: OPEN POSITION
+Current P/L: ${currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)} ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(1)}%)
+{:else if trade.position}
+Status: CLOSED
+{/if}</title>
                       </circle>
+                    </g>
+                  {/each}
+                  
+                  <!-- Sell trade indicators -->
+                  {#each trades.filter(t => t.type === 'sell') as trade, i}
+                    {@const priceRange = threeZoneData.sellZone.price - threeZoneData.buyZone.price}
+                    {@const pricePosition = (trade.price - threeZoneData.buyZone.price) / priceRange}
+                    {@const tradeAngle = 0 + pricePosition * 180}
+                    {@const zoneColor = tradeAngle <= 60 ? '#ef4444' : tradeAngle >= 120 ? '#22c55e' : '#3b82f6'}
+                    {@const isHighlighted = hoveredTradeId === trade.id || linkedTradeIds.includes(trade.id)}
+                    <g transform="rotate({tradeAngle - 90} 120 120)">
+                      <rect 
+                        x="117" 
+                        y="18" 
+                        width="6" 
+                        height="6" 
+                        rx="1" 
+                        fill={zoneColor} 
+                        stroke="white" 
+                        stroke-width="0.5" 
+                        fill-opacity="0.8"
+                        class="trade-indicator"
+                      >
+                        <title>Sell #{i + 1}
+Price: ${trade.price.toFixed(2)}
+Size: {trade.size.toFixed(6)} BTC
+Value: ${trade.value.toFixed(2)}
+{#if trade.profit !== undefined}
+Profit: ${trade.profit >= 0 ? '+' : ''}{trade.profit.toFixed(2)}
+Profit %: {trade.profitPercent ? (trade.profitPercent >= 0 ? '+' : '') + trade.profitPercent.toFixed(1) + '%' : 'N/A'}
+{/if}
+Fee: ${(trade.fee || 0).toFixed(2)}</title>
+                      </rect>
                     </g>
                   {/each}
                 {/if}
                 
-                <!-- Next buy level indicator -->
-                {#if threeZoneData.isTrading && nextBuyLevel}
-                  {@const nextBuyAngle = calculateAngleForPrice(nextBuyLevel.price, threeZoneData.buyZone.price, threeZoneData.sellZone.price)}
+                <!-- Current/Next buy level indicator -->
+                {#if threeZoneData.isTrading && nextBuyLevel && nextBuyLevel.price}
+                  {@const priceRange = threeZoneData.sellZone.price - threeZoneData.buyZone.price}
+                  {@const pricePosition = (nextBuyLevel.price - threeZoneData.buyZone.price) / priceRange}
+                  {@const nextBuyAngle = 0 + pricePosition * 180}
+                  {@const zoneColor = nextBuyAngle <= 60 ? '#ef4444' : nextBuyAngle >= 120 ? '#22c55e' : '#3b82f6'}
                   <g transform="rotate({nextBuyAngle - 90} 120 120)">
-                    <path d="M 120 60 L 115 70 L 125 70 Z" fill="#ef4444" opacity="0.5">
-                      <title>Next buy at ${nextBuyLevel.price.toFixed(2)}</title>
-                    </path>
+                    <circle 
+                      cx="120" 
+                      cy="20" 
+                      r="7" 
+                      fill={zoneColor} 
+                      stroke="white" 
+                      stroke-width="2.5" 
+                      fill-opacity="0.7"
+                      stroke-dasharray="4,2"
+                      class="current-buy-indicator"
+                    >
+                      <title>Current buy trigger: ${nextBuyLevel.price.toFixed(2)}
+{nextBuyLevel.label}: {nextBuyLevel.value}</title>
+                    </circle>
                   </g>
                 {/if}
                 
                 <!-- Sell target indicator -->
-                {#if threeZoneData.isTrading && sellTarget}
-                  {@const sellAngle = calculateAngleForPrice(sellTarget.price, threeZoneData.buyZone.price, threeZoneData.sellZone.price)}
+                {#if threeZoneData.isTrading && sellTarget && sellTarget.price}
+                  {@const priceRange = threeZoneData.sellZone.price - threeZoneData.buyZone.price}
+                  {@const pricePosition = (sellTarget.price - threeZoneData.buyZone.price) / priceRange}
+                  {@const sellAngle = 0 + pricePosition * 180}
                   <g transform="rotate({sellAngle - 90} 120 120)">
-                    <rect x="117" y="60" width="6" height="10" fill="#22c55e" opacity="0.5">
+                    <rect x="116" y="20" width="8" height="10" rx="1" fill="#22c55e" stroke="#22c55e" stroke-width="1" fill-opacity="0.6">
                       <title>Sell target at ${sellTarget.price.toFixed(2)}</title>
                     </rect>
+                  </g>
+                {/if}
+                
+                
+                <!-- Initial trading position indicator with open position info -->
+                {#if threeZoneData.isTrading && initialTradingPrice > 0}
+                  {@const totalValue = positions.reduce((sum, p) => sum + (p.entryPrice || 0) * (p.size || 0), 0)}
+                  {@const totalSize = positions.reduce((sum, p) => sum + (p.size || 0), 0)}
+                  {@const avgEntryPrice = totalSize > 0 ? totalValue / totalSize : 0}
+                  {@const currentValue = totalSize * currentPrice}
+                  {@const unrealizedPnL = currentValue - totalValue}
+                  {@const pnlPercent = totalValue > 0 ? (unrealizedPnL / totalValue) * 100 : 0}
+                  <g transform="rotate({initialTradingAngle - 90} 120 120)">
+                    <circle cx="120" cy="20" r="8" fill="#3b82f6" stroke="white" stroke-width="3" fill-opacity="1">
+                      <title>{#if positions.length > 0}Open Position
+Avg Entry: ${avgEntryPrice.toFixed(2)}
+Size: {totalSize.toFixed(6)} BTC
+Cost: ${totalValue.toFixed(2)}
+Current Value: ${currentValue.toFixed(2)}
+P/L: ${unrealizedPnL >= 0 ? '+' : ''}{unrealizedPnL.toFixed(2)} ({pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(1)}%)
+{:else}Started trading at ${initialTradingPrice.toFixed(2)}
+No open positions{/if}</title>
+                    </circle>
                   </g>
                 {/if}
                 
@@ -1207,29 +1519,51 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 <circle cx="120" cy="120" r="3" fill="rgba(255,255,255,0.3)"/>
                 
                 <!-- Price indicator needle -->
-                <g transform="rotate({threeZoneData.current.angle - 90} 120 120)">
+                <g transform="rotate({threeZoneData.current.angle - 90} 120 120)" class="needle-group">
                   <line x1="120" y1="120" x2="120" y2="50" 
                         stroke="#a78bfa" 
-                        stroke-width="3" 
+                        stroke-width="4" 
                         class="gauge-needle"
-                        filter="drop-shadow(0 0 6px rgba(167, 139, 250, 0.6))"/>
-                  <circle cx="120" cy="50" r="6" fill="#a78bfa" class="needle-tip">
-                    <animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite"/>
-                  </circle>
+                        filter="drop-shadow(0 0 10px rgba(167, 139, 250, 0.8))"/>
+                  <line x1="120" y1="120" x2="120" y2="50" 
+                        stroke="white" 
+                        stroke-width="1" 
+                        opacity="0.6"/>
+                  <circle cx="120" cy="50" r="8" fill="#a78bfa" class="needle-tip" />
+                  <circle cx="120" cy="50" r="3" fill="white" opacity="0.8"/>
                 </g>
                 
                 <!-- Zone labels -->
-                <text x="40" y="135" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="600">BUY</text>
-                <text x="120" y="15" text-anchor="middle" fill="#3b82f6" font-size="11" font-weight="600">HOLD</text>
-                <text x="200" y="135" text-anchor="middle" fill="#22c55e" font-size="11" font-weight="600">SELL</text>
+                <text x="40" y="135" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600">DROP</text>
+                <text x="120" y="135" text-anchor="middle" fill="#3b82f6" font-size="9" font-weight="600">WAIT</text>
+                <text x="200" y="135" text-anchor="middle" fill="#22c55e" font-size="9" font-weight="600">PROFIT</text>
                 
                 <!-- Percentage indicators -->
                 {#if threeZoneData.isTrading}
-                  <text x="60" y="100" text-anchor="middle" fill="#ef4444" font-size="10">
-                    -{threeZoneData.buyZone.percent.toFixed(1)}%
-                  </text>
-                  <text x="180" y="100" text-anchor="middle" fill="#22c55e" font-size="10">
-                    +{threeZoneData.sellZone.percent.toFixed(1)}%
+                  <!-- Drop from recent high or position status -->
+                  {#if positions.length === 0}
+                    <text x="60" y="100" text-anchor="middle" fill="#ef4444" font-size="10">
+                      -{threeZoneData.current.dropFromHigh.toFixed(1)}% drop
+                    </text>
+                  {:else}
+                    {@const totalValue = positions.reduce((sum, p) => sum + (p.entryPrice || 0) * (p.size || 0), 0)}
+                    {@const totalSize = positions.reduce((sum, p) => sum + (p.size || 0), 0)}
+                    {@const avgEntry = totalSize > 0 ? totalValue / totalSize : currentPrice}
+                    {@const profitPercent = avgEntry > 0 ? ((currentPrice - avgEntry) / avgEntry) * 100 : 0}
+                    <text x="120" y="100" text-anchor="middle" fill={profitPercent >= 0 ? "#22c55e" : "#ef4444"} font-size="10">
+                      {profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(1)}% P/L
+                    </text>
+                  {/if}
+                  <!-- Profit to target -->
+                  {#if positions.length > 0}
+                    <text x="180" y="100" text-anchor="middle" fill="#22c55e" font-size="10">
+                      {threeZoneData.sellZone.percent.toFixed(1)}% to target
+                    </text>
+                  {/if}
+                  
+                  <!-- Recent high reference -->
+                  <text x="120" y="110" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="8">
+                    High: ${threeZoneData.recentHigh.toFixed(0)}
                   </text>
                 {/if}
               </svg>
@@ -1251,7 +1585,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
                     {/if}
                   </span>
                 </div>
-                <span class="stat-value">${Math.abs(threeZoneData.buyZone.distance).toFixed(2)} ({Math.abs(threeZoneData.buyZone.percent).toFixed(1)}%)</span>
+                <span class="stat-value">{Math.abs(threeZoneData.buyZone.dropToNext).toFixed(1)}% drop</span>
               </div>
               <div class="zone-stat">
                 <div class="stat-info">
@@ -1272,21 +1606,23 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 </div>
                 <span class="stat-value highlight">${threeZoneData.sellZone.distance.toFixed(2)} ({threeZoneData.sellZone.percent.toFixed(1)}%)</span>
               </div>
-              <div class="zone-stat">
-                <div class="stat-info">
-                  <span class="stat-icon">
-                    {#if nextBuyLevel.type === 'time'}
-                      ⏰
-                    {:else if nextBuyLevel.type === 'indicator'}
-                      📊
-                    {:else}
-                      🎯
-                    {/if}
-                  </span>
-                  <span class="stat-label">{nextBuyLevel.label}</span>
+              {#if nextBuyLevel}
+                <div class="zone-stat">
+                  <div class="stat-info">
+                    <span class="stat-icon">
+                      {#if nextBuyLevel.type === 'time'}
+                        ⏰
+                      {:else if nextBuyLevel.type === 'indicator'}
+                        📊
+                      {:else}
+                        🎯
+                      {/if}
+                    </span>
+                    <span class="stat-label">{nextBuyLevel.label}</span>
+                  </div>
+                  <span class="stat-value">{nextBuyLevel.value}</span>
                 </div>
-                <span class="stat-value">{nextBuyLevel.value}</span>
-              </div>
+              {/if}
             </div>
           </div>
         </div>
@@ -2423,5 +2759,61 @@ export class ${getStrategyFileName(type)} extends Strategy {
   .zone-stat .stat-value.highlight {
     color: #a78bfa;
     text-shadow: 0 0 10px rgba(167, 139, 250, 0.3);
+  }
+  
+  /* Trade indicator styles - no hover effects */
+  .trade-indicator {
+    cursor: default;
+  }
+  
+  /* Needle animation for better visibility */
+  .gauge-needle {
+    transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: 120px 120px;
+  }
+  
+  .needle-group {
+    transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .needle-tip {
+    filter: drop-shadow(0 0 12px rgba(167, 139, 250, 1));
+  }
+  
+  
+  /* Tooltip styles */
+  .trade-tooltip {
+    position: absolute;
+    background: rgba(20, 20, 20, 0.95);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: #d1d4dc;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+  }
+  
+  .trade-tooltip-header {
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: #a78bfa;
+  }
+  
+  .trade-tooltip-detail {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  
+  .trade-tooltip-label {
+    color: #758696;
+  }
+  
+  /* Current buy indicator styles - no hover effects */
+  .current-buy-indicator {
+    cursor: default;
   }
 </style>
