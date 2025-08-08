@@ -616,6 +616,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
   // Calculate next buy trigger for all strategies
   let recentHigh = 0;
   let recentLow = 0;
+  
+  // Debug recentHigh changes
+  $: console.log('recentHigh changed to:', recentHigh);
   let lastTradeTime = 0;
   let initialTradingPrice = 0;
   let initialRecentHigh = 0;
@@ -704,9 +707,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   // Calculate next buy level based on selected strategy
   $: nextBuyLevel = (() => {
-    // Use a fallback price if currentPrice is 0 (common BTC price)
-    const fallbackPrice = 50000;
-    const effectivePrice = currentPrice > 0 ? currentPrice : fallbackPrice;
+    // Use current price, no artificial fallback
+    const effectivePrice = currentPrice || 1;
     
     const currentPositionCount = positions.length;
     const dropFromHigh = recentHigh > 0 ? ((recentHigh - effectivePrice) / recentHigh) * 100 : 0;
@@ -890,8 +892,10 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     // Always calculate zones based on strategy behavior
     // Ensure we have a valid recentHigh
+    console.log('threeZoneData calc - recentHigh:', recentHigh, 'currentPrice:', currentPrice);
     const highPrice = (recentHigh && recentHigh > 0) ? recentHigh : currentPrice;
     const dropFromHigh = ((highPrice - currentPrice) / highPrice) * 100;
+    console.log('threeZoneData calc - highPrice:', highPrice);
     
     // Calculate average entry price first (needed for multiple calculations)
     let avgEntryPrice = currentPrice; // Default if no positions
@@ -1481,9 +1485,9 @@ Fee: ${(trade.fee || 0).toFixed(2)}</title>
                 
                 <!-- Current/Next buy level indicator -->
                 {#if true}
-                  {@const buyPrice = nextBuyLevel?.price || 47500}
-                  {@const buyZonePrice = threeZoneData?.buyZone?.price || 45000}
-                  {@const sellZonePrice = threeZoneData?.sellZone?.price || 55000}
+                  {@const buyPrice = nextBuyLevel?.price || currentPrice * 0.99}
+                  {@const buyZonePrice = threeZoneData?.buyZone?.price || currentPrice * 0.95}
+                  {@const sellZonePrice = threeZoneData?.sellZone?.price || currentPrice * 1.07}
                   {@const priceRange = sellZonePrice - buyZonePrice || 10000}
                   {@const pricePosition = (buyPrice - buyZonePrice) / priceRange}
                   {@const nextBuyAngle = 0 + pricePosition * 180}
@@ -1598,17 +1602,29 @@ No open positions{/if}</title>
                   <span class="stat-icon">📉</span>
                   <span class="stat-label">
                     {#if threeZoneData.buyZone.type === 'next'}
-                      BUY ZONE
+                      Next Buy
                     {:else if threeZoneData.buyZone.type === 'lowest'}
                       From Lowest
                     {:else if positions.length >= 5}
                       Max Positions
                     {:else}
-                      BUY ZONE
+                      Next Buy
                     {/if}
                   </span>
                 </div>
-                <span class="stat-value">{Math.abs(threeZoneData.buyZone.dropToNext).toFixed(1)}% drop</span>
+                <span class="stat-value">
+                  {#if positions.length > 0}
+                    {@const lowestEntry = Math.min(...positions.map(p => p.entryPrice))}
+                    {@const nextBuy = lowestEntry * 0.9999} <!-- Small drop below lowest -->
+                    ${nextBuy.toFixed(0)}
+                  {:else if nextBuyLevel && nextBuyLevel.price && nextBuyLevel.price > 1000}
+                    ${nextBuyLevel.price.toFixed(0)}
+                  {:else if currentPrice > 0}
+                    ${(currentPrice * 0.95).toFixed(0)}
+                  {:else}
+                    -
+                  {/if}
+                </span>
               </div>
               <div class="zone-stat">
                 <div class="stat-info">
