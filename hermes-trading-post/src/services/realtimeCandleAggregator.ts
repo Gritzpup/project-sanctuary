@@ -340,7 +340,14 @@ class RealtimeCandleAggregator {
       const now = Date.now();
       const minuteTimeMs = Math.floor(now / 60000) * 60000;
       const minuteTime = minuteTimeMs / 1000; // Convert to seconds
-      await this.createNewCandle(symbol, currentPrice, minuteTime);
+      
+      // Check if we already have a candle for this minute
+      const existingCandle = this.currentCandles.get(symbol);
+      if (existingCandle && existingCandle.time === minuteTime) {
+        console.log(`RealtimeCandleAggregator: Already have candle for ${new Date(minuteTimeMs).toISOString()}, skipping creation`);
+      } else {
+        await this.createNewCandle(symbol, currentPrice, minuteTime);
+      }
     } else {
       console.log('RealtimeCandleAggregator: No current price available, waiting for first tick');
     }

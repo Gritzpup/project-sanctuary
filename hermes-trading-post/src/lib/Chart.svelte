@@ -626,8 +626,19 @@
           time: candle.time as Time
         }));
         
-        console.log(`Setting chart data... ${chartData.length} candles`);
-        candleSeries.setData(chartData);
+        // Deduplicate candles by time (keep the last one for each timestamp)
+        const uniqueChartData = chartData.reduce((acc, candle) => {
+          const existingIndex = acc.findIndex(c => c.time === candle.time);
+          if (existingIndex >= 0) {
+            acc[existingIndex] = candle; // Replace with newer data
+          } else {
+            acc.push(candle);
+          }
+          return acc;
+        }, [] as typeof chartData);
+        
+        console.log(`Setting chart data... ${uniqueChartData.length} candles (deduplicated from ${chartData.length})`);
+        candleSeries.setData(uniqueChartData);
         
         // Update total candle count display
         totalCandleCount = chartData.length;
@@ -849,8 +860,21 @@
           time: candle.time as Time
         }));
         
+        // Deduplicate candles by time (keep the last one for each timestamp)
+        const uniqueChartData = chartData.reduce((acc, candle) => {
+          const existingIndex = acc.findIndex(c => c.time === candle.time);
+          if (existingIndex >= 0) {
+            acc[existingIndex] = candle; // Replace with newer data
+          } else {
+            acc.push(candle);
+          }
+          return acc;
+        }, [] as typeof chartData);
+        
+        console.log(`Reload: Setting chart data... ${uniqueChartData.length} candles (deduplicated from ${chartData.length})`);
+        
         // Update chart data
-        candleSeries.setData(chartData);
+        candleSeries.setData(uniqueChartData);
         
         // Update trade markers after data reload
         if (trades && trades.length > 0) {

@@ -150,10 +150,18 @@ export class ChartDataFeed {
         if (this.currentGranularity === '1m') {
           if (update.isNewCandle) {
             console.log(`ChartDataFeed: Received new 1m candle at ${new Date(candleData.time * 1000).toISOString()}`);
-            // Add new candle to current data
-            this.logDataState('BEFORE_ADD_NEW_CANDLE');
-            this.currentData.push(candleData);
-            this.logDataState('AFTER_ADD_NEW_CANDLE', { addedCandle: new Date(candleData.time * 1000).toISOString() });
+            
+            // Check if we already have this candle (prevent duplicates)
+            const existingIndex = this.currentData.findIndex(c => c.time === candleData.time);
+            if (existingIndex >= 0) {
+              console.log(`ChartDataFeed: Candle already exists at index ${existingIndex}, updating instead of adding`);
+              this.currentData[existingIndex] = candleData;
+            } else {
+              // Add new candle to current data
+              this.logDataState('BEFORE_ADD_NEW_CANDLE');
+              this.currentData.push(candleData);
+              this.logDataState('AFTER_ADD_NEW_CANDLE', { addedCandle: new Date(candleData.time * 1000).toISOString() });
+            }
             
             // Implement sliding window for 1m candles
             if (this.visibleRange) {
