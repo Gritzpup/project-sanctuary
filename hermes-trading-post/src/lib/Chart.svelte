@@ -571,11 +571,7 @@
         candle.time >= adjustedStartTime && candle.time <= alignedNow
       );
       
-      // For 1H with 1m granularity, ensure we only keep the last 60 candles
-      if (period === '1H' && effectiveGranularity === '1m' && filteredData.length > 60) {
-        console.log(`Trimming from ${filteredData.length} to last 60 candles for 1H/1m view`);
-        filteredData = filteredData.slice(-60);
-      }
+      // Removed hardcoded 60-candle limit - let chartDataFeed handle candle management
       
       console.log(`Filtered from ${data.length} to ${filteredData.length} candles within our time range`);
       console.log(`Loaded ${filteredData.length} candles (expected ${adjustedExpectedCandles}) for ${period} with ${effectiveGranularity}`);
@@ -801,11 +797,7 @@
         candle.time >= startTime && candle.time <= alignedNow
       );
       
-      // For 1H with 1m granularity, ensure we only keep the last 60 candles
-      if (period === '1H' && effectiveGranularity === '1m' && filteredData.length > 60) {
-        console.log(`Trimming from ${filteredData.length} to last 60 candles for 1H/1m view on reload`);
-        filteredData = filteredData.slice(-60);
-      }
+      // Removed hardcoded 60-candle limit - let chartDataFeed handle candle management
       
       // Update date range info for reload
       dateRangeInfo.expectedFrom = new Date(startTime * 1000).toLocaleString();

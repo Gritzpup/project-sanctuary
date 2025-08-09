@@ -147,8 +147,10 @@ export class ChartDataFeed {
             
             // Keep only the required number of most recent candles
             if (this.currentData.length > maxCandlesToKeep) {
+              console.log(`ChartDataFeed: BEFORE sliding window: ${this.currentData.length} candles`);
               console.log(`Sliding window: removing ${this.currentData.length - maxCandlesToKeep} old candles`);
               this.currentData = this.currentData.slice(-maxCandlesToKeep);
+              console.log(`ChartDataFeed: AFTER sliding window: ${this.currentData.length} candles`);
             }
             
             // Don't auto-update range for now - let the chart handle scrolling
@@ -328,6 +330,16 @@ export class ChartDataFeed {
   // Get current data for the visible range
   private async getCurrentDataForRange(startTime: number, endTime: number): Promise<CandleData[]> {
     
+    // In 1m mode with real-time data, return existing data if we have it
+    if (this.currentGranularity === '1m' && this.currentData.length > 0) {
+      console.log(`ChartDataFeed: In 1m mode with ${this.currentData.length} real-time candles, returning filtered data instead of loading from cache`);
+      const filteredData = this.currentData.filter(candle => 
+        candle.time >= startTime && candle.time <= endTime
+      );
+      console.log(`ChartDataFeed: Filtered to ${filteredData.length} candles for time range`);
+      return filteredData;
+    }
+    
     // Validate time range
     const validatedRange = this.validateTimeRange(startTime, endTime);
     
@@ -399,6 +411,7 @@ export class ChartDataFeed {
       this.currentData = finalResult.candles;
     }
     
+    console.log(`ChartDataFeed: getCurrentDataForRange returning ${this.currentData.length} candles`);
     return this.currentData;
   }
   
