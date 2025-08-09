@@ -567,9 +567,12 @@
       console.log('Data received:', data.length > 0 ? `${data.length} candles` : 'NO DATA');
       
       // CRITICAL: Filter data to only include candles within our time range
-      let filteredData = data.filter(candle => 
-        candle.time >= adjustedStartTime && candle.time <= alignedNow
-      );
+      // For 1m granularity (paper trading), use all available candles
+      let filteredData = effectiveGranularity === '1m' 
+        ? data 
+        : data.filter(candle => 
+            candle.time >= adjustedStartTime && candle.time <= alignedNow
+          );
       
       // Removed hardcoded 60-candle limit - let chartDataFeed handle candle management
       
@@ -793,9 +796,12 @@
       const data = await dataFeed.getDataForVisibleRange(startTime, alignedNow);
       
       // CRITICAL: Filter data to only include candles within our time range
-      let filteredData = data.filter(candle => 
-        candle.time >= startTime && candle.time <= alignedNow
-      );
+      // For 1m granularity (paper trading), use all available candles
+      let filteredData = effectiveGranularity === '1m'
+        ? data
+        : data.filter(candle => 
+            candle.time >= startTime && candle.time <= alignedNow
+          );
       
       // Removed hardcoded 60-candle limit - let chartDataFeed handle candle management
       

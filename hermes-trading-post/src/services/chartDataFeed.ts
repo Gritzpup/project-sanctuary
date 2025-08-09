@@ -332,12 +332,9 @@ export class ChartDataFeed {
     
     // In 1m mode with real-time data, return existing data if we have it
     if (this.currentGranularity === '1m' && this.currentData.length > 0) {
-      console.log(`ChartDataFeed: In 1m mode with ${this.currentData.length} real-time candles, returning filtered data instead of loading from cache`);
-      const filteredData = this.currentData.filter(candle => 
-        candle.time >= startTime && candle.time <= endTime
-      );
-      console.log(`ChartDataFeed: Filtered to ${filteredData.length} candles for time range`);
-      return filteredData;
+      console.log(`ChartDataFeed: In 1m mode with ${this.currentData.length} real-time candles, returning ALL candles (not filtering by time range)`);
+      // Return ALL candles for paper trading - don't filter by time range
+      return this.currentData;
     }
     
     // Validate time range
