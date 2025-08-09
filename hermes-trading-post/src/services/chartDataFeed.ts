@@ -24,7 +24,7 @@ export class ChartDataFeed {
   private visibleRange: { start: number; end: number } | null = null;
   private currentData: CandleData[] = [];
   private autoUpdateRange = true; // Auto-scroll with new candles
-  private maxCandles = 60; // Maximum candles to keep for 1m view
+  private maxCandles = 1440; // Maximum candles to keep for 1m view (24 hours)
   
   // Loading state
   private loadingPromises = new Map<string, Promise<void>>();
