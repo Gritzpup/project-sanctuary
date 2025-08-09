@@ -1,3 +1,8 @@
+/**
+ * @file chartDataFeed.ts
+ * @description Provides real-time and historical data to charts
+ */
+
 import type { CandleData } from '../types/coinbase';
 import { CoinbaseAPI } from './coinbaseApi';
 import { IndexedDBCache } from './indexedDBCache';
@@ -17,7 +22,7 @@ export class ChartDataFeed {
   private api: CoinbaseAPI;
   private cache: IndexedDBCache;
   private loader: HistoricalDataLoader;
-  private subscribers: Map<string, (data: CandleData, isNew?: boolean) => void> = new Map();
+  private subscribers: Map<string, (data: CandleData, isNew?: boolean, metadata?: any) => void> = new Map();
   private realtimeUnsubscribe: (() => void) | null = null;
   
   // Current state
@@ -187,9 +192,33 @@ export class ChartDataFeed {
                 toRemove: this.currentData.length - maxCandlesToKeep,
                 removedCandles: this.currentData.slice(0, this.currentData.length - maxCandlesToKeep).map(c => new Date(c.time * 1000).toISOString())
               });
+              
+              // Store info about removed candles for scrolling adjustment
+              const removedCount = this.currentData.length - maxCandlesToKeep;
+              const oldFirstCandle = this.currentData[0];
+              
               this.currentData = this.currentData.slice(-maxCandlesToKeep);
               this.logDataState('AFTER_SLIDING_WINDOW');
               console.log(`ChartDataFeed: AFTER sliding window: ${this.currentData.length} candles`);
+              
+              // Notify subscribers that the sliding window has removed candles
+              // This allows the chart to adjust its visible range
+              if (this.currentData.length > 0) {
+                const newFirstCandle = this.currentData[0];
+                this.subscribers.forEach(callback => {
+                  try {
+                    // Pass a special update to indicate sliding window adjustment
+                    callback(candleData, update.isNewCandle, {
+                      slidingWindowUpdate: true,
+                      removedCount,
+                      oldFirstTime: oldFirstCandle.time,
+                      newFirstTime: newFirstCandle.time
+                    });
+                  } catch (error) {
+                    console.error('ChartDataFeed: Error in subscriber callback (sliding window):', error);
+                  }
+                });
+              }
             }
             
             // Don't auto-update range for now - let the chart handle scrolling
@@ -687,7 +716,7 @@ export class ChartDataFeed {
   }
 
   // Subscribe to updates
-  subscribe(id: string, callback: (data: CandleData, isNew?: boolean) => void) {
+  subscribe(id: string, callback: (data: CandleData, isNew?: boolean, metadata?: any) => void) {
     const wasEmpty = this.subscribers.size === 0;
     this.subscribers.set(id, callback);
     this.logDataState('SUBSCRIBE', { 

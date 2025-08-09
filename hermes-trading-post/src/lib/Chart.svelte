@@ -201,8 +201,8 @@
           rightOffset: 5,
           barSpacing: 6,      // Increased from 3 to make candles wider
           minBarSpacing: 2,   // Increased from 1
-          fixLeftEdge: true,  // Lock left edge (no zoom)
-          fixRightEdge: true, // Lock right edge (no zoom)
+          fixLeftEdge: false,  // Allow programmatic scrolling
+          fixRightEdge: true,  // Keep right edge fixed to show latest data
           lockVisibleTimeRangeOnResize: true,
           timeVisible: true,
           secondsVisible: false,
@@ -273,16 +273,50 @@
       }
       
       // IMPORTANT: Subscribe IMMEDIATELY before any data arrives
-      dataFeed.subscribe('chart', (candle, isNew) => {
+      dataFeed.subscribe('chart', (candle, isNew, metadata) => {
         console.log('Chart: Received candle update', { 
           time: new Date(candle.time * 1000).toISOString(),
           price: candle.close,
           isNew, 
+          metadata,
           candleSeries: !!candleSeries,
           isLoadingData,
           chart: !!chart,
           effectiveGranularity
         });
+        
+        // Handle sliding window updates
+        if (metadata?.slidingWindowUpdate && chart && autoScroll) {
+          console.log('Chart: Handling sliding window update', metadata);
+          try {
+            const visibleRange = chart.timeScale().getVisibleRange();
+            if (visibleRange) {
+              // Calculate the time range width
+              const rangeWidth = Number(visibleRange.to) - Number(visibleRange.from);
+              
+              // Shift the visible range to follow the sliding window
+              // Keep the same range width but move it forward to show the latest data
+              const newFrom = Math.max(metadata.newFirstTime, candle.time - rangeWidth);
+              const newTo = candle.time + 60; // Add small buffer
+              
+              console.log('Chart: Adjusting visible range for sliding window', {
+                oldRange: { from: visibleRange.from, to: visibleRange.to },
+                newRange: { from: newFrom, to: newTo },
+                removedCandles: metadata.removedCount
+              });
+              
+              chart.timeScale().setVisibleRange({
+                from: newFrom as Time,
+                to: newTo as Time
+              });
+            }
+          } catch (e) {
+            console.debug('Chart: Unable to adjust range for sliding window:', e);
+          }
+          
+          // Don't process the candle update further for sliding window notifications
+          return;
+        }
         
         if (candleSeries && !isLoadingData && dataFeed.currentGranularity === effectiveGranularity) {
           console.log('Chart: Processing candle update for', effectiveGranularity);
