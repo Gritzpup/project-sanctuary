@@ -133,10 +133,17 @@ export class ChartDataFeed {
             // Implement sliding window for 1m candles
             if (this.visibleRange) {
             // Calculate expected candles based on visible range
-            const visibleMinutes = Math.floor((this.visibleRange.end - this.visibleRange.start) / 60);
+            const visibleSeconds = this.visibleRange.end - this.visibleRange.start;
+            const visibleMinutes = Math.floor(visibleSeconds / 60);
+            console.log(`ChartDataFeed: Visible range: ${visibleSeconds}s (${visibleMinutes} minutes), from ${new Date(this.visibleRange.start * 1000).toISOString()} to ${new Date(this.visibleRange.end * 1000).toISOString()}`);
+            
             // Add buffer to keep some extra candles for smooth scrolling
             const buffer = 10; // Keep 10 extra candles
-            const maxCandlesToKeep = Math.min(visibleMinutes + buffer, this.maxCandles);
+            // In paper trading, keep at least 60 candles (1 hour) regardless of visible range
+            const minCandles = 60; 
+            const calculatedCandles = visibleMinutes + buffer;
+            const maxCandlesToKeep = Math.min(Math.max(calculatedCandles, minCandles), this.maxCandles);
+            console.log(`ChartDataFeed: maxCandlesToKeep = ${maxCandlesToKeep} (visibleMinutes: ${visibleMinutes}, buffer: ${buffer}, minCandles: ${minCandles}, maxCandles: ${this.maxCandles})`);
             
             // Keep only the required number of most recent candles
             if (this.currentData.length > maxCandlesToKeep) {
