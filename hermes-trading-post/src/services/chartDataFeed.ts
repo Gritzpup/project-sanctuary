@@ -69,6 +69,17 @@ export class ChartDataFeed {
     this.startBackgroundLoading();
   }
 
+  // Helper to log current data state
+  private logDataState(operation: string, details?: any) {
+    console.log(`📊 CANDLE TRACKER [${operation}]`, {
+      currentDataLength: this.currentData.length,
+      granularity: this.currentGranularity,
+      firstCandle: this.currentData[0] ? new Date(this.currentData[0].time * 1000).toISOString() : 'none',
+      lastCandle: this.currentData[this.currentData.length - 1] ? new Date(this.currentData[this.currentData.length - 1].time * 1000).toISOString() : 'none',
+      ...details
+    });
+  }
+
   private async startBackgroundLoading() {
     // Start loading historical data in the background
     
@@ -128,7 +139,9 @@ export class ChartDataFeed {
           if (update.isNewCandle) {
             console.log(`ChartDataFeed: Received new 1m candle at ${new Date(candleData.time * 1000).toISOString()}`);
             // Add new candle to current data
+            this.logDataState('BEFORE_ADD_NEW_CANDLE');
             this.currentData.push(candleData);
+            this.logDataState('AFTER_ADD_NEW_CANDLE', { addedCandle: new Date(candleData.time * 1000).toISOString() });
             
             // Implement sliding window for 1m candles
             if (this.visibleRange) {
@@ -149,7 +162,13 @@ export class ChartDataFeed {
             if (this.currentData.length > maxCandlesToKeep) {
               console.log(`ChartDataFeed: BEFORE sliding window: ${this.currentData.length} candles`);
               console.log(`Sliding window: removing ${this.currentData.length - maxCandlesToKeep} old candles`);
+              this.logDataState('BEFORE_SLIDING_WINDOW', { 
+                maxCandlesToKeep, 
+                toRemove: this.currentData.length - maxCandlesToKeep,
+                removedCandles: this.currentData.slice(0, this.currentData.length - maxCandlesToKeep).map(c => new Date(c.time * 1000).toISOString())
+              });
               this.currentData = this.currentData.slice(-maxCandlesToKeep);
+              this.logDataState('AFTER_SLIDING_WINDOW');
               console.log(`ChartDataFeed: AFTER sliding window: ${this.currentData.length} candles`);
             }
             
@@ -176,7 +195,9 @@ export class ChartDataFeed {
               // Check if this is actually a new candle that should be added
               if (lastIndex < 0 || candleData.time > this.currentData[lastIndex].time) {
                 console.log(`ChartDataFeed: Adding new 1m candle at ${new Date(candleData.time * 1000).toISOString()}`);
+                this.logDataState('BEFORE_ADD_NEW_CANDLE_UPDATE_BRANCH');
                 this.currentData.push(candleData);
+                this.logDataState('AFTER_ADD_NEW_CANDLE_UPDATE_BRANCH');
                 
                 // Apply sliding window to maintain data size
                 const maxCandles = 1440; // 24 hours of 1m candles
@@ -385,10 +406,14 @@ export class ChartDataFeed {
         endTime
       );
       
+      this.logDataState('BEFORE_REPLACE_WITH_UPDATED_CACHE');
       this.currentData = updatedResult.candles;
+      this.logDataState('AFTER_REPLACE_WITH_UPDATED_CACHE', { source: 'gap-filled cache' });
       console.log(`ChartDataFeed: After filling gaps, have ${this.currentData.length} candles`);
     } else {
+      this.logDataState('BEFORE_REPLACE_WITH_CACHE');
       this.currentData = cacheResult.candles;
+      this.logDataState('AFTER_REPLACE_WITH_CACHE', { source: 'direct cache' });
       console.log(`ChartDataFeed: Using cached data, have ${this.currentData.length} candles`);
     }
     
@@ -405,7 +430,9 @@ export class ChartDataFeed {
         startTime,
         endTime
       );
+      this.logDataState('BEFORE_REPLACE_WITH_FINAL_RESULT');
       this.currentData = finalResult.candles;
+      this.logDataState('AFTER_REPLACE_WITH_FINAL_RESULT', { source: 'forced load' });
     }
     
     console.log(`ChartDataFeed: getCurrentDataForRange returning ${this.currentData.length} candles`);
@@ -643,6 +670,11 @@ export class ChartDataFeed {
   subscribe(id: string, callback: (data: CandleData, isNew?: boolean) => void) {
     const wasEmpty = this.subscribers.size === 0;
     this.subscribers.set(id, callback);
+    this.logDataState('SUBSCRIBE', { 
+      subscriberId: id,
+      totalSubscribers: this.subscribers.size,
+      wasEmpty
+    });
     
     // Start WebSocket aggregation when first subscriber is added and granularity is 1m
     if (wasEmpty && this.subscribers.size === 1 && this.currentGranularity === '1m') {
@@ -653,6 +685,10 @@ export class ChartDataFeed {
 
   unsubscribe(id: string) {
     this.subscribers.delete(id);
+    this.logDataState('UNSUBSCRIBE', { 
+      subscriberId: id,
+      remainingSubscribers: this.subscribers.size
+    });
   }
   
   // Get current candle data for strategies
@@ -785,6 +821,11 @@ export class ChartDataFeed {
   // Set manual granularity (disables auto for 2 seconds)
   setManualGranularity(granularity: string) {
     console.log(`Manual granularity set to: ${granularity}`);
+    this.logDataState('BEFORE_SET_MANUAL_GRANULARITY', { 
+      newGranularity: granularity,
+      oldGranularity: this.currentGranularity,
+      caller: new Error().stack?.split('\n').slice(2,4).join(' -> ')
+    });
     this.isManualMode = true;
     this.activeGranularity = granularity;
     this.currentGranularity = granularity;
@@ -828,6 +869,9 @@ export class ChartDataFeed {
   }
   
   disconnect() {
+    this.logDataState('BEFORE_DISCONNECT', { 
+      caller: new Error().stack?.split('\n').slice(2,4).join(' -> ')
+    });
     this.loader.stop();
     realtimeCandleAggregator.stopAggregating(this.symbol);
     if (this.realtimeUnsubscribe) {
@@ -842,7 +886,9 @@ export class ChartDataFeed {
   // Clear all in-memory data to prevent stale data when switching views
   private clearInMemoryData() {
     console.log('ChartDataFeed: Clearing in-memory data');
+    this.logDataState('BEFORE_CLEAR_IN_MEMORY');
     this.currentData = [];
+    this.logDataState('AFTER_CLEAR_IN_MEMORY', { caller: new Error().stack?.split('\n')[2] });
     this.dataByGranularity.clear();
     this.loadingPromises.clear();
   }

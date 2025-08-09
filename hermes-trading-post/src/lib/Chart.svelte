@@ -103,7 +103,8 @@
   
   // Watch for external granularity or period changes
   $: if (isInitialized && chart && dataFeed && (granularity !== previousGranularity || period !== previousPeriod)) {
-    console.log(`Props changed - Period: ${previousPeriod} → ${period}, Granularity: ${previousGranularity} → ${granularity}`);
+    console.log(`📈 CHART: Props changed - Period: ${previousPeriod} → ${period}, Granularity: ${previousGranularity} → ${granularity}`);
+    console.log('📈 CHART: Triggering reactive update');
     
     // Clear any pending update
     clearTimeout(updateTimer);
@@ -481,9 +482,10 @@
 
   // Load initial data
   async function loadInitialData() {
-    console.log('=== loadInitialData called ===');
+    console.log('📈 CHART: === loadInitialData called ===');
     console.log('chart:', !!chart, 'dataFeed:', !!dataFeed, 'candleSeries:', !!candleSeries);
     console.log('Current settings:', { period, granularity: effectiveGranularity });
+    console.log('Caller:', new Error().stack?.split('\n')[2]);
     
     if (!chart || !dataFeed || !candleSeries) {
       console.error('Missing required components:', { chart: !!chart, dataFeed: !!dataFeed, candleSeries: !!candleSeries });
@@ -750,6 +752,9 @@
   
   export async function reloadData() {
     if (!chart || !dataFeed || !candleSeries || isLoadingData) return;
+    
+    console.log('📈 CHART: === reloadData called ===');
+    console.log('Caller:', new Error().stack?.split('\n')[2]);
     
     isLoadingData = true;
     
