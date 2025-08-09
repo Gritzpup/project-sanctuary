@@ -21,6 +21,10 @@
   let selectedPeriod = '1H';        // Time range: 5Y, 1Y, 6M, 3M, 1M, 5D, 4H, 1H
   let autoGranularityActive = false;
   
+  onMount(() => {
+    console.log('Dashboard mounted successfully');
+  });
+  
   // Define valid granularities for each period - ONLY Coinbase supported values
   const validGranularities: Record<string, string[]> = {
     '1H': ['1m', '5m', '15m'],
@@ -192,6 +196,7 @@
   .dashboard-layout {
     display: flex;
     height: 100vh;
+    min-height: 600px;
     background: #0a0a0a;
     color: #d1d4dc;
   }

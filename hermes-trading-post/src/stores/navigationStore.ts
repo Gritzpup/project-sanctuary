@@ -2,25 +2,17 @@ import { writable } from 'svelte/store';
 
 type Section = 'dashboard' | 'paper-trading' | 'backtesting' | 'trading' | 'vault' | 'news';
 
-// Create a custom store that syncs with localStorage
+// Create a simple navigation store without localStorage
 function createNavigationStore() {
-  // Initialize with the value from localStorage if available
-  const initialValue = typeof window !== 'undefined' 
-    ? (localStorage.getItem('currentSection') as Section) || 'dashboard'
-    : 'dashboard';
-  
-  const { subscribe, set, update } = writable<Section>(initialValue);
+  const { subscribe, set, update } = writable<Section>('dashboard');
 
   return {
     subscribe,
     
-    // Navigate to a section and save to localStorage
+    // Navigate to a section
     navigate: (section: Section) => {
+      console.log('Navigation: Navigating to section:', section);
       set(section);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('currentSection', section);
-        console.log('Navigation: Saved current section:', section);
-      }
     }
   };
 }
