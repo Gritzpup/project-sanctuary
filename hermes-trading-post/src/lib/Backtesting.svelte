@@ -1,7 +1,10 @@
 <script lang="ts">
-  import BacktestChart from '../components/BacktestChart.svelte';
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
-  import CompoundGrowthChart from '../components/CompoundGrowthChart.svelte';
+  import BacktestingChart from './backtesting/BacktestingChart.svelte';
+  import BacktestingControls from './backtesting/BacktestingControls.svelte';
+  import BacktestingResults from './backtesting/BacktestingResults.svelte';
+  import BacktestingStrategyParams from './backtesting/BacktestingStrategyParams.svelte';
+  import BacktestingBackups from './backtesting/BacktestingBackups.svelte';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { BacktestingEngine } from '../services/backtestingEngine';
   import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';
@@ -14,7 +17,6 @@
   import type { BacktestConfig, BacktestResult } from '../strategies/base/StrategyTypes';
   import type { CandleData } from '../types/coinbase';
   import { historicalDataService, HistoricalDataService } from '../services/historicalDataService';
-  import BacktestStats from '../components/BacktestStats.svelte';
   import { strategyStore } from '../stores/strategyStore';
   
   export let currentPrice: number = 0;
@@ -97,12 +99,6 @@
     isCustom: true;
   }
   
-  // Compound growth chart
-  let compoundCanvas: HTMLCanvasElement;
-  
-  // Auto-refresh interval
-  let refreshInterval: number | null = null;
-  
   // Built-in strategy definitions
   const builtInStrategies = [
     { value: 'reverse-ratio', label: 'Reverse Ratio', description: 'Grid trading with reverse position sizing', isCustom: false },
@@ -126,82 +122,6 @@
   let lastSyncedTakerFee = 0;
   let paperTradingActive = false;
   
-  // Check if current configuration matches synced configuration
-  // This reactive statement will re-run whenever any of these values change
-  $: {
-    // Access all variables to ensure reactivity
-    selectedStrategyType;
-    strategyParams[selectedStrategyType];
-    startBalance;
-    makerFeePercent;
-    takerFeePercent;
-    
-    // Now check if synced
-    isSynced = checkIfSynced(
-      selectedStrategyType,
-      strategyParams[selectedStrategyType],
-      startBalance,
-      makerFeePercent,
-      takerFeePercent
-    );
-  }
-  
-  function checkIfSynced(
-    currentStrategy: string,
-    currentParams: any,
-    currentBalance: number,
-    currentMakerFee: number,
-    currentTakerFee: number
-  ): boolean {
-    if (!lastSyncedStrategy) return false;
-    if (lastSyncedStrategy !== currentStrategy) return false;
-    if (JSON.stringify(lastSyncedParams) !== JSON.stringify(currentParams)) return false;
-    if (lastSyncedBalance !== currentBalance) return false;
-    if (lastSyncedMakerFee !== currentMakerFee) return false;
-    if (lastSyncedTakerFee !== currentTakerFee) return false;
-    return true;
-  }
-  
-  function syncToPaperTrading() {
-    // Check if paper trading is active
-    if (paperTradingActive) {
-      const shouldSync = confirm('Paper Trading is currently active. Syncing will update the strategy for the next trading session. Continue?');
-      if (!shouldSync) return;
-    }
-    
-    // Update the strategy store for paper trading
-    const isCustom = customStrategies.some(s => s.value === selectedStrategyType);
-    const customStrategy = customStrategies.find(s => s.value === selectedStrategyType);
-    
-    strategyStore.setStrategy(
-      selectedStrategyType, 
-      strategyParams[selectedStrategyType] || {},
-      isCustom,
-      customStrategy?.code
-    );
-    
-    // Sync balance and fees
-    strategyStore.setBalanceAndFees(startBalance, {
-      maker: makerFeePercent / 100,
-      taker: takerFeePercent / 100
-    });
-    
-    // Share the custom strategies list
-    strategyStore.setCustomStrategies(customStrategies);
-    
-    // Update sync tracking - store all synced values
-    lastSyncedStrategy = selectedStrategyType;
-    lastSyncedParams = { ...strategyParams[selectedStrategyType] };
-    lastSyncedBalance = startBalance;
-    lastSyncedMakerFee = makerFeePercent;
-    lastSyncedTakerFee = takerFeePercent;
-    
-    // Force update to trigger reactive statement
-    isSynced = true;
-    
-    console.log('Strategy synced to Paper Trading:', selectedStrategyType);
-  }
-  
   // Custom presets management
   interface StrategyPreset {
     name: string;
@@ -215,227 +135,30 @@
   
   let customPresets: StrategyPreset[] = JSON.parse(localStorage.getItem('reverseRatioPresets') || '[]');
   let selectedPresetIndex: number = 0;
-  let isEditingPresets = false;
-  let editingPresetName = '';
   
-  // Load saved preset for current strategy/timeframe combination
-  function loadSavedPresetForTimeframe() {
-    const timeframeKey = `preset_${selectedStrategyType}_${selectedPeriod}_${selectedGranularity}`;
-    const savedIndex = localStorage.getItem(timeframeKey);
-    if (savedIndex !== null) {
-      const index = parseInt(savedIndex);
-      if (index >= 0 && index < customPresets.length) {
-        selectedPresetIndex = index;
-        applyPreset(index);
-        console.log(`Loaded saved preset ${index} for ${selectedStrategyType}/${selectedPeriod}/${selectedGranularity}`);
-        return;
-      }
-    }
-    
-    // If no saved preset, select the first one by default
-    if (customPresets.length > 0) {
-      selectedPresetIndex = 0;
-      applyPreset(0);
-      console.log(`No saved preset found, applying default preset 0`);
-    }
-  }
-  
-  // Save preset selection for current strategy/timeframe
-  function savePresetForTimeframe(index: number) {
-    const timeframeKey = `preset_${selectedStrategyType}_${selectedPeriod}_${selectedGranularity}`;
-    localStorage.setItem(timeframeKey, index.toString());
-    console.log(`Saved preset ${index} for ${selectedStrategyType}/${selectedPeriod}/${selectedGranularity}`);
-  }
-  
-  // Check for old presets - FORCE CLEAR to update to new grid system
-  let hasOldPresets = true; // SET TO TRUE TO FORCE CLEAR OLD PRESETS
-  // This will reset all presets to the new grid-based approach
-  
-  // Force clear old presets or initialize with new ones
-  if (customPresets.length === 0 || hasOldPresets) {
-    if (hasOldPresets) {
-      console.warn('[Backtesting] Clearing old presets with unprofitable targets...');
-    }
-    customPresets = [
-      {
-        name: 'GRID SCALP',
-        initialDropPercent: 0.01,   // Hair-trigger 0.01%
-        levelDropPercent: 0.008,    // Ultra-tight 0.008% grids
-        profitTarget: 0.85,         // 0.85% = tiny profit
-        basePositionPercent: 6,     // 6% per level
-        maxPositionPercent: 96,     // 16 levels × 6% = 96%
-        maxLevels: 16,              // 16 micro levels!
-        ratioMultiplier: 1.0,       // Equal sizing
-        lookbackPeriod: 2           // 2 candle ultra-fast
-      },
-      {
-        name: 'PROGRESSIVE',
-        initialDropPercent: 0.02,
-        levelDropPercent: 0.015,
-        profitTarget: 1.0,          // 1.0% = 0.175% net
-        basePositionPercent: 10,    // Start with 10%
-        maxPositionPercent: 95,
-        maxLevels: 10,
-        ratioMultiplier: 1.1,       // Gentle 10% increases
-        lookbackPeriod: 3
-      },
-      {
-        name: 'SAFE GRID',
-        initialDropPercent: 0.03,
-        levelDropPercent: 0.02,
-        profitTarget: 1.2,          // 1.2% = 0.375% net
-        basePositionPercent: 12,    // 12% per level
-        maxPositionPercent: 96,
-        maxLevels: 8,               // 8 levels × 12% = 96%
-        ratioMultiplier: 1.0,       // Equal sizing
-        lookbackPeriod: 4
-      }
-    ];
-    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
-    
-    // Also clear all saved preset selections
-    const keys = Object.keys(localStorage);
-    keys.forEach(key => {
-      if (key.startsWith('preset_')) {
-        localStorage.removeItem(key);
-      }
-    });
-  }
-  
-  function saveCurrentAsPreset(index: number) {
-    const preset = customPresets[index];
-    preset.initialDropPercent = strategyParams['reverse-ratio'].initialDropPercent;
-    preset.levelDropPercent = strategyParams['reverse-ratio'].levelDropPercent;
-    preset.profitTarget = strategyParams['reverse-ratio'].profitTarget;
-    preset.basePositionPercent = strategyParams['reverse-ratio'].basePositionPercent;
-    preset.maxPositionPercent = strategyParams['reverse-ratio'].maxPositionPercent;
-    preset.ratioMultiplier = strategyParams['reverse-ratio'].ratioMultiplier;
-    
-    customPresets = [...customPresets];
-    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
-  }
-  
-  // Helper function to update parameters and sync with store
-  function updateStrategyParam(paramPath: string, value: any) {
-    // Update the parameter using the path (e.g., 'reverse-ratio.initialDropPercent')
-    const pathParts = paramPath.split('.');
-    let obj = strategyParams;
-    
-    // Navigate to the nested property
-    for (let i = 0; i < pathParts.length - 1; i++) {
-      obj = obj[pathParts[i]];
-    }
-    
-    // Set the value
-    obj[pathParts[pathParts.length - 1]] = value;
-    
-    // Trigger reactivity
-    strategyParams = strategyParams;
-  }
-
-  function applyPreset(index: number) {
-    if (index < 0 || index >= customPresets.length) return;
-    const preset = customPresets[index];
-    
-    strategyParams['reverse-ratio'].initialDropPercent = preset.initialDropPercent;
-    strategyParams['reverse-ratio'].levelDropPercent = preset.levelDropPercent;
-    strategyParams['reverse-ratio'].profitTarget = preset.profitTarget;
-    strategyParams['reverse-ratio'].basePositionPercent = preset.basePositionPercent;
-    strategyParams['reverse-ratio'].maxPositionPercent = preset.maxPositionPercent;
-    strategyParams['reverse-ratio'].ratioMultiplier = preset.ratioMultiplier;
-    
-    selectedPresetIndex = index;
-    // Save this preset selection for the current timeframe
-    savePresetForTimeframe(index);
-  }
-  
-  function updatePresetName(index: number, newName: string) {
-    customPresets[index].name = newName;
-    customPresets = [...customPresets];
-    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
-  }
-  
-  function addNewPreset() {
-    const newPreset: StrategyPreset = {
-      name: `Preset ${customPresets.length + 1}`,
-      initialDropPercent: strategyParams['reverse-ratio'].initialDropPercent,
-      levelDropPercent: strategyParams['reverse-ratio'].levelDropPercent,
-      profitTarget: strategyParams['reverse-ratio'].profitTarget,
-      basePositionPercent: strategyParams['reverse-ratio'].basePositionPercent,
-      maxPositionPercent: strategyParams['reverse-ratio'].maxPositionPercent,
-      ratioMultiplier: strategyParams['reverse-ratio'].ratioMultiplier
-    };
-    customPresets = [...customPresets, newPreset];
-    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
-  }
-  
-  function deletePreset(index: number) {
-    customPresets = customPresets.filter((_, i) => i !== index);
-    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
-    if (selectedPresetIndex === index) selectedPresetIndex = -1;
-  }
-  
-  // Calculate position sizes for preview
-  function calculatePositionSizes(balance: number = startBalance): Array<{level: number, amount: number, percentage: number}> {
-    const params = strategyParams['reverse-ratio'];
-    const sizes = [];
-    
-    for (let level = 1; level <= Math.min(params.maxLevels, 5); level++) {
-      let amount: number;
-      
-      if (params.positionSizeMode === 'fixed') {
-        if (params.ratioMultiplier === 1) {
-          amount = params.basePositionAmount * level;
-        } else {
-          const levelRatio = Math.pow(params.ratioMultiplier, level - 1);
-          amount = params.basePositionAmount * levelRatio;
-        }
-      } else {
-        const basePercent = params.basePositionPercent / 100;
-        if (params.ratioMultiplier === 1) {
-          amount = balance * (basePercent * level);
-        } else {
-          const levelRatio = Math.pow(params.ratioMultiplier, level - 1);
-          amount = balance * (basePercent * levelRatio);
-        }
-      }
-      
-      sizes.push({
-        level,
-        amount,
-        percentage: (amount / balance) * 100
-      });
-    }
-    
-    return sizes;
-  }
-  
-  // Removed automatic timeframe configs - manual control only
-
-  // Strategy-specific parameters - TRUE GRID SCALPING
+  // Strategy-specific parameters
   let strategyParams: Record<string, any> = {
     'reverse-ratio': {
-      initialDropPercent: 0.02,  // First buy at 0.02% drop
-      levelDropPercent: 0.015,   // 0.015% increments between levels
-      ratioMultiplier: 1.0,      // EQUAL sizing (no multiplier!)
-      profitTarget: 0.85,        // 0.85% profit = 0.025% net (minimal but frequent)
-      maxLevels: 12,             // 12 levels for deep grids
-      lookbackPeriod: 3,         // Ultra-fast 3 candle lookback
+      initialDropPercent: 0.02,
+      levelDropPercent: 0.015,
+      ratioMultiplier: 1.0,
+      profitTarget: 0.85,
+      maxLevels: 12,
+      lookbackPeriod: 3,
       positionSizeMode: 'percentage',
-      basePositionPercent: 8,    // Only 8% per level (12 levels × 8% = 96%)
+      basePositionPercent: 8,
       basePositionAmount: 50,
-      maxPositionPercent: 96,    // Use up to 96% of total capital
-      // Vault configuration
+      maxPositionPercent: 96,
       vaultConfig: {
-        btcVaultPercent: 14.3,    // 1/7 of profits to BTC vault
-        usdGrowthPercent: 14.3,   // 1/7 of profits to grow USD
-        usdcVaultPercent: 71.4,   // 5/7 of profits to USDC vault
+        btcVaultPercent: 14.3,
+        usdGrowthPercent: 14.3,
+        usdcVaultPercent: 71.4,
         compoundFrequency: 'trade',
         minCompoundAmount: 0.01,
         autoCompound: true,
-        btcVaultTarget: 0.1,      // Target 0.1 BTC
-        usdcVaultTarget: 10000,   // Target $10k USDC
-        rebalanceThreshold: 5     // Rebalance if 5% off target
+        btcVaultTarget: 0.1,
+        usdcVaultTarget: 10000,
+        rebalanceThreshold: 5
       }
     },
     'grid-trading': {
@@ -452,8 +175,8 @@
     },
     'dca': {
       intervalHours: 24,
-      amountPerBuy: 100,  // Changed from amountPerInterval to match DCAStrategy.ts
-      dropThreshold: 5   // Extra buy when price drops this %
+      amountPerBuy: 100,
+      dropThreshold: 5
     },
     'vwap-bounce': {
       vwapPeriod: 20,
@@ -490,68 +213,153 @@
     }
   };
   
-  onMount(async () => {
-    console.log('Backtesting component mounted');
-    console.log('Initial state:', { selectedStrategyType, startBalance, selectedPeriod, selectedGranularity });
+  // Check if current configuration matches synced configuration
+  $: {
+    selectedStrategyType;
+    strategyParams[selectedStrategyType];
+    startBalance;
+    makerFeePercent;
+    takerFeePercent;
     
-    // Load saved preset for initial timeframe
-    loadSavedPresetForTimeframe();
-    
-    updateCurrentStrategy();
-    
-    // Load initial historical data for display
-    await loadChartData(true); // Force refresh on mount
-    
-    // Set up auto-refresh every 30 seconds for short timeframes
-    if (['1H', '4H', '5D'].includes(selectedPeriod)) {
-      refreshInterval = setInterval(async () => {
-        console.log('Auto-refreshing chart data...');
-        await loadChartData(true);
-      }, 30000) as unknown as number; // Refresh every 30 seconds
+    isSynced = checkIfSynced(
+      selectedStrategyType,
+      strategyParams[selectedStrategyType],
+      startBalance,
+      makerFeePercent,
+      takerFeePercent
+    );
+  }
+  
+  function checkIfSynced(
+    currentStrategy: string,
+    currentParams: any,
+    currentBalance: number,
+    currentMakerFee: number,
+    currentTakerFee: number
+  ): boolean {
+    if (!lastSyncedStrategy) return false;
+    if (lastSyncedStrategy !== currentStrategy) return false;
+    if (JSON.stringify(lastSyncedParams) !== JSON.stringify(currentParams)) return false;
+    if (lastSyncedBalance !== currentBalance) return false;
+    if (lastSyncedMakerFee !== currentMakerFee) return false;
+    if (lastSyncedTakerFee !== currentTakerFee) return false;
+    return true;
+  }
+  
+  function syncToPaperTrading() {
+    if (paperTradingActive) {
+      const shouldSync = confirm('Paper Trading is currently active. Syncing will update the strategy for the next trading session. Continue?');
+      if (!shouldSync) return;
     }
     
-  });
-  
-  onDestroy(() => {
-    // Cleanup on unmount
-    if (refreshInterval) {
-      clearInterval(refreshInterval);
-      refreshInterval = null;
-    }
-  });
-  
-  // Load saved strategies on mount
-  onMount(() => {
-    loadCustomStrategies();
+    const isCustom = customStrategies.some(s => s.value === selectedStrategyType);
+    const customStrategy = customStrategies.find(s => s.value === selectedStrategyType);
     
-    // Load balance and fees from store if available
-    const unsubscribe = strategyStore.subscribe(state => {
-      if (state.balance !== undefined) {
-        startBalance = state.balance;
-      }
-      if (state.fees) {
-        // Convert from decimal to percentage
-        makerFeePercent = state.fees.maker * 100;
-        takerFeePercent = state.fees.taker * 100;
-      }
-      // Track paper trading status
-      paperTradingActive = state.paperTradingActive || false;
+    strategyStore.setStrategy(
+      selectedStrategyType, 
+      strategyParams[selectedStrategyType] || {},
+      isCustom,
+      customStrategy?.code
+    );
+    
+    strategyStore.setBalanceAndFees(startBalance, {
+      maker: makerFeePercent / 100,
+      taker: takerFeePercent / 100
     });
     
-    // Initialize current strategy
-    updateCurrentStrategy();
+    strategyStore.setCustomStrategies(customStrategies);
     
-    // Clean up subscription on destroy
-    return () => {
-      unsubscribe();
-    };
-  });
+    lastSyncedStrategy = selectedStrategyType;
+    lastSyncedParams = { ...strategyParams[selectedStrategyType] };
+    lastSyncedBalance = startBalance;
+    lastSyncedMakerFee = makerFeePercent;
+    lastSyncedTakerFee = takerFeePercent;
+    
+    isSynced = true;
+    
+    console.log('Strategy synced to Paper Trading:', selectedStrategyType);
+  }
   
+  function loadSavedPresetForTimeframe() {
+    const timeframeKey = `preset_${selectedStrategyType}_${selectedPeriod}_${selectedGranularity}`;
+    const savedIndex = localStorage.getItem(timeframeKey);
+    if (savedIndex !== null) {
+      const index = parseInt(savedIndex);
+      if (index >= 0 && index < customPresets.length) {
+        selectedPresetIndex = index;
+        applyPreset(index);
+        return;
+      }
+    }
+    
+    if (customPresets.length > 0) {
+      selectedPresetIndex = 0;
+      applyPreset(0);
+    }
+  }
+  
+  function savePresetForTimeframe(index: number) {
+    const timeframeKey = `preset_${selectedStrategyType}_${selectedPeriod}_${selectedGranularity}`;
+    localStorage.setItem(timeframeKey, index.toString());
+  }
+  
+  function applyPreset(index: number) {
+    if (index < 0 || index >= customPresets.length) return;
+    const preset = customPresets[index];
+    
+    strategyParams['reverse-ratio'].initialDropPercent = preset.initialDropPercent;
+    strategyParams['reverse-ratio'].levelDropPercent = preset.levelDropPercent;
+    strategyParams['reverse-ratio'].profitTarget = preset.profitTarget;
+    strategyParams['reverse-ratio'].basePositionPercent = preset.basePositionPercent;
+    strategyParams['reverse-ratio'].maxPositionPercent = preset.maxPositionPercent;
+    strategyParams['reverse-ratio'].ratioMultiplier = preset.ratioMultiplier;
+    
+    selectedPresetIndex = index;
+    savePresetForTimeframe(index);
+  }
+  
+  function updatePresetName(index: number, newName: string) {
+    customPresets[index].name = newName;
+    customPresets = [...customPresets];
+    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
+  }
+  
+  function addNewPreset() {
+    const newPreset: StrategyPreset = {
+      name: `Preset ${customPresets.length + 1}`,
+      initialDropPercent: strategyParams['reverse-ratio'].initialDropPercent,
+      levelDropPercent: strategyParams['reverse-ratio'].levelDropPercent,
+      profitTarget: strategyParams['reverse-ratio'].profitTarget,
+      basePositionPercent: strategyParams['reverse-ratio'].basePositionPercent,
+      maxPositionPercent: strategyParams['reverse-ratio'].maxPositionPercent,
+      ratioMultiplier: strategyParams['reverse-ratio'].ratioMultiplier
+    };
+    customPresets = [...customPresets, newPreset];
+    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
+  }
+  
+  function deletePreset(index: number) {
+    customPresets = customPresets.filter((_, i) => i !== index);
+    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
+    if (selectedPresetIndex === index) selectedPresetIndex = -1;
+  }
+  
+  function saveCurrentAsPreset(index: number) {
+    const preset = customPresets[index];
+    preset.initialDropPercent = strategyParams['reverse-ratio'].initialDropPercent;
+    preset.levelDropPercent = strategyParams['reverse-ratio'].levelDropPercent;
+    preset.profitTarget = strategyParams['reverse-ratio'].profitTarget;
+    preset.basePositionPercent = strategyParams['reverse-ratio'].basePositionPercent;
+    preset.maxPositionPercent = strategyParams['reverse-ratio'].maxPositionPercent;
+    preset.ratioMultiplier = strategyParams['reverse-ratio'].ratioMultiplier;
+    
+    customPresets = [...customPresets];
+    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
+  }
   
   function saveCurrentStrategy() {
     if (!currentStrategy) return;
     
-    // Always create a unique timestamp for the key
     const timestamp = Date.now();
     const dateStr = new Date(timestamp).toLocaleString('en-US', { 
       month: 'short', 
@@ -560,12 +368,10 @@
       minute: '2-digit'
     });
     
-    // Create backup name with timestamp
     const backupNameWithTime = backupName.trim() 
       ? `${backupName.trim()} (${dateStr})`
       : `${selectedStrategyType} - ${dateStr}`;
     
-    // Always use unique timestamp-based key to prevent overwrites
     const configKey = `strategy_config_${selectedStrategyType}_${timestamp}`;
     
     const config = {
@@ -580,19 +386,15 @@
       savedDate: timestamp
     };
     
-    // Save to localStorage
     localStorage.setItem(configKey, JSON.stringify(config));
     
-    // Clear form
     backupName = '';
     backupDescription = '';
     
-    // Show success
     console.log('Configuration saved:', config.name);
     alert(`Configuration "${config.name}" saved successfully!`);
   }
   
-  // Load all saved backups from localStorage
   function loadSavedBackups() {
     savedBackups = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -608,23 +410,20 @@
     }
     savedBackups.sort((a, b) => b.savedDate - a.savedDate);
   }
-
-  // Delete a backup
+  
   function deleteBackup(key: string) {
     if (confirm('Are you sure you want to delete this backup?')) {
       localStorage.removeItem(key);
       loadSavedBackups();
     }
   }
-
-  // Load backup configuration
+  
   function loadBackup(key: string) {
     const backup = savedBackups.find(b => b.key === key);
     if (backup) {
       selectedStrategyType = backup.strategyType;
       strategyParams[backup.strategyType] = { ...backup.parameters };
       
-      // Restore balance and fee settings
       if (backup.startBalance !== undefined) startBalance = backup.startBalance;
       if (backup.makerFeePercent !== undefined) makerFeePercent = backup.makerFeePercent;
       if (backup.takerFeePercent !== undefined) takerFeePercent = backup.takerFeePercent;
@@ -635,8 +434,7 @@
       alert(`Configuration "${backup.name}" loaded successfully!`);
     }
   }
-
-  // Rename backup
+  
   function renameBackup(key: string, newName: string) {
     const item = localStorage.getItem(key);
     if (item) {
@@ -651,9 +449,7 @@
     try {
       const imported = JSON.parse(importJsonText);
       
-      // Check if it's a custom strategy or just configuration
       if (imported.code && imported.label && imported.value) {
-        // Import custom strategy
         const newStrategy = {
           value: imported.value || `imported-${Date.now()}`,
           label: imported.label,
@@ -662,11 +458,9 @@
           isCustom: true
         };
         
-        // Add to custom strategies
         customStrategies = [...customStrategies, newStrategy];
         saveCustomStrategies();
         
-        // Initialize parameters
         strategyParams[newStrategy.value] = imported.parameters || {
           positionSize: 0.1,
           stopLoss: 2,
@@ -675,21 +469,17 @@
           threshold: 1
         };
         
-        // Select the imported strategy
         selectedStrategyType = newStrategy.value;
         updateCurrentStrategy();
       } else if (imported.parameters && imported.strategyType) {
-        // Import configuration only
         if (!strategyParams[imported.strategyType]) {
           alert('Strategy type not found: ' + imported.strategyType);
           return;
         }
         
-        // Apply parameters
         strategyParams[imported.strategyType] = { ...imported.parameters };
         selectedStrategyType = imported.strategyType;
         
-        // Apply balance and fee settings if present
         if (imported.startBalance !== undefined) startBalance = imported.startBalance;
         if (imported.makerFeePercent !== undefined) makerFeePercent = imported.makerFeePercent;
         if (imported.takerFeePercent !== undefined) takerFeePercent = imported.takerFeePercent;
@@ -701,7 +491,6 @@
         return;
       }
       
-      // Close dialog and clear
       showImportDialog = false;
       importJsonText = '';
       
@@ -711,8 +500,6 @@
     }
   }
   
-  
-  // Custom Strategy Development Functions
   const CUSTOM_STRATEGIES_KEY = 'hermes_custom_strategies';
   
   function loadCustomStrategies() {
@@ -722,7 +509,6 @@
         customStrategies = JSON.parse(saved);
         console.log(`Loaded ${customStrategies.length} custom strategies`);
         
-        // Initialize parameters for each custom strategy
         customStrategies.forEach(strategy => {
           if (!strategyParams[strategy.value]) {
             strategyParams[strategy.value] = {
@@ -745,7 +531,6 @@
     localStorage.setItem(CUSTOM_STRATEGIES_KEY, JSON.stringify(customStrategies));
   }
   
-  
   function editStrategy(strategyValue: string) {
     const strategy = customStrategies.find(s => s.value === strategyValue);
     if (strategy) {
@@ -764,27 +549,23 @@
       return;
     }
     
-    // Validate strategy name (alphanumeric and hyphens only)
     if (!/^[a-z0-9-]+$/.test(newStrategyName)) {
       alert('Strategy name must be lowercase alphanumeric with hyphens only');
       return;
     }
     
-    // Check if name already exists in built-in strategies
     if (builtInStrategies.some(s => s.value === newStrategyName)) {
       alert('Cannot override built-in strategies');
       return;
     }
     
     if (editingStrategy) {
-      // Update existing strategy
       customStrategies = customStrategies.map(s => 
         s.value === editingStrategy 
           ? { value: newStrategyName, label: newStrategyLabel, description: newStrategyDescription, code: newStrategyCode, isCustom: true }
           : s
       );
     } else {
-      // Add new strategy
       customStrategies = [...customStrategies, {
         value: newStrategyName,
         label: newStrategyLabel,
@@ -793,9 +574,7 @@
         isCustom: true
       }];
       
-      // Initialize parameters for the new custom strategy
       strategyParams[newStrategyName] = {
-        // Default parameters that custom strategies can use
         positionSize: 0.1,
         stopLoss: 2,
         takeProfit: 3,
@@ -807,7 +586,6 @@
     saveCustomStrategies();
     showStrategyEditor = false;
     
-    // Select the new/edited strategy
     selectedStrategyType = newStrategyName;
     updateCurrentStrategy();
   }
@@ -820,19 +598,10 @@
     customStrategies = customStrategies.filter(s => s.value !== strategyValue);
     saveCustomStrategies();
     
-    // If the deleted strategy was selected, switch to first strategy
     if (selectedStrategyType === strategyValue) {
       selectedStrategyType = strategies[0].value;
       updateCurrentStrategy();
     }
-  }
-  
-  
-  function saveStrategyConfig() {
-    // Open the modal dialog instead of using prompts
-    backupName = '';
-    backupDescription = '';
-    showBackupDialog = true;
   }
   
   function exportCurrentStrategy() {
@@ -847,7 +616,6 @@
       a.click();
       URL.revokeObjectURL(url);
     } else {
-      // Export current configuration
       const configExport = {
         strategyType: selectedStrategyType,
         label: strategies.find(s => s.value === selectedStrategyType)?.label,
@@ -869,70 +637,6 @@
     }
   }
   
-  function getStrategyTemplate(): string {
-    return `// Custom Strategy Implementation
-import { Strategy } from '../base/Strategy';
-import { StrategySignal, StrategyParams, CandleData, BacktestMetrics } from '../base/StrategyTypes';
-
-export class CustomStrategy extends Strategy {
-  private params: StrategyParams;
-  
-  constructor(params: StrategyParams) {
-    super('Custom Strategy');
-    this.params = params;
-  }
-  
-  analyze(candles: CandleData[], currentPrice: number): StrategySignal {
-    // Implement your strategy logic here
-    
-    // Example: Simple moving average crossover
-    if (candles.length < 20) {
-      return { action: 'HOLD', confidence: 0 };
-    }
-    
-    const sma5 = this.calculateSMA(candles.slice(-5));
-    const sma20 = this.calculateSMA(candles.slice(-20));
-    
-    if (sma5 > sma20 * 1.01) {
-      return {
-        action: 'BUY',
-        confidence: 0.7,
-        amount: 100, // Buy $100 worth
-        reason: 'SMA5 crossed above SMA20'
-      };
-    } else if (sma5 < sma20 * 0.99) {
-      return {
-        action: 'SELL',
-        confidence: 0.7,
-        percentage: 100, // Sell all
-        reason: 'SMA5 crossed below SMA20'
-      };
-    }
-    
-    return { action: 'HOLD', confidence: 0.5 };
-  }
-  
-  private calculateSMA(candles: CandleData[]): number {
-    const sum = candles.reduce((acc, candle) => acc + candle.close, 0);
-    return sum / candles.length;
-  }
-  
-  getMetrics(): BacktestMetrics {
-    return {
-      totalTrades: 0,
-      winningTrades: 0,
-      losingTrades: 0,
-      totalReturn: 0,
-      maxDrawdown: 0,
-      sharpeRatio: 0,
-      winRate: 0,
-      profitFactor: 0
-    };
-  }
-}`;
-  }
-  
-  // Valid granularities for each period
   const validGranularities: Record<string, string[]> = {
     '1H': ['1m', '5m', '15m'],
     '4H': ['5m', '15m', '1h'],
@@ -951,7 +655,6 @@ export class CustomStrategy extends Strategy {
   async function loadChartData(forceRefresh = false) {
     const cacheKey = `${selectedPeriod}-${selectedGranularity}`;
     
-    // Check cache first (unless force refresh)
     if (!forceRefresh && chartDataCache.has(cacheKey)) {
       const cached = chartDataCache.get(cacheKey)!;
       const age = Date.now() - cached.timestamp;
@@ -975,7 +678,6 @@ export class CustomStrategy extends Strategy {
       const endTime = new Date();
       const startTime = new Date();
       
-      // Calculate start time based on selected period
       switch (selectedPeriod) {
         case '1H':
           startTime.setHours(startTime.getHours() - 1);
@@ -1005,7 +707,6 @@ export class CustomStrategy extends Strategy {
           startTime.setMonth(startTime.getMonth() - 1);
       }
       
-      // Convert granularity string to seconds
       const granularityMap: Record<string, number> = {
         '1m': 60,
         '5m': 300,
@@ -1026,14 +727,9 @@ export class CustomStrategy extends Strategy {
         granularity: granularitySeconds
       });
       
-      // Cache the data with timestamp
       chartDataCache.set(cacheKey, { data: historicalCandles, timestamp: Date.now() });
       
       console.log(`Loaded ${historicalCandles.length} candles for ${selectedPeriod}/${selectedGranularity}`);
-      if (historicalCandles.length > 0) {
-        console.log('First candle:', historicalCandles[0]);
-        console.log('Last candle:', historicalCandles[historicalCandles.length - 1]);
-      }
     } catch (error) {
       console.error('Failed to load chart data:', error);
       connectionStatus = 'error';
@@ -1045,14 +741,12 @@ export class CustomStrategy extends Strategy {
     }
   }
   
-  // Removed automatic timeframe updates - manual control only
-
   async function selectGranularity(granularity: string) {
     console.log('selectGranularity called:', granularity, 'valid:', isGranularityValid(granularity, selectedPeriod));
     if (isGranularityValid(granularity, selectedPeriod)) {
       selectedGranularity = granularity;
-      loadSavedPresetForTimeframe(); // Load saved preset for this timeframe combination
-      await loadChartData(true); // Force refresh with new granularity
+      loadSavedPresetForTimeframe();
+      await loadChartData(true);
     }
   }
   
@@ -1060,7 +754,6 @@ export class CustomStrategy extends Strategy {
     console.log('selectPeriod called:', period);
     selectedPeriod = period;
     
-    // If current granularity is not valid for new period, select the best default
     if (!isGranularityValid(selectedGranularity, period)) {
       const validOptions = validGranularities[period];
       if (validOptions && validOptions.length > 0) {
@@ -1070,13 +763,11 @@ export class CustomStrategy extends Strategy {
       }
     }
     
-    // Update refresh interval based on new period
     if (refreshInterval) {
       clearInterval(refreshInterval);
       refreshInterval = null;
     }
     
-    // Set up auto-refresh for short timeframes
     if (['1H', '4H', '5D'].includes(period)) {
       refreshInterval = setInterval(async () => {
         console.log('Auto-refreshing chart data...');
@@ -1084,8 +775,8 @@ export class CustomStrategy extends Strategy {
       }, 30000) as unknown as number;
     }
     
-    loadSavedPresetForTimeframe(); // Load saved preset for this timeframe combination
-    await loadChartData(true); // Force refresh with new period
+    loadSavedPresetForTimeframe();
+    await loadChartData(true);
   }
   
   function createStrategy(type: string): Strategy {
@@ -1093,14 +784,11 @@ export class CustomStrategy extends Strategy {
       const params = strategyParams[type] || {};
       console.log('Creating strategy:', type, 'with params:', params);
       
-      // Check if it's a custom strategy
       const customStrategy = customStrategies.find(s => s.value === type);
       if (customStrategy) {
-        // Create custom strategy from code
         return createCustomStrategyInstance(customStrategy.code, params);
       }
       
-      // Built-in strategies
       switch (type) {
         case 'reverse-ratio':
           return new ReverseRatioStrategy(params);
@@ -1125,14 +813,11 @@ export class CustomStrategy extends Strategy {
   
   function createCustomStrategyInstance(code: string, params: any): Strategy {
     try {
-      // Remove imports and prepare code
       const cleanCode = code
         .replace(/import\s+.*?from\s+.*?;/gs, '')
         .replace(/export\s+class\s+/g, 'class ');
       
-      // Create a wrapper function that returns the strategy instance
       const strategyFactory = new Function('params', `
-        // Base Strategy class
         class Strategy {
           constructor(name) {
             this.name = name;
@@ -1152,10 +837,8 @@ export class CustomStrategy extends Strategy {
           }
         }
         
-        // Inject custom strategy code
         ${cleanCode}
         
-        // Create and return instance
         if (typeof CustomStrategy !== 'undefined') {
           return new CustomStrategy(params);
         } else {
@@ -1178,46 +861,32 @@ export class CustomStrategy extends Strategy {
       console.log('Strategy created successfully:', currentStrategy.getName());
       loadStrategySourceCode();
       
-      // Load saved preset for the new strategy
       if (selectedStrategyType === 'reverse-ratio') {
         loadSavedPresetForTimeframe();
       }
-      
-      // Don't auto-sync to paper trading anymore
-      // User must manually sync when ready
     } catch (error) {
       console.error('Failed to update strategy:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        strategyType: selectedStrategyType,
-        params: strategyParams[selectedStrategyType]
-      });
       currentStrategy = null;
       alert(`Failed to create strategy: ${error.message}`);
     }
   }
   
   async function loadStrategySourceCode() {
-    // Check if it's a custom strategy first
     const customStrategy = customStrategies.find(s => s.value === selectedStrategyType);
     if (customStrategy) {
       strategySourceCode = customStrategy.code;
       return;
     }
     
-    // Fetch the source code for built-in strategies
     try {
       const strategyPath = `/src/strategies/implementations/${getStrategyFileName(selectedStrategyType)}.ts`;
       const response = await fetch(strategyPath);
       if (response.ok) {
         strategySourceCode = await response.text();
       } else {
-        // If fetch fails, show a placeholder
         strategySourceCode = getStrategySourcePlaceholder(selectedStrategyType);
       }
     } catch (error) {
-      // Fallback to placeholder
       strategySourceCode = getStrategySourcePlaceholder(selectedStrategyType);
     }
   }
@@ -1234,68 +903,11 @@ export class CustomStrategy extends Strategy {
   }
   
   function getStrategySourcePlaceholder(type: string): string {
-    // Return a sample of the actual strategy code structure
-    if (type === 'reverse-ratio') {
-      return `import { Strategy } from '../base/Strategy';
-import { CandleData, Position, Signal, StrategyConfig } from '../base/StrategyTypes';
-
-export class ReverseRatioStrategy extends Strategy {
-  constructor(config: Partial<ReverseRatioConfig> = {}) {
-    super();
-    this.name = 'Reverse Ratio Buying';
-    this.description = 'Buys on dips with increasing position sizes, sells all at 7% profit';
-    
-    // Default configuration
-    this.config = {
-      initialDropPercent: 5,
-      levelDropPercent: 5,
-      profitTargetPercent: 7,
-      maxLevels: 5,
-      ratioMultipliers: [1, 1.5, 2, 2.5, 3],
-      vaultAllocation: 99,
-      btcGrowthAllocation: 1,
-      ...config
-    };
-  }
-
-  analyze(candles: CandleData[], currentPrice: number): Signal {
-    const recentHigh = this.findRecentHigh(candles);
-    const dropFromHigh = ((recentHigh - currentPrice) / recentHigh) * 100;
-    
-    // Check for exit conditions first
-    if (this.shouldTakeProfit(currentPrice)) {
-      return { action: 'sell', confidence: 0.9, reason: 'Target profit reached' };
-    }
-    
-    // Check for entry conditions
-    if (this.shouldBuy(dropFromHigh, currentPrice)) {
-      return { action: 'buy', confidence: 0.8, reason: \`Drop level reached: \${dropFromHigh.toFixed(2)}%\` };
-    }
-    
-    return { action: 'hold', confidence: 0.5 };
-  }
-  
-  // ... additional implementation details
-}`;
-    }
-    
-    // Default placeholder for other strategies
     return `// Source code for ${type} strategy
 // Implementation details would be shown here
 export class ${getStrategyFileName(type)} extends Strategy {
   // Strategy implementation...
 }`;
-  }
-  
-  function handleChartGranularityChange(newGranularity: string) {
-    if (selectedGranularity !== newGranularity) {
-      selectedGranularity = newGranularity;
-      autoGranularityActive = true;
-      
-      setTimeout(() => {
-        autoGranularityActive = false;
-      }, 2000);
-    }
   }
   
   async function runBacktest() {
@@ -1305,7 +917,6 @@ export class ${getStrategyFileName(type)} extends Strategy {
       return;
     }
     
-    // Validate strategy is properly initialized
     try {
       console.log('Validating strategy:', {
         name: currentStrategy.getName(),
@@ -1322,11 +933,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
     backtestResults = null;
     
     try {
-      // Set up time range for backtest
       let endTime = new Date();
       let startTime = new Date();
       
-      // Determine time range based on selected period
       switch (selectedPeriod) {
         case '1H':
           startTime.setHours(startTime.getHours() - 1);
@@ -1356,48 +965,34 @@ export class ${getStrategyFileName(type)} extends Strategy {
           startTime.setMonth(startTime.getMonth() - 1);
       }
       
-      // Use the already loaded chart data for backtesting
       console.log('Using loaded chart data for backtesting...');
-      // Ensure we have fresh data
       if (!historicalCandles || historicalCandles.length === 0) {
         await loadChartData(true);
       }
       
       console.log(`Using ${historicalCandles.length} candles for backtesting`);
       
-      // Use actual data time range
       if (historicalCandles.length > 0) {
-        // Check if time is in seconds or milliseconds
         const firstTime = historicalCandles[0].time;
-        const isMilliseconds = firstTime > 1000000000000; // Unix timestamp in ms is > 1 trillion
+        const isMilliseconds = firstTime > 1000000000000;
         
         startTime = new Date(isMilliseconds ? firstTime : firstTime * 1000);
         endTime = new Date(isMilliseconds ? historicalCandles[historicalCandles.length - 1].time : historicalCandles[historicalCandles.length - 1].time * 1000);
       }
       
-      console.log('Time range:', {
-        startTime: startTime.toISOString(),
-        endTime: endTime.toISOString(),
-        firstCandle: historicalCandles[0] ? new Date(historicalCandles[0].time > 1000000000000 ? historicalCandles[0].time : historicalCandles[0].time * 1000).toISOString() : 'none',
-        lastCandle: historicalCandles[historicalCandles.length - 1] ? new Date(historicalCandles[historicalCandles.length - 1].time > 1000000000000 ? historicalCandles[historicalCandles.length - 1].time : historicalCandles[historicalCandles.length - 1].time * 1000).toISOString() : 'none'
-      });
-      
-      // Configure backtesting engine
       const config = {
         initialBalance: startBalance,
-        startTime: Math.floor(startTime.getTime() / 1000), // Convert to seconds
-        endTime: Math.floor(endTime.getTime() / 1000),     // Convert to seconds
-        feePercent: 0.75, // Legacy fee (keeping for compatibility)
+        startTime: Math.floor(startTime.getTime() / 1000),
+        endTime: Math.floor(endTime.getTime() / 1000),
+        feePercent: 0.75,
         makerFeePercent: makerFeePercent,
         takerFeePercent: takerFeePercent,
         feeRebatePercent: feeRebatePercent,
-        slippage: 0.1   // 0.1% slippage
+        slippage: 0.1
       };
       
-      // Create and run backtesting engine
       backtestingEngine = new BacktestingEngine(currentStrategy, config);
       
-      // Convert candles to have time in seconds for consistency
       const candlesWithSecondsTime = historicalCandles.map(candle => ({
         ...candle,
         time: candle.time > 1000000000000 ? Math.floor(candle.time / 1000) : candle.time
@@ -1411,30 +1006,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
       
       console.log('Backtest completed:', backtestResults);
       console.log('Backtest metrics:', backtestResults?.metrics);
-      console.log('Trades for chart:', backtestResults?.trades);
-      console.log('Number of trades:', backtestResults?.trades?.length || 0);
       
-      // Force chart update
-      historicalCandles = [...historicalCandles]; // Trigger reactive update
+      historicalCandles = [...historicalCandles];
     } catch (error) {
       console.error('Backtest failed:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name,
-        strategy: currentStrategy?.getName(),
-        candles: historicalCandles?.length || 0
-      });
       alert(`Failed to run backtest: ${error.message || 'Unknown error'}. Please check the console for details.`);
     } finally {
       isRunning = false;
     }
-  }
-  
-  
-  function clearResults() {
-    backtestResults = null;
-    historicalCandles = [];
   }
   
   function getBtcPositions(): string {
@@ -1442,131 +1021,97 @@ export class ${getStrategyFileName(type)} extends Strategy {
       return '0.000000';
     }
     
-    // Get the final equity state
     const finalEquity = backtestResults.equity[backtestResults.equity.length - 1];
     const btcTotal = finalEquity.btcBalance || 0;
     const btcVault = backtestResults.metrics.btcGrowth || 0;
     
-    // BTC positions = total BTC - BTC vault
     const btcPositions = btcTotal - btcVault;
     
     return btcPositions.toFixed(6);
   }
   
-  function drawCompoundChart() {
-    if (!compoundCanvas || !backtestResults?.chartData) return;
+  let refreshInterval: number | null = null;
+  
+  onMount(async () => {
+    console.log('Backtesting component mounted');
+    console.log('Initial state:', { selectedStrategyType, startBalance, selectedPeriod, selectedGranularity });
     
-    const ctx = compoundCanvas.getContext('2d');
-    if (!ctx) return;
+    loadSavedPresetForTimeframe();
+    updateCurrentStrategy();
     
-    const width = compoundCanvas.width;
-    const height = compoundCanvas.height;
-    const padding = 40;
+    await loadChartData(true);
     
-    // Clear canvas
-    ctx.clearRect(0, 0, width, height);
-    
-    // Background
-    ctx.fillStyle = '#0f1419';
-    ctx.fillRect(0, 0, width, height);
-    
-    // Get data points
-    const data = backtestResults.chartData;
-    if (!data || data.length === 0) return;
-    
-    // Calculate max values
-    const maxValue = Math.max(...data.map(d => Math.max(d.balance, d.portfolioValue)));
-    const minTime = data[0].timestamp;
-    const maxTime = data[data.length - 1].timestamp;
-    
-    // Scale functions
-    const xScale = (timestamp: number) => padding + ((timestamp - minTime) / (maxTime - minTime)) * (width - 2 * padding);
-    const yScale = (value: number) => height - padding - (value / maxValue) * (height - 2 * padding);
-    
-    // Draw grid lines
-    ctx.strokeStyle = '#1f2937';
-    ctx.lineWidth = 1;
-    
-    // Horizontal grid lines
-    for (let i = 0; i <= 5; i++) {
-      const y = padding + (i * (height - 2 * padding)) / 5;
-      ctx.beginPath();
-      ctx.moveTo(padding, y);
-      ctx.lineTo(width - padding, y);
-      ctx.stroke();
-      
-      // Value labels
-      const value = maxValue * (1 - i / 5);
-      ctx.fillStyle = '#758696';
-      ctx.font = '12px monospace';
-      ctx.textAlign = 'right';
-      ctx.fillText(`$${value.toFixed(0)}`, padding - 10, y + 4);
+    if (['1H', '4H', '5D'].includes(selectedPeriod)) {
+      refreshInterval = setInterval(async () => {
+        console.log('Auto-refreshing chart data...');
+        await loadChartData(true);
+      }, 30000) as unknown as number;
     }
     
-    // Draw vault balance line (compounding growth)
-    ctx.strokeStyle = '#a78bfa';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    data.forEach((point, i) => {
-      const x = xScale(point.timestamp);
-      const y = yScale(point.balance);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+    loadCustomStrategies();
+    
+    const unsubscribe = strategyStore.subscribe(state => {
+      if (state.balance !== undefined) {
+        startBalance = state.balance;
+      }
+      if (state.fees) {
+        makerFeePercent = state.fees.maker * 100;
+        takerFeePercent = state.fees.taker * 100;
+      }
+      paperTradingActive = state.paperTradingActive || false;
     });
-    ctx.stroke();
     
-    // Draw portfolio value line (BTC holdings + cash)
-    ctx.strokeStyle = '#26a69a';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    data.forEach((point, i) => {
-      const x = xScale(point.timestamp);
-      const y = yScale(point.portfolioValue);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
+    updateCurrentStrategy();
     
-    // Legend
-    const legendY = 20;
-    ctx.font = '14px monospace';
-    
-    // Vault balance legend
-    ctx.fillStyle = '#a78bfa';
-    ctx.fillRect(width - 200, legendY, 20, 3);
-    ctx.fillStyle = '#d1d4dc';
-    ctx.textAlign = 'left';
-    ctx.fillText('Vault Balance (Compounding)', width - 170, legendY + 5);
-    
-    // Portfolio value legend
-    ctx.strokeStyle = '#26a69a';
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    ctx.moveTo(width - 200, legendY + 25);
-    ctx.lineTo(width - 180, legendY + 25);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = '#d1d4dc';
-    ctx.fillText('Total Portfolio Value', width - 170, legendY + 30);
-    
-    // Calculate compound growth rate
-    const startValue = data[0].balance;
-    const endValue = data[data.length - 1].balance;
-    const timeInYears = (maxTime - minTime) / (365 * 24 * 60 * 60 * 1000);
-    const compoundRate = timeInYears > 0 ? (Math.pow(endValue / startValue, 1 / timeInYears) - 1) * 100 : 0;
-    
-    // Display compound growth rate
-    ctx.fillStyle = '#ffa726';
-    ctx.font = '16px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(`Compound Annual Growth Rate: ${compoundRate.toFixed(1)}%`, width / 2, height - 10);
-  }
+    return () => {
+      unsubscribe();
+    };
+  });
   
-  // Draw compound chart when results update
-  $: if (backtestResults && compoundCanvas) {
-    requestAnimationFrame(drawCompoundChart);
+  onDestroy(() => {
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+      refreshInterval = null;
+    }
+  });
+  
+  if (customPresets.length === 0) {
+    customPresets = [
+      {
+        name: 'GRID SCALP',
+        initialDropPercent: 0.01,
+        levelDropPercent: 0.008,
+        profitTarget: 0.85,
+        basePositionPercent: 6,
+        maxPositionPercent: 96,
+        maxLevels: 16,
+        ratioMultiplier: 1.0,
+        lookbackPeriod: 2
+      },
+      {
+        name: 'PROGRESSIVE',
+        initialDropPercent: 0.02,
+        levelDropPercent: 0.015,
+        profitTarget: 1.0,
+        basePositionPercent: 10,
+        maxPositionPercent: 95,
+        maxLevels: 10,
+        ratioMultiplier: 1.1,
+        lookbackPeriod: 3
+      },
+      {
+        name: 'SAFE GRID',
+        initialDropPercent: 0.03,
+        levelDropPercent: 0.02,
+        profitTarget: 1.2,
+        basePositionPercent: 12,
+        maxPositionPercent: 96,
+        maxLevels: 8,
+        ratioMultiplier: 1.0,
+        lookbackPeriod: 4
+      }
+    ];
+    localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
   }
 </script>
 
@@ -1598,1132 +1143,106 @@ export class ${getStrategyFileName(type)} extends Strategy {
         <!-- Row containing Chart and Strategy panels side by side -->
         <div class="panels-row">
           <!-- Chart Panel -->
-          <div class="panel chart-panel">
-            <div class="granularity-transition" class:active={autoGranularityActive}>
-              Switching to {selectedGranularity}
-            </div>
-            <div class="panel-header">
-              <h2>BTC/USD Chart {#if isLoadingChart}<span class="loading-indicator">🔄</span>{/if}</h2>
-              <div class="chart-controls">
-                <div class="granularity-buttons">
-                  <button class="granularity-btn" class:active={selectedGranularity === '1m'} class:disabled={!isGranularityValid('1m', selectedPeriod)} on:click={() => selectGranularity('1m')}>1m</button>
-                  <button class="granularity-btn" class:active={selectedGranularity === '5m'} class:disabled={!isGranularityValid('5m', selectedPeriod)} on:click={() => selectGranularity('5m')}>5m</button>
-                  <button class="granularity-btn" class:active={selectedGranularity === '15m'} class:disabled={!isGranularityValid('15m', selectedPeriod)} on:click={() => selectGranularity('15m')}>15m</button>
-                  <button class="granularity-btn" class:active={selectedGranularity === '1h'} class:disabled={!isGranularityValid('1h', selectedPeriod)} on:click={() => selectGranularity('1h')}>1h</button>
-                  <button class="granularity-btn" class:active={selectedGranularity === '6h'} class:disabled={!isGranularityValid('6h', selectedPeriod)} on:click={() => selectGranularity('6h')}>6h</button>
-                  <button class="granularity-btn" class:active={selectedGranularity === '1D'} class:disabled={!isGranularityValid('1D', selectedPeriod)} on:click={() => selectGranularity('1D')}>1D</button>
-                </div>
-              </div>
-            </div>
-            <div class="panel-content">
-              {#if isLoadingChart}
-                <div class="loading-overlay">
-                  <div class="loading-spinner"></div>
-                  <div class="loading-text">Loading chart data...</div>
-                  {#if selectedPeriod === '5Y'}
-                    <div class="loading-hint">This may take a few seconds for large datasets</div>
-                  {/if}
-                </div>
-              {/if}
-              <BacktestChart 
-                data={historicalCandles.map(candle => ({
-                  ...candle,
-                  time: candle.time > 1000000000000 ? Math.floor(candle.time / 1000) : candle.time
-                }))}
-                trades={backtestResults?.trades || []}
-              />
-              <div class="period-buttons">
-                <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
-                <button class="period-btn" class:active={selectedPeriod === '4H'} on:click={() => selectPeriod('4H')}>4H</button>
-                <button class="period-btn" class:active={selectedPeriod === '5D'} on:click={() => selectPeriod('5D')}>5D</button>
-                <button class="period-btn" class:active={selectedPeriod === '1M'} on:click={() => selectPeriod('1M')}>1M</button>
-                <button class="period-btn" class:active={selectedPeriod === '3M'} on:click={() => selectPeriod('3M')}>3M</button>
-                <button class="period-btn" class:active={selectedPeriod === '6M'} on:click={() => selectPeriod('6M')}>6M</button>
-                <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
-                <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
-              </div>
-            </div>
-          </div>
+          <BacktestingChart
+            {historicalCandles}
+            backtestTrades={backtestResults?.trades || []}
+            {selectedGranularity}
+            {selectedPeriod}
+            {isLoadingChart}
+            {autoGranularityActive}
+            on:selectGranularity={(e) => selectGranularity(e.detail.granularity)}
+            on:selectPeriod={(e) => selectPeriod(e.detail.period)}
+          />
           
           <!-- Strategy Configuration -->
-          <div class="panel strategy-panel">
-        <div class="panel-header">
-          <h2>
-            Strategy 
-            {#if isSynced}
-              <span class="sync-indicator synced" title="Strategy synced to Paper Trading">
-                ✅ Synced
-              </span>
-            {:else}
-              <span class="sync-indicator out-of-sync" title="Strategy not synced to Paper Trading">
-                ⚠️ Not Synced
-              </span>
-            {/if}
-          </h2>
-          <div class="header-buttons">
-            <button class="sync-btn" class:warning={paperTradingActive} on:click={syncToPaperTrading} disabled={isSynced}>
-              {#if paperTradingActive && !isSynced}
-                ⚠️ Sync to Paper Trading (Active)
-              {:else if isSynced}
-                Already Synced
-              {:else}
-                Sync to Paper Trading
-              {/if}
-            </button>
-            <button class="run-btn" on:click={() => { updateCurrentStrategy(); runBacktest(); }} disabled={isRunning}>
-              {isRunning ? 'Running...' : 'Run Backtest'}
-            </button>
-          </div>
-        </div>
-        <div class="tabs">
-          <button class="tab" class:active={activeTab === 'config'} on:click={() => activeTab = 'config'}>
-            Config
-          </button>
-          <button class="tab" class:active={activeTab === 'code'} on:click={() => activeTab = 'code'}>
-            Source Code
-          </button>
-          <button class="tab" class:active={activeTab === 'backups'} on:click={() => { activeTab = 'backups'; loadSavedBackups(); }}>
-            Backups
-          </button>
-        </div>
-        <div class="panel-content">
-          {#if activeTab === 'config'}
-            <div class="config-section">
-              <div class="strategy-header">
-                <label class="strategy-label">
-                  Strategy
-                  <select bind:value={selectedStrategyType} on:change={updateCurrentStrategy}>
-                    {#each strategies as strat}
-                      <option value={strat.value}>
-                        {strat.label}
-                        {#if strat.isCustom}[CUSTOM]{/if}
-                      </option>
-                    {/each}
-                  </select>
-                </label>
-                <div class="strategy-actions">
-                  <button 
-                    class="icon-btn save-btn" 
-                    on:click={saveStrategyConfig}
-                    title="Save current configuration"
-                  >
-                    💾
-                  </button>
-                  <button 
-                    class="icon-btn import-btn" 
-                    on:click={() => showImportDialog = true}
-                    title="Import strategy"
-                  >
-                    📥
-                  </button>
-                  <button 
-                    class="icon-btn export-btn" 
-                    on:click={exportCurrentStrategy}
-                    title="Export current strategy"
-                  >
-                    📤
-                  </button>
-                  {#if customStrategies.some(s => s.value === selectedStrategyType)}
-                    <button 
-                      class="icon-btn edit-btn" 
-                      on:click={() => editStrategy(selectedStrategyType)}
-                      title="Edit strategy code"
-                    >
-                      ✏️
-                    </button>
-                    <button 
-                      class="icon-btn delete-btn" 
-                      on:click={() => deleteCustomStrategy(selectedStrategyType)}
-                      title="Delete custom strategy"
-                    >
-                      🗑️
-                    </button>
-                  {/if}
-                </div>
-              </div>
-              {#if strategies.find(s => s.value === selectedStrategyType)}
-                <div class="strategy-description">
-                  {strategies.find(s => s.value === selectedStrategyType).description}
-                </div>
-              {/if}
+          <BacktestingControls
+            bind:selectedStrategyType
+            {strategies}
+            bind:strategyParams
+            bind:startBalance
+            bind:makerFeePercent
+            bind:takerFeePercent
+            bind:feeRebatePercent
+            {isSynced}
+            {paperTradingActive}
+            {isRunning}
+            {currentPrice}
+            {customPresets}
+            {selectedPresetIndex}
+            {strategySourceCode}
+            on:syncToPaperTrading={syncToPaperTrading}
+            on:runBacktest={runBacktest}
+            on:updateStrategy={updateCurrentStrategy}
+            on:applyPreset={(e) => applyPreset(e.detail.index)}
+            on:savePresetForTimeframe={(e) => savePresetForTimeframe(e.detail.index)}
+            on:updatePresetName={(e) => updatePresetName(e.detail.index, e.detail.newName)}
+            on:addNewPreset={addNewPreset}
+            on:deletePreset={(e) => deletePreset(e.detail.index)}
+            on:saveCurrentAsPreset={(e) => saveCurrentAsPreset(e.detail.index)}
+            on:saveCurrentStrategy={saveCurrentStrategy}
+            on:loadSavedBackups={loadSavedBackups}
+            on:importStrategy={(e) => { importJsonText = e.detail.jsonText; importStrategy(); }}
+            on:exportCurrentStrategy={exportCurrentStrategy}
+            on:editStrategy={(e) => editStrategy(e.detail.strategyType)}
+            on:deleteCustomStrategy={(e) => deleteCustomStrategy(e.detail.strategyType)}
+            on:saveStrategy={(e) => {
+              newStrategyName = e.detail.name;
+              newStrategyLabel = e.detail.label;
+              newStrategyDescription = e.detail.description;
+              newStrategyCode = e.detail.code;
+              editingStrategy = e.detail.editing;
+              saveStrategy();
+            }}
+            on:saveStrategyConfig={(e) => {
+              backupName = e.detail.name;
+              backupDescription = e.detail.description;
+              saveCurrentStrategy();
+            }}
+          >
+            <!-- Strategy-specific parameters slot -->
+            <div slot="strategy-params">
+              <BacktestingStrategyParams
+                {selectedStrategyType}
+                bind:strategyParams
+                {currentPrice}
+                {startBalance}
+                {customPresets}
+                {selectedPresetIndex}
+                on:applyPreset={(e) => applyPreset(e.detail.index)}
+                on:updatePresetName={(e) => updatePresetName(e.detail.index, e.detail.newName)}
+                on:addNewPreset={addNewPreset}
+                on:deletePreset={(e) => deletePreset(e.detail.index)}
+                on:saveCurrentAsPreset={(e) => saveCurrentAsPreset(e.detail.index)}
+              />
             </div>
-          
-          
-          <div class="config-section">
-            <label>
-              Starting Balance
-              <input 
-                type="number" 
-                value={startBalance}
-                on:input={(e) => {
-                  startBalance = Number(e.currentTarget.value) || 1000;
+            
+            <!-- Backups content slot -->
+            <div slot="backups-content">
+              <BacktestingBackups
+                {savedBackups}
+                on:saveCurrentStrategy={saveCurrentStrategy}
+                on:loadSavedBackups={loadSavedBackups}
+                on:loadBackup={(e) => loadBackup(e.detail.key)}
+                on:deleteBackup={(e) => deleteBackup(e.detail.key)}
+                on:renameBackup={(e) => renameBackup(e.detail.key, e.detail.newName)}
+                on:saveStrategyConfig={(e) => {
+                  backupName = e.detail.name;
+                  backupDescription = e.detail.description;
+                  saveCurrentStrategy();
                 }}
-                on:change={(e) => {
-                  startBalance = Number(e.currentTarget.value) || 1000;
-                }}
-                min="100" 
-                step="100" 
               />
-              <span class="input-hint">$1000+ recommended for micro-scalping profitability</span>
-            </label>
-          </div>
-          
-          <div class="config-section">
-            <h4 style="color: #a78bfa; margin-bottom: 10px;">Fee Structure</h4>
-            <label>
-              Maker Fee (%)
-              <input 
-                type="number" 
-                value={makerFeePercent}
-                on:input={(e) => {
-                  makerFeePercent = Number(e.currentTarget.value) || 0;
-                }}
-                on:change={(e) => {
-                  makerFeePercent = Number(e.currentTarget.value) || 0;
-                }}
-                min="0" 
-                max="2" 
-                step="0.05" 
-              />
-            </label>
-          </div>
-          
-          <div class="config-section">
-            <label>
-              Taker Fee (%)
-              <input 
-                type="number" 
-                value={takerFeePercent}
-                on:input={(e) => {
-                  takerFeePercent = Number(e.currentTarget.value) || 0;
-                }}
-                on:change={(e) => {
-                  takerFeePercent = Number(e.currentTarget.value) || 0;
-                }}
-                min="0" 
-                max="2" 
-                step="0.05" 
-              />
-            </label>
-          </div>
-          
-          <div class="config-section">
-            <label>
-              Fee Rebate (%)
-              <input 
-                type="number" 
-                value={feeRebatePercent}
-                on:input={(e) => {
-                  feeRebatePercent = Number(e.currentTarget.value) || 0;
-                }}
-                on:change={(e) => {
-                  feeRebatePercent = Number(e.currentTarget.value) || 0;
-                }}
-                min="0" 
-                max="100" 
-                step="5" 
-              />
-            </label>
-          </div>
-          
-          <div class="strategy-params">
-            {#if selectedStrategyType === 'reverse-ratio'}
-              <!-- Preset Management -->
-              <div class="preset-management">
-                <div class="preset-controls">
-                  <label class="preset-select-label">
-                    Quick Presets
-                    <select 
-                      bind:value={selectedPresetIndex}
-                      on:change={() => {
-                        applyPreset(selectedPresetIndex);
-                      }}
-                      class="preset-dropdown"
-                    >
-                      {#each customPresets as preset, index}
-                        <option value={index}>
-                          {preset.name} ({preset.initialDropPercent}% → {preset.profitTarget}%)
-                        </option>
-                      {/each}
-                    </select>
-                  </label>
-                </div>
-              </div>
-              
-              <!-- Position Sizing Section -->
-              <div class="param-group">
-                <h4 class="param-group-title">Position Sizing</h4>
-                
-                <div class="config-section">
-                  <label>
-                    Position Size Mode
-                    <select bind:value={strategyParams['reverse-ratio'].positionSizeMode}>
-                      <option value="percentage">Percentage of Balance</option>
-                      <option value="fixed">Fixed Dollar Amount</option>
-                    </select>
-                  </label>
-                </div>
-                
-                {#if strategyParams['reverse-ratio'].positionSizeMode === 'percentage'}
-                  <div class="config-section">
-                    <label>
-                      Base Position Size (%)
-                      <input type="number" bind:value={strategyParams['reverse-ratio'].basePositionPercent} min="1" max="95" step="1" />
-                      <span class="input-hint">Percentage of balance for first buy level</span>
-                      {#if strategyParams['reverse-ratio'].basePositionPercent >= 80}
-                        <span class="position-size-warning">⚠️ HIGH RISK: Using {strategyParams['reverse-ratio'].basePositionPercent}% of capital!</span>
-                      {/if}
-                    </label>
-                  </div>
-                {:else}
-                  <div class="config-section">
-                    <label>
-                      Base Position Amount ($)
-                      <input type="number" bind:value={strategyParams['reverse-ratio'].basePositionAmount} min="10" max="1000" step="10" />
-                      <span class="input-hint">Dollar amount for first buy level</span>
-                    </label>
-                  </div>
-                {/if}
-                
-                <div class="config-section">
-                  <label>
-                    Ratio Multiplier
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].ratioMultiplier} min="1" max="5" step="0.25" />
-                    <span class="input-hint">How much to increase position size per level</span>
-                  </label>
-                </div>
-                
-                <div class="config-section">
-                  <label>
-                    Max Total Position (%)
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].maxPositionPercent} min="10" max="100" step="5" />
-                    <span class="input-hint">Maximum percentage of balance to use across all levels</span>
-                  </label>
-                </div>
-                
-                <!-- Position Sizing Preview -->
-                <div class="position-preview">
-                  <h5>Position Size Preview (First 5 levels)</h5>
-                  <div class="preview-table">
-                    {#each calculatePositionSizes(startBalance) as level}
-                      <div class="preview-row">
-                        <span class="preview-level">Level {level.level}:</span>
-                        <span class="preview-amount">${level.amount.toFixed(2)}</span>
-                        <span class="preview-percent">({level.percentage.toFixed(1)}%)</span>
-                      </div>
-                    {/each}
-                    <div class="preview-row total">
-                      <span class="preview-level">Total:</span>
-                      <span class="preview-amount">
-                        ${calculatePositionSizes(startBalance).reduce((sum, l) => sum + l.amount, 0).toFixed(2)}
-                      </span>
-                      <span class="preview-percent">
-                        ({calculatePositionSizes(startBalance).reduce((sum, l) => sum + l.percentage, 0).toFixed(1)}%)
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Entry Conditions Section -->
-              <div class="param-group">
-                <h4 class="param-group-title">Entry Conditions</h4>
-                
-                <div class="config-section">
-                  <label>
-                    Initial Drop (%)
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].initialDropPercent} min="0.01" max="10" step="0.01" />
-                    <span class="input-hint">Price drop from recent high to trigger first buy</span>
-                    {#if currentPrice > 0}
-                      <span class="price-preview">
-                        At current price ${currentPrice.toFixed(2)}, this means buying at ${(currentPrice * (1 - strategyParams['reverse-ratio'].initialDropPercent / 100)).toFixed(2)}
-                      </span>
-                    {/if}
-                  </label>
-                </div>
-                
-                <div class="config-section">
-                  <label>
-                    Level Drop (%)
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].levelDropPercent} min="0.01" max="10" step="0.01" />
-                    <span class="input-hint">Additional drop between each buy level</span>
-                  </label>
-                </div>
-                
-                <div class="config-section">
-                  <label>
-                    Max Levels
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].maxLevels} min="3" max="30" step="1" />
-                    <span class="input-hint">Maximum number of buy levels</span>
-                  </label>
-                </div>
-              </div>
-              
-              <!-- Exit Strategy Section -->
-              <div class="param-group">
-                <h4 class="param-group-title">Exit Strategy</h4>
-                
-                <div class="config-section">
-                  <label>
-                    Profit Target (%)
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].profitTarget} min="0.1" max="20" step="0.05" />
-                    <span class="input-hint">Sell all positions when first entry reaches this profit</span>
-                    {#if currentPrice > 0 && strategyParams['reverse-ratio'].initialDropPercent > 0}
-                      <span class="price-preview">
-                        Sell target: ${(currentPrice * (1 - strategyParams['reverse-ratio'].initialDropPercent / 100) * (1 + strategyParams['reverse-ratio'].profitTarget / 100)).toFixed(2)}
-                      </span>
-                    {/if}
-                  </label>
-                </div>
-              </div>
-              
-              <!-- Vault Configuration Section -->
-              <div class="param-group">
-                <h4 class="param-group-title">Vault Configuration</h4>
-                
-                <div class="config-section">
-                  <h5 class="config-subtitle">Profit Distribution</h5>
-                  <label>
-                    BTC Vault Allocation (%)
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.btcVaultPercent} min="0" max="100" step="0.1" />
-                    <span class="input-hint">Percentage of profits allocated to BTC vault (default: 14.3% = 1/7)</span>
-                  </label>
-                </div>
-                
-                <div class="config-section">
-                  <label>
-                    USD Growth Allocation (%)
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.usdGrowthPercent} min="0" max="100" step="0.1" />
-                    <span class="input-hint">Percentage of profits to grow trading balance (default: 14.3% = 1/7)</span>
-                  </label>
-                </div>
-                
-                <div class="config-section">
-                  <label>
-                    USDC Vault Allocation (%)
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.usdcVaultPercent} min="0" max="100" step="0.1" />
-                    <span class="input-hint">Percentage of profits to USDC vault (default: 71.4% = 5/7)</span>
-                  </label>
-                  {#if strategyParams['reverse-ratio'].vaultConfig.btcVaultPercent + strategyParams['reverse-ratio'].vaultConfig.usdGrowthPercent + strategyParams['reverse-ratio'].vaultConfig.usdcVaultPercent !== 100}
-                    <span class="warning-text">⚠️ Allocations should sum to 100% (current: {(strategyParams['reverse-ratio'].vaultConfig.btcVaultPercent + strategyParams['reverse-ratio'].vaultConfig.usdGrowthPercent + strategyParams['reverse-ratio'].vaultConfig.usdcVaultPercent).toFixed(1)}%)</span>
-                  {/if}
-                </div>
-                
-                <div class="config-section">
-                  <h5 class="config-subtitle">Compound Settings</h5>
-                  <label>
-                    Compound Frequency
-                    <select bind:value={strategyParams['reverse-ratio'].vaultConfig.compoundFrequency}>
-                      <option value="trade">Every Trade</option>
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="monthly">Monthly</option>
-                    </select>
-                    <span class="input-hint">How often to compound profits</span>
-                  </label>
-                </div>
-                
-                <div class="config-section">
-                  <label>
-                    Min Compound Amount ($)
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.minCompoundAmount} min="0.01" max="100" step="0.01" />
-                    <span class="input-hint">Minimum profit required to trigger compound</span>
-                  </label>
-                </div>
-                
-                <div class="config-section">
-                  <label>
-                    <input type="checkbox" bind:checked={strategyParams['reverse-ratio'].vaultConfig.autoCompound} />
-                    Auto-Compound
-                    <span class="input-hint">Automatically compound vault earnings</span>
-                  </label>
-                </div>
-                
-                <div class="config-section">
-                  <h5 class="config-subtitle">Vault Targets (Optional)</h5>
-                  <label>
-                    BTC Vault Target
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.btcVaultTarget} min="0" max="10" step="0.01" />
-                    <span class="input-hint">Target BTC amount for vault (optional)</span>
-                  </label>
-                </div>
-                
-                <div class="config-section">
-                  <label>
-                    USDC Vault Target ($)
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.usdcVaultTarget} min="0" max="1000000" step="100" />
-                    <span class="input-hint">Target USDC amount for vault (optional)</span>
-                  </label>
-                </div>
-                
-                <div class="config-section">
-                  <label>
-                    Rebalance Threshold (%)
-                    <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.rebalanceThreshold} min="0" max="20" step="0.5" />
-                    <span class="input-hint">Rebalance when allocation deviates by this percentage</span>
-                  </label>
-                </div>
-              </div>
-            {:else if selectedStrategyType === 'grid-trading'}
-              <div class="config-section">
-                <label>
-                  Grid Levels
-                  <input type="number" bind:value={strategyParams['grid-trading'].gridLevels} min="5" max="20" step="1" />
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Grid Spacing (%)
-                  <input type="number" bind:value={strategyParams['grid-trading'].gridSpacing} min="0.5" max="5" step="0.5" />
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Position Size
-                  <input type="number" bind:value={strategyParams['grid-trading'].positionSize} min="0.01" max="1" step="0.01" />
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Take Profit (%)
-                  <input type="number" bind:value={strategyParams['grid-trading'].takeProfit} min="1" max="10" step="0.5" />
-                </label>
-              </div>
-            {:else if selectedStrategyType === 'rsi-mean-reversion'}
-              <div class="config-section">
-                <label>
-                  RSI Period
-                  <input type="number" bind:value={strategyParams['rsi-mean-reversion'].rsiPeriod} min="7" max="30" step="1" />
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Oversold Level
-                  <input type="number" bind:value={strategyParams['rsi-mean-reversion'].oversoldLevel} min="20" max="40" step="5" />
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Overbought Level
-                  <input type="number" bind:value={strategyParams['rsi-mean-reversion'].overboughtLevel} min="60" max="80" step="5" />
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Position Size
-                  <input type="number" bind:value={strategyParams['rsi-mean-reversion'].positionSize} min="0.01" max="1" step="0.01" />
-                </label>
-              </div>
-            {:else if selectedStrategyType === 'dca'}
-              <div class="config-section">
-                <label>
-                  Buy Interval (hours)
-                  <input type="number" bind:value={strategyParams['dca'].intervalHours} min="1" max="168" step="1" />
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Amount Per Buy ($)
-                  <input type="number" bind:value={strategyParams['dca'].amountPerBuy} min="10" max="1000" step="10" />
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Extra Buy on Drop (%)
-                  <input type="number" bind:value={strategyParams['dca'].dropThreshold} min="0" max="10" step="1" />
-                </label>
-              </div>
-            {:else if selectedStrategyType === 'vwap-bounce'}
-              <div class="config-section">
-                <label>
-                  VWAP Period
-                  <input type="number" bind:value={strategyParams['vwap-bounce'].vwapPeriod} min="10" max="50" step="5" />
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Buy Deviation
-                  <input type="number" bind:value={strategyParams['vwap-bounce'].deviationBuy} min="0.5" max="5" step="0.5" />
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Sell Deviation
-                  <input type="number" bind:value={strategyParams['vwap-bounce'].deviationSell} min="0.5" max="5" step="0.5" />
-                </label>
-              </div>
-            {:else if selectedStrategyType === 'micro-scalping'}
-              <div class="config-section">
-                <label>
-                  Initial Drop (%)
-                  <input type="number" bind:value={strategyParams['micro-scalping'].initialDropPercent} min="0.1" max="3" step="0.1" />
-                  <span class="input-hint">% drop from recent high to trigger first entry</span>
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Level Drop (%)
-                  <input type="number" bind:value={strategyParams['micro-scalping'].levelDropPercent} min="0.1" max="2" step="0.1" />
-                  <span class="input-hint">% drop between additional levels</span>
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Ratio Multiplier
-                  <input type="number" bind:value={strategyParams['micro-scalping'].ratioMultiplier} min="1" max="3" step="0.1" />
-                  <span class="input-hint">Position size multiplier for each level</span>
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Profit Target (%)
-                  <input type="number" bind:value={strategyParams['micro-scalping'].profitTarget} min="0.5" max="5" step="0.1" />
-                  <span class="input-hint">% profit target (0.5% net after 0.3% fees)</span>
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Max Levels
-                  <input type="number" bind:value={strategyParams['micro-scalping'].maxLevels} min="1" max="5" step="1" />
-                  <span class="input-hint">Maximum number of entry levels</span>
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Lookback Period
-                  <input type="number" bind:value={strategyParams['micro-scalping'].lookbackPeriod} min="3" max="50" step="1" />
-                  <span class="input-hint">Candles to look back for recent high</span>
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Base Position (%)
-                  <input type="number" bind:value={strategyParams['micro-scalping'].basePositionPercent} min="5" max="50" step="5" />
-                  <span class="input-hint">% of balance for first position</span>
-                </label>
-              </div>
-              <div class="config-section">
-                <label>
-                  Max Position (%)
-                  <input type="number" bind:value={strategyParams['micro-scalping'].maxPositionPercent} min="50" max="100" step="5" />
-                  <span class="input-hint">Maximum total % of balance to use</span>
-                </label>
-              </div>
-            {:else if selectedStrategyType === 'proper-scalping'}
-              <!-- Position Sizing -->
-              <div class="config-section">
-                <h4>Position Management</h4>
-                <label>
-                  Position Size (%)
-                  <input type="number" bind:value={strategyParams['proper-scalping'].positionSize} min="1" max="20" step="1" />
-                  <span class="input-hint">% of balance per trade</span>
-                </label>
-                <label>
-                  Max Open Positions
-                  <input type="number" bind:value={strategyParams['proper-scalping'].maxOpenPositions} min="1" max="10" step="1" />
-                  <span class="input-hint">Maximum simultaneous positions</span>
-                </label>
-              </div>
-              
-              <!-- RSI Settings -->
-              <div class="config-section">
-                <h4>RSI Settings</h4>
-                <label>
-                  RSI Period
-                  <input type="number" bind:value={strategyParams['proper-scalping'].rsiPeriod} min="2" max="20" step="1" />
-                  <span class="input-hint">Number of periods for RSI calculation</span>
-                </label>
-                <label>
-                  RSI Overbought
-                  <input type="number" bind:value={strategyParams['proper-scalping'].rsiOverbought} min="60" max="90" step="5" />
-                  <span class="input-hint">RSI level to consider overbought</span>
-                </label>
-                <label>
-                  RSI Oversold
-                  <input type="number" bind:value={strategyParams['proper-scalping'].rsiOversold} min="10" max="40" step="5" />
-                  <span class="input-hint">RSI level to consider oversold</span>
-                </label>
-              </div>
-              
-              <!-- MACD Settings -->
-              <div class="config-section">
-                <h4>MACD Settings</h4>
-                <label>
-                  MACD Fast
-                  <input type="number" bind:value={strategyParams['proper-scalping'].macdFast} min="1" max="20" step="1" />
-                  <span class="input-hint">Fast EMA period</span>
-                </label>
-                <label>
-                  MACD Slow
-                  <input type="number" bind:value={strategyParams['proper-scalping'].macdSlow} min="5" max="50" step="1" />
-                  <span class="input-hint">Slow EMA period</span>
-                </label>
-                <label>
-                  MACD Signal
-                  <input type="number" bind:value={strategyParams['proper-scalping'].macdSignal} min="5" max="20" step="1" />
-                  <span class="input-hint">Signal line EMA period</span>
-                </label>
-              </div>
-              
-              <!-- Risk Management -->
-              <div class="config-section">
-                <h4>Risk Management</h4>
-                <label>
-                  Stop Loss (%)
-                  <input type="number" bind:value={strategyParams['proper-scalping'].stopLoss} min="0.1" max="2" step="0.1" />
-                  <span class="input-hint">% stop loss per trade</span>
-                </label>
-                <label>
-                  Profit Target (%)
-                  <input type="number" bind:value={strategyParams['proper-scalping'].profitTarget} min="0.2" max="5" step="0.1" />
-                  <span class="input-hint">% profit target (2:1 risk/reward recommended)</span>
-                </label>
-                <label>
-                  Trailing Stop
-                  <input type="checkbox" bind:checked={strategyParams['proper-scalping'].trailingStop} />
-                  <span class="input-hint">Enable trailing stop loss</span>
-                </label>
-                {#if strategyParams['proper-scalping'].trailingStop}
-                  <label>
-                    Trailing Stop (%)
-                    <input type="number" bind:value={strategyParams['proper-scalping'].trailingStopPercent} min="0.1" max="2" step="0.1" />
-                    <span class="input-hint">% below peak to trigger trailing stop</span>
-                  </label>
-                {/if}
-              </div>
-              
-              <!-- Entry Filters -->
-              <div class="config-section">
-                <h4>Entry Filters</h4>
-                <label>
-                  Min Volume ($)
-                  <input type="number" bind:value={strategyParams['proper-scalping'].minVolume} min="100000" max="10000000" step="100000" />
-                  <span class="input-hint">Minimum volume requirement</span>
-                </label>
-                <label>
-                  Trend Alignment
-                  <input type="checkbox" bind:checked={strategyParams['proper-scalping'].trendAlignment} />
-                  <span class="input-hint">Require EMA trend alignment</span>
-                </label>
-                {#if strategyParams['proper-scalping'].trendAlignment}
-                  <label>
-                    Fast EMA
-                    <input type="number" bind:value={strategyParams['proper-scalping'].emaFast} min="5" max="20" step="1" />
-                    <span class="input-hint">Fast EMA period for trend</span>
-                  </label>
-                  <label>
-                    Slow EMA
-                    <input type="number" bind:value={strategyParams['proper-scalping'].emaSlow} min="10" max="50" step="1" />
-                    <span class="input-hint">Slow EMA period for trend</span>
-                  </label>
-                {/if}
-              </div>
-            {:else if customStrategies.some(s => s.value === selectedStrategyType)}
-              <!-- Custom Strategy Parameters -->
-              <div class="custom-strategy-params">
-                <h4>Custom Strategy Parameters</h4>
-                <p class="params-hint">Edit these parameters to control your custom strategy behavior:</p>
-                
-                {#if !strategyParams[selectedStrategyType]}
-                  <div class="config-section">
-                    <p>Initializing parameters...</p>
-                  </div>
-                {:else}
-                  <div class="config-section">
-                    <label>
-                      Position Size (0-1)
-                      <input 
-                        type="number" 
-                        bind:value={strategyParams[selectedStrategyType].positionSize} 
-                        min="0.01" 
-                        max="1" 
-                        step="0.01" 
-                      />
-                      <span class="input-hint">Fraction of balance to use per trade</span>
-                    </label>
-                  </div>
-                  
-                  <div class="config-section">
-                    <label>
-                      Stop Loss (%)
-                      <input 
-                        type="number" 
-                        bind:value={strategyParams[selectedStrategyType].stopLoss} 
-                        min="0.5" 
-                        max="10" 
-                        step="0.5" 
-                      />
-                      <span class="input-hint">Exit position if price drops by this %</span>
-                    </label>
-                  </div>
-                  
-                  <div class="config-section">
-                    <label>
-                      Take Profit (%)
-                      <input 
-                        type="number" 
-                        bind:value={strategyParams[selectedStrategyType].takeProfit} 
-                        min="0.5" 
-                        max="20" 
-                        step="0.5" 
-                      />
-                      <span class="input-hint">Exit position if price rises by this %</span>
-                    </label>
-                  </div>
-                  
-                  <div class="config-section">
-                    <label>
-                      Lookback Period
-                      <input 
-                        type="number" 
-                        bind:value={strategyParams[selectedStrategyType].lookbackPeriod} 
-                        min="5" 
-                        max="200" 
-                        step="5" 
-                      />
-                      <span class="input-hint">Number of candles to analyze</span>
-                    </label>
-                  </div>
-                  
-                  <div class="config-section">
-                    <label>
-                      Threshold
-                      <input 
-                        type="number" 
-                        bind:value={strategyParams[selectedStrategyType].threshold} 
-                        min="0.1" 
-                        max="10" 
-                        step="0.1" 
-                      />
-                      <span class="input-hint">Generic threshold parameter for your strategy logic</span>
-                    </label>
-                  </div>
-                  
-                  <div class="custom-params-note">
-                    💡 Your custom strategy code can access these parameters via <code>this.params</code>
-                  </div>
-                {/if}
-              </div>
-            {/if}
-          </div>
-          {:else if activeTab === 'code'}
-            <div class="code-editor-section">
-              <div class="code-header">
-                <h3>{getStrategyFileName(selectedStrategyType)}.ts</h3>
-                <div class="code-info">
-                  This is the actual implementation of the {strategies.find(s => s.value === selectedStrategyType)?.label} strategy
-                </div>
-              </div>
-              <div class="code-editor">
-                <pre><code class="typescript">{strategySourceCode}</code></pre>
-              </div>
             </div>
-          {:else if activeTab === 'backups'}
-            <div class="backups-section">
-              <div class="backups-header">
-                <h3>Saved Strategy Configurations</h3>
-                <div class="backup-buttons">
-                  <button class="btn-secondary" on:click={() => { 
-                    saveCurrentStrategy(); 
-                    loadSavedBackups(); 
-                  }} title="Quick save with auto-generated name">
-                    Quick Save
-                  </button>
-                  <button class="btn-primary" on:click={() => { showBackupDialog = true; }}>
-                    Save with Name
-                  </button>
-                </div>
-              </div>
-              
-              {#if savedBackups.length === 0}
-                <div class="empty-state">
-                  <p>No saved configurations yet</p>
-                  <p class="hint">Save your current configuration to create a backup</p>
-                </div>
-              {:else}
-                <div class="backups-list">
-                  {#each savedBackups as backup}
-                    <div class="backup-item" class:selected={selectedBackupKey === backup.key}>
-                      <div class="backup-info">
-                        <h4>{backup.name}</h4>
-                        <p class="backup-meta">
-                          {backup.strategyType} • {new Date(backup.savedDate).toLocaleString()}
-                        </p>
-                        {#if backup.description}
-                          <p class="backup-description">{backup.description}</p>
-                        {/if}
-                      </div>
-                      <div class="backup-actions">
-                        <button class="icon-btn" on:click={() => loadBackup(backup.key)} title="Load this configuration">
-                          📥
-                        </button>
-                        <button class="icon-btn" on:click={() => { editingBackupKey = backup.key; }} title="Rename">
-                          ✏️
-                        </button>
-                        <button class="icon-btn delete" on:click={() => deleteBackup(backup.key)} title="Delete">
-                          🗑️
-                        </button>
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-          {/if}
-        </div>
-        
-        <!-- Save Backup Dialog -->
-        {#if showBackupDialog}
-          <div class="modal-overlay" on:click={() => showBackupDialog = false}>
-            <div class="modal-content" on:click|stopPropagation>
-              <h3>Save Configuration Backup</h3>
-              <input 
-                type="text" 
-                placeholder="Backup name (optional - timestamp will be added)" 
-                bind:value={backupName}
-                autofocus
-              />
-              <textarea 
-                placeholder="Description (optional)" 
-                bind:value={backupDescription}
-              />
-              <div class="modal-actions">
-                <button class="btn-secondary" on:click={() => showBackupDialog = false}>
-                  Cancel
-                </button>
-                <button 
-                  class="btn-primary" 
-                  on:click={() => {
-                    saveCurrentStrategy();
-                    showBackupDialog = false;
-                    loadSavedBackups();
-                  }}
-                >
-                  Save Backup
-                </button>
-              </div>
-            </div>
-          </div>
-        {/if}
-        
-        <!-- Strategy Editor Dialog -->
-        {#if showStrategyEditor}
-          <div class="strategy-editor-overlay" on:click={() => showStrategyEditor = false}>
-            <div class="strategy-editor-dialog" on:click|stopPropagation>
-              <h3>{editingStrategy ? 'Edit' : 'Create New'} Strategy</h3>
-              
-              <div class="editor-form">
-                <label>
-                  Strategy ID (lowercase, hyphens only)
-                  <input 
-                    type="text" 
-                    bind:value={newStrategyName} 
-                    placeholder="my-custom-strategy"
-                    pattern="[a-z0-9-]+"
-                    disabled={editingStrategy !== null}
-                  />
-                </label>
-                
-                <label>
-                  Display Name
-                  <input 
-                    type="text" 
-                    bind:value={newStrategyLabel} 
-                    placeholder="My Custom Strategy"
-                  />
-                </label>
-                
-                <label>
-                  Description
-                  <input 
-                    type="text" 
-                    bind:value={newStrategyDescription} 
-                    placeholder="Brief description of your strategy"
-                  />
-                </label>
-                
-                <label>
-                  Strategy Code
-                  <div class="code-editor-wrapper">
-                    <textarea
-                      bind:value={newStrategyCode}
-                      class="strategy-code-editor"
-                      rows="20"
-                      spellcheck="false"
-                    />
-                  </div>
-                </label>
-              </div>
-              
-              <div class="dialog-actions">
-                <button class="save-strategy-btn" on:click={saveStrategy}>
-                  {editingStrategy ? 'Update' : 'Create'} Strategy
-                </button>
-                <button on:click={() => showStrategyEditor = false}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        {/if}
-        
-        <!-- Import Dialog -->
-        {#if showImportDialog}
-          <div class="import-dialog-overlay" on:click={() => showImportDialog = false}>
-            <div class="import-dialog" on:click|stopPropagation>
-              <h3>Import Strategy</h3>
-              <textarea
-                bind:value={importJsonText}
-                placeholder="Paste exported strategy JSON here..."
-                rows="10"
-              />
-              <div class="dialog-actions">
-                <button on:click={importStrategy}>Import</button>
-                <button on:click={() => { showImportDialog = false; importJsonText = ''; }}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        {/if}
-        
-      </div>
+          </BacktestingControls>
         </div><!-- End of panels-row -->
         
         <!-- Results Panel - Now spans full width below -->
-        <div class="panel results-panel">
-        <div class="panel-header">
-          <h2>Backtest Results</h2>
-        </div>
-        <div class="panel-content">
-          {#if !backtestResults}
-            <div class="no-results">
-              <p>Configure your strategy and run a backtest to see results</p>
-            </div>
-          {:else}
-            {#if backtestResults.metrics.totalTrades === 0}
-              <div class="no-trades-notice">
-                <h3>No trades were executed</h3>
-                <p>The strategy didn't find any trading opportunities in this period.</p>
-                <p>Try:</p>
-                <ul>
-                  <li>Lowering the "Initial Drop (%)" parameter (currently {strategyParams[selectedStrategyType].initialDropPercent}%)</li>
-                  <li>Selecting a different time period with more volatility</li>
-                  <li>Using a different strategy like DCA or Grid Trading</li>
-                </ul>
-              </div>
-            {:else if backtestResults.metrics.totalTrades === 1 && selectedStrategyType === 'reverse-ratio'}
-              <div class="single-trade-notice">
-                <h3>⚠️ Only 1 buy level was used</h3>
-                <p>The Reverse Ratio strategy only triggered one buy because:</p>
-                <ul>
-                  <li>Price dropped {strategyParams['reverse-ratio'].initialDropPercent}% to trigger the first buy</li>
-                  <li>Price didn't drop another {strategyParams['reverse-ratio'].levelDropPercent}% for the second level</li>
-                  <li>Strategy is waiting for {strategyParams['reverse-ratio'].profitTarget}% profit to sell</li>
-                </ul>
-                <p><strong>For {selectedGranularity} timeframe, consider:</strong></p>
-                <ul>
-                  <li>Use the ⚡ optimized parameters (click the timeframe to apply)</li>
-                  <li>Lower profit target for quicker exits</li>
-                  <li>Adjust position sizes to use more capital on first level</li>
-                </ul>
-              </div>
-            {/if}
-            <div class="results-summary">
-              <div class="result-item">
-                <span class="result-label">Total Trades</span>
-                <span class="result-value">{backtestResults.metrics.totalTrades}</span>
-              </div>
-              <div class="result-item">
-                <span class="result-label">Win Rate</span>
-                <span class="result-value">{backtestResults.metrics.winRate.toFixed(1)}%</span>
-              </div>
-              <div class="result-item">
-                <span class="result-label">Total Return</span>
-                <span class="result-value" class:profit={backtestResults.metrics.totalReturn > 0} class:loss={backtestResults.metrics.totalReturn < 0}>
-                  ${backtestResults.metrics.totalReturn.toFixed(2)} ({backtestResults.metrics.totalReturnPercent.toFixed(2)}%)
-                </span>
-              </div>
-              <div class="result-item">
-                <span class="result-label">Max Drawdown</span>
-                <span class="result-value loss">{backtestResults.metrics.maxDrawdown.toFixed(2)}%</span>
-              </div>
-              <div class="result-item">
-                <span class="result-label">Sharpe Ratio</span>
-                <span class="result-value">{backtestResults.metrics.sharpeRatio.toFixed(2)}</span>
-              </div>
-              <div class="result-item">
-                <span class="result-label">Profit Factor</span>
-                <span class="result-value">{backtestResults.metrics.profitFactor.toFixed(2)}</span>
-              </div>
-              <div class="result-item">
-                <span class="result-label">USDC Vault Balance</span>
-                <span class="result-value profit">${backtestResults.metrics.vaultBalance.toFixed(2)}</span>
-              </div>
-              <div class="result-item">
-                <span class="result-label">BTC Vault</span>
-                <span class="result-value">{backtestResults.metrics.btcGrowth.toFixed(6)} BTC</span>
-              </div>
-              <div class="result-item">
-                <span class="result-label">BTC Open Positions</span>
-                <span class="result-value">{getBtcPositions()} BTC</span>
-              </div>
-              {#if backtestResults.metrics.initialBalanceGrowth}
-                <div class="result-item">
-                  <span class="result-label">Starting Balance Growth</span>
-                  <span class="result-value profit">
-                    ${backtestResults.metrics.initialBalanceGrowth.toFixed(2)} 
-                    ({backtestResults.metrics.initialBalanceGrowthPercent.toFixed(2)}%)
-                  </span>
-                </div>
-              {/if}
-              {#if backtestResults.metrics.totalFees}
-                <div class="result-item">
-                  <span class="result-label">Total Fees Paid</span>
-                  <span class="result-value loss">
-                    ${backtestResults.metrics.totalFees.toFixed(2)}
-                    {#if backtestResults.metrics.totalFeeRebates > 0}
-                      (Rebates: ${backtestResults.metrics.totalFeeRebates.toFixed(2)})
-                    {/if}
-                  </span>
-                </div>
-              {/if}
-            </div>
-            
-            <h3>All Trades ({backtestResults.trades.length})</h3>
-            <div class="trades-list">
-              {#each backtestResults.trades.slice().reverse() as trade}
-                <div class="trade-item" class:buy={trade.type === 'buy'} class:sell={trade.type === 'sell'}>
-                  <div class="trade-header">
-                    <span class="trade-type">{trade.type.toUpperCase()}</span>
-                    <span class="trade-date">{new Date(trade.timestamp * 1000).toLocaleDateString()}</span>
-                  </div>
-                  <div class="trade-details">
-                    <span>Price: ${trade.price.toLocaleString()}</span>
-                    <span>Size: {trade.size.toFixed(6)} BTC</span>
-                    <span>Value: ${trade.value.toFixed(2)}</span>
-                    {#if trade.profit !== undefined}
-                      <span class:profit={trade.profit > 0} class:loss={trade.profit < 0}>
-                        P&L: ${trade.profit.toFixed(2)}
-                      </span>
-                    {/if}
-                    <span class="trade-reason">{trade.reason}</span>
-                  </div>
-                </div>
-              {/each}
-            </div>
-            
-            {#if backtestResults?.chartData}
-              <div class="compound-growth-section">
-                <h3>Compound Growth Visualization</h3>
-                <CompoundGrowthChart 
-                  vaultData={backtestResults.chartData.vaultGrowth || []}
-                  btcData={backtestResults.chartData.btcGrowth || []}
-                  totalValueData={backtestResults.equity.map(e => ({ time: e.timestamp, value: e.value }))}
-                  initialBalance={startBalance}
-                />
-              </div>
-            {/if}
-          {/if}
-        </div>
-      </div>
-      
+        <BacktestingResults
+          {backtestResults}
+          {selectedStrategyType}
+          {strategyParams}
+          {selectedGranularity}
+          {startBalance}
+        />
       </div><!-- End of backtest-grid -->
     </div><!-- End of content-wrapper -->
   </main>
@@ -2813,7 +1332,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
     flex: 1;
     overflow-y: auto;
   }
-
+  
   .backtest-grid {
     display: flex;
     flex-direction: column;
@@ -2826,1818 +1345,5 @@ export class ${getStrategyFileName(type)} extends Strategy {
     grid-template-columns: 2fr 1fr;
     gap: 20px;
     height: 600px;
-  }
-  
-  .panel {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 8px;
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .chart-panel {
-    position: relative;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  
-  .strategy-panel {
-    min-height: 500px;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  
-  .results-panel {
-    min-height: 400px;
-  }
-  
-  .panel-header {
-    padding: 15px 20px;
-    background: rgba(74, 0, 224, 0.1);
-    border-bottom: none;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  
-  .panel-header h2 {
-    margin: 0;
-    font-size: 16px;
-    color: #a78bfa;
-  }
-  
-  .tabs {
-    display: flex;
-    gap: 0;
-    align-items: center;
-    background: rgba(255, 255, 255, 0.05);
-    padding: 0;
-    border-bottom: 1px solid rgba(74, 0, 224, 0.3);
-  }
-  
-  .tab {
-    padding: 12px 24px;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    color: #888;
-    cursor: pointer;
-    border-radius: 0;
-    font-size: 13px;
-    font-weight: 500;
-    transition: all 0.2s;
-    position: relative;
-  }
-  
-  .tab:hover {
-    background: rgba(74, 0, 224, 0.1);
-    color: #a78bfa;
-  }
-  
-  .tab.active {
-    background: rgba(74, 0, 224, 0.15);
-    border-bottom: 2px solid #a78bfa;
-    color: #a78bfa;
-  }
-
-  /* Tab separators */
-  .tab:not(:last-child)::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    top: 25%;
-    height: 50%;
-    width: 1px;
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  /* Remove separator for active tab and the one before it */
-  .tab.active::after,
-  .tab.active + .tab::after {
-    display: none;
-  }
-  
-  .code-editor-section {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0; /* Important for proper flex behavior */
-    height: 100%;
-  }
-  
-  .code-header {
-    margin-bottom: 15px;
-    flex-shrink: 0; /* Prevent header from shrinking */
-  }
-  
-  .code-header h3 {
-    margin: 0 0 5px 0;
-    font-size: 14px;
-    color: #a78bfa;
-    font-family: 'Monaco', 'Consolas', monospace;
-  }
-  
-  .code-info {
-    font-size: 12px;
-    color: #888;
-  }
-  
-  .code-editor {
-    flex: 1;
-    background: #1a1a1a;
-    border: 1px solid rgba(74, 0, 224, 0.2);
-    border-radius: 6px;
-    padding: 15px;
-    overflow-y: auto;
-    overflow-x: auto;
-    min-height: 0; /* Important for proper scrolling */
-    max-height: 100%;
-    width: 100%;
-    box-sizing: border-box;
-  }
-  
-  .code-editor pre {
-    margin: 0;
-    font-family: 'Monaco', 'Consolas', monospace;
-    font-size: 12px;
-    line-height: 1.6;
-  }
-  
-  .code-editor code {
-    color: #d1d4dc;
-    white-space: pre;
-    word-break: normal;
-  }
-  
-  /* Custom scrollbar for code editor */
-  .code-editor::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  
-  .code-editor::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 4px;
-  }
-  
-  .code-editor::-webkit-scrollbar-thumb {
-    background: rgba(167, 139, 250, 0.3);
-    border-radius: 4px;
-  }
-  
-  .code-editor::-webkit-scrollbar-thumb:hover {
-    background: rgba(167, 139, 250, 0.5);
-  }
-  
-  .code-editor::-webkit-scrollbar-corner {
-    background: transparent;
-  }
-  
-  .panel-content {
-    flex: 1;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    min-height: 0; /* Important for flex children */
-  }
-  
-  .strategy-panel .panel-content {
-    overflow-y: auto; /* Enable scrolling for strategy content */
-    overflow-x: hidden;
-    max-height: calc(100vh - 400px); /* Ensure content doesn't exceed viewport */
-  }
-  
-  /* Custom scrollbar for strategy panel */
-  .strategy-panel .panel-content::-webkit-scrollbar {
-    width: 8px;
-  }
-  
-  .strategy-panel .panel-content::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 4px;
-  }
-  
-  .strategy-panel .panel-content::-webkit-scrollbar-thumb {
-    background: rgba(167, 139, 250, 0.3);
-    border-radius: 4px;
-  }
-  
-  .strategy-panel .panel-content::-webkit-scrollbar-thumb:hover {
-    background: rgba(167, 139, 250, 0.5);
-  }
-  
-  .chart-panel .panel-content {
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow: hidden;
-  }
-  
-  .chart-panel .panel-content > :global(.chart-container) {
-    flex: 1;
-    height: 100%;
-    max-height: calc(100% - 40px); /* Subtract period buttons height */
-  }
-  
-  .granularity-transition {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(74, 0, 224, 0.9);
-    color: white;
-    padding: 10px 20px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-    z-index: 10;
-  }
-  
-  .granularity-transition.active {
-    opacity: 1;
-  }
-  
-  .chart-controls {
-    display: flex;
-    gap: 10px;
-  }
-  
-  .granularity-buttons {
-    display: flex;
-    gap: 5px;
-  }
-  
-  .granularity-btn {
-    padding: 6px 12px;
-    background: rgba(74, 0, 224, 0.2);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    color: #9ca3af;
-    border-radius: 4px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  
-  .granularity-btn:hover:not(:disabled) {
-    background: rgba(74, 0, 224, 0.3);
-    color: #d1d4dc;
-  }
-  
-  .granularity-btn.active {
-    background: rgba(74, 0, 224, 0.4);
-    color: #a78bfa;
-    border-color: #a78bfa;
-  }
-  
-  .granularity-btn:disabled,
-  .granularity-btn.disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-    background: rgba(74, 0, 224, 0.05);
-    color: #4a5568;
-  }
-  
-  .granularity-btn:disabled:hover,
-  .granularity-btn.disabled:hover {
-    background: rgba(74, 0, 224, 0.05);
-    color: #4a5568;
-    transform: none;
-  }
-  
-  .period-buttons {
-    display: flex;
-    gap: 10px;
-    padding: 15px 20px;
-    background: rgba(74, 0, 224, 0.05);
-    border-top: 1px solid rgba(74, 0, 224, 0.3);
-  }
-  
-  .period-btn {
-    padding: 8px 16px;
-    background: rgba(74, 0, 224, 0.2);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    color: #9ca3af;
-    border-radius: 4px;
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  
-  .period-btn:hover {
-    background: rgba(74, 0, 224, 0.3);
-    color: #d1d4dc;
-  }
-  
-  .period-btn.active {
-    background: rgba(74, 0, 224, 0.4);
-    color: #a78bfa;
-    border-color: #a78bfa;
-  }
-  
-  .config-section {
-    margin-bottom: 15px;
-  }
-  
-  .config-section label {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    font-size: 14px;
-    color: #d1d4dc;
-  }
-  
-  .config-section input,
-  .config-section select {
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 4px;
-    color: #d1d4dc;
-    font-size: 14px;
-  }
-
-  .config-section select {
-    background-color: #1a1a1a;
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a78bfa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-    background-repeat: no-repeat;
-    background-position: right 8px center;
-    background-size: 20px;
-    padding-right: 40px;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    cursor: pointer;
-  }
-
-  .config-section select option {
-    background-color: #1a1a1a;
-    color: #d1d4dc;
-  }
-  
-  .config-section input:focus,
-  .config-section select:focus {
-    outline: none;
-    border-color: #a78bfa;
-    background-color: rgba(74, 0, 224, 0.1);
-  }
-
-  .config-section select:hover {
-    border-color: #8b5cf6;
-  }
-  
-  .timeframe-notice {
-    background: rgba(167, 139, 250, 0.1);
-    border: 1px solid rgba(167, 139, 250, 0.3);
-    border-radius: 6px;
-    padding: 10px 15px;
-    margin-bottom: 15px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: #a78bfa;
-  }
-  
-  .notice-icon {
-    font-size: 16px;
-  }
-  
-  /* Run button in header */
-  .panel-header .run-btn {
-    padding: 8px 20px;
-    background: #a78bfa;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  
-  .panel-header .run-btn:hover:not(:disabled) {
-    background: #8b5cf6;
-  }
-  
-  .panel-header .run-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  
-  .no-results {
-    text-align: center;
-    color: #758696;
-    padding: 40px 20px;
-  }
-  
-  .results-summary {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-bottom: 20px;
-  }
-  
-  .result-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 12px 16px;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 6px;
-    font-size: 14px;
-    border: 1px solid rgba(74, 0, 224, 0.15);
-  }
-  
-  .result-label {
-    color: #758696;
-  }
-  
-  .result-value {
-    font-weight: 600;
-    color: #d1d4dc;
-  }
-  
-  .result-value.profit {
-    color: #26a69a;
-  }
-  
-  .result-value.loss {
-    color: #ef5350;
-  }
-  
-  .results-panel h3 {
-    margin: 20px 0 10px 0;
-    font-size: 14px;
-    color: #a78bfa;
-  }
-  
-  .compound-growth-section {
-    margin-top: 30px;
-    padding-top: 20px;
-    border-top: 1px solid rgba(74, 0, 224, 0.3);
-  }
-  
-  .trades-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    max-height: 400px;
-    overflow-y: auto;
-    padding-right: 5px;
-  }
-  
-  /* Custom scrollbar for trades list */
-  .trades-list::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  .trades-list::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 3px;
-  }
-  
-  .trades-list::-webkit-scrollbar-thumb {
-    background: rgba(167, 139, 250, 0.3);
-    border-radius: 3px;
-  }
-  
-  .trades-list::-webkit-scrollbar-thumb:hover {
-    background: rgba(167, 139, 250, 0.5);
-  }
-  
-  .trade-item {
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 6px;
-    border: 1px solid rgba(74, 0, 224, 0.2);
-  }
-  
-  .trade-item.buy {
-    border-left: 3px solid #26a69a;
-  }
-  
-  .trade-item.sell {
-    border-left: 3px solid #ef5350;
-  }
-  
-  .trade-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 8px;
-  }
-  
-  .trade-type {
-    font-weight: 600;
-    font-size: 14px;
-  }
-  
-  .trade-item.buy .trade-type {
-    color: #26a69a;
-  }
-  
-  .trade-item.sell .trade-type {
-    color: #ef5350;
-  }
-  
-  .trade-date {
-    font-size: 12px;
-    color: #758696;
-  }
-  
-  .trade-details {
-    display: flex;
-    gap: 15px;
-    font-size: 13px;
-    color: #d1d4dc;
-    flex-wrap: wrap;
-  }
-  
-  .trade-details span.profit {
-    color: #26a69a;
-    font-weight: 600;
-  }
-  
-  .trade-details span.loss {
-    color: #ef5350;
-    font-weight: 600;
-  }
-  
-  .strategy-description {
-    font-size: 12px;
-    color: #758696;
-    margin-top: 5px;
-    font-style: italic;
-  }
-  
-  .strategy-params {
-    margin-top: 20px;
-    flex-shrink: 0; /* Prevent params from shrinking */
-  }
-  
-  .trade-reason {
-    color: #758696;
-    font-style: italic;
-    font-size: 12px;
-  }
-  
-  .stats-section {
-    padding: 20px;
-    background: #0f0f0f;
-    border-top: 1px solid rgba(74, 0, 224, 0.3);
-    margin-top: auto;
-    flex-shrink: 0;
-  }
-  
-  .loading-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(10, 10, 10, 0.9);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-  }
-  
-  .loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid rgba(167, 139, 250, 0.2);
-    border-radius: 50%;
-    border-top-color: #a78bfa;
-    animation: spin 1s ease-in-out infinite;
-  }
-  
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-  
-  .loading-text {
-    margin-top: 20px;
-    color: #a78bfa;
-    font-size: 16px;
-    font-weight: 500;
-  }
-  
-  .loading-hint {
-    margin-top: 10px;
-    color: #758696;
-    font-size: 13px;
-  }
-  
-  .loading-indicator {
-    display: inline-block;
-    margin-left: 10px;
-    animation: spin 1s linear infinite;
-  }
-  
-  .no-trades-notice {
-    background: rgba(255, 152, 0, 0.1);
-    border: 1px solid rgba(255, 152, 0, 0.3);
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
-  }
-  
-  .no-trades-notice h3 {
-    margin: 0 0 10px 0;
-    color: #ffa726;
-    font-size: 16px;
-  }
-  
-  .no-trades-notice p {
-    margin: 10px 0;
-    color: #d1d4dc;
-    font-size: 14px;
-  }
-  
-  .no-trades-notice ul {
-    margin: 10px 0 0 20px;
-    padding: 0;
-    list-style-type: disc;
-  }
-  
-  .no-trades-notice li {
-    margin: 5px 0;
-    color: #9ca3af;
-    font-size: 13px;
-  }
-  
-  .single-trade-notice {
-    background: rgba(251, 191, 36, 0.1);
-    border: 1px solid rgba(251, 191, 36, 0.3);
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
-  }
-  
-  .single-trade-notice h3 {
-    margin: 0 0 10px 0;
-    color: #fbbf24;
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  
-  .single-trade-notice p {
-    margin: 10px 0;
-    color: #d1d4dc;
-    font-size: 14px;
-  }
-  
-  .single-trade-notice ul {
-    margin: 10px 0 0 20px;
-    padding: 0;
-    list-style-type: disc;
-  }
-  
-  .single-trade-notice li {
-    margin: 5px 0;
-    color: #9ca3af;
-    font-size: 13px;
-  }
-  
-  .single-trade-notice strong {
-    color: #fcd34d;
-  }
-  
-  .compound-chart {
-    margin-top: 20px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(74, 0, 224, 0.2);
-    border-radius: 8px;
-    padding: 20px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-  
-  .compound-chart canvas {
-    max-width: 100%;
-    height: auto;
-    border-radius: 6px;
-  }
-  
-  /* Strategy Parameter Groups */
-  .param-group {
-    margin-bottom: 25px;
-    padding: 15px;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-  }
-  
-  .param-group-title {
-    color: #a78bfa;
-    font-size: 0.95rem;
-    font-weight: 600;
-    margin-bottom: 15px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  
-  .config-section label {
-    position: relative;
-  }
-  
-  .input-hint {
-    display: block;
-    font-size: 0.75rem;
-    color: #6b7280;
-    margin-top: 4px;
-    line-height: 1.3;
-  }
-  
-  .config-subtitle {
-    color: #9ca3af;
-    font-size: 0.85rem;
-    font-weight: 600;
-    margin-bottom: 10px;
-    margin-top: 5px;
-  }
-  
-  .warning-text {
-    display: block;
-    color: #fbbf24;
-    font-size: 0.75rem;
-    margin-top: 5px;
-    background: rgba(251, 191, 36, 0.1);
-    padding: 4px 8px;
-    border-radius: 4px;
-    border: 1px solid rgba(251, 191, 36, 0.2);
-  }
-  
-  select {
-    width: 100%;
-    padding: 8px 12px;
-    background: #1f2937;
-    border: 1px solid #374151;
-    border-radius: 6px;
-    color: #e5e7eb;
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  
-  select:hover {
-    border-color: #4b5563;
-  }
-  
-  select:focus {
-    outline: none;
-    border-color: #a78bfa;
-    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
-  }
-  
-  /* Position Sizing Preview */
-  .position-preview {
-    margin-top: 20px;
-    padding: 15px;
-    background: rgba(167, 139, 250, 0.05);
-    border-radius: 6px;
-    border: 1px solid rgba(167, 139, 250, 0.2);
-  }
-  
-  .position-preview h5 {
-    color: #a78bfa;
-    font-size: 0.85rem;
-    margin-bottom: 10px;
-    font-weight: 600;
-  }
-  
-  .preview-table {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  
-  .preview-row {
-    display: grid;
-    grid-template-columns: minmax(60px, 1fr) minmax(80px, 1.5fr) minmax(60px, 1fr);
-    gap: 10px;
-    font-size: 0.85rem;
-    padding: 4px 0;
-  }
-  
-  .preview-row.total {
-    border-top: 1px solid rgba(167, 139, 250, 0.3);
-    padding-top: 8px;
-    margin-top: 4px;
-    font-weight: 600;
-    color: #d8b4fe;
-  }
-  
-  .preview-level {
-    color: #9ca3af;
-  }
-  
-  .preview-amount {
-    color: #e5e7eb;
-    text-align: right;
-  }
-  
-  .preview-percent {
-    color: #6b7280;
-    text-align: right;
-  }
-
-  /* Responsive adjustments for position preview */
-  @media (max-width: 768px) {
-    .preview-row {
-      font-size: 0.75rem;
-      gap: 5px;
-    }
-    
-    .position-preview {
-      padding: 10px;
-    }
-    
-    .position-preview h5 {
-      font-size: 0.8rem;
-    }
-  }
-
-  @media (max-width: 480px) {
-    .preview-row {
-      grid-template-columns: minmax(50px, 1fr) minmax(60px, 1.5fr) minmax(50px, 1fr);
-      font-size: 0.7rem;
-    }
-  }
-  
-  .price-preview {
-    display: block;
-    font-size: 0.7rem;
-    color: #a78bfa;
-    margin-top: 4px;
-    font-weight: 500;
-  }
-  
-  .timeframe-notice.ultra-scalp {
-    background: rgba(239, 68, 68, 0.1);
-    border-color: rgba(239, 68, 68, 0.3);
-    color: #f87171;
-    animation: pulse 2s infinite;
-  }
-  
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.8; }
-  }
-  
-  /* Preset Management */
-  .preset-management {
-    margin-bottom: 20px;
-    padding: 15px;
-    background: rgba(167, 139, 250, 0.05);
-    border-radius: 8px;
-    border: 1px solid rgba(167, 139, 250, 0.15);
-  }
-  
-  .preset-controls {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-  }
-  
-  .preset-select-label {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    color: #e5e7eb;
-    font-size: 0.875rem;
-    font-weight: 500;
-  }
-  
-  .preset-dropdown {
-    width: 100%;
-    padding: 10px 14px;
-    background: #1f2937;
-    border: 1px solid #374151;
-    border-radius: 6px;
-    color: #e5e7eb;
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  
-  .preset-dropdown:hover {
-    background: #374151;
-    border-color: #4b5563;
-  }
-  
-  .preset-dropdown:focus {
-    outline: none;
-    border-color: #a78bfa;
-    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
-  }
-  
-  .preset-tabs {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  
-  .preset-tab {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 10px 16px;
-    background: #1f2937;
-    border: 1px solid #374151;
-    border-radius: 8px;
-    color: #9ca3af;
-    cursor: pointer;
-    transition: all 0.2s;
-    min-width: 140px;
-  }
-  
-  .preset-tab:hover {
-    background: #374151;
-    border-color: #4b5563;
-    color: #e5e7eb;
-  }
-  
-  .preset-tab.active {
-    background: rgba(167, 139, 250, 0.2);
-    border-color: #a78bfa;
-    color: #ffffff;
-    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
-    transform: translateY(-2px);
-  }
-  
-  .preset-tab-name {
-    font-size: 0.875rem;
-    font-weight: 600;
-    margin-bottom: 4px;
-    text-align: center;
-  }
-  
-  .preset-tab-info {
-    font-size: 0.75rem;
-    opacity: 0.8;
-    text-align: center;
-  }
-  
-  .preset-action-btn {
-    padding: 8px 12px;
-    background: #1f2937;
-    border: 1px solid #374151;
-    border-radius: 6px;
-    color: #e5e7eb;
-    font-size: 1rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  
-  .preset-action-btn:hover {
-    background: #374151;
-    border-color: #4b5563;
-  }
-  
-  .preset-editor {
-    margin-top: 15px;
-    padding: 15px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  
-  .preset-editor h4 {
-    color: #a78bfa;
-    font-size: 0.9rem;
-    margin-bottom: 10px;
-  }
-  
-  .preset-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-  
-  .preset-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 4px;
-    border: 1px solid transparent;
-    transition: all 0.2s;
-  }
-  
-  .preset-item:hover {
-    border-color: rgba(167, 139, 250, 0.3);
-    background: rgba(255, 255, 255, 0.08);
-  }
-  
-  .preset-name {
-    flex: 1;
-    color: #e5e7eb;
-    font-size: 0.85rem;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 4px;
-    transition: background 0.2s;
-  }
-  
-  .preset-name:hover {
-    background: rgba(167, 139, 250, 0.1);
-  }
-  
-  .preset-name-input {
-    flex: 1;
-    padding: 4px 8px;
-    background: #1f2937;
-    border: 1px solid #a78bfa;
-    border-radius: 4px;
-    color: #e5e7eb;
-    font-size: 0.85rem;
-    outline: none;
-  }
-  
-  .preset-actions {
-    display: flex;
-    gap: 4px;
-  }
-  
-  .preset-mini-btn {
-    padding: 4px 8px;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  
-  .preset-mini-btn.save {
-    color: #60a5fa;
-  }
-  
-  .preset-mini-btn.save:hover {
-    background: rgba(96, 165, 250, 0.1);
-    border-color: #60a5fa;
-  }
-  
-  .preset-mini-btn.apply {
-    color: #34d399;
-  }
-  
-  .preset-mini-btn.apply:hover {
-    background: rgba(52, 211, 153, 0.1);
-    border-color: #34d399;
-  }
-  
-  .preset-mini-btn.delete {
-    color: #f87171;
-  }
-  
-  .preset-mini-btn.delete:hover {
-    background: rgba(248, 113, 113, 0.1);
-    border-color: #f87171;
-  }
-  
-  .add-preset-btn {
-    width: 100%;
-    padding: 8px 16px;
-    background: rgba(167, 139, 250, 0.1);
-    border: 1px solid rgba(167, 139, 250, 0.3);
-    border-radius: 6px;
-    color: #a78bfa;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  
-  .add-preset-btn:hover {
-    background: rgba(167, 139, 250, 0.2);
-    border-color: #a78bfa;
-    transform: translateY(-1px);
-  }
-  
-  .position-size-warning {
-    display: block;
-    margin-top: 4px;
-    padding: 6px 12px;
-    background: rgba(251, 191, 36, 0.1);
-    border: 1px solid rgba(251, 191, 36, 0.3);
-    border-radius: 4px;
-    color: #fbbf24;
-    font-size: 0.85rem;
-    font-weight: 600;
-    animation: pulse 2s ease-in-out infinite;
-  }
-  
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-  }
-
-  /* Strategy Editor Dialog Styles */
-  .strategy-editor-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-  
-  .strategy-editor-dialog {
-    background: #1a1a1a;
-    border: 1px solid rgba(139, 92, 246, 0.3);
-    border-radius: 8px;
-    padding: 30px;
-    width: 90%;
-    max-width: 800px;
-    max-height: 90vh;
-    overflow-y: auto;
-  }
-  
-  .strategy-editor-dialog h3 {
-    margin: 0 0 20px 0;
-    color: #a78bfa;
-    font-size: 20px;
-  }
-  
-  .editor-form {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-  }
-  
-  .editor-form label {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    color: #d1d4dc;
-    font-size: 14px;
-  }
-  
-  .editor-form input {
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(139, 92, 246, 0.3);
-    border-radius: 4px;
-    color: #d1d4dc;
-    font-size: 14px;
-  }
-  
-  .editor-form input:focus {
-    outline: none;
-    border-color: #a78bfa;
-    background: rgba(139, 92, 246, 0.1);
-  }
-  
-  .editor-form input:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-  
-  .code-editor-wrapper {
-    border: 1px solid rgba(139, 92, 246, 0.3);
-    border-radius: 4px;
-    overflow: hidden;
-  }
-  
-  .strategy-code-editor {
-    width: 100%;
-    padding: 12px;
-    background: #0d0d0d;
-    border: none;
-    color: #d1d4dc;
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 13px;
-    line-height: 1.5;
-    resize: vertical;
-    min-height: 400px;
-  }
-  
-  .strategy-code-editor:focus {
-    outline: none;
-  }
-  
-  .save-strategy-btn {
-    padding: 10px 20px;
-    background: #8b5cf6;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  
-  .save-strategy-btn:hover {
-    background: #7c3aed;
-    transform: translateY(-1px);
-  }
-  
-  /* Strategy Header Styles */
-  .strategy-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 15px;
-    margin-bottom: 10px;
-  }
-  
-  .strategy-label {
-    flex: 1;
-  }
-  
-  .strategy-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 25px;
-  }
-  
-  .icon-btn {
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 4px;
-    font-size: 16px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  
-  .icon-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.3);
-    transform: translateY(-1px);
-  }
-  
-  .icon-btn.save-btn:hover {
-    background: rgba(167, 139, 250, 0.2);
-    border-color: #a78bfa;
-  }
-  
-  .icon-btn.import-btn:hover {
-    background: rgba(59, 130, 246, 0.2);
-    border-color: #60a5fa;
-  }
-  
-  .icon-btn.export-btn:hover {
-    background: rgba(34, 197, 94, 0.2);
-    border-color: #4ade80;
-  }
-  
-  .icon-btn.edit-btn:hover {
-    background: rgba(251, 191, 36, 0.2);
-    border-color: #fbbf24;
-  }
-  
-  .icon-btn.delete-btn:hover {
-    background: rgba(239, 68, 68, 0.2);
-    border-color: #f87171;
-  }
-  
-  /* Custom Strategy Parameters Styles */
-  .custom-strategy-params {
-    padding: 20px;
-    background: rgba(139, 92, 246, 0.05);
-    border: 1px solid rgba(139, 92, 246, 0.2);
-    border-radius: 8px;
-  }
-  
-  .custom-strategy-params h4 {
-    margin: 0 0 10px 0;
-    color: #a78bfa;
-    font-size: 16px;
-  }
-  
-  .params-hint {
-    margin: 0 0 20px 0;
-    color: #888;
-    font-size: 13px;
-  }
-  
-  .custom-params-note {
-    margin-top: 20px;
-    padding: 10px;
-    background: rgba(139, 92, 246, 0.1);
-    border-radius: 4px;
-    font-size: 13px;
-    color: #d1d4dc;
-  }
-  
-  .custom-params-note code {
-    background: rgba(0, 0, 0, 0.3);
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-family: monospace;
-  }
-
-  .import-btn:hover {
-    background: rgba(74, 0, 224, 0.3);
-    border-color: #a78bfa;
-  }
-
-  .empty-state {
-    text-align: center;
-    color: #758696;
-    padding: 40px 20px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px dashed rgba(74, 0, 224, 0.3);
-    border-radius: 8px;
-  }
-
-  .strategy-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 15px;
-    overflow-y: auto;
-    padding-right: 5px;
-  }
-
-  .saved-strategy-card {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 8px;
-    padding: 15px;
-    transition: all 0.2s;
-    position: relative;
-  }
-  
-  .saved-strategy-card.selected {
-    background: rgba(74, 0, 224, 0.15);
-    border-color: #a78bfa;
-  }
-  
-  .strategy-checkbox {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    cursor: pointer;
-    width: 18px;
-    height: 18px;
-  }
-
-  .saved-strategy-card:hover {
-    background: rgba(74, 0, 224, 0.05);
-    border-color: rgba(74, 0, 224, 0.5);
-  }
-
-  .saved-strategy-card.active-strategy {
-    border-color: #a78bfa;
-    background: rgba(167, 139, 250, 0.1);
-  }
-
-  .strategy-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: start;
-    margin-bottom: 8px;
-  }
-
-  .strategy-header h4 {
-    margin: 0;
-    font-size: 14px;
-    color: #d1d4dc;
-  }
-
-  .strategy-date {
-    font-size: 11px;
-    color: #758696;
-  }
-
-  .strategy-type {
-    font-size: 12px;
-    color: #a78bfa;
-    margin-bottom: 8px;
-  }
-
-  .strategy-description {
-    font-size: 12px;
-    color: #9ca3af;
-    margin: 8px 0;
-    line-height: 1.4;
-  }
-
-  .strategy-stats {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin: 12px 0;
-    padding: 10px;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 4px;
-    font-size: 11px;
-  }
-
-  .strategy-stats .stat {
-    display: flex;
-    justify-content: space-between;
-    color: #9ca3af;
-  }
-
-  .strategy-stats .stat strong {
-    color: #d1d4dc;
-  }
-
-  .strategy-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 12px;
-  }
-
-  .action-btn {
-    flex: 1;
-    padding: 6px 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
-    font-size: 11px;
-    cursor: pointer;
-    transition: all 0.2s;
-    color: #9ca3af;
-  }
-
-  .action-btn.restore {
-    color: #26a69a;
-    border-color: rgba(38, 166, 154, 0.3);
-  }
-
-  .action-btn.restore:hover {
-    background: rgba(38, 166, 154, 0.1);
-    border-color: #26a69a;
-  }
-
-  .action-btn.export {
-    color: #60a5fa;
-    border-color: rgba(96, 165, 250, 0.3);
-  }
-
-  .action-btn.export:hover {
-    background: rgba(96, 165, 250, 0.1);
-    border-color: #60a5fa;
-  }
-
-  .action-btn.delete {
-    color: #ef5350;
-    border-color: rgba(239, 83, 80, 0.3);
-  }
-
-  .action-btn.delete:hover {
-    background: rgba(239, 83, 80, 0.1);
-    border-color: #ef5350;
-  }
-
-  /* Import Dialog Styles */
-  .import-dialog-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-  .import-dialog {
-    background: #1a1a1a;
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 8px;
-    padding: 25px;
-    width: 90%;
-    max-width: 500px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-  }
-
-  .import-dialog h3 {
-    margin: 0 0 15px 0;
-    color: #a78bfa;
-    font-size: 18px;
-  }
-
-  .import-dialog textarea {
-    width: 100%;
-    padding: 10px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 4px;
-    color: #d1d4dc;
-    font-family: monospace;
-    font-size: 12px;
-    resize: vertical;
-  }
-
-  .import-dialog textarea:focus {
-    outline: none;
-    border-color: #a78bfa;
-    background: rgba(74, 0, 224, 0.1);
-  }
-
-  .dialog-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 15px;
-    justify-content: flex-end;
-  }
-
-  .dialog-actions button {
-    padding: 8px 20px;
-    background: rgba(74, 0, 224, 0.2);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    color: #d1d4dc;
-    border-radius: 4px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .dialog-actions button:first-child {
-    background: #a78bfa;
-    border-color: #a78bfa;
-    color: white;
-  }
-
-  .dialog-actions button:first-child:hover {
-    background: #8b5cf6;
-  }
-
-  .dialog-actions button:last-child:hover {
-    background: rgba(74, 0, 224, 0.3);
-    border-color: rgba(74, 0, 224, 0.5);
-  }
-
-  /* Backups section */
-  .backups-section {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .backups-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-  }
-
-  .backups-header h3 {
-    margin: 0;
-    color: #a78bfa;
-    font-size: 1.1rem;
-  }
-  
-  .backup-buttons {
-    display: flex;
-    gap: 10px;
-  }
-
-  .backups-list {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .backup-item {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(74, 0, 224, 0.2);
-    border-radius: 6px;
-    padding: 15px;
-    display: flex;
-    justify-content: space-between;
-    transition: all 0.2s;
-  }
-
-  .backup-item:hover {
-    background: rgba(74, 0, 224, 0.1);
-    border-color: rgba(74, 0, 224, 0.4);
-  }
-
-  .backup-item.selected {
-    background: rgba(74, 0, 224, 0.2);
-    border-color: #a78bfa;
-  }
-
-  .backup-info h4 {
-    margin: 0 0 5px 0;
-    color: #a78bfa;
-  }
-
-  .backup-meta {
-    font-size: 0.85rem;
-    color: #6b7280;
-    margin: 5px 0;
-  }
-
-  .backup-description {
-    font-size: 0.85rem;
-    color: #9ca3af;
-    margin-top: 8px;
-  }
-
-  .backup-actions {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: 40px;
-    color: #6b7280;
-  }
-
-  .empty-state .hint {
-    font-size: 0.85rem;
-    margin-top: 10px;
-  }
-
-  /* Modal styles */
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-  .modal-content {
-    background: #1a1a1a;
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 8px;
-    padding: 20px;
-    width: 400px;
-    max-width: 90vw;
-  }
-
-  .modal-content h3 {
-    margin: 0 0 20px 0;
-    color: #a78bfa;
-  }
-
-  .modal-content input,
-  .modal-content textarea {
-    width: 100%;
-    margin-bottom: 15px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    color: #d1d4dc;
-    padding: 10px;
-    border-radius: 4px;
-  }
-
-  .modal-content input:focus,
-  .modal-content textarea:focus {
-    outline: none;
-    border-color: #a78bfa;
-    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
-  }
-
-  .modal-content textarea {
-    min-height: 80px;
-    resize: vertical;
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-  }
-
-  .icon-btn.delete:hover {
-    background: rgba(239, 68, 68, 0.2);
-    color: #ef5350;
-  }
-
-  .btn-primary {
-    background: #a78bfa;
-    border: 1px solid #a78bfa;
-    color: white;
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    background: #8b5cf6;
-    border-color: #8b5cf6;
-  }
-
-  .btn-primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .btn-secondary {
-    background: transparent;
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    color: #9ca3af;
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-secondary:hover {
-    background: rgba(74, 0, 224, 0.1);
-    border-color: rgba(74, 0, 224, 0.5);
-    color: #d1d4dc;
-  }
-  
-  .sync-indicator {
-    display: inline-block;
-    font-size: 0.75em;
-    padding: 2px 8px;
-    border-radius: 4px;
-    margin-left: 10px;
-    font-weight: normal;
-    vertical-align: middle;
-  }
-  
-  .sync-indicator.synced {
-    color: #4ade80;
-    background: rgba(74, 222, 128, 0.1);
-  }
-  
-  .sync-indicator.out-of-sync {
-    color: #ffa500;
-    background: rgba(255, 165, 0, 0.1);
-    animation: pulse 2s infinite;
-  }
-  
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
-  }
-  
-  .header-buttons {
-    display: flex;
-    gap: 10px;
-  }
-  
-  .sync-btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    color: white;
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  
-  .sync-btn:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-  }
-  
-  .sync-btn:disabled {
-    background: #333;
-    color: #666;
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
-  
-  .sync-btn.warning {
-    background: linear-gradient(135deg, #ff9800 0%, #ff6b00 100%);
-  }
-  
-  .sync-btn.warning:hover:not(:disabled) {
-    box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
   }
 </style>
