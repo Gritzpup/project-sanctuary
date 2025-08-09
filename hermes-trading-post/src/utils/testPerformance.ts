@@ -10,7 +10,7 @@ async function testDailyCandles() {
   await cache.clearAll();
   
   // Create a new data feed
-  const dataFeed = new ChartDataFeed();
+  const dataFeed = ChartDataFeed.getInstance();
   
   // Set to daily granularity
   dataFeed.setGranularity('1D');

@@ -262,7 +262,7 @@
       console.log('Chart: Successfully created chart and candle series');
 
       // Initialize data feed with real Coinbase data
-      dataFeed = new ChartDataFeed();
+      dataFeed = ChartDataFeed.getInstance();
       
       // Force clear any cached data to ensure fresh start
       console.log('Chart: Ensuring fresh data on initialization');
@@ -1109,7 +1109,8 @@
     // }
     if (dataFeed) {
       dataFeed.unsubscribe('chart');
-      dataFeed.disconnect();
+      // Don't disconnect - singleton persists across navigation
+      // dataFeed.disconnect();
     }
     if (chart) {
       chart.remove();

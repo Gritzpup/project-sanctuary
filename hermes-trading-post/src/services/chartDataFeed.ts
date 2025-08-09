@@ -12,6 +12,8 @@ interface DataRequest {
 }
 
 export class ChartDataFeed {
+  private static instance: ChartDataFeed | null = null;
+  
   private api: CoinbaseAPI;
   private cache: IndexedDBCache;
   private loader: HistoricalDataLoader;
@@ -53,20 +55,30 @@ export class ChartDataFeed {
     { granularity: '1D', minHours: 2160, maxHours: Infinity, preloadNext: null }
   ];
 
-  constructor() {
+  private constructor() {
     this.api = new CoinbaseAPI();
     this.cache = new IndexedDBCache();
     this.loader = new HistoricalDataLoader(this.api, this.cache);
     
     console.log(`ChartDataFeed: Initialized with granularity ${this.currentGranularity}`);
     
-    // Clear stale data on initialization
-    this.clearInMemoryData();
+    // Don't clear data on initialization - preserve across navigation
+    // this.clearInMemoryData();
     
     // Setup WebSocket but don't start aggregation yet
     this.setupWebSocket();
     
     this.startBackgroundLoading();
+  }
+
+  public static getInstance(): ChartDataFeed {
+    if (!ChartDataFeed.instance) {
+      console.log('ChartDataFeed: Creating singleton instance');
+      ChartDataFeed.instance = new ChartDataFeed();
+    } else {
+      console.log('ChartDataFeed: Returning existing singleton instance');
+    }
+    return ChartDataFeed.instance;
   }
 
   // Helper to log current data state
@@ -878,9 +890,9 @@ export class ChartDataFeed {
       this.realtimeUnsubscribe();
       this.realtimeUnsubscribe = null;
     }
-    // Clear in-memory data on disconnect
-    this.clearInMemoryData();
-    console.log('ChartDataFeed: Disconnected');
+    // Don't clear data on disconnect - preserve across navigation
+    // this.clearInMemoryData();
+    console.log('ChartDataFeed: Disconnected - data preserved');
   }
   
   // Clear all in-memory data to prevent stale data when switching views
@@ -891,5 +903,13 @@ export class ChartDataFeed {
     this.logDataState('AFTER_CLEAR_IN_MEMORY', { caller: new Error().stack?.split('\n')[2] });
     this.dataByGranularity.clear();
     this.loadingPromises.clear();
+  }
+
+  // Public method to explicitly reset data (e.g., when changing symbols)
+  public reset() {
+    console.log('ChartDataFeed: Explicitly resetting data');
+    this.clearInMemoryData();
+    // Restart WebSocket for new data
+    this.setupWebSocket();
   }
 }
