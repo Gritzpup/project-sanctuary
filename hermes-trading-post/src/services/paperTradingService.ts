@@ -73,6 +73,10 @@ class PaperTradingService {
         }, 100); // Reduced from 1000ms for more responsive saves
       }
     });
+    
+    // Attempt to restore state immediately on service creation
+    // This ensures state is available as soon as the service is created
+    this.restoreFromSavedState();
   }
 
   getState(): Writable<PaperTradingState> {
@@ -460,6 +464,9 @@ class PaperTradingService {
       };
 
       newState.trades = [...newState.trades, trade];
+      
+      // Force immediate save after trade
+      setTimeout(() => this.saveState(), 0);
     }
     else if (signal.type === 'sell') {
       const size = signal.size || state.strategy.getTotalPositionSize();
@@ -550,6 +557,9 @@ class PaperTradingService {
       };
 
       newState.trades = [...newState.trades, trade];
+      
+      // Force immediate save after trade
+      setTimeout(() => this.saveState(), 0);
     }
 
     // Update performance
@@ -609,6 +619,9 @@ class PaperTradingService {
       };
 
       newState.trades = [...newState.trades, trade];
+      
+      // Force immediate save after manual trade
+      setTimeout(() => this.saveState(), 0);
 
       // Update performance
       const totalBtcValue = ((newState.balance.btcVault || 0) + (newState.balance.btcPositions || 0)) * currentPrice;
@@ -657,6 +670,9 @@ class PaperTradingService {
       };
 
       newState.trades = [...newState.trades, trade];
+      
+      // Force immediate save after manual trade
+      setTimeout(() => this.saveState(), 0);
 
       // Update performance
       const totalBtcValue = ((newState.balance.btcVault || 0) + (newState.balance.btcPositions || 0)) * currentPrice;

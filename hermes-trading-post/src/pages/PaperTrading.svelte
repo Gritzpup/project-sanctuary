@@ -221,44 +221,41 @@ export class ${getStrategyFileName(type)} extends Strategy {
   onMount(async () => {
     console.log('PaperTrading: Component mounted');
     
-    // First update status to get current state from service
+    // Service auto-restores in constructor, so just check current status
+    const status = paperTradingService.getStatus();
+    console.log('PaperTrading: Service status after auto-restore:', status);
+    
+    // Update UI with current state
     updateStatus();
     
-    // Check if paper trading is already running (from saved state)
-    const status = paperTradingService.getStatus();
-    if (status.isRunning) {
-      console.log('PaperTrading: Trading is already running, restoring state');
-      isRunning = true;
-      
-      // Restore all state from the service
-      balance = status.usdBalance;
-      btcBalance = status.btcBalance;
-      vaultBalance = status.vaultBalance;
-      positions = status.positions;
-      trades = status.trades;
-      
-      // Restore strategy state if available
-      const savedState = localStorage.getItem('paperTradingState');
-      if (savedState) {
-        try {
-          const state = JSON.parse(savedState);
-          // Use strategyTypeKey if available, otherwise fall back to strategyType
-          selectedStrategyType = state.strategyTypeKey || state.strategyType || selectedStrategyType;
-          if (state.strategyConfig) {
-            strategyParameters = state.strategyConfig;
-          }
-          
-          // Recreate the strategy instance for UI display
-          try {
-            currentStrategy = createStrategy(selectedStrategyType);
-            loadStrategySourceCode();
-          } catch (error) {
-            console.error('Failed to recreate strategy for UI:', error);
-          }
-        } catch (error) {
-          console.error('Failed to parse saved state:', error);
+    // If we have saved state, restore UI settings
+    const savedState = localStorage.getItem('paperTradingState');
+    if (savedState) {
+      try {
+        const state = JSON.parse(savedState);
+        
+        // Restore strategy configuration
+        selectedStrategyType = state.strategyTypeKey || state.strategyType || selectedStrategyType;
+        if (state.strategyConfig) {
+          strategyParameters = state.strategyConfig;
         }
+        
+        // Recreate the strategy instance
+        try {
+          currentStrategy = createStrategy(selectedStrategyType);
+          await loadStrategySourceCode();
+        } catch (error) {
+          console.error('Failed to recreate strategy:', error);
+        }
+      } catch (error) {
+        console.error('Failed to restore UI settings:', error);
       }
+    }
+    
+    // If trading is running, start the necessary services
+    if (status.isRunning) {
+      console.log('PaperTrading: Trading is running, starting services');
+      isRunning = true;
       
       // Start status updates
       statusInterval = setInterval(updateStatus, 1000);
@@ -267,55 +264,6 @@ export class ${getStrategyFileName(type)} extends Strategy {
       await new Promise(resolve => setTimeout(resolve, 500));
       if (chartDataFeed) {
         startDataFeedToStrategy();
-      }
-    } else {
-      // Try to load saved state to restore UI settings (but don't start trading)
-      const savedState = localStorage.getItem('paperTradingState');
-      if (savedState) {
-        try {
-          const state = JSON.parse(savedState);
-          console.log('PaperTrading: Found saved state, restoring...');
-          
-          // Use strategyTypeKey if available, otherwise fall back to strategyType
-          selectedStrategyType = state.strategyTypeKey || state.strategyType || selectedStrategyType;
-          if (state.strategyConfig) {
-            strategyParameters = state.strategyConfig;
-          }
-          
-          // Load the strategy for display but don't start it
-          try {
-            currentStrategy = createStrategy(selectedStrategyType);
-            await loadStrategySourceCode();
-          } catch (error) {
-            console.error('Failed to recreate strategy for UI:', error);
-          }
-          
-          // Restore saved state in the service to load trades/positions
-          const restored = paperTradingService.restoreFromSavedState();
-          
-          if (restored) {
-            // Check if trading was running and should be resumed
-            const status = paperTradingService.getStatus();
-            if (status.isRunning) {
-              console.log('PaperTrading: Resuming trading from saved state');
-              isRunning = true;
-              
-              // Start status updates
-              statusInterval = setInterval(updateStatus, 1000);
-              
-              // Wait for chart to be ready then start data feed
-              await new Promise(resolve => setTimeout(resolve, 500));
-              if (chartDataFeed) {
-                startDataFeedToStrategy();
-              }
-            }
-          }
-          
-          // Show the saved data in UI (trades, positions, etc)
-          updateStatus();
-        } catch (error) {
-          console.error('Failed to parse saved state:', error);
-        }
       }
     }
     
