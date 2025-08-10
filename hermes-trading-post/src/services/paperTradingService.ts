@@ -125,8 +125,10 @@ class PaperTradingService {
     console.log('PaperTradingService: Found saved state:', {
       isRunning: savedState.isRunning,
       strategyType: savedState.strategyType,
+      strategyTypeKey: savedState.strategyTypeKey,
       tradesCount: savedState.trades.length,
-      positionsCount: savedState.positions.length
+      positionsCount: savedState.positions.length,
+      balance: savedState.balance
     });
     
     try {
@@ -152,6 +154,7 @@ class PaperTradingService {
           strategy = new strategies.VWAPBounceStrategy(savedState.strategyConfig);
           break;
         case 'Micro Scalping (1H)':
+        case 'Ultra Micro-Scalping':  // Handle custom/legacy name
           strategy = new strategies.MicroScalpingStrategy(savedState.strategyConfig);
           break;
         case 'Proper Scalping':
@@ -159,23 +162,25 @@ class PaperTradingService {
           break;
         default:
           console.error('Strategy not found:', savedState.strategyType);
-          return false;
+          // Don't fail completely - continue restoration without strategy
+          console.log('Continuing restoration without strategy to preserve trades and state');
+          break;
       }
       
-      if (!strategy) return false;
-      
-      // Restore strategy state
-      const strategyState: StrategyState = {
-        positions: savedState.positions,
-        balance: savedState.balance
-      };
-      strategy.setState(strategyState);
+      // Restore strategy state if we have a strategy
+      if (strategy) {
+        const strategyState: StrategyState = {
+          positions: savedState.positions,
+          balance: savedState.balance
+        };
+        strategy.setState(strategyState);
+      }
       
       // Update our state - restore everything including running state
       this.state.update(s => ({
         ...s,
-        isRunning: savedState.isRunning, // Preserve the running state
-        strategy,
+        isRunning: strategy ? savedState.isRunning : false, // Only set running if we have a strategy
+        strategy: strategy || null,
         balance: savedState.balance,
         trades: savedState.trades,
         currentSignal: null,
