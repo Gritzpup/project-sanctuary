@@ -269,22 +269,34 @@ export class ${getStrategyFileName(type)} extends Strategy {
         startDataFeedToStrategy();
       }
     } else {
-      // Try to restore from saved state if not running
-      const restored = paperTradingService.restoreFromSavedState();
-      if (restored) {
-        console.log('PaperTrading: Restored saved trading state');
-        isRunning = true;
-        
-        // Update status to get restored values
-        updateStatus();
-        
-        // Start status updates
-        statusInterval = setInterval(updateStatus, 1000);
-        
-        // Wait for chart to be ready then start data feed
-        await new Promise(resolve => setTimeout(resolve, 500));
-        if (chartDataFeed) {
-          startDataFeedToStrategy();
+      // Try to load saved state to restore UI settings (but don't start trading)
+      const savedState = localStorage.getItem('paperTradingState');
+      if (savedState) {
+        try {
+          const state = JSON.parse(savedState);
+          console.log('PaperTrading: Found saved state, restoring UI settings only');
+          
+          // Use strategyTypeKey if available, otherwise fall back to strategyType
+          selectedStrategyType = state.strategyTypeKey || state.strategyType || selectedStrategyType;
+          if (state.strategyConfig) {
+            strategyParameters = state.strategyConfig;
+          }
+          
+          // Load the strategy for display but don't start it
+          try {
+            currentStrategy = createStrategy(selectedStrategyType);
+            await loadStrategySourceCode();
+          } catch (error) {
+            console.error('Failed to recreate strategy for UI:', error);
+          }
+          
+          // Restore saved state in the service to load trades/positions
+          paperTradingService.restoreFromSavedState();
+          
+          // Show the saved data in UI (trades, positions, etc) without starting
+          updateStatus();
+        } catch (error) {
+          console.error('Failed to parse saved state:', error);
         }
       }
     }
@@ -442,8 +454,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
       currentPrice
     });
     
-    currentStrategy = createStrategy(selectedStrategyType);
-    await loadStrategySourceCode();
+    // Only create new strategy if we don't have one from restored state
+    if (!currentStrategy) {
+      currentStrategy = createStrategy(selectedStrategyType);
+      await loadStrategySourceCode();
+    }
     
     // Check if strategy has required timeframe
     const requiredGranularity = currentStrategy.getRequiredGranularity?.();

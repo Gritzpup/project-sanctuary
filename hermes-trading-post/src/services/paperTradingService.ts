@@ -5,7 +5,7 @@
 
 import { Strategy } from '../strategies/base/Strategy';
 import type { CandleData, Trade, StrategyState, Signal } from '../strategies/base/StrategyTypes';
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 import type { Writable } from 'svelte/store';
 import { vaultService } from './vaultService';
 import { paperTradingPersistence } from './paperTradingPersistence';
@@ -70,7 +70,7 @@ class PaperTradingService {
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
           this.saveState();
-        }, 1000);
+        }, 100); // Reduced from 1000ms for more responsive saves
       }
     });
   }
@@ -80,8 +80,7 @@ class PaperTradingService {
   }
   
   private saveState(): void {
-    let currentState: PaperTradingState | null = null;
-    this.state.subscribe(s => currentState = s)();
+    const currentState = get(this.state);
     
     if (!currentState || !currentState.strategy) return;
     
@@ -106,7 +105,7 @@ class PaperTradingService {
   
   restoreFromSavedState(): boolean {
     const savedState = paperTradingPersistence.loadState();
-    if (!savedState || !savedState.isRunning) return false;
+    if (!savedState) return false;
     
     // Import strategy classes to recreate strategy
     import('../strategies').then((strategies) => {
@@ -149,10 +148,10 @@ class PaperTradingService {
       };
       strategy.setState(strategyState);
       
-      // Update our state
+      // Update our state - restore data but don't auto-start trading
       this.state.update(s => ({
         ...s,
-        isRunning: true,
+        isRunning: false, // Don't auto-start, user must click button
         strategy,
         balance: savedState.balance,
         trades: savedState.trades,
@@ -174,8 +173,7 @@ class PaperTradingService {
   }
   
   getStatus() {
-    let currentState: PaperTradingState | null = null;
-    this.state.subscribe(s => currentState = s)();
+    const currentState = get(this.state);
     
     if (!currentState) {
       return {
@@ -199,18 +197,29 @@ class PaperTradingService {
   }
 
   start(strategy: Strategy, symbol: string = 'BTC-USD', initialBalance: number = 10000): void {
+    // Check if already running with same strategy - avoid re-initialization
+    const currentState = this.state.value;
+    if (currentState.isRunning && currentState.strategy && 
+        currentState.strategy.getName() === strategy.getName()) {
+      console.log('Paper trading already running with same strategy, skipping re-initialization');
+      return;
+    }
+    
     // Extract asset from symbol
     this.asset = symbol.split('-')[0];
     this.initialBalance = initialBalance;
     
-    // Initialize strategy state
+    // Initialize strategy state, preserving existing positions if any
+    const strategyCurrentState = strategy.getState();
+    const hasExistingPositions = strategyCurrentState && strategyCurrentState.positions && strategyCurrentState.positions.length > 0;
+    
     const strategyState: StrategyState = {
-      positions: [],
+      positions: hasExistingPositions ? strategyCurrentState.positions : [],
       balance: {
         usd: initialBalance,
-        btcVault: 0,
-        btcPositions: 0,
-        vault: 0
+        btcVault: strategyCurrentState?.balance?.btcVault || 0,
+        btcPositions: strategyCurrentState?.balance?.btcPositions || 0,
+        vault: strategyCurrentState?.balance?.vault || 0
       }
     };
     
@@ -239,14 +248,18 @@ class PaperTradingService {
     const assetVaults = vaultData.assets[this.asset]?.vaults || [];
     this.botId = assetVaults[assetVaults.length - 1]?.botId || null;
 
+    // Check if we're resuming an existing session
+    const isResuming = currentState.trades && currentState.trades.length > 0;
+    
+    // Preserve existing trades and performance if resuming
     this.state.update(s => ({
       ...s,
       isRunning: true,
       strategy,
       balance: { ...strategyState.balance },
-      trades: [],
-      currentSignal: null,
-      performance: {
+      trades: isResuming ? s.trades : [],
+      currentSignal: s.currentSignal || null,
+      performance: isResuming ? s.performance : {
         totalValue: initialBalance,
         pnl: 0,
         pnlPercent: 0,
