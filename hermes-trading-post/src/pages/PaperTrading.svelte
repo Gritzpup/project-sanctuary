@@ -221,11 +221,44 @@ export class ${getStrategyFileName(type)} extends Strategy {
   onMount(async () => {
     console.log('PaperTrading: Component mounted');
     
-    // Check for restored state from persistence
-    const restored = paperTradingService.restoreFromSavedState();
-    if (restored) {
-      console.log('PaperTrading: Restored saved trading state');
+    // First update status to get current state from service
+    updateStatus();
+    
+    // Check if paper trading is already running (from saved state)
+    const status = paperTradingService.getStatus();
+    if (status.isRunning) {
+      console.log('PaperTrading: Trading is already running, restoring state');
       isRunning = true;
+      
+      // Restore all state from the service
+      balance = status.usdBalance;
+      btcBalance = status.btcBalance;
+      vaultBalance = status.vaultBalance;
+      positions = status.positions;
+      trades = status.trades;
+      
+      // Restore strategy state if available
+      const savedState = localStorage.getItem('paperTradingState');
+      if (savedState) {
+        try {
+          const state = JSON.parse(savedState);
+          // Use strategyTypeKey if available, otherwise fall back to strategyType
+          selectedStrategyType = state.strategyTypeKey || state.strategyType || selectedStrategyType;
+          if (state.strategyConfig) {
+            strategyParameters = state.strategyConfig;
+          }
+          
+          // Recreate the strategy instance for UI display
+          try {
+            currentStrategy = createStrategy(selectedStrategyType);
+            loadStrategySourceCode();
+          } catch (error) {
+            console.error('Failed to recreate strategy for UI:', error);
+          }
+        } catch (error) {
+          console.error('Failed to parse saved state:', error);
+        }
+      }
       
       // Start status updates
       statusInterval = setInterval(updateStatus, 1000);
@@ -235,9 +268,26 @@ export class ${getStrategyFileName(type)} extends Strategy {
       if (chartDataFeed) {
         startDataFeedToStrategy();
       }
+    } else {
+      // Try to restore from saved state if not running
+      const restored = paperTradingService.restoreFromSavedState();
+      if (restored) {
+        console.log('PaperTrading: Restored saved trading state');
+        isRunning = true;
+        
+        // Update status to get restored values
+        updateStatus();
+        
+        // Start status updates
+        statusInterval = setInterval(updateStatus, 1000);
+        
+        // Wait for chart to be ready then start data feed
+        await new Promise(resolve => setTimeout(resolve, 500));
+        if (chartDataFeed) {
+          startDataFeedToStrategy();
+        }
+      }
     }
-    
-    updateStatus();
     
     // Add a small delay to ensure chart component is fully mounted
     await new Promise(resolve => setTimeout(resolve, 200));
@@ -289,8 +339,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
     if (dataFeedInterval) {
       clearInterval(dataFeedInterval);
     }
+    // Don't stop the service - just save state so trading continues in background
     if (isRunning) {
-      paperTradingService.stop();
+      paperTradingService.save();
     }
   });
   
@@ -435,7 +486,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
   function stopTrading() {
     if (!paperTradingService || !isRunning) return;
     
-    paperTradingService.stop();
+    // Save state before stopping
+    paperTradingService.save();
+    
+    // Stop the service (without clearing persistence)
+    paperTradingService.stopStrategy(false);
     isRunning = false;
     
     // Update store to indicate paper trading is not active

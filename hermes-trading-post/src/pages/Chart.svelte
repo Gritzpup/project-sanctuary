@@ -207,6 +207,7 @@
           timeVisible: true,
           secondsVisible: false,
           borderColor: '#2a2a2a',
+          shiftVisibleRangeOnNewBar: false, // We'll handle shifting manually
         },
         handleScroll: {
           mouseWheel: false,  // DISABLED - NO ZOOM
@@ -379,20 +380,21 @@
                 console.log('Chart: Successfully updated candle');
                 
                 // If auto-scroll is enabled and this is the last candle, ensure it's visible
-                if (chart && autoScroll && existingIndex === currentData.length - 1) {
+                if (chart && autoScroll && existingIndex === currentData.length - 1 && effectiveGranularity === '1m') {
                   try {
-                    const visibleRange = chart.timeScale().getVisibleRange();
-                    if (visibleRange && Number(visibleRange.to) < chartCandle.time) {
-                      // The last candle is outside the visible range, scroll to show it
-                      console.log('Chart: Scrolling to keep last candle visible');
-                      const rangeWidth = Number(visibleRange.to) - Number(visibleRange.from);
-                      chart.timeScale().setVisibleRange({
-                        from: (chartCandle.time - rangeWidth + 60) as Time,
-                        to: (chartCandle.time + 60) as Time
-                      });
-                    }
+                    // For 1m granularity, always maintain the fixed time window
+                    const days = periodToDays[period] || 1/24;
+                    const windowSeconds = days * 86400;
+                    const newTo = chartCandle.time + 60; // Small buffer
+                    const newFrom = newTo - windowSeconds;
+                    
+                    // Always update to maintain sliding window
+                    chart.timeScale().setVisibleRange({
+                      from: newFrom as Time,
+                      to: newTo as Time
+                    });
                   } catch (e) {
-                    console.debug('Chart: Unable to check/adjust visible range:', e);
+                    console.debug('Chart: Unable to maintain sliding window:', e);
                   }
                 }
               } else if (chartCandle.time < firstCandle.time) {
@@ -424,14 +426,34 @@
                 if (chart && isNew && autoScroll) {
                   console.log('Chart: Auto-scrolling to show new candle');
                   try {
-                    const visibleRange = chart.timeScale().getVisibleRange();
-                    if (visibleRange) {
-                      const rangeWidth = Number(visibleRange.to) - Number(visibleRange.from);
-                      // Shift the range to include the new candle with some buffer
-                      chart.timeScale().setVisibleRange({
-                        from: (chartCandle.time - rangeWidth + 60) as Time,  // Keep most of the range
-                        to: (chartCandle.time + 60) as Time // Add 60s buffer to see the new candle clearly
+                    // For 1m granularity, maintain the fixed time window
+                    if (effectiveGranularity === '1m') {
+                      const days = periodToDays[period] || 1/24;
+                      const windowSeconds = days * 86400;
+                      const newTo = chartCandle.time + 60; // Small buffer
+                      const newFrom = newTo - windowSeconds;
+                      
+                      console.log(`Chart: Sliding 1m window for ${period}`, {
+                        window: `${windowSeconds/60} minutes`,
+                        from: new Date(newFrom * 1000).toISOString(),
+                        to: new Date(newTo * 1000).toISOString()
                       });
+                      
+                      chart.timeScale().setVisibleRange({
+                        from: newFrom as Time,
+                        to: newTo as Time
+                      });
+                    } else {
+                      // For other granularities, use the existing range width
+                      const visibleRange = chart.timeScale().getVisibleRange();
+                      if (visibleRange) {
+                        const rangeWidth = Number(visibleRange.to) - Number(visibleRange.from);
+                        // Shift the range to include the new candle with some buffer
+                        chart.timeScale().setVisibleRange({
+                          from: (chartCandle.time - rangeWidth + 60) as Time,  // Keep most of the range
+                          to: (chartCandle.time + 60) as Time // Add 60s buffer to see the new candle clearly
+                        });
+                      }
                     }
                   } catch (e) {
                     console.debug('Chart: Unable to auto-scroll:', e);
@@ -770,13 +792,20 @@
       cacheStatus = 'ready';
       // errorMessage = ''; // Clear any previous errors
       
-      // Force chart to fit content to ensure all candles are visible
+      // For 1m granularity, don't fit content - maintain the time window
       setTimeout(() => {
         try {
-          chart?.timeScale().fitContent();
-          console.log('Chart: Fit content called to ensure all candles are visible');
+          if (effectiveGranularity !== '1m') {
+            // Only fit content for non-1m granularities
+            chart?.timeScale().fitContent();
+            console.log('Chart: Fit content called for non-1m granularity');
+          } else {
+            // For 1m, enforce the visible range to show only the selected period
+            console.log('Chart: Skipping fitContent for 1m, enforcing visible range instead');
+            enforceVisibleRange();
+          }
         } catch (e) {
-          console.debug('Unable to fit content:', e);
+          console.debug('Unable to fit content or enforce range:', e);
         }
       }, 100);
     } catch (error: any) {
@@ -953,13 +982,19 @@
                 return;
               }
               
-              // Fit content to show all candles
-              chart?.timeScale().fitContent();
+              // For 1m granularity, enforce visible range instead of fitting all content
+              if (effectiveGranularity === '1m') {
+                console.log('Chart: Enforcing visible range for 1m granularity after reload');
+                enforceVisibleRange();
+              } else {
+                // Fit content to show all candles for other granularities
+                chart?.timeScale().fitContent();
+              }
               
               // VERSION 5: Don't update visible candle count here - it causes errors
               // The subscribeVisibleTimeRangeChange will handle it when the chart is ready
             } catch (e) {
-              console.debug('VERSION 5: Unable to fit content:', e);
+              console.debug('VERSION 5: Unable to fit content or enforce range:', e);
             }
           });
         }
@@ -1005,7 +1040,8 @@
         periodMinutes: days * 24 * 60,
         startTime: new Date(startTime * 1000).toISOString(),
         endTime: new Date((latestTime + 60) * 1000).toISOString(),
-        totalCandles: data.length
+        totalCandles: data.length,
+        visibleCandles: Math.ceil(periodSeconds / 60) // For 1m granularity
       });
       
       // Force the chart to show the exact period
@@ -1013,6 +1049,11 @@
         from: startTime as Time,
         to: (latestTime + 60) as Time // Small buffer for the last candle
       });
+      
+      // For 1m granularity, log what we're showing
+      if (effectiveGranularity === '1m') {
+        console.log(`Chart: Showing last ${Math.ceil(periodSeconds / 60)} candles out of ${data.length} total for ${period} view`);
+      }
       
       // Double-check and force again if needed
       const actualRange = chart.timeScale().getVisibleRange();

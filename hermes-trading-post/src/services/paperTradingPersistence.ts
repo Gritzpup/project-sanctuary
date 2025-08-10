@@ -6,6 +6,7 @@
 interface PersistentTradingState {
   isRunning: boolean;
   strategyType: string;
+  strategyTypeKey?: string; // e.g. 'reverse-ratio', 'grid-trading', etc.
   strategyConfig: any;
   balance: {
     usd: number;

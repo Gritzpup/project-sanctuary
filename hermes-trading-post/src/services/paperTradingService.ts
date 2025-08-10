@@ -85,9 +85,14 @@ class PaperTradingService {
     
     if (!currentState || !currentState.strategy) return;
     
+    // Get the strategy type key from the strategy name
+    const strategyName = currentState.strategy.getName();
+    const strategyTypeKey = this.getStrategyKey(strategyName);
+    
     const persistentState: PersistentTradingState = {
       isRunning: currentState.isRunning,
-      strategyType: currentState.strategy.getName(),
+      strategyType: strategyName, // Keep the display name for compatibility
+      strategyTypeKey: strategyTypeKey, // Add the key for easier restoration
       strategyConfig: (currentState.strategy as any).config || {},
       balance: currentState.balance,
       positions: currentState.strategy.getState().positions,
@@ -258,7 +263,9 @@ class PaperTradingService {
       'Grid Trading': 'grid-trading',
       'RSI Mean Reversion': 'rsi-mean-reversion',
       'Dollar Cost Averaging': 'dca',
-      'VWAP Bounce': 'vwap-bounce'
+      'VWAP Bounce': 'vwap-bounce',
+      'Micro Scalping (1H)': 'micro-scalping',
+      'Proper Scalping': 'proper-scalping'
     };
     return mapping[strategyName] || 'unknown';
   }
@@ -267,7 +274,7 @@ class PaperTradingService {
     this.stopStrategy();
   }
   
-  stopStrategy(): void {
+  stopStrategy(clearPersistence: boolean = false): void {
     // Update vault bot status
     if (this.botId) {
       vaultService.updateBotStatus(this.botId, 'stopped');
@@ -279,8 +286,13 @@ class PaperTradingService {
       currentSignal: null
     }));
     
-    // Clear persisted state when stopped
-    paperTradingPersistence.clearState();
+    // Only clear persisted state if explicitly requested (e.g., when resetting)
+    if (clearPersistence) {
+      paperTradingPersistence.clearState();
+    } else {
+      // Save final state before stopping
+      this.saveState();
+    }
   }
 
   resetStrategy(): void {
@@ -314,6 +326,11 @@ class PaperTradingService {
       },
       lastUpdate: Date.now()
     }));
+  }
+  
+  // Save current state without stopping
+  save(): void {
+    this.saveState();
   }
 
   updateCandles(candles: CandleData[]): void {
