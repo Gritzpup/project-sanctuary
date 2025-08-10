@@ -398,11 +398,27 @@
               } else if (chartCandle.time < firstCandle.time) {
                 // New candle is older than first candle, prepend and reset data
                 console.log('Chart: Prepending older candle');
-                candleSeries.setData([chartCandle, ...currentData]);
+                // For 1m granularity, accumulate all candles
+                if (effectiveGranularity === '1m') {
+                  // Maintain chronological order
+                  const newData = [chartCandle, ...currentData];
+                  candleSeries.setData(newData);
+                  console.log(`Chart: Total candles after prepend: ${newData.length}`);
+                } else {
+                  candleSeries.setData([chartCandle, ...currentData]);
+                }
               } else if (chartCandle.time > lastCandle.time) {
                 // New candle is newer than last candle, append
                 console.log('Chart: Appending newer candle');
-                candleSeries.setData([...currentData, chartCandle]);
+                // For 1m granularity, keep accumulating candles
+                if (effectiveGranularity === '1m') {
+                  // Just append to existing data
+                  const newData = [...currentData, chartCandle];
+                  candleSeries.setData(newData);
+                  console.log(`Chart: Total candles after append: ${newData.length}`);
+                } else {
+                  candleSeries.setData([...currentData, chartCandle]);
+                }
                 
                 // Auto-scroll to show the new candle if enabled
                 if (chart && isNew && autoScroll) {
@@ -601,22 +617,32 @@
       // Ensure we use the selected granularity
       dataFeed.setManualGranularity(effectiveGranularity);
       
-      console.log(`Fetching data from ${new Date(dataStartTime * 1000).toISOString()} to ${new Date(alignedNow * 1000).toISOString()}`);
+      // For 1m granularity, load ALL available data (not just visible range)
+      let dataToLoad;
+      if (effectiveGranularity === '1m') {
+        console.log(`Fetching ALL available 1m data for paper trading...`);
+        // Load a much wider range to get all accumulated candles
+        const extendedStartTime = alignedNow - (7 * 24 * 60 * 60); // 7 days of data
+        dataToLoad = await dataFeed.getDataForVisibleRange(extendedStartTime, alignedNow);
+      } else {
+        console.log(`Fetching data from ${new Date(dataStartTime * 1000).toISOString()} to ${new Date(alignedNow * 1000).toISOString()}`);
+        dataToLoad = await dataFeed.getDataForVisibleRange(dataStartTime, alignedNow);
+      }
       
       // Load data using the ChartDataFeed API
-      const data = await dataFeed.getDataForVisibleRange(dataStartTime, alignedNow);
+      const data = dataToLoad;
       
       console.log('Data received:', data.length > 0 ? `${data.length} candles` : 'NO DATA');
       
       // CRITICAL: Filter data to only include candles within our time range
       // For 1m granularity (paper trading), use all available candles
       let filteredData = effectiveGranularity === '1m' 
-        ? data 
+        ? data // Keep ALL candles for paper trading
         : data.filter(candle => 
             candle.time >= adjustedStartTime && candle.time <= alignedNow
           );
       
-      // Removed hardcoded 60-candle limit - let chartDataFeed handle candle management
+      // For 1m granularity, we keep all candles but adjust the viewport
       
       console.log(`Filtered from ${data.length} to ${filteredData.length} candles within our time range`);
       console.log(`Loaded ${filteredData.length} candles (expected ${adjustedExpectedCandles}) for ${period} with ${effectiveGranularity}`);
@@ -692,7 +718,17 @@
         
         // IMPORTANT: Force the visible range to show ONLY the requested period
         console.log('Setting visible range to REQUESTED time period...');
-        console.log(`FORCING visible range: ${visibleStartTime} to ${alignedNow + 30} (with 30s buffer for last candle)`);
+        
+        // For 1m granularity, we have all candles but show only the selected period
+        if (effectiveGranularity === '1m') {
+          // Calculate the visible range based on the period
+          const visibleEnd = alignedNow + 60; // Buffer for last candle
+          const visibleStart = visibleEnd - periodSeconds;
+          console.log(`FORCING visible range for 1m: ${new Date(visibleStart * 1000).toISOString()} to ${new Date(visibleEnd * 1000).toISOString()}`);
+          console.log(`Showing last ${Math.floor(periodSeconds / 60)} minutes of ${filteredData.length} total candles`);
+        } else {
+          console.log(`FORCING visible range: ${visibleStartTime} to ${alignedNow + 30} (with 30s buffer for last candle)`);
+        }
         
         // Use setTimeout to ensure the range is set after the data
         setTimeout(() => {
@@ -820,18 +856,27 @@
       dataFeed.setManualGranularity(effectiveGranularity);
       
       // Get data for the period using ChartDataFeed API
-      console.log(`Loading ${period} data with ${effectiveGranularity} candles...`);
-      const data = await dataFeed.getDataForVisibleRange(startTime, alignedNow);
+      let dataToLoad;
+      if (effectiveGranularity === '1m') {
+        console.log(`Reloading ALL available 1m data for paper trading...`);
+        // Load a much wider range to get all accumulated candles
+        const extendedStartTime = alignedNow - (7 * 24 * 60 * 60); // 7 days of data
+        dataToLoad = await dataFeed.getDataForVisibleRange(extendedStartTime, alignedNow);
+      } else {
+        console.log(`Loading ${period} data with ${effectiveGranularity} candles...`);
+        dataToLoad = await dataFeed.getDataForVisibleRange(startTime, alignedNow);
+      }
+      const data = dataToLoad;
       
       // CRITICAL: Filter data to only include candles within our time range
       // For 1m granularity (paper trading), use all available candles
       let filteredData = effectiveGranularity === '1m'
-        ? data
+        ? data // Keep ALL candles for paper trading
         : data.filter(candle => 
             candle.time >= startTime && candle.time <= alignedNow
           );
       
-      // Removed hardcoded 60-candle limit - let chartDataFeed handle candle management
+      // For 1m granularity, we keep all candles but adjust the viewport
       
       // Update date range info for reload
       dateRangeInfo.expectedFrom = new Date(startTime * 1000).toLocaleString();
