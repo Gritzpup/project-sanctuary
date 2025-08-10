@@ -72,6 +72,10 @@
   let previousPeriod = period;
   let isInitialized = false;
   
+  // Track if initial historical data has been loaded
+  let initialDataLoaded = false;
+  let pendingCandles: any[] = [];
+  
   // Map periods to days
   const periodToDays: Record<string, number> = {
     '1H': 1/24,    // 1 hour = 1/24 day
@@ -156,6 +160,10 @@
   }
 
   onMount(async () => {
+    // Reset initial data loaded flag
+    initialDataLoaded = false;
+    pendingCandles = [];
+    
     try {
       // Ensure container is ready
       if (!chartContainer) {
@@ -283,8 +291,16 @@
           candleSeries: !!candleSeries,
           isLoadingData,
           chart: !!chart,
-          effectiveGranularity
+          effectiveGranularity,
+          initialDataLoaded
         });
+        
+        // If initial data hasn't loaded yet, queue the candle updates
+        if (!initialDataLoaded) {
+          console.log('Chart: Queueing candle update - initial data not yet loaded');
+          pendingCandles.push({ candle, isNew, metadata });
+          return;
+        }
         
         // Handle viewport updates - slide the view without removing data
         if (metadata?.viewportUpdate && chart && autoScroll) {
@@ -792,6 +808,41 @@
       cacheStatus = 'ready';
       // errorMessage = ''; // Clear any previous errors
       
+      // Mark initial data as loaded
+      initialDataLoaded = true;
+      console.log('Chart: Initial data loaded successfully, processing any pending candles...');
+      
+      // Process any candles that arrived while we were loading
+      if (pendingCandles.length > 0) {
+        console.log(`Chart: Processing ${pendingCandles.length} pending candle updates`);
+        pendingCandles.forEach(({ candle, isNew, metadata }) => {
+          // Apply the same update logic that would have run if initial data was loaded
+          if (candleSeries && !isLoadingData && dataFeed.currentGranularity === effectiveGranularity) {
+            const chartCandle = {
+              time: candle.time as Time,
+              open: candle.open,
+              high: candle.high,
+              low: candle.low,
+              close: candle.close
+            };
+            
+            try {
+              const currentData = candleSeries.data();
+              const lastCandle = currentData.length > 0 ? currentData[currentData.length - 1] : null;
+              
+              if (isNew || (lastCandle && chartCandle.time > lastCandle.time)) {
+                candleSeries.update(chartCandle);
+              } else if (lastCandle && chartCandle.time === lastCandle.time) {
+                candleSeries.update(chartCandle);
+              }
+            } catch (error) {
+              console.error('Chart: Error processing pending candle:', error);
+            }
+          }
+        });
+        pendingCandles = []; // Clear the queue
+      }
+      
       // For 1m granularity, don't fit content - maintain the time window
       setTimeout(() => {
         try {
@@ -1261,6 +1312,10 @@
   }
 
   onDestroy(() => {
+    // Reset initial data loaded flag
+    initialDataLoaded = false;
+    pendingCandles = [];
+    
     if (clockInterval) {
       clearInterval(clockInterval);
     }
