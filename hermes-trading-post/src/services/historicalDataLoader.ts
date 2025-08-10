@@ -1,3 +1,8 @@
+/**
+ * @file historicalDataLoader.ts
+ * @description Loads historical data from various sources
+ */
+
 import pLimit from 'p-limit';
 import { IndexedDBCache } from './indexedDBCache';
 import { CoinbaseAPI } from './coinbaseApi';

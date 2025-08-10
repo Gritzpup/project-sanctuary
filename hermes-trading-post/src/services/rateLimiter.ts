@@ -1,3 +1,8 @@
+/**
+ * @file rateLimiter.ts
+ * @description Prevents API rate limit violations
+ */
+
 export class RateLimiter {
   private queue: Array<() => void> = [];
   private inProgress = 0;

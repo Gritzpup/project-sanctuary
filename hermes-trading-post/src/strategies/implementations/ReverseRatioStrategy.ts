@@ -306,23 +306,28 @@ export class ReverseRatioStrategy extends Strategy {
     let positionValue: number;
     
     if (config.positionSizeMode === 'fixed') {
-      // Fixed dollar amount mode
+      // Fixed dollar amount mode - each level gets a specific dollar amount
       if (config.ratioMultiplier === 1) {
-        // Linear: $50, $100, $150, $200...
+        // Linear progression: Each level adds the base amount
+        // Example: $50, $100, $150, $200... (adds $50 each level)
         positionValue = config.basePositionAmount * level;
       } else {
-        // Exponential based on ratio multiplier
+        // Exponential progression: Each level multiplies by the ratio
+        // Example with ratio 2: $50, $100, $200, $400... (doubles each level)
+        // Formula: baseAmount * (multiplier^(level-1))
         const levelRatio = Math.pow(config.ratioMultiplier, level - 1);
         positionValue = config.basePositionAmount * levelRatio;
       }
     } else {
-      // Percentage mode (default)
+      // Percentage mode (default) - each level gets a percentage of initial balance
       const basePercent = config.basePositionPercent / 100;
       
-      // ALWAYS use the INITIAL balance passed in, not remaining capital
-      // This ensures consistent position sizes regardless of how much we've spent
+      // CRITICAL: Use INITIAL balance for consistent sizing across all levels
+      // This prevents position sizes from shrinking as capital is deployed
+      // Ensures the strategy can complete all planned levels
       if (config.ratioMultiplier === 1) {
-        // Equal sizing: each level gets the same percentage of INITIAL balance
+        // Grid mode: Each level gets equal percentage of initial capital
+        // Example: 5% of $10k = $500 per level regardless of remaining balance
         positionValue = balance * basePercent;
         console.log('[ReverseRatio] GRID position sizing (equal):', {
           level,
@@ -331,7 +336,12 @@ export class ReverseRatioStrategy extends Strategy {
           initialBalance: balance.toFixed(2)
         });
       } else {
-        // Progressive sizing: each level gets more based on multiplier
+        // Reverse ratio mode: Later levels get exponentially larger positions
+        // This implements the core strategy: bigger bets at lower prices
+        // Example with 5% base and 2x multiplier:
+        // Level 1: 5% of balance
+        // Level 2: 10% of balance (5% * 2^1)
+        // Level 3: 20% of balance (5% * 2^2)
         const levelRatio = Math.pow(config.ratioMultiplier, level - 1);
         positionValue = balance * (basePercent * levelRatio);
         console.log('[ReverseRatio] PROGRESSIVE position sizing:', {
@@ -344,10 +354,12 @@ export class ReverseRatioStrategy extends Strategy {
       }
     }
     
-    // Apply max position limit
+    // Risk management: Enforce maximum position limit to prevent overexposure
+    // This ensures we don't put more than X% of initial capital into the market
     const totalPositionValue = this.getTotalPositionValue(currentPrice);
     const maxAllowed = balance * (config.maxPositionPercent / 100);
     if (totalPositionValue + positionValue > maxAllowed) {
+      // Cap the position to stay within risk limits
       positionValue = Math.max(0, maxAllowed - totalPositionValue);
       console.log('[ReverseRatio] Position size limited by max percentage:', {
         originalValue: positionValue,
@@ -358,6 +370,7 @@ export class ReverseRatioStrategy extends Strategy {
     }
     
     // Convert USD value to BTC size
+    // This is the actual amount of Bitcoin we'll purchase
     const size = positionValue / currentPrice;
     
     console.log('[ReverseRatio] Position size calculated:', {

@@ -131,12 +131,12 @@ export class ChartDataFeed {
 
   private setupWebSocket() {
     // Use realtimeCandleAggregator for 1-minute candles
-    this.realtimeUnsubscribe = realtimeCandleAggregator.subscribe(async (update) => {
+    this.realtimeUnsubscribe = realtimeCandleAggregator.subscribe((update) => {
       console.log(`ChartDataFeed: Received update from aggregator`, {
         symbol: update.symbol,
         currentGranularity: this.currentGranularity,
         isNewCandle: update.isNewCandle,
-        time: new Date((update.candle.time as number) * 1000).toISOString()
+        time: new Date(Number(update.candle.time) * 1000).toISOString()
       });
       
       // Always process updates for real-time price display
@@ -168,72 +168,25 @@ export class ChartDataFeed {
               this.logDataState('AFTER_ADD_NEW_CANDLE', { addedCandle: new Date(candleData.time * 1000).toISOString() });
             }
             
-            // Implement sliding window for 1m candles
-            if (this.visibleRange) {
-            // Calculate expected candles based on visible range
-            const visibleSeconds = this.visibleRange.end - this.visibleRange.start;
-            const visibleMinutes = Math.floor(visibleSeconds / 60);
-            console.log(`ChartDataFeed: Visible range: ${visibleSeconds}s (${visibleMinutes} minutes), from ${new Date(this.visibleRange.start * 1000).toISOString()} to ${new Date(this.visibleRange.end * 1000).toISOString()}`);
-            
-            // Add buffer to keep some extra candles for smooth scrolling
-            const buffer = 10; // Keep 10 extra candles
-            // In paper trading, keep at least 60 candles (1 hour) regardless of visible range
-            const minCandles = 60; 
-            const calculatedCandles = visibleMinutes + buffer;
-            const maxCandlesToKeep = Math.min(Math.max(calculatedCandles, minCandles), this.maxCandles);
-            console.log(`ChartDataFeed: maxCandlesToKeep = ${maxCandlesToKeep} (visibleMinutes: ${visibleMinutes}, buffer: ${buffer}, minCandles: ${minCandles}, maxCandles: ${this.maxCandles})`);
-            
-            // Keep only the required number of most recent candles
-            if (this.currentData.length > maxCandlesToKeep) {
-              console.log(`ChartDataFeed: BEFORE sliding window: ${this.currentData.length} candles`);
-              console.log(`Sliding window: removing ${this.currentData.length - maxCandlesToKeep} old candles`);
-              this.logDataState('BEFORE_SLIDING_WINDOW', { 
-                maxCandlesToKeep, 
-                toRemove: this.currentData.length - maxCandlesToKeep,
-                removedCandles: this.currentData.slice(0, this.currentData.length - maxCandlesToKeep).map(c => new Date(c.time * 1000).toISOString())
+            // DON'T remove candles - just notify chart to update viewport
+            // Check if we should trigger a viewport adjustment
+            if (this.currentData.length > 60) {
+              console.log(`ChartDataFeed: Total candles: ${this.currentData.length}, sending viewport update`);
+              
+              // Notify chart to adjust viewport to show recent candles
+              // The chart will slide its view window, not remove data
+              this.subscribers.forEach(callback => {
+                try {
+                  callback(candleData, update.isNewCandle, {
+                    viewportUpdate: true,
+                    totalCandles: this.currentData.length,
+                    latestTime: candleData.time
+                  });
+                } catch (error) {
+                  console.error('ChartDataFeed: Error in subscriber callback (viewport update):', error);
+                }
               });
-              
-              // Store info about removed candles for scrolling adjustment
-              const removedCount = this.currentData.length - maxCandlesToKeep;
-              const oldFirstCandle = this.currentData[0];
-              
-              this.currentData = this.currentData.slice(-maxCandlesToKeep);
-              this.logDataState('AFTER_SLIDING_WINDOW');
-              console.log(`ChartDataFeed: AFTER sliding window: ${this.currentData.length} candles`);
-              
-              // Notify subscribers that the sliding window has removed candles
-              // This allows the chart to adjust its visible range
-              if (this.currentData.length > 0) {
-                const newFirstCandle = this.currentData[0];
-                this.subscribers.forEach(callback => {
-                  try {
-                    // Pass a special update to indicate sliding window adjustment
-                    callback(candleData, update.isNewCandle, {
-                      slidingWindowUpdate: true,
-                      removedCount,
-                      oldFirstTime: oldFirstCandle.time,
-                      newFirstTime: newFirstCandle.time
-                    });
-                  } catch (error) {
-                    console.error('ChartDataFeed: Error in subscriber callback (sliding window):', error);
-                  }
-                });
-              }
             }
-            
-            // Don't auto-update range for now - let the chart handle scrolling
-            // if (this.autoUpdateRange) {
-            //   const latestTime = candleData.time;
-            //   const rangeSeconds = this.visibleRange.end - this.visibleRange.start;
-            //   this.visibleRange = {
-            //     start: latestTime - rangeSeconds,
-            //     end: latestTime
-            //   };
-            //   console.log(`Updated visible range: ${new Date(this.visibleRange.start * 1000).toISOString()} to ${new Date(this.visibleRange.end * 1000).toISOString()}`);
-            // }
-          }
-          
-          console.log(`ChartDataFeed: Total candles after sliding window: ${this.currentData.length}`);
           } else {
             // Update existing candle
             const lastIndex = this.currentData.length - 1;
@@ -248,12 +201,8 @@ export class ChartDataFeed {
                 this.currentData.push(candleData);
                 this.logDataState('AFTER_ADD_NEW_CANDLE_UPDATE_BRANCH');
                 
-                // Apply sliding window to maintain data size
-                const maxCandles = 1440; // 24 hours of 1m candles
-                if (this.currentData.length > maxCandles) {
-                  this.currentData = this.currentData.slice(-maxCandles);
-                  console.log(`ChartDataFeed: Applied sliding window, kept last ${maxCandles} candles`);
-                }
+                // DON'T apply sliding window - keep all candles for paper trading
+                console.log(`ChartDataFeed: Total candles: ${this.currentData.length}`);
                 
                 // Mark this as a new candle for the notification
                 update.isNewCandle = true;
@@ -272,6 +221,8 @@ export class ChartDataFeed {
               console.error('ChartDataFeed: Error in subscriber callback:', error);
             }
           });
+          
+          console.log(`ChartDataFeed: Total candles after sliding window: ${this.currentData.length}`);
         } else {
           // For other granularities, update the current candle with real-time price
           const granularitySeconds = this.getGranularitySeconds(this.currentGranularity);

@@ -1,3 +1,8 @@
+/**
+ * @file indexedDBCache.ts
+ * @description Browser-based persistent storage for market data
+ */
+
 import type { CandleData } from '../types/coinbase';
 
 const DB_NAME = 'TradingDataCache';

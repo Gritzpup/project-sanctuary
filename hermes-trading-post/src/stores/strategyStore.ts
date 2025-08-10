@@ -1,3 +1,7 @@
+/**
+ * @file strategyStore.ts
+ * @description Global strategy configuration and state management
+ */
 import { writable } from 'svelte/store';
 
 interface StrategyConfig {

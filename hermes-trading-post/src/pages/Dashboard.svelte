@@ -2,6 +2,7 @@
   import Chart from './Chart.svelte';
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
   import { onMount, createEventDispatcher } from 'svelte';
+  import { chartPreferencesStore } from '../stores/chartPreferencesStore';
   
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
@@ -17,9 +18,16 @@
     dispatch('navigate', event.detail);
   }
   
-  let selectedGranularity = '1m';  // Candle size: 1m, 5m, 15m, 1h, 6h, 1D (Coinbase supported only)
-  let selectedPeriod = '1H';        // Time range: 5Y, 1Y, 6M, 3M, 1M, 5D, 4H, 1H
+  // Load saved chart preferences
+  const savedPrefs = chartPreferencesStore.getPreferences('dashboard');
+  let selectedGranularity = savedPrefs.granularity;  // Candle size: 1m, 5m, 15m, 1h, 6h, 1D (Coinbase supported only)
+  let selectedPeriod = savedPrefs.period;            // Time range: 5Y, 1Y, 6M, 3M, 1M, 5D, 4H, 1H
   let autoGranularityActive = false;
+  
+  // Save preferences when they change
+  $: if (selectedGranularity && selectedPeriod) {
+    chartPreferencesStore.setPreferences('dashboard', selectedGranularity, selectedPeriod);
+  }
   
   onMount(() => {
     console.log('Dashboard mounted successfully');

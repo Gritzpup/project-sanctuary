@@ -1,3 +1,8 @@
+/**
+ * @file realtimeCandleAggregator.ts
+ * @description Builds live candles from streaming price data
+ */
+
 import type { CandlestickData, Time } from 'lightweight-charts';
 import { webSocketManager } from './webSocketManager';
 import { indexedDBCache } from './indexedDBCache';

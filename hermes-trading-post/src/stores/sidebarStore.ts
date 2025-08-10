@@ -1,3 +1,7 @@
+/**
+ * @file sidebarStore.ts
+ * @description Controls sidebar visibility and collapse state
+ */
 import { writable } from 'svelte/store';
 
 // Create a simple sidebar store without localStorage

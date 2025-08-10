@@ -1,10 +1,10 @@
 <script lang="ts">
-  import Dashboard from './lib/Dashboard.svelte';
-  import PaperTrading from './lib/PaperTrading.svelte';
-  import Backtesting from './lib/Backtesting.svelte';
-  import Trading from './lib/Trading.svelte';
-  import Vault from './lib/Vault.svelte';
-  import News from './lib/News.svelte';
+  import Dashboard from './pages/Dashboard.svelte';
+  import PaperTrading from './pages/PaperTrading.svelte';
+  import Backtesting from './pages/Backtesting.svelte';
+  import Trading from './pages/Trading.svelte';
+  import Vault from './pages/Vault.svelte';
+  import News from './pages/News.svelte';
   import { CoinbaseAPI } from './services/coinbaseApi';
   import { onMount } from 'svelte';
   import { sidebarStore } from './stores/sidebarStore';

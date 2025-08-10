@@ -13,6 +13,7 @@
   import { ProperScalpingStrategy } from '../strategies/implementations/ProperScalpingStrategy';
   import type { Strategy } from '../strategies/base/Strategy';
   import { strategyStore } from '../stores/strategyStore';
+  import { chartPreferencesStore } from '../stores/chartPreferencesStore';
   
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
@@ -28,9 +29,16 @@
     dispatch('navigate', event.detail);
   }
   
-  let selectedGranularity = '1m';
-  let selectedPeriod = '1H';
+  // Load saved chart preferences
+  const savedPrefs = chartPreferencesStore.getPreferences('paper-trading');
+  let selectedGranularity = savedPrefs.granularity;
+  let selectedPeriod = savedPrefs.period;
   let autoGranularityActive = false;
+  
+  // Save preferences when they change
+  $: if (selectedGranularity && selectedPeriod) {
+    chartPreferencesStore.setPreferences('paper-trading', selectedGranularity, selectedPeriod);
+  }
   
   // Paper trading state
   let isRunning = false;

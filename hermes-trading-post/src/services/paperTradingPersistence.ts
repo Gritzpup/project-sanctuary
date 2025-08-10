@@ -1,3 +1,8 @@
+/**
+ * @file paperTradingPersistence.ts
+ * @description Saves and loads paper trading state
+ */
+
 interface PersistentTradingState {
   isRunning: boolean;
   strategyType: string;

@@ -1,3 +1,8 @@
+/**
+ * @file paperTradingService.ts
+ * @description Simulates live trading with fake money for strategy testing
+ */
+
 import { Strategy } from '../strategies/base/Strategy';
 import type { CandleData, Trade, StrategyState, Signal } from '../strategies/base/StrategyTypes';
 import { writable } from 'svelte/store';
@@ -367,23 +372,33 @@ class PaperTradingService {
     const strategyState = state.strategy.getState();
 
     if (signal.type === 'buy') {
-      // FIXED: Pass total available balance (USD + vault) to strategy
+      // CRITICAL: Calculate position size using total available capital
+      // This includes both USD balance and USDC vault (profit storage)
+      // Strategies need the full picture to size positions correctly
       const totalAvailable = strategyState.balance.usd + strategyState.balance.vault;
+      
+      // Let the strategy determine position size based on its rules
+      // This could be fixed amounts, percentages, or complex algorithms
       const size = state.strategy.calculatePositionSize(totalAvailable, signal, currentPrice);
       if (size <= 0) return state;
 
+      // Calculate total cost including fees
       const cost = size * currentPrice;
       const fee = cost * (this.feePercent / 100);
       const totalCost = cost + fee;
 
-      // FIXED: Check against total available balance (USD + vault)
+      // Verify we have sufficient funds
       if (totalCost > totalAvailable) return state;
 
-      // Execute buy - deduct from USD first, then vault if needed
+      // Execute buy with capital priority system:
+      // 1. Use USD trading balance first (preserves liquidity)
+      // 2. Then tap into vault funds if needed (uses profits)
       if (totalCost <= strategyState.balance.usd) {
+        // Simple case: Enough USD available
         strategyState.balance.usd -= totalCost;
       } else {
-        // Need to use vault funds too
+        // Complex case: Need to use vault funds
+        // This allows strategies to reinvest profits automatically
         const fromVault = totalCost - strategyState.balance.usd;
         strategyState.balance.vault -= fromVault;
         strategyState.balance.usd = 0;
@@ -451,22 +466,36 @@ class PaperTradingService {
       const profit = netProceeds - totalCost;
       const profitPercent = (profit / totalCost) * 100;
 
-      // Allocate profits
+      // Allocate profits using strategy's vault allocation rules
       if (profit > 0) {
+        // Get profit allocation from strategy (default: 85.7% vault, 14.3% BTC)
+        // This maintains the 6:1 ratio (6 parts vault, 1 part BTC)
         const allocation = state.strategy.allocateProfits(profit);
+        
+        // Update vault balances with allocated profits
+        // Vault (USDC): Stable profit storage (typically 85.7%)
         strategyState.balance.vault += allocation.vault;
+        
+        // BTC Vault: Convert profit portion to BTC for long-term holding
+        // Formula: USD allocation / current BTC price = BTC amount
         strategyState.balance.btcVault += allocation.btc / currentPrice;
+        
+        // Return principal + remaining profit to USD trading balance
+        // This keeps the principal available for future trades
         strategyState.balance.usd += netProceeds - allocation.vault;
         
-        // Update vault service
+        // Sync with vault service for UI display
+        // This updates the bot's performance metrics in real-time
         if (this.botId && allocation.vault > 0) {
           const currentVaultData = vaultService.getVaultData();
           const bot = currentVaultData.assets[this.asset]?.vaults.find(v => v.botId === this.botId);
           if (bot) {
+            // Add profit to bot's vault value and mark as profit deposit
             vaultService.updateBotValue(this.botId, bot.value + allocation.vault, true);
           }
         }
       } else {
+        // Loss scenario: Return all proceeds to USD for capital preservation
         strategyState.balance.usd += netProceeds;
       }
 

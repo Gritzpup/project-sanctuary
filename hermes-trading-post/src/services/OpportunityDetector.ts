@@ -1,3 +1,8 @@
+/**
+ * @file OpportunityDetector.ts
+ * @description Identifies high-probability trading opportunities
+ */
+
 import type { CandleData, Signal, OpportunityDetectionConfig } from '../strategies/base/StrategyTypes';
 import { Strategy } from '../strategies/base/Strategy';
 

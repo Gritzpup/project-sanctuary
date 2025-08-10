@@ -1,10 +1,10 @@
 <script lang="ts">
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
-  import BacktestingChart from './backtesting/BacktestingChart.svelte';
-  import BacktestingControls from './backtesting/BacktestingControls.svelte';
-  import BacktestingResults from './backtesting/BacktestingResults.svelte';
-  import BacktestingStrategyParams from './backtesting/BacktestingStrategyParams.svelte';
-  import BacktestingBackups from './backtesting/BacktestingBackups.svelte';
+  import BacktestingChart from './Backtesting/BacktestingChart.svelte';
+  import BacktestingControls from './Backtesting/BacktestingControls.svelte';
+  import BacktestingResults from './Backtesting/BacktestingResults.svelte';
+  import BacktestingStrategyParams from './Backtesting/BacktestingStrategyParams.svelte';
+  import BacktestingBackups from './Backtesting/BacktestingBackups.svelte';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { BacktestingEngine } from '../services/backtestingEngine';
   import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';

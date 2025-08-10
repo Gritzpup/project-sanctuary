@@ -1,3 +1,8 @@
+/**
+ * @file webSocketManager.ts
+ * @description Manages WebSocket connections for real-time data
+ */
+
 import { CoinbaseWebSocket } from './coinbaseWebSocket';
 import type { TickerData } from '../types/coinbase';
 

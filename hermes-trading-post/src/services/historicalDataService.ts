@@ -1,3 +1,8 @@
+/**
+ * @file historicalDataService.ts
+ * @description Fetches and caches historical price data
+ */
+
 import type { CandleData } from '../strategies/base/StrategyTypes';
 
 export interface HistoricalDataConfig {

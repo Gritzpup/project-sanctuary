@@ -1,3 +1,8 @@
+/**
+ * @file simpleDataFeed.ts
+ * @description Basic data feed implementation for charts
+ */
+
 // Simplified data feed that bypasses caching for testing
 import type { CandleData } from '../types/coinbase';
 import { CoinbaseAPI } from './coinbaseApi';

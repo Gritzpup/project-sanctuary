@@ -1,3 +1,8 @@
+/**
+ * @file vaultService.ts
+ * @description Manages vault allocations and profit distribution
+ */
+
 import { writable } from 'svelte/store';
 import type { Writable } from 'svelte/store';
 
@@ -230,19 +235,32 @@ class VaultService {
     let totalInitial = 0;
     let activeBots = 0;
 
+    // Aggregate metrics across all assets (BTC, ETH, GOLD, etc.)
     for (const asset of Object.values(this.data.assets)) {
+      // Calculate total value for this asset by summing all bot vaults
       asset.totalValue = asset.vaults.reduce((sum, vault) => sum + vault.value, 0);
+      
+      // Calculate total initial deposits for this asset
       const assetInitial = asset.vaults.reduce((sum, vault) => sum + vault.initialDeposit, 0);
+      
+      // Calculate growth percentage for the asset
+      // Formula: ((current value - initial deposit) / initial deposit) * 100
+      // Example: ($12,847 - $10,000) / $10,000 * 100 = 28.47% growth
       asset.totalGrowth = assetInitial > 0 
         ? ((asset.totalValue - assetInitial) / assetInitial) * 100 
         : 0;
       
+      // Add to portfolio totals
       totalValue += asset.totalValue;
       totalInitial += assetInitial;
       activeBots += asset.vaults.length;
     }
 
+    // Update portfolio-wide metrics
     this.data.totalBots = activeBots;
+    
+    // Calculate overall portfolio growth percentage
+    // This shows the performance across all bots and assets
     this.data.totalGrowthPercent = totalInitial > 0 
       ? ((totalValue - totalInitial) / totalInitial) * 100 
       : 0;

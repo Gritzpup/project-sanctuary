@@ -1,3 +1,8 @@
+/**
+ * @file newsService.ts
+ * @description Fetches and processes crypto news data
+ */
+
 export interface NewsArticle {
   id: string;
   title: string;

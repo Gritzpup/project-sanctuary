@@ -1,3 +1,8 @@
+/**
+ * @file coinbaseApi.ts
+ * @description Handles Coinbase API requests for market data and trading
+ */
+
 import axios from 'axios';
 import type { CandleData } from '../types/coinbase';
 import { RateLimiter } from './rateLimiter';

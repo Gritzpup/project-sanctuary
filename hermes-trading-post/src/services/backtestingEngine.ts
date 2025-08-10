@@ -1,3 +1,8 @@
+/**
+ * @file backtestingEngine.ts
+ * @description Runs historical strategy simulations to evaluate performance
+ */
+
 import { Strategy } from '../strategies/base/Strategy';
 import type { CandleData, Trade, BacktestResult, StrategyState, VaultAllocationConfig, OpportunityDetectionConfig } from '../strategies/base/StrategyTypes';
 import { CompoundEngine, type CompoundTransaction } from './CompoundEngine';
@@ -318,12 +323,23 @@ export class BacktestingEngine {
     const executionPrice = candle.close * (1 + this.config.slippage / 100);
     const cost = size * executionPrice;
     
-    // Calculate fees: Assume maker fee for buys (limit orders)
+    // Calculate trading fees using maker/taker model
+    // Maker fees (limit orders that add liquidity): typically 0.35%
+    // Taker fees (market orders that remove liquidity): typically 0.75%
+    // We assume buys are limit orders (maker) to get better pricing
     const feePercent = this.config.makerFeePercent || this.config.feePercent || 0.35;
+    
+    // Calculate gross fee on the total cost
+    // Example: $1000 trade * 0.35% = $3.50 fee
     const grossFee = cost * (feePercent / 100);
+    
+    // Calculate fee rebate (e.g., 25% of fees returned as incentive)
+    // Example: $3.50 fee * 25% rebate = $0.875 returned
+    // Net fee after rebate: $3.50 - $0.875 = $2.625
     const feeRebate = grossFee * ((this.config.feeRebatePercent || 0) / 100);
     
-    // Pay full gross fee upfront
+    // Total cost includes the full gross fee (rebate comes back later)
+    // This ensures we have enough capital to execute the trade
     const totalCost = cost + grossFee;
     this.totalFeesCollected += grossFee;
     this.totalFeeRebates += feeRebate;
@@ -428,27 +444,36 @@ export class BacktestingEngine {
     this.totalFeesCollected += grossFee;
     this.totalFeeRebates += feeRebate;
 
-    // Calculate profit
+    // Calculate profit using FIFO (First In, First Out) accounting
+    // This ensures oldest positions are closed first for accurate P&L
     const positions = this.strategy.getPositions();
     let totalCost = 0;
     let remainingSize = size;
 
-    // FIFO position closing
+    // FIFO position closing - iterate through positions in order acquired
     const closedPositions = [];
     for (const position of positions) {
       if (remainingSize <= 0) break;
       
+      // Calculate how much of this position to close
+      // Either close the entire position or just what we need
       const closeSize = Math.min(remainingSize, position.size);
-      // Use the actual cost per BTC if available (includes buy fees)
+      
+      // CRITICAL: Use actual cost per BTC including buy fees for accurate P&L
+      // actualCostPerBtc = (execution price + fees) / BTC amount
+      // This ensures profit calculations account for all trading costs
       const costPerBtc = position.metadata?.actualCostPerBtc || position.entryPrice;
       totalCost += closeSize * costPerBtc;
       remainingSize -= closeSize;
       
+      // Mark position for removal if fully closed
       if (closeSize === position.size) {
         closedPositions.push(position);
       }
     }
 
+    // Calculate net profit after all fees
+    // profit = (sale proceeds - sale fees) - (buy cost + buy fees)
     const profit = netProceeds - totalCost;
     const profitPercent = (profit / totalCost) * 100;
     
@@ -471,23 +496,35 @@ export class BacktestingEngine {
       timestamp: new Date(candle.time * 1000).toISOString()
     });
 
-    // Compound profit distribution
+    // Compound profit distribution - the heart of sustainable growth
     if (profit > 0) {
-      // Return principal to USD first
+      // STEP 1: Return principal (original investment) to USD trading balance
+      // This ensures we preserve capital for future trades
       state.balance.usd += totalCost;
       
-      // Check if we should compound
+      // STEP 2: Check if profit meets compound threshold
+      // Compounding can be per-trade, daily, weekly, or monthly
       if (this.compoundEngine.shouldCompound(profit, candle.time)) {
+        // Execute compound distribution according to vault allocation config
+        // Default: 71.4% USDC vault, 14.3% BTC vault, 14.3% USD growth
         const transaction = this.compoundEngine.compound(profit, executionPrice, candle.time);
         this.compoundTransactions.push(transaction);
         
-        // Apply compound allocations to state
+        // STEP 3: Update all vault balances from compound engine
         const compoundState = this.compoundEngine.getState();
+        
+        // BTC vault: Long-term Bitcoin accumulation (14.3% of profit)
         state.balance.btcVault = compoundState.btcVault;
-        state.balance.usd += compoundState.usdGrowth; // Add USD growth to trading balance
+        
+        // USD growth: Reinvested into trading capital (14.3% of profit)
+        // This grows our position sizing over time
+        state.balance.usd += compoundState.usdGrowth;
+        
+        // USDC vault: Stable profit storage (71.4% of profit)
+        // Protected from market volatility
         state.balance.vault = compoundState.usdcVault;
         
-        // Track the USD growth separately
+        // Track total USD growth for metrics
         this.initialBalanceGrowth = compoundState.usdGrowth;
         
         console.log(`[BacktestEngine] Compound transaction executed:`, {
@@ -625,14 +662,27 @@ export class BacktestingEngine {
     const averageLoss = losses.length > 0 ? losses.reduce((a, b) => a + b, 0) / losses.length : 0;
     const profitFactor = averageLoss > 0 ? averageWin / averageLoss : averageWin > 0 ? Infinity : 0;
 
-    // Calculate Sharpe ratio (simplified)
+    // Calculate Sharpe ratio - measures risk-adjusted returns
+    // Higher values indicate better returns relative to volatility
     const returns = [];
     for (let i = 1; i < this.equityHistory.length; i++) {
+      // Calculate period-over-period return
+      // Formula: (current value - previous value) / previous value
       const dailyReturn = (this.equityHistory[i].value - this.equityHistory[i-1].value) / this.equityHistory[i-1].value;
       returns.push(dailyReturn);
     }
+    
+    // Calculate average return across all periods
     const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+    
+    // Calculate standard deviation of returns (volatility measure)
+    // Formula: sqrt(sum((return - avg)^2) / count)
     const stdDev = Math.sqrt(returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length);
+    
+    // Calculate annualized Sharpe ratio
+    // Formula: (avg return * 365) / (std dev * sqrt(365))
+    // We multiply by 365 to annualize daily returns
+    // We divide by sqrt(365) to annualize daily volatility
     const sharpeRatio = stdDev > 0 ? (avgReturn * 365) / (stdDev * Math.sqrt(365)) : 0;
 
     // Calculate average hold time

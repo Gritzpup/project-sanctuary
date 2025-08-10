@@ -1,3 +1,8 @@
+/**
+ * @file oneMinuteCache.ts
+ * @description Caches 1-minute candles for performance
+ */
+
 import type { CandleData } from '../types/coinbase';
 
 const DB_NAME = 'TradingDataCache';

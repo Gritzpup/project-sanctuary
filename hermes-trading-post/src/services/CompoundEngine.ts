@@ -1,3 +1,8 @@
+/**
+ * @file CompoundEngine.ts
+ * @description Calculates compound growth and profit reinvestment
+ */
+
 import type { VaultAllocationConfig } from '../strategies/base/StrategyTypes';
 
 export interface CompoundState {
@@ -55,20 +60,34 @@ export class CompoundEngine {
   }
   
   compound(profit: number, btcPrice: number, timestamp: number): CompoundTransaction {
-    // Calculate allocations
+    // Calculate profit allocations based on vault configuration
+    // This implements the 1/7 : 1/7 : 5/7 distribution model
+    // btcVaultPercent: 14.3% (1/7) - Accumulate Bitcoin for long-term growth
+    // usdGrowthPercent: 14.3% (1/7) - Reinvest in trading capital
+    // usdcVaultPercent: 71.4% (5/7) - Store in stable vault
     const btcAllocation = profit * (this.config.btcVaultPercent / 100);
     const usdAllocation = profit * (this.config.usdGrowthPercent / 100);
     const usdcAllocation = profit * (this.config.usdcVaultPercent / 100);
     
-    // Update state
-    this.state.btcVault += btcAllocation / btcPrice; // Convert USD to BTC
+    // Update vault states with new allocations
+    // BTC Vault: Convert USD profit to BTC at current price
+    // This accumulates Bitcoin regardless of price, implementing dollar-cost averaging
+    this.state.btcVault += btcAllocation / btcPrice;
+    
+    // USD Growth: Added back to trading capital to compound position sizes
+    // This enables exponential growth - bigger trades = bigger profits
     this.state.usdGrowth += usdAllocation;
+    
+    // USDC Vault: Stable value storage, protected from volatility
+    // This is the "take profit" portion that secures gains
     this.state.usdcVault += usdcAllocation;
+    
+    // Track totals for performance metrics
     this.state.totalCompounded += profit;
     this.state.lastCompoundTime = timestamp;
     this.state.compoundCount++;
     
-    // Record transaction
+    // Record transaction for audit trail
     const transaction: CompoundTransaction = {
       timestamp,
       profitAmount: profit,
@@ -81,7 +100,7 @@ export class CompoundEngine {
     
     this.transactions.push(transaction);
     
-    // Check for rebalancing
+    // Check if vaults need rebalancing to maintain target allocations
     this.checkRebalance(btcPrice);
     
     return transaction;

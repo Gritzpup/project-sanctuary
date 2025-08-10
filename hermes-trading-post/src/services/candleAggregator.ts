@@ -1,3 +1,8 @@
+/**
+ * @file candleAggregator.ts
+ * @description Aggregates price ticks into candle data
+ */
+
 import type { CandleData } from '../types/coinbase';
 
 /**
