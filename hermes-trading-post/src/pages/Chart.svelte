@@ -19,8 +19,12 @@
   export let trades: Array<{timestamp: number, type: string, price: number}> = [];
   export let autoScroll: boolean = true;  // Enable auto-scrolling to new candles by default
   
+  // Generate unique instance ID for this chart component
+  const instanceId = `chart-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  console.log(`Chart: Created new instance ${instanceId}`);
+  
   // Debug prop changes
-  $: console.log('Chart props changed:', { period, granularity, isInitialized });
+  $: console.log('Chart props changed:', { period, granularity, isInitialized, instanceId });
   
   // Cache and loading state
   export let cacheStatus = 'initializing';
@@ -273,8 +277,11 @@
       // Initialize data feed with real Coinbase data
       dataFeed = ChartDataFeed.getInstance();
       
+      // Set this as the active instance
+      dataFeed.setActiveInstance(instanceId);
+      
       // Force clear any cached data to ensure fresh start
-      console.log('Chart: Ensuring fresh data on initialization');
+      console.log(`Chart: Instance ${instanceId} set as active`);
       
       // Notify parent component that dataFeed is ready
       if (onDataFeedReady && dataFeed) {
@@ -282,7 +289,7 @@
       }
       
       // IMPORTANT: Subscribe IMMEDIATELY before any data arrives
-      dataFeed.subscribe('chart', (candle, isNew, metadata) => {
+      dataFeed.subscribe(instanceId, (candle, isNew, metadata) => {
         console.log('Chart: Received candle update', { 
           time: new Date(candle.time * 1000).toISOString(),
           price: candle.close,
@@ -661,10 +668,11 @@
         console.log(`Fetching ALL available 1m data for paper trading...`);
         // Load a much wider range to get all accumulated candles
         const extendedStartTime = alignedNow - (7 * 24 * 60 * 60); // 7 days of data
-        dataToLoad = await dataFeed.getDataForVisibleRange(extendedStartTime, alignedNow);
+        // Use progressive loading for faster initial render
+        dataToLoad = await dataFeed.loadProgressiveData(extendedStartTime, alignedNow, effectiveGranularity, instanceId);
       } else {
         console.log(`Fetching data from ${new Date(dataStartTime * 1000).toISOString()} to ${new Date(alignedNow * 1000).toISOString()}`);
-        dataToLoad = await dataFeed.getDataForVisibleRange(dataStartTime, alignedNow);
+        dataToLoad = await dataFeed.getDataForVisibleRange(dataStartTime, alignedNow, instanceId);
       }
       
       // Load data using the ChartDataFeed API
@@ -941,10 +949,10 @@
         console.log(`Reloading ALL available 1m data for paper trading...`);
         // Load a much wider range to get all accumulated candles
         const extendedStartTime = alignedNow - (7 * 24 * 60 * 60); // 7 days of data
-        dataToLoad = await dataFeed.getDataForVisibleRange(extendedStartTime, alignedNow);
+        dataToLoad = await dataFeed.getDataForVisibleRange(extendedStartTime, alignedNow, instanceId);
       } else {
         console.log(`Loading ${period} data with ${effectiveGranularity} candles...`);
-        dataToLoad = await dataFeed.getDataForVisibleRange(startTime, alignedNow);
+        dataToLoad = await dataFeed.getDataForVisibleRange(startTime, alignedNow, instanceId);
       }
       const data = dataToLoad;
       
@@ -1338,7 +1346,9 @@
     //   redisUnsubscribe();
     // }
     if (dataFeed) {
-      dataFeed.unsubscribe('chart');
+      dataFeed.unsubscribe(instanceId);
+      dataFeed.clearActiveInstance();
+      console.log(`Chart: Instance ${instanceId} cleaned up`);
       // Don't disconnect - singleton persists across navigation
       // dataFeed.disconnect();
     }

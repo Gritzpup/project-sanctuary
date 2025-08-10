@@ -25,6 +25,11 @@ export class ChartDataFeed {
   private subscribers: Map<string, (data: CandleData, isNew?: boolean, metadata?: any) => void> = new Map();
   private realtimeUnsubscribe: (() => void) | null = null;
   
+  // Instance tracking for preventing cross-contamination
+  private activeInstanceId: string | null = null;
+  private pendingLoadOperations: Map<string, AbortController> = new Map();
+  private instanceLoadCounts: Map<string, number> = new Map();
+  
   // Current state
   private symbol = 'BTC-USD';
   private currentGranularity = '1m';
@@ -74,6 +79,45 @@ export class ChartDataFeed {
     this.setupWebSocket();
     
     this.startBackgroundLoading();
+    
+    // Start background cache pruning (non-blocking)
+    this.startBackgroundCachePruning();
+  }
+
+  // Instance management methods
+  setActiveInstance(instanceId: string) {
+    if (this.activeInstanceId && this.activeInstanceId !== instanceId) {
+      console.log(`ChartDataFeed: Switching from instance ${this.activeInstanceId} to ${instanceId}`);
+      // Abort any pending operations for the old instance
+      this.abortPendingOperations();
+    }
+    this.activeInstanceId = instanceId;
+    
+    // Track load count for this instance
+    const currentCount = this.instanceLoadCounts.get(instanceId) || 0;
+    this.instanceLoadCounts.set(instanceId, currentCount + 1);
+    
+    console.log(`ChartDataFeed: Active instance set to ${instanceId} (load count: ${currentCount + 1})`);
+  }
+
+  clearActiveInstance() {
+    if (this.activeInstanceId) {
+      console.log(`ChartDataFeed: Clearing active instance ${this.activeInstanceId}`);
+      this.abortPendingOperations();
+      this.activeInstanceId = null;
+    }
+  }
+
+  private abortPendingOperations() {
+    console.log(`ChartDataFeed: Aborting ${this.pendingLoadOperations.size} pending operations`);
+    this.pendingLoadOperations.forEach((controller, key) => {
+      controller.abort();
+    });
+    this.pendingLoadOperations.clear();
+  }
+
+  private isCurrentInstance(instanceId: string): boolean {
+    return this.activeInstanceId === instanceId;
   }
 
   public static getInstance(): ChartDataFeed {
@@ -98,35 +142,68 @@ export class ChartDataFeed {
   }
 
   private async startBackgroundLoading() {
-    // Start loading historical data in the background
-    
-    // Only load minimal data on startup to avoid rate limits
-    const priorityLoads = [
-      { granularity: '1m', days: 0.042 },    // 1 hour of 1m data (60 candles) - covers 1H view exactly
-      { granularity: '5m', days: 0.5 },     // 12 hours of 5m data (144 candles)
-      { granularity: '1h', days: 2.5 },     // 2.5 days of 1h data (60 candles) - covers 1H view exactly
-      { granularity: '1D', days: 90 }       // 90 days of daily data (90 candles) - covers 1M and 3M views
-    ];
-    
-    // Load priority data sequentially to avoid rate limits
-    const loadSequentially = async () => {
-      for (const load of priorityLoads) {
-        try {
-          await this.loadHistoricalData(load.granularity, load.days);
-          // Small delay between different granularities
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        } catch (error) {
-          console.error(`Failed to load ${load.days} days of ${load.granularity} data:`, error);
-        }
+    // Skip background loading - load data on demand to optimize initial load time
+    console.log('ChartDataFeed: Background loading disabled for faster initial load');
+  }
+
+  // Background cache pruning to keep cache size manageable
+  private startBackgroundCachePruning() {
+    // Run cache pruning every 5 minutes
+    setInterval(async () => {
+      try {
+        console.log('ChartDataFeed: Running background cache pruning...');
+        await this.cache.pruneOldData();
+      } catch (error) {
+        console.error('ChartDataFeed: Error during cache pruning:', error);
       }
-      
-      // Don't start progressive loader - only load on demand
-      // this.loader.startProgressiveLoad(this.symbol);
-      console.log('Priority data loading complete');
-    };
+    }, 5 * 60 * 1000); // 5 minutes
+  }
+
+  // Progressive data loading for fast initial render
+  async loadProgressiveData(startTime: number, endTime: number, granularity: string, instanceId: string): Promise<CandleData[]> {
+    console.log(`ChartDataFeed: Progressive load for ${granularity} - instance ${instanceId}`);
     
-    // Start loading in background (don't await)
-    loadSequentially().catch(console.error);
+    // Check if this is still the active instance
+    if (!this.isCurrentInstance(instanceId)) {
+      console.log(`ChartDataFeed: Aborting progressive load - instance ${instanceId} is no longer active`);
+      return [];
+    }
+    
+    // For 1m granularity, prioritize loading the visible range first
+    if (granularity === '1m') {
+      // Load visible range first (last 60-240 candles)
+      const visibleRangeSeconds = endTime - startTime;
+      const recentStartTime = Math.max(startTime, endTime - Math.min(visibleRangeSeconds, 14400)); // Max 4 hours
+      
+      console.log(`ChartDataFeed: Loading recent ${granularity} data first...`);
+      const recentData = await this.cache.getCachedCandles(
+        this.symbol,
+        granularity,
+        recentStartTime,
+        endTime
+      );
+      
+      // If we have recent data, return it immediately
+      if (recentData.candles.length > 0) {
+        console.log(`ChartDataFeed: Returning ${recentData.candles.length} recent candles immediately`);
+        this.currentData = recentData.candles;
+        
+        // Load the rest in background
+        if (startTime < recentStartTime) {
+          setTimeout(async () => {
+            if (this.isCurrentInstance(instanceId)) {
+              console.log(`ChartDataFeed: Loading historical data in background...`);
+              await this.loadHistoricalData(granularity, Math.ceil((endTime - startTime) / 86400), instanceId);
+            }
+          }, 100);
+        }
+        
+        return recentData.candles;
+      }
+    }
+    
+    // Fall back to regular loading
+    return this.getCurrentDataForRange(startTime, endTime, instanceId);
   }
 
   private setupWebSocket() {
@@ -141,6 +218,10 @@ export class ChartDataFeed {
       
       // Always process updates for real-time price display
       if (update.symbol === this.symbol) {
+        // Skip updates if we don't have an active instance
+        if (!this.activeInstanceId) {
+          return;
+        }
         // Convert CandlestickData to CandleData
         const candleData: CandleData = {
           time: update.candle.time as number,
@@ -175,13 +256,16 @@ export class ChartDataFeed {
               
               // Notify chart to adjust viewport to show recent candles
               // The chart will slide its view window, not remove data
-              this.subscribers.forEach(callback => {
+              this.subscribers.forEach((callback, subscriberId) => {
                 try {
-                  callback(candleData, update.isNewCandle, {
-                    viewportUpdate: true,
-                    totalCandles: this.currentData.length,
-                    latestTime: candleData.time
-                  });
+                  // Only notify if subscriber ID matches active instance
+                  if (subscriberId.startsWith(this.activeInstanceId!)) {
+                    callback(candleData, update.isNewCandle, {
+                      viewportUpdate: true,
+                      totalCandles: this.currentData.length,
+                      latestTime: candleData.time
+                    });
+                  }
                 } catch (error) {
                   console.error('ChartDataFeed: Error in subscriber callback (viewport update):', error);
                 }
@@ -214,9 +298,12 @@ export class ChartDataFeed {
           
           // Notify subscribers with the candle update
           console.log(`ChartDataFeed: Notifying ${this.subscribers.size} subscribers for 1m update`);
-          this.subscribers.forEach(callback => {
+          this.subscribers.forEach((callback, subscriberId) => {
             try {
-              callback(candleData, update.isNewCandle);
+              // Only notify if subscriber ID matches active instance
+              if (subscriberId.startsWith(this.activeInstanceId!)) {
+                callback(candleData, update.isNewCandle);
+              }
             } catch (error) {
               console.error('ChartDataFeed: Error in subscriber callback:', error);
             }
@@ -245,9 +332,12 @@ export class ChartDataFeed {
             
             // Notify subscribers with the updated candle
             console.log(`ChartDataFeed: Notifying ${this.subscribers.size} subscribers for ${this.currentGranularity} update`);
-            this.subscribers.forEach(callback => {
+            this.subscribers.forEach((callback, subscriberId) => {
               try {
-                callback(updatedCandle, false);
+                // Only notify if subscriber ID matches active instance
+                if (subscriberId.startsWith(this.activeInstanceId!)) {
+                  callback(updatedCandle, false);
+                }
               } catch (error) {
                 console.error('ChartDataFeed: Error in subscriber callback:', error);
               }
@@ -275,7 +365,12 @@ export class ChartDataFeed {
   }
 
   // Get data for visible range with smooth transitions
-  async getDataForVisibleRange(startTime: number, endTime: number): Promise<CandleData[]> {
+  async getDataForVisibleRange(startTime: number, endTime: number, instanceId?: string): Promise<CandleData[]> {
+    // Check if this is still the active instance
+    if (instanceId && !this.isCurrentInstance(instanceId)) {
+      console.log(`ChartDataFeed: Skipping visible range fetch - instance ${instanceId} is no longer active`);
+      return [];
+    }
     
     this.visibleRange = { start: startTime, end: endTime };
     
@@ -293,7 +388,7 @@ export class ChartDataFeed {
     }
     
     // Return current data immediately (no jarring transitions)
-    const data = await this.getCurrentDataForRange(startTime, endTime);
+    const data = await this.getCurrentDataForRange(startTime, endTime, instanceId);
     return data;
   }
   
@@ -349,7 +444,12 @@ export class ChartDataFeed {
   }
   
   // Get current data for the visible range
-  private async getCurrentDataForRange(startTime: number, endTime: number): Promise<CandleData[]> {
+  private async getCurrentDataForRange(startTime: number, endTime: number, instanceId?: string): Promise<CandleData[]> {
+    // Check if this is still the active instance
+    if (instanceId && !this.isCurrentInstance(instanceId)) {
+      console.log(`ChartDataFeed: Skipping data range fetch - instance ${instanceId} is no longer active`);
+      return [];
+    }
     
     // In 1m mode with real-time data, return existing data if we have it
     if (this.currentGranularity === '1m' && this.currentData.length > 0) {
@@ -380,7 +480,7 @@ export class ChartDataFeed {
     // For very long time ranges (1Y, 5Y), ensure we have the data loaded
     const rangeInDays = (endTime - startTime) / 86400;
     if (rangeInDays > 180 && this.activeGranularity === '1D') {
-      await this.loadHistoricalData('1D', Math.ceil(rangeInDays));
+      await this.loadHistoricalData('1D', Math.ceil(rangeInDays), instanceId);
     }
     
     // Get data from cache
@@ -396,7 +496,7 @@ export class ChartDataFeed {
     // Fill gaps if any
     if (cacheResult.gaps.length > 0) {
       console.log(`ChartDataFeed: Found ${cacheResult.gaps.length} gaps, filling...`);
-      await this.fillGaps(cacheResult.gaps, this.activeGranularity);
+      await this.fillGaps(cacheResult.gaps, this.activeGranularity, instanceId);
       
       // Re-fetch from cache after filling gaps
       const updatedResult = await this.cache.getCachedCandles(
@@ -421,7 +521,7 @@ export class ChartDataFeed {
     if (this.currentData.length === 0) {
       console.log('ChartDataFeed: No data after cache check, forcing load...');
       const days = Math.ceil((endTime - startTime) / 86400) + 1;
-      await this.loadHistoricalData(this.activeGranularity, days);
+      await this.loadHistoricalData(this.activeGranularity, days, instanceId);
       
       // Try cache again
       const finalResult = await this.cache.getCachedCandles(
@@ -447,7 +547,7 @@ export class ChartDataFeed {
     
     // Preload next coarser granularity in background
     setTimeout(() => {
-      this.loadHistoricalData(threshold.preloadNext!, 7);
+      this.loadHistoricalData(threshold.preloadNext!, 7, this.activeInstanceId || undefined);
     }, 1000);
     
     // Also preload previous finer granularity
@@ -456,13 +556,18 @@ export class ChartDataFeed {
     if (currentIndex > 0) {
       const prevGranularity = this.granularityThresholds[currentIndex - 1].granularity;
       setTimeout(() => {
-        this.loadHistoricalData(prevGranularity, 7);
+        this.loadHistoricalData(prevGranularity, 7, this.activeInstanceId || undefined);
       }, 1500);
     }
   }
 
   // Fill gaps in data
-  private async fillGaps(gaps: Array<{ start: number; end: number }>, granularity: string): Promise<void> {
+  private async fillGaps(gaps: Array<{ start: number; end: number }>, granularity: string, instanceId?: string): Promise<void> {
+    // Check if this is still the active instance
+    if (instanceId && !this.isCurrentInstance(instanceId)) {
+      console.log(`ChartDataFeed: Skipping gap fill - instance ${instanceId} is no longer active`);
+      return;
+    }
     console.log(`[FILL GAPS] Received ${gaps.length} gaps for ${granularity}:`, {
       gaps: gaps.slice(0, 5).map(g => ({
         start: new Date(g.start * 1000).toISOString(),
@@ -502,7 +607,7 @@ export class ChartDataFeed {
           return this.loadingPromises.get(key);
         }
         
-        const promise = this.fetchGapData(gap, granularity);
+        const promise = this.fetchGapData(gap, granularity, instanceId);
         this.loadingPromises.set(key, promise);
         
         try {
@@ -524,7 +629,12 @@ export class ChartDataFeed {
     }
   }
 
-  private async fetchGapData(gap: { start: number; end: number }, granularity: string): Promise<void> {
+  private async fetchGapData(gap: { start: number; end: number }, granularity: string, instanceId?: string): Promise<void> {
+    // Check if this is still the active instance
+    if (instanceId && !this.isCurrentInstance(instanceId)) {
+      console.log(`ChartDataFeed: Skipping gap data fetch - instance ${instanceId} is no longer active`);
+      return;
+    }
     try {
       // Validate time range
       const validatedRange = this.validateTimeRange(gap.start, gap.end);
@@ -567,6 +677,13 @@ export class ChartDataFeed {
         
         if (candles.length > 0) {
           console.log(`Fetched ${candles.length} candles for chunk`);
+          
+          // Check again before storing data
+          if (instanceId && !this.isCurrentInstance(instanceId)) {
+            console.log(`ChartDataFeed: Aborting gap data store - instance ${instanceId} is no longer active`);
+            return;
+          }
+          
           await this.cache.storeChunk(this.symbol, granularity, candles);
           consecutiveEmptyResponses = 0; // Reset counter
           
@@ -603,11 +720,32 @@ export class ChartDataFeed {
   }
 
   // Load historical data for a specific period
-  async loadHistoricalData(granularity: string, days: number): Promise<void> {
-    const endTime = Math.floor(Date.now() / 1000);
-    const startTime = Math.floor(endTime - Math.floor(days * 86400));
+  async loadHistoricalData(granularity: string, days: number, instanceId?: string): Promise<void> {
+    // Create abort controller for this operation
+    const operationKey = `load-${granularity}-${days}-${Date.now()}`;
+    const abortController = new AbortController();
     
-    console.log(`Loading ${days} days of ${granularity} data`);
+    if (instanceId) {
+      this.pendingLoadOperations.set(operationKey, abortController);
+    }
+
+    try {
+      const endTime = Math.floor(Date.now() / 1000);
+      const startTime = Math.floor(endTime - Math.floor(days * 86400));
+      
+      console.log(`Loading ${days} days of ${granularity} data`);
+      
+      // Check if operation was aborted
+      if (abortController.signal.aborted) {
+        console.log(`ChartDataFeed: Load operation aborted for ${granularity}`);
+        return;
+      }
+      
+      // Check if this is still the active instance
+      if (instanceId && !this.isCurrentInstance(instanceId)) {
+        console.log(`ChartDataFeed: Skipping historical data load - instance ${instanceId} is no longer active`);
+        return;
+      }
     
     // Check cache first
     const cacheResult = await this.cache.getCachedCandles(
@@ -624,9 +762,20 @@ export class ChartDataFeed {
     
     console.log(`Cache coverage: ${(100 - gapPercentage).toFixed(1)}% (${cacheResult.candles.length} candles, ${cacheResult.gaps.length} gaps)`);
     
-    // Only fetch if we're missing more than 10% of data
-    if (cacheResult.gaps.length > 0 && gapPercentage > 10) {
-      await this.fillGaps(cacheResult.gaps, granularity);
+      // Only fetch if we're missing more than 10% of data
+      if (cacheResult.gaps.length > 0 && gapPercentage > 10) {
+        // Check again before filling gaps
+        if (instanceId && !this.isCurrentInstance(instanceId)) {
+          console.log(`ChartDataFeed: Skipping gap fill - instance ${instanceId} is no longer active`);
+          return;
+        }
+        await this.fillGaps(cacheResult.gaps, granularity, instanceId);
+      }
+    } finally {
+      // Clean up abort controller
+      if (instanceId) {
+        this.pendingLoadOperations.delete(operationKey);
+      }
     }
   }
 
