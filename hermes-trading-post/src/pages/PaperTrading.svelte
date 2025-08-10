@@ -274,7 +274,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
       if (savedState) {
         try {
           const state = JSON.parse(savedState);
-          console.log('PaperTrading: Found saved state, restoring UI settings only');
+          console.log('PaperTrading: Found saved state, restoring...');
           
           // Use strategyTypeKey if available, otherwise fall back to strategyType
           selectedStrategyType = state.strategyTypeKey || state.strategyType || selectedStrategyType;
@@ -291,9 +291,27 @@ export class ${getStrategyFileName(type)} extends Strategy {
           }
           
           // Restore saved state in the service to load trades/positions
-          paperTradingService.restoreFromSavedState();
+          const restored = paperTradingService.restoreFromSavedState();
           
-          // Show the saved data in UI (trades, positions, etc) without starting
+          if (restored) {
+            // Check if trading was running and should be resumed
+            const status = paperTradingService.getStatus();
+            if (status.isRunning) {
+              console.log('PaperTrading: Resuming trading from saved state');
+              isRunning = true;
+              
+              // Start status updates
+              statusInterval = setInterval(updateStatus, 1000);
+              
+              // Wait for chart to be ready then start data feed
+              await new Promise(resolve => setTimeout(resolve, 500));
+              if (chartDataFeed) {
+                startDataFeedToStrategy();
+              }
+            }
+          }
+          
+          // Show the saved data in UI (trades, positions, etc)
           updateStatus();
         } catch (error) {
           console.error('Failed to parse saved state:', error);

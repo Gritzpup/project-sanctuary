@@ -148,10 +148,10 @@ class PaperTradingService {
       };
       strategy.setState(strategyState);
       
-      // Update our state - restore data but don't auto-start trading
+      // Update our state - restore everything including running state
       this.state.update(s => ({
         ...s,
-        isRunning: false, // Don't auto-start, user must click button
+        isRunning: savedState.isRunning, // Preserve the running state
         strategy,
         balance: savedState.balance,
         trades: savedState.trades,
@@ -198,7 +198,7 @@ class PaperTradingService {
 
   start(strategy: Strategy, symbol: string = 'BTC-USD', initialBalance: number = 10000): void {
     // Check if already running with same strategy - avoid re-initialization
-    const currentState = this.state.value;
+    const currentState = get(this.state);
     if (currentState.isRunning && currentState.strategy && 
         currentState.strategy.getName() === strategy.getName()) {
       console.log('Paper trading already running with same strategy, skipping re-initialization');
