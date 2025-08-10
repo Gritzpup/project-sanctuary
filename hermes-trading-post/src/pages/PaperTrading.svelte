@@ -221,9 +221,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
   onMount(async () => {
     console.log('PaperTrading: Component mounted');
     
-    // Service auto-restores in constructor, so just check current status
+    // Wait for service restoration to complete
+    await paperTradingService.waitForRestoration();
+    console.log('PaperTrading: Restoration complete');
+    
+    // Now check current status
     const status = paperTradingService.getStatus();
-    console.log('PaperTrading: Service status after auto-restore:', status);
+    console.log('PaperTrading: Service status after restoration:', status);
     
     // Update UI with current state
     updateStatus();

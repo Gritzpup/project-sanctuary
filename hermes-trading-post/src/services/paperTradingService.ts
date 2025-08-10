@@ -39,6 +39,7 @@ class PaperTradingService {
   private feePercent: number = 0.1;
   private botId: string | null = null;
   private asset: string = 'BTC';
+  private restorationPromise: Promise<boolean> | null = null;
 
   constructor() {
     this.state = writable<PaperTradingState>({
@@ -76,11 +77,17 @@ class PaperTradingService {
     
     // Attempt to restore state immediately on service creation
     // This ensures state is available as soon as the service is created
-    this.restoreFromSavedState();
+    this.restorationPromise = this.restoreFromSavedState();
   }
 
   getState(): Writable<PaperTradingState> {
     return this.state;
+  }
+  
+  async waitForRestoration(): Promise<void> {
+    if (this.restorationPromise) {
+      await this.restorationPromise;
+    }
   }
   
   private saveState(): void {
@@ -107,12 +114,24 @@ class PaperTradingService {
     paperTradingPersistence.saveState(persistentState);
   }
   
-  restoreFromSavedState(): boolean {
+  async restoreFromSavedState(): Promise<boolean> {
+    console.log('PaperTradingService: Starting restoration');
     const savedState = paperTradingPersistence.loadState();
-    if (!savedState) return false;
+    if (!savedState) {
+      console.log('PaperTradingService: No saved state found');
+      return false;
+    }
     
-    // Import strategy classes to recreate strategy
-    import('../strategies').then((strategies) => {
+    console.log('PaperTradingService: Found saved state:', {
+      isRunning: savedState.isRunning,
+      strategyType: savedState.strategyType,
+      tradesCount: savedState.trades.length,
+      positionsCount: savedState.positions.length
+    });
+    
+    try {
+      // Import strategy classes to recreate strategy
+      const strategies = await import('../strategies');
       let strategy: Strategy | null = null;
       
       // Map strategy names to classes
@@ -140,10 +159,10 @@ class PaperTradingService {
           break;
         default:
           console.error('Strategy not found:', savedState.strategyType);
-          return;
+          return false;
       }
       
-      if (!strategy) return;
+      if (!strategy) return false;
       
       // Restore strategy state
       const strategyState: StrategyState = {
@@ -171,9 +190,12 @@ class PaperTradingService {
       }));
       
       // Recalculate performance metrics on next candle update
-    });
-    
-    return true;
+      console.log('PaperTradingService: State restored successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to restore state:', error);
+      return false;
+    }
   }
   
   getStatus() {
