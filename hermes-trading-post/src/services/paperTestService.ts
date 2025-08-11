@@ -11,10 +11,12 @@ export interface PaperTestOptions {
   candleSeries: ISeriesApi<'Candlestick'>;
   dataFeed: ChartDataFeed;
   granularity: string;
+  initialDisplayCandles?: number;
   onProgress?: (progress: number) => void;
   onTrade?: (trade: any) => void;
   onComplete?: (results: PaperTestResults) => void;
   onCandle?: (candle: CandleData) => void;
+  onPositionUpdate?: (positions: any[], balance: number, btcBalance: number) => void;
 }
 
 export interface PaperTestResults {
@@ -38,10 +40,23 @@ export class PaperTestService {
   private balance: number = 0;
   private btcBalance: number = 0;
   private positions: any[] = [];
+  private dataFeed: ChartDataFeed | null = null;
+  private processedCandles: CandleData[] = []; // Candles fed to strategy so far
+  private currentOptions: PaperTestOptions | null = null;
+  
+  // Playback control
+  private playbackSpeed: number = 1; // Speed multiplier
+  private isPaused: boolean = false;
+  private pausedAtProgress: number = 0;
+  private animationStartTime: number = 0;
+  private totalElapsedBeforePause: number = 0;
+  
+  // Chart markers
+  private markers: any[] = [];
   
   // Constants
-  private readonly SIMULATION_DURATION = 30000; // 30 seconds
-  private readonly TIME_MULTIPLIER = 2880; // 24 hours in 30 seconds
+  private readonly BASE_SIMULATION_DURATION = 60000; // 60 seconds at 1x speed
+  private readonly TIME_MULTIPLIER = 1440; // 24 hours in 60 seconds
   
   async start(options: PaperTestOptions): Promise<void> {
     if (this.isRunning) return;
@@ -51,8 +66,13 @@ export class PaperTestService {
     this.balance = options.initialBalance;
     this.btcBalance = 0;
     this.positions = [];
+    this.currentCandleIndex = 0;
+    this.dataFeed = options.dataFeed;
     
     try {
+      // Set the paper-test instance as active
+      options.dataFeed.setActiveInstance('paper-test');
+      
       // Load historical data for the selected date
       const startOfDay = new Date(options.date);
       startOfDay.setHours(0, 0, 0, 0);
@@ -64,22 +84,102 @@ export class PaperTestService {
       this.currentSimTime = this.startTime;
       
       console.log('Loading historical data for:', startOfDay.toISOString(), 'to', endOfDay.toISOString());
+      console.log('Using granularity:', options.granularity);
+      console.log('Start timestamp:', this.startTime, 'End timestamp:', this.endTime);
+      console.log('Date range:', new Date(this.startTime * 1000).toISOString(), 'to', new Date(this.endTime * 1000).toISOString());
       
-      // Fetch all candles for the day
+      // First, ensure we have the data loaded for this period
+      const daysFromNow = Math.ceil((Date.now() / 1000 - this.startTime) / 86400);
+      console.log(`Date is ${daysFromNow} days ago from now`);
+      
+      // Set the data feed to use the correct granularity
+      options.dataFeed.setGranularity(options.granularity);
+      
+      // Load historical data if needed - only load 2 days to cover the selected date
+      if (daysFromNow > 0) {
+        console.log(`Loading 2 days of historical data for ${options.granularity} to cover the selected date`);
+        await options.dataFeed.loadHistoricalData(options.granularity, 2, 'paper-test');
+      }
+      
+      // Use getDataForVisibleRange which is a public method
+      console.log('Fetching data for visible range...');
       this.candles = await options.dataFeed.getDataForVisibleRange(
-        this.startTime, 
+        this.startTime,
         this.endTime,
         'paper-test'
       );
       
+      console.log('Total candles loaded:', this.candles.length);
+      
+      // If still no data, try progressive load as a fallback
       if (this.candles.length === 0) {
-        throw new Error('No data available for selected date');
+        console.log('No data from visible range, trying progressive load...');
+        this.candles = await options.dataFeed.loadProgressiveData(
+          this.startTime, 
+          this.endTime,
+          options.granularity,
+          'paper-test'
+        );
+        console.log('Progressive load returned:', this.candles.length, 'candles');
       }
       
-      console.log(`Loaded ${this.candles.length} candles for Paper Test`);
+      if (this.candles.length === 0) {
+        const now = new Date();
+        const daysSinceDate = Math.floor((now.getTime() - options.date.getTime()) / (24 * 60 * 60 * 1000));
+        
+        let errorMsg = `No data available for ${options.date.toLocaleDateString()}`;
+        
+        // Provide helpful suggestions based on how old the date is
+        if (daysSinceDate < 0) {
+          errorMsg += `. Cannot test future dates. Please select a past date.`;
+        } else if (daysSinceDate === 0) {
+          errorMsg += `. Today's data may not be complete yet. Try selecting yesterday or an earlier date.`;
+        } else if (daysSinceDate === 1) {
+          errorMsg += `. Yesterday's data might not be fully available yet. Try selecting a date from 2-3 days ago.`;
+        } else if (daysSinceDate > 365) {
+          errorMsg += `. Date is too far in the past (${daysSinceDate} days ago). Try selecting a more recent date within the last year.`;
+        } else {
+          errorMsg += `. This might be a weekend or holiday when markets were closed. Try selecting a weekday.`;
+        }
+        
+        console.error(errorMsg);
+        console.error(`Attempted to load data from ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
+        throw new Error(errorMsg);
+      }
       
-      // Clear the chart and prepare for animation
-      options.candleSeries.setData([]);
+      // Sort candles by time to ensure proper order
+      this.candles.sort((a, b) => a.time - b.time);
+      
+      console.log(`Loaded ${this.candles.length} candles for Paper Test at ${options.granularity} granularity`);
+      console.log('First candle:', new Date(this.candles[0].time * 1000).toISOString());
+      console.log('Last candle:', new Date(this.candles[this.candles.length - 1].time * 1000).toISOString());
+      
+      // Pre-load all candles for the day
+      const chartCandles = this.candles.map(candle => ({
+        time: candle.time as Time,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close
+      }));
+      options.candleSeries.setData(chartCandles);
+      
+      // Set initial visible range to first 60 candles (or less if day has fewer)
+      const initialWindowSize = Math.min(60, this.candles.length);
+      if (initialWindowSize > 0) {
+        options.chart.timeScale().setVisibleRange({
+          from: this.candles[0].time as Time,
+          to: this.candles[initialWindowSize - 1].time as Time
+        });
+      }
+      
+      // Reset processed candles for new test
+      this.processedCandles = [];
+      this.currentOptions = options;
+      this.playbackSpeed = 1;
+      this.isPaused = false;
+      this.totalElapsedBeforePause = 0;
+      this.markers = [];
       
       // Start the time-lapse animation
       this.animate(options);
@@ -87,20 +187,32 @@ export class PaperTestService {
     } catch (error) {
       console.error('Paper Test error:', error);
       this.stop();
+      // Clear the active instance
+      options.dataFeed.clearActiveInstance();
       throw error;
     }
   }
   
   private animate(options: PaperTestOptions): void {
-    const animationStartTime = Date.now();
-    let lastUpdateTime = animationStartTime;
+    this.animationStartTime = Date.now();
+    let lastUpdateTime = this.animationStartTime;
+    
+    // Fixed window size of 60 candles
+    const WINDOW_SIZE = 60;
     
     const step = () => {
       if (!this.isRunning) return;
       
+      if (this.isPaused) {
+        this.animationFrameId = requestAnimationFrame(step);
+        return;
+      }
+      
       const now = Date.now();
-      const elapsed = now - animationStartTime;
-      const progress = Math.min(elapsed / this.SIMULATION_DURATION, 1);
+      const currentElapsed = now - this.animationStartTime;
+      const totalElapsed = this.totalElapsedBeforePause + currentElapsed;
+      const effectiveDuration = this.BASE_SIMULATION_DURATION / this.playbackSpeed;
+      const progress = Math.min(totalElapsed / effectiveDuration, 1);
       
       // Update progress
       if (options.onProgress) {
@@ -111,21 +223,19 @@ export class PaperTestService {
       const dayDuration = this.endTime - this.startTime;
       this.currentSimTime = this.startTime + (dayDuration * progress);
       
-      // Add candles that should be visible at current sim time
-      while (this.currentCandleIndex < this.candles.length) {
+      // Find the current candle index based on simulation time
+      let currentIndex = 0;
+      for (let i = 0; i < this.candles.length; i++) {
+        if (this.candles[i].time <= this.currentSimTime) {
+          currentIndex = i;
+        } else {
+          break;
+        }
+      }
+      
+      // Process new candles
+      while (this.currentCandleIndex <= currentIndex) {
         const candle = this.candles[this.currentCandleIndex];
-        if (candle.time > this.currentSimTime) break;
-        
-        // Add candle to chart
-        const chartCandle = {
-          time: candle.time as Time,
-          open: candle.open,
-          high: candle.high,
-          low: candle.low,
-          close: candle.close
-        };
-        
-        options.candleSeries.update(chartCandle);
         
         // Notify about new candle
         if (options.onCandle) {
@@ -138,16 +248,46 @@ export class PaperTestService {
         this.currentCandleIndex++;
       }
       
-      // Update chart time scale to follow current time
-      if (now - lastUpdateTime > 100) { // Update every 100ms
+      // Update chart display with sliding window effect
+      if (now - lastUpdateTime > 16) { // Update every 16ms for smoother animation
         try {
-          const visibleRange = {
-            from: (this.currentSimTime - 3600) as Time, // Show last hour
-            to: this.currentSimTime as Time
-          };
-          options.chart.timeScale().setVisibleRange(visibleRange);
+          // Update markers to show only those up to current time
+          if (this.markers.length > 0) {
+            const visibleMarkers = this.markers.filter(marker => 
+              marker.time <= this.currentSimTime
+            );
+            options.candleSeries.setMarkers(visibleMarkers);
+          }
+          
+          // Calculate sliding window based on progress
+          // We want the view to smoothly scroll through the day
+          const activeCandleIndex = Math.floor(progress * (this.candles.length - 1));
+          
+          if (this.candles.length > WINDOW_SIZE) {
+            // For days with more than 60 candles, create a sliding window
+            // The window should progress smoothly from start to end
+            const maxStartIndex = this.candles.length - WINDOW_SIZE;
+            const windowStart = Math.floor(progress * maxStartIndex);
+            const windowEnd = windowStart + WINDOW_SIZE - 1;
+            
+            const visibleRange = {
+              from: this.candles[windowStart].time as Time,
+              to: this.candles[windowEnd].time as Time
+            };
+            
+            options.chart.timeScale().setVisibleRange(visibleRange);
+          } else {
+            // For days with 60 or fewer candles, show all
+            const visibleRange = {
+              from: this.candles[0].time as Time,
+              to: this.candles[this.candles.length - 1].time as Time
+            };
+            
+            options.chart.timeScale().setVisibleRange(visibleRange);
+          }
         } catch (e) {
           // Ignore time scale errors
+          console.warn('Time scale update error:', e);
         }
         lastUpdateTime = now;
       }
@@ -166,19 +306,28 @@ export class PaperTestService {
     // Update current price
     const currentPrice = candle.close;
     
-    // Feed candle to strategy
-    const signals = options.strategy.analyze({
-      price: currentPrice,
-      volume: 0, // No volume data in our candles
-      timestamp: candle.time * 1000,
-      candle: candle
-    });
+    // Add candle to processed list
+    this.processedCandles.push(candle);
     
-    // Process signals
-    if (signals.action === 'buy' && signals.amount && signals.price) {
-      this.executeBuy(signals.amount, signals.price, candle.time, options);
-    } else if (signals.action === 'sell' && signals.amount && signals.price) {
-      this.executeSell(signals.amount, signals.price, candle.time, options);
+    // Check if we have enough historical data for the strategy
+    const requiredData = options.strategy.getRequiredHistoricalData();
+    if (this.processedCandles.length < requiredData) {
+      return; // Not enough data yet
+    }
+    
+    // Feed candles array and current price to strategy
+    const signal = options.strategy.analyze(this.processedCandles, currentPrice);
+    
+    // Process signal based on type
+    if (signal.type === 'buy') {
+      // Calculate position size based on available balance
+      const size = options.strategy.calculatePositionSize(this.balance, signal, currentPrice);
+      if (size > 0) {
+        const amount = size * currentPrice;
+        this.executeBuy(amount, currentPrice, candle.time, options);
+      }
+    } else if (signal.type === 'sell' && signal.size) {
+      this.executeSell(signal.size, currentPrice, candle.time, options);
     }
     
     // Update positions with current price
@@ -211,6 +360,20 @@ export class PaperTestService {
     
     if (options.onTrade) {
       options.onTrade(trade);
+    }
+    
+    // Add visual marker on chart
+    this.markers.push({
+      time: timestamp as Time,
+      position: 'belowBar' as const,
+      shape: 'arrowUp' as const,
+      color: '#26a69a',
+      text: 'B'
+    });
+    
+    // Update position callback
+    if (options.onPositionUpdate) {
+      options.onPositionUpdate(this.positions, this.balance, this.btcBalance);
     }
   }
   
@@ -259,6 +422,23 @@ export class PaperTestService {
     if (options.onTrade) {
       options.onTrade(trade);
     }
+    
+    // Add visual marker on chart
+    this.markers.push({
+      time: timestamp as Time,
+      position: 'aboveBar' as const,
+      shape: 'arrowDown' as const,
+      color: '#ef5350',
+      text: 'S'
+    });
+    
+    // Play coin sound for successful sell
+    this.playCoinSound();
+    
+    // Update position callback
+    if (options.onPositionUpdate) {
+      options.onPositionUpdate(this.positions, this.balance, this.btcBalance);
+    }
   }
   
   private updatePositions(currentPrice: number): void {
@@ -266,6 +446,11 @@ export class PaperTestService {
     this.positions.forEach(pos => {
       pos.unrealizedPnL = (currentPrice - pos.entryPrice) * pos.size;
     });
+    
+    // Update position callback
+    if (this.currentOptions?.onPositionUpdate) {
+      this.currentOptions.onPositionUpdate(this.positions, this.balance, this.btcBalance);
+    }
   }
   
   private complete(options: PaperTestOptions): void {
@@ -313,18 +498,139 @@ export class PaperTestService {
     if (options.onComplete) {
       options.onComplete(results);
     }
+    
+    // Clear the active instance after completion
+    if (this.dataFeed) {
+      this.dataFeed.clearActiveInstance();
+      this.dataFeed = null;
+    }
   }
   
   stop(): void {
     this.isRunning = false;
+    this.isPaused = false;
+    this.playbackSpeed = 1;
+    this.totalElapsedBeforePause = 0;
+    this.currentOptions = null;
+    this.markers = [];
+    
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
+    }
+    // Clear the active instance
+    if (this.dataFeed) {
+      this.dataFeed.clearActiveInstance();
+      this.dataFeed = null;
     }
   }
   
   isActive(): boolean {
     return this.isRunning;
+  }
+  
+  isPausedState(): boolean {
+    return this.isPaused;
+  }
+  
+  getPlaybackSpeed(): number {
+    return this.playbackSpeed;
+  }
+  
+  // Playback control methods
+  setPlaybackSpeed(speed: number): void {
+    if (this.isPaused) {
+      this.playbackSpeed = speed;
+    } else {
+      // If running, pause briefly to recalculate timing
+      const wasRunning = !this.isPaused;
+      if (wasRunning) {
+        this.pause();
+        this.playbackSpeed = speed;
+        this.resume();
+      }
+    }
+  }
+  
+  pause(): void {
+    if (!this.isRunning || this.isPaused) return;
+    
+    this.isPaused = true;
+    const elapsed = Date.now() - this.animationStartTime;
+    this.totalElapsedBeforePause += elapsed;
+  }
+  
+  resume(): void {
+    if (!this.isRunning || !this.isPaused) return;
+    
+    this.isPaused = false;
+    this.animationStartTime = Date.now();
+  }
+  
+  stepForward(): void {
+    if (!this.isRunning || !this.isPaused || !this.currentOptions) return;
+    
+    // Process one candle forward
+    if (this.currentCandleIndex < this.candles.length) {
+      const candle = this.candles[this.currentCandleIndex];
+      
+      // Update current simulation time
+      this.currentSimTime = candle.time;
+      
+      // Notify about new candle
+      if (this.currentOptions.onCandle) {
+        this.currentOptions.onCandle(candle);
+      }
+      
+      // Run strategy on this candle
+      this.processCandle(candle, this.currentOptions);
+      
+      this.currentCandleIndex++;
+      
+      // Update progress
+      const progress = (this.currentCandleIndex / this.candles.length);
+      if (this.currentOptions.onProgress) {
+        this.currentOptions.onProgress(progress * 100);
+      }
+      
+      // Update visible range and markers
+      const WINDOW_SIZE = 60;
+      try {
+        // Update markers to show only those up to current time
+        if (this.markers.length > 0) {
+          const visibleMarkers = this.markers.filter(marker => 
+            marker.time <= this.currentSimTime
+          );
+          this.currentOptions.candleSeries.setMarkers(visibleMarkers);
+        }
+        
+        if (this.candles.length > WINDOW_SIZE) {
+          // For days with more than 60 candles, create a sliding window
+          const maxStartIndex = this.candles.length - WINDOW_SIZE;
+          const windowStart = Math.floor(progress * maxStartIndex);
+          const windowEnd = windowStart + WINDOW_SIZE - 1;
+          
+          const visibleRange = {
+            from: this.candles[windowStart].time as Time,
+            to: this.candles[windowEnd].time as Time
+          };
+          
+          this.currentOptions.chart.timeScale().setVisibleRange(visibleRange);
+        }
+      } catch (e) {
+        console.warn('Time scale update error in stepForward:', e);
+      }
+    }
+  }
+  
+  private playCoinSound(): void {
+    try {
+      const audio = new Audio('/sounds/coin-drop.mp3');
+      audio.volume = 0.3;
+      audio.play().catch(e => console.log('Coin sound play failed:', e));
+    } catch (e) {
+      console.log('Failed to create audio:', e);
+    }
   }
 }
 

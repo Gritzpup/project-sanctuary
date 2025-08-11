@@ -18,8 +18,6 @@
   export let onDataFeedReady: ((feed: ChartDataFeed) => void) | undefined = undefined;
   export let trades: Array<{timestamp: number, type: string, price: number}> = [];
   export let autoScroll: boolean = true;  // Enable auto-scrolling to new candles by default
-  export let isPaperTrading: boolean = false;  // Enable Paper Test button in paper trading mode
-  export let onPaperTest: ((date: Date) => void) | undefined = undefined;  // Callback for Paper Test
   export let onChartReady: ((chart: IChartApi, candleSeries: ISeriesApi<'Candlestick'>) => void) | undefined = undefined;  // Callback when chart is ready
   
   // Generate unique instance ID for this chart component
@@ -1326,15 +1324,6 @@
       // errorMessage = 'Failed to clear cache: ' + (error as Error).message;
     }
   }
-  
-  // Handle Paper Test button click
-  function handlePaperTest() {
-    if (onPaperTest) {
-      // For now, just call the callback with today's date
-      // The parent component will handle showing the calendar
-      onPaperTest(new Date());
-    }
-  }
 
   onDestroy(() => {
     // Reset initial data loaded flag
@@ -1411,17 +1400,6 @@
       <span class="countdown-value">{countdown}</span>
     </div>
   </div>
-  
-  {#if isPaperTrading}
-    <div class="paper-test-container">
-      <button class="paper-test-button" on:click={handlePaperTest}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="5 3 19 12 5 21 5 3"></polygon>
-        </svg>
-        Paper Test
-      </button>
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -1593,44 +1571,4 @@
     font-weight: 600;
     font-family: 'Monaco', 'Consolas', monospace;
   }
-  
-  .paper-test-container {
-    position: absolute;
-    bottom: 60px;
-    right: 10px;
-    z-index: 5;
-  }
-  
-  .paper-test-button {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(0, 0, 0, 0.8);
-    color: #60a5fa;
-    border: 1px solid #60a5fa;
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-  
-  .paper-test-button:hover {
-    background: rgba(96, 165, 250, 0.1);
-    border-color: #93c5fd;
-    color: #93c5fd;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
-  }
-  
-  .paper-test-button:active {
-    transform: translateY(0);
-  }
-  
-  .paper-test-button svg {
-    width: 16px;
-    height: 16px;
-  }
-  
 </style>

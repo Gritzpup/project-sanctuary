@@ -188,8 +188,8 @@ export class ChartDataFeed {
         console.log(`ChartDataFeed: Returning ${recentData.candles.length} recent candles immediately`);
         this.currentData = recentData.candles;
         
-        // Load the rest in background
-        if (startTime < recentStartTime) {
+        // Load the rest in background (skip during Paper Test)
+        if (startTime < recentStartTime && instanceId !== 'paper-test') {
           setTimeout(async () => {
             if (this.isCurrentInstance(instanceId)) {
               console.log(`ChartDataFeed: Loading historical data in background...`);
@@ -541,6 +541,12 @@ export class ChartDataFeed {
   
   // Preload adjacent granularities for smooth transitions
   private async preloadAdjacentGranularities(currentGranularity: string) {
+    // Skip preloading during Paper Test to improve performance
+    if (this.activeInstanceId === 'paper-test') {
+      console.log('ChartDataFeed: Skipping granularity preload during Paper Test');
+      return;
+    }
+    
     const threshold = this.granularityThresholds.find(t => t.granularity === currentGranularity);
     
     if (!threshold?.preloadNext || !this.visibleRange) return;

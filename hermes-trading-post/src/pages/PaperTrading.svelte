@@ -70,16 +70,38 @@
   let editingBalance = '10000';
   
   // Paper Test state
-  let showPaperTestModal = false;
   let selectedTestDate: Date | null = null;
+  let selectedTestDateString: string = '';  // String representation for display
   let isPaperTestRunning = false;
   let paperTestProgress = 0;
+  let paperTestSimTime: Date | null = null;
   let paperTestResults: any = null;
   let showPaperTestResults = false;
+  
+  // Paper Test playback controls
+  let paperTestPlaybackSpeed = 1;
+  let paperTestIsPaused = false;
+  let paperTestPositions: any[] = [];
+  let paperTestBalance = 0;
+  let paperTestBtcBalance = 0;
+  let showSpeedDropdown = false;
   
   // Chart references for Paper Test
   let chartInstance: any = null;
   let candleSeriesInstance: any = null;
+  
+  // Reactive statement for default test date
+  $: defaultTestDate = (() => {
+    if (!selectedTestDate) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      return yesterday.toISOString().split('T')[0];
+    } else {
+      return selectedTestDate.toISOString().split('T')[0];
+    }
+  })();
+  
+  
   
   // Built-in strategies (same as in Backtesting)
   const builtInStrategies = [
@@ -232,11 +254,32 @@ export class ${getStrategyFileName(type)} extends Strategy {
 }`;
   }
   
-  // Handle Paper Test button click from Chart
-  function handlePaperTest(date: Date) {
-    console.log('Paper Test requested for date:', date);
-    showPaperTestModal = true;
-    selectedTestDate = date;
+  // Calculate how many candles to show initially based on period and granularity
+  function calculateInitialCandles(period: string, granularity: string): number {
+    const periodMinutes: Record<string, number> = {
+      '1H': 60,
+      '4H': 240,
+      '5D': 7200,   // 5 days
+      '1M': 43200,  // 30 days
+      '3M': 129600, // 90 days
+      '6M': 259200, // 180 days
+      '1Y': 525600, // 365 days
+      '5Y': 2628000 // 5 years
+    };
+    
+    const granularityMinutes: Record<string, number> = {
+      '1m': 1,
+      '5m': 5,
+      '15m': 15,
+      '1h': 60,
+      '6h': 360,
+      '1D': 1440
+    };
+    
+    const periodMins = periodMinutes[period] || 60;
+    const granularityMins = granularityMinutes[granularity] || 1;
+    
+    return Math.floor(periodMins / granularityMins);
   }
   
   // Run the paper test time-lapse
@@ -249,14 +292,25 @@ export class ${getStrategyFileName(type)} extends Strategy {
     console.log('Starting Paper Test for date:', date);
     isPaperTestRunning = true;
     paperTestProgress = 0;
-    showPaperTestModal = false;
     paperTestResults = null;
+    paperTestBalance = balance;
+    paperTestBtcBalance = 0;
+    paperTestPositions = [];
+    paperTestIsPaused = false;
+    paperTestPlaybackSpeed = 1;
+    
+    // Show loading message while fetching data
+    paperTestProgress = 1; // Show minimal progress to indicate loading
     
     try {
       // Stop regular trading if running
       if (isRunning) {
         await stopTrading();
       }
+      
+      // Calculate initial candles to display based on period and granularity
+      const initialCandles = calculateInitialCandles(selectedPeriod, selectedGranularity);
+      console.log(`Paper Test: Will display ${initialCandles} initial candles for ${selectedPeriod}/${selectedGranularity}`);
       
       await paperTestService.start({
         date: date,
@@ -266,27 +320,105 @@ export class ${getStrategyFileName(type)} extends Strategy {
         candleSeries: candleSeriesInstance,
         dataFeed: chartDataFeed,
         granularity: selectedGranularity,
+        initialDisplayCandles: initialCandles,
         onProgress: (progress) => {
           paperTestProgress = progress;
         },
         onTrade: (trade) => {
           console.log('Paper Test Trade:', trade);
         },
+        onCandle: (candle) => {
+          paperTestSimTime = new Date(candle.time * 1000);
+        },
         onComplete: (results) => {
           console.log('Paper Test Complete:', results);
           paperTestResults = results;
           isPaperTestRunning = false;
-          showPaperTestResults = true;
-          // Reload current data after test
-          if (chartInstance) {
-            chartInstance.timeScale().resetTimeScale();
-          }
+          // Don't show modal - let user control the view
+          // Chart stays at end of test day so user can analyze
+        },
+        onPositionUpdate: (positions, balance, btcBalance) => {
+          paperTestPositions = positions;
+          paperTestBalance = balance;
+          paperTestBtcBalance = btcBalance;
         }
       });
     } catch (error) {
       console.error('Paper Test error:', error);
       isPaperTestRunning = false;
-      alert('Paper Test failed: ' + error.message);
+      
+      let errorMessage = 'Paper Test failed: ';
+      if (error.message.includes('No data available')) {
+        errorMessage += `No historical data available for ${date.toLocaleDateString()}. `;
+        errorMessage += `Try selecting a more recent date or check your data connection.`;
+      } else {
+        errorMessage += error.message;
+      }
+      
+      alert(errorMessage);
+    }
+  }
+  
+  // Stop the running paper test
+  function stopPaperTest() {
+    if (paperTestService) {
+      paperTestService.stop();
+    }
+    isPaperTestRunning = false;
+    paperTestProgress = 0;
+    paperTestSimTime = null;
+    paperTestPositions = [];
+    paperTestBalance = 0;
+    paperTestBtcBalance = 0;
+    // Clear selected date to go back to paper trading
+    selectedTestDate = null;
+  }
+  
+  // Paper Test playback control functions
+  function setPaperTestSpeed(speed: number) {
+    paperTestPlaybackSpeed = speed;
+    if (paperTestService) {
+      paperTestService.setPlaybackSpeed(speed);
+    }
+  }
+  
+  function togglePaperTestPause() {
+    if (paperTestIsPaused) {
+      paperTestService.resume();
+      paperTestIsPaused = false;
+    } else {
+      paperTestService.pause();
+      paperTestIsPaused = true;
+    }
+  }
+  
+  function stepPaperTestForward() {
+    if (paperTestIsPaused) {
+      paperTestService.stepForward();
+    }
+  }
+  
+  // Handle date selection from hidden input
+  function handleDateSelection(e: Event) {
+    console.log('handleDateSelection called, event type:', e.type);
+    const input = e.target as HTMLInputElement;
+    const dateValue = input.value;
+    console.log('Date input value:', dateValue);
+    
+    if (dateValue) {
+      // Create date at noon to avoid timezone issues
+      const [year, month, day] = dateValue.split('-').map(Number);
+      const newDate = new Date(year, month - 1, day, 12, 0, 0);
+      const displayString = newDate.toLocaleDateString();
+      
+      console.log('Date selected:', dateValue, 'Parsed date:', newDate, 'Display:', displayString);
+      selectedTestDate = newDate;
+      selectedTestDateString = displayString;
+      console.log('Updated selectedTestDate to:', selectedTestDate);
+    } else {
+      console.log('No date value, clearing selectedTestDate');
+      selectedTestDate = null;
+      selectedTestDateString = '';
     }
   }
   
@@ -333,13 +465,31 @@ export class ${getStrategyFileName(type)} extends Strategy {
       console.log('PaperTrading: Trading is running, starting services');
       isRunning = true;
       
+      // Ensure we have a strategy instance
+      if (!currentStrategy && selectedStrategyType) {
+        try {
+          currentStrategy = createStrategy(selectedStrategyType);
+          console.log('PaperTrading: Recreated strategy for resumed trading');
+        } catch (error) {
+          console.error('Failed to recreate strategy for resumed trading:', error);
+          // Stop trading if we can't recreate the strategy
+          await stopTrading();
+          return;
+        }
+      }
+      
       // Start status updates
       statusInterval = setInterval(updateStatus, 1000);
       
       // Wait for chart to be ready then start data feed
       await new Promise(resolve => setTimeout(resolve, 500));
-      if (chartDataFeed) {
+      if (chartDataFeed && currentStrategy) {
+        // Call start again to ensure the strategy is properly connected
+        // The service will skip re-initialization if already running with same strategy
+        paperTradingService.start(currentStrategy, 'BTC-USD', balance);
         startDataFeedToStrategy();
+      } else {
+        console.error('PaperTrading: Cannot resume trading - missing chartDataFeed or strategy');
       }
     }
     
@@ -690,10 +840,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
     // Calculate proximity to target (0-100%)
     const proximityToTarget = (pnlPercent / profitTarget) * 100;
     
-    if (proximityToTarget >= 90) return 'red';    // 90%+ of target (about to sell)
+    // Inverted logic: green when close to selling, red when far away
+    if (proximityToTarget >= 90) return 'green';  // 90%+ of target (about to sell)
     if (proximityToTarget >= 70) return 'yellow'; // 70-90% of target (getting close)
-    if (proximityToTarget >= 50) return 'orange'; // 50-70% of target (halfway there)
-    return 'green';                                // Below 50% (still building)
+    if (proximityToTarget >= 30) return 'orange'; // 30-70% of target (making progress)
+    return 'red';                                  // Below 30% (far from target/just started)
   }
   
   // Helper function to calculate angle for a price on the gauge
@@ -1203,17 +1354,38 @@ export class ${getStrategyFileName(type)} extends Strategy {
         </div>
         <div class="stat-item">
           <span class="stat-label">Total Value</span>
-          <span class="stat-value">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Total Return</span>
-          <span class="stat-value" class:profit={totalReturn > 0} class:loss={totalReturn < 0}>
-            ${totalReturn.toFixed(2)} ({returnPercent.toFixed(2)}%)
+          <span class="stat-value">
+            {#if isPaperTestRunning && paperTestProgress > 1}
+              ${(paperTestBalance + paperTestBtcBalance * currentPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {:else}
+              ${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {/if}
           </span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">Win Rate</span>
-          <span class="stat-value">{winRate.toFixed(1)}%</span>
+          <span class="stat-label">Total Return</span>
+          {#if isPaperTestRunning && paperTestProgress > 1}
+            {@const testTotalValue = paperTestBalance + paperTestBtcBalance * currentPrice}
+            {@const testReturn = testTotalValue - balance}
+            {@const testReturnPercent = (testReturn / balance) * 100}
+            <span class="stat-value" class:profit={testReturn > 0} class:loss={testReturn < 0}>
+              ${testReturn.toFixed(2)} ({testReturnPercent.toFixed(2)}%)
+            </span>
+          {:else}
+            <span class="stat-value" class:profit={totalReturn > 0} class:loss={totalReturn < 0}>
+              ${totalReturn.toFixed(2)} ({returnPercent.toFixed(2)}%)
+            </span>
+          {/if}
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">{isPaperTestRunning ? 'Positions' : 'Win Rate'}</span>
+          <span class="stat-value">
+            {#if isPaperTestRunning && paperTestProgress > 1}
+              {paperTestPositions.length}
+            {:else}
+              {winRate.toFixed(1)}%
+            {/if}
+          </span>
         </div>
       </div>
     </div>
@@ -1249,8 +1421,6 @@ export class ${getStrategyFileName(type)} extends Strategy {
               type: t.type || t.side,  // Handle both 'type' and 'side' properties
               price: t.price
             }))}
-            isPaperTrading={true}
-            onPaperTest={handlePaperTest}
             onChartReady={(chart, candleSeries) => {
               chartInstance = chart;
               candleSeriesInstance = candleSeries;
@@ -1275,6 +1445,106 @@ export class ${getStrategyFileName(type)} extends Strategy {
             <button class="period-btn" class:active={selectedPeriod === '6M'} disabled={isRunning} on:click={() => selectPeriod('6M')}>6M</button>
             <button class="period-btn" class:active={selectedPeriod === '1Y'} disabled={isRunning} on:click={() => selectPeriod('1Y')}>1Y</button>
             <button class="period-btn" class:active={selectedPeriod === '5Y'} disabled={isRunning} on:click={() => selectPeriod('5Y')}>5Y</button>
+            
+            <div class="button-separator"></div>
+            
+            <!-- Paper Test integrated controls -->
+            <div class="date-speed-container">
+              <input 
+                type="date" 
+                id="paper-test-date-input"
+                class="period-btn date-picker-btn compact"
+                max={(() => {
+                  const yesterday = new Date();
+                  yesterday.setDate(yesterday.getDate() - 1);
+                  return yesterday.toISOString().split('T')[0];
+                })()}
+                min="2024-01-01"
+                value={defaultTestDate}
+                on:change={handleDateSelection}
+                on:input={handleDateSelection}
+              />
+              
+              <!-- Speed dropdown -->
+              <div class="speed-dropdown-container">
+                <button 
+                  class="period-btn speed-dropdown-btn compact"
+                  on:click|preventDefault|stopPropagation={() => {
+                    showSpeedDropdown = !showSpeedDropdown;
+                  }}
+                  on:blur={() => setTimeout(() => showSpeedDropdown = false, 200)}
+                >
+                  {paperTestPlaybackSpeed}x Speed ▼
+                </button>
+                {#if showSpeedDropdown}
+                  <div class="speed-dropdown-menu">
+                    <button class="speed-dropdown-item" on:mousedown={() => { setPaperTestSpeed(0.5); showSpeedDropdown = false; }}>0.5x</button>
+                    <button class="speed-dropdown-item" on:mousedown={() => { setPaperTestSpeed(1); showSpeedDropdown = false; }}>1x</button>
+                    <button class="speed-dropdown-item" on:mousedown={() => { setPaperTestSpeed(2); showSpeedDropdown = false; }}>2x</button>
+                    <button class="speed-dropdown-item" on:mousedown={() => { setPaperTestSpeed(5); showSpeedDropdown = false; }}>5x</button>
+                    <button class="speed-dropdown-item" on:mousedown={() => { setPaperTestSpeed(10); showSpeedDropdown = false; }}>10x</button>
+                  </div>
+                {/if}
+              </div>
+            </div>
+            
+            <!-- Play/Pause/Stop controls stacked vertically - always visible -->
+            <div class="play-stop-container">
+              {#if !isPaperTestRunning}
+                <button 
+                  class="period-btn play-stop-btn"
+                  on:click|preventDefault|stopPropagation={() => { 
+                    if (selectedTestDate) {
+                      runPaperTest(selectedTestDate); 
+                    }
+                  }}
+                  aria-label="Run Paper Test"
+                  title="Run Paper Test"
+                >
+                  ▶️
+                </button>
+                <button 
+                  class="period-btn play-stop-btn"
+                  on:click={stopPaperTest}
+                  aria-label="Stop Paper Test"
+                  title="Stop Paper Test"
+                >
+                  ⏹️
+                </button>
+              {:else}
+                <button 
+                  class="period-btn play-stop-btn"
+                  on:click={togglePaperTestPause}
+                  aria-label="{paperTestIsPaused ? 'Resume' : 'Pause'} Paper Test"
+                  title="{paperTestIsPaused ? 'Resume' : 'Pause'} Paper Test"
+                >
+                  {paperTestIsPaused ? '▶️' : '⏸️'}
+                </button>
+                <button 
+                  class="period-btn play-stop-btn"
+                  on:click={stopPaperTest}
+                  aria-label="Stop Paper Test"
+                  title="Stop Paper Test"
+                >
+                  ⏹️
+                </button>
+              {/if}
+            </div>
+            
+            <!-- Inline progress -->
+            {#if isPaperTestRunning && paperTestProgress > 1}
+              <div class="inline-paper-test-progress">
+                <div class="inline-progress-bar">
+                  <div class="inline-progress-fill" style="width: {paperTestProgress}%"></div>
+                </div>
+                <span class="inline-progress-text">
+                  {#if paperTestSimTime}
+                    {paperTestSimTime.toLocaleTimeString()}
+                  {/if}
+                  {Math.round(paperTestProgress)}%
+                </span>
+              </div>
+            {/if}
           </div>
         </div>
       </div>
@@ -1823,90 +2093,7 @@ No open positions{/if}</title>
   </main>
 </div>
 
-<!-- Paper Test Modal -->
-{#if showPaperTestModal}
-  <div class="modal-backdrop" on:click={() => showPaperTestModal = false}>
-    <div class="modal-content" on:click|stopPropagation>
-      <h2>Paper Test - Select Date</h2>
-      <p>Select a historical date to run a 30-second time-lapse test of your trading strategy.</p>
-      
-      <div class="date-picker">
-        <input 
-          type="date" 
-          max={new Date().toISOString().split('T')[0]}
-          value={selectedTestDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0]}
-          on:change={(e) => selectedTestDate = new Date(e.target.value)}
-        />
-      </div>
-      
-      <div class="modal-actions">
-        <button class="btn-secondary" on:click={() => showPaperTestModal = false}>
-          Cancel
-        </button>
-        <button class="btn-primary" on:click={() => runPaperTest(selectedTestDate || new Date())}>
-          Start Test
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
 
-<!-- Paper Test Progress Overlay -->
-{#if isPaperTestRunning}
-  <div class="paper-test-overlay">
-    <div class="test-progress">
-      <h3>Running Paper Test...</h3>
-      <div class="progress-bar">
-        <div class="progress-fill" style="width: {paperTestProgress}%"></div>
-      </div>
-      <p>{Math.round(paperTestProgress)}% Complete</p>
-      <p class="test-time">Simulating {selectedTestDate?.toLocaleDateString() || 'today'}</p>
-    </div>
-  </div>
-{/if}
-
-<!-- Paper Test Results Modal -->
-{#if showPaperTestResults && paperTestResults}
-  <div class="modal-backdrop" on:click={() => showPaperTestResults = false}>
-    <div class="modal-content results-modal" on:click|stopPropagation>
-      <h2>Paper Test Results</h2>
-      <p class="test-date">Test Date: {selectedTestDate?.toLocaleDateString() || 'Unknown'}</p>
-      
-      <div class="results-grid">
-        <div class="result-item">
-          <span class="result-label">Total Trades</span>
-          <span class="result-value">{paperTestResults.totalTrades}</span>
-        </div>
-        <div class="result-item">
-          <span class="result-label">Win Rate</span>
-          <span class="result-value" class:positive={paperTestResults.winRate > 50}>
-            {paperTestResults.winRate.toFixed(1)}%
-          </span>
-        </div>
-        <div class="result-item">
-          <span class="result-label">Total Return</span>
-          <span class="result-value" class:positive={paperTestResults.totalReturn > 0} class:negative={paperTestResults.totalReturn < 0}>
-            {paperTestResults.totalReturn > 0 ? '+' : ''}{paperTestResults.totalReturn.toFixed(2)}%
-          </span>
-        </div>
-        <div class="result-item">
-          <span class="result-label">Final Balance</span>
-          <span class="result-value">${paperTestResults.finalBalance.toFixed(2)}</span>
-        </div>
-        <div class="result-item">
-          <span class="result-label">Max Drawdown</span>
-          <span class="result-value negative">-{paperTestResults.maxDrawdown.toFixed(2)}%</span>
-        </div>
-      </div>
-      
-      <div class="modal-actions">
-        <button class="btn-primary" on:click={() => showPaperTestResults = false}>
-          Close
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
 
 <style>
   .dashboard-layout {
@@ -2012,6 +2199,8 @@ No open positions{/if}</title>
     display: flex;
     justify-content: space-between;
     align-items: center;
+    position: relative;
+    z-index: 1;
   }
   
   .panel-header h2 {
@@ -2129,6 +2318,7 @@ No open positions{/if}</title>
     padding: 0;
     display: flex;
     flex-direction: column;
+    position: relative;
   }
   
   .chart-panel .panel-content > :global(.chart-container) {
@@ -2208,6 +2398,10 @@ No open positions{/if}</title>
     padding: 15px 20px;
     background: rgba(74, 0, 224, 0.05);
     border-top: 1px solid rgba(74, 0, 224, 0.3);
+    position: relative;
+    z-index: 1;
+    align-items: center;
+    flex-wrap: wrap;
   }
   
   .period-btn {
@@ -2230,6 +2424,274 @@ No open positions{/if}</title>
     background: rgba(74, 0, 224, 0.4);
     color: #a78bfa;
     border-color: #a78bfa;
+  }
+  
+  
+  .button-separator {
+    width: 1px;
+    background: rgba(74, 0, 224, 0.3);
+    margin: 0 10px;
+    height: 32px;
+    align-self: center;
+  }
+  
+  /* Speed dropdown styles */
+  .speed-dropdown-container {
+    position: relative;
+    display: block;
+    width: 100%;
+  }
+  
+  .speed-dropdown-btn {
+    min-width: 100px;
+    width: 100%;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  
+  /* Remove overrides - let speed dropdown use default period-btn styles */
+  
+  .speed-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    background: #1a1a1a;
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    min-width: 100%;
+  }
+  
+  .speed-dropdown-item {
+    display: block;
+    width: 100%;
+    padding: 8px 16px;
+    background: none;
+    border: none;
+    color: #9ca3af;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+  }
+  
+  .speed-dropdown-item:hover {
+    background: rgba(74, 0, 224, 0.3);
+    color: #d1d4dc;
+  }
+  
+  .speed-dropdown-item:first-child {
+    border-radius: 3px 3px 0 0;
+  }
+  
+  .speed-dropdown-item:last-child {
+    border-radius: 0 0 3px 3px;
+  }
+  
+  /* Play/Stop stacked buttons */
+  .play-stop-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-right: 10px;
+    position: relative;
+    z-index: 100;
+    pointer-events: auto;
+  }
+  
+  .play-stop-btn {
+    padding: 4px 12px;
+    font-size: 12px;
+    height: 24px;
+    line-height: 1;
+    min-width: 50px;
+    pointer-events: auto;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  /* Remove overrides - let play/stop buttons use default period-btn styles */
+  
+  /* Inline Paper Test Progress */
+  .inline-paper-test-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 10px;
+    flex: 1;
+    max-width: 200px;
+    position: relative;
+    z-index: 1;
+  }
+  
+  .inline-progress-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(167, 139, 250, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  
+  .inline-progress-fill {
+    height: 100%;
+    background: #a78bfa;
+    transition: width 0.3s ease;
+  }
+  
+  .inline-progress-text {
+    color: #a78bfa;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  
+  /* Date and speed stacked container */
+  .date-speed-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-right: 10px;
+    position: relative;
+    z-index: 100;
+    pointer-events: auto;
+  }
+  
+  /* Compact styling for reduced height */
+  .period-btn.compact {
+    height: 24px;
+    padding: 4px 12px;
+    font-size: 12px;
+    line-height: 1;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  
+  /* Compact buttons now use default period-btn styling */
+  
+  .date-picker-btn {
+    /* Style the date input to look like a button */
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+    position: relative;
+    padding-right: 35px; /* Make room for calendar icon */
+    width: 100%;
+    min-width: 100px;
+    z-index: 101;
+    pointer-events: auto;
+  }
+  
+  /* Smaller text for compact date picker */
+  .date-picker-btn.compact {
+    font-size: 10px;
+    padding-right: 40px; /* More room for calendar icon */
+  }
+  
+  /* Date picker button now uses default period-btn styling */
+  
+  /* Add calendar icon using pseudo element */
+  .date-picker-btn::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 8px;
+    cursor: pointer;
+    opacity: 0.7;
+    filter: invert(1);
+  }
+  
+  .date-picker-btn:hover::-webkit-calendar-picker-indicator {
+    opacity: 1;
+  }
+  
+  /* Style the date input when it has a value */
+  .date-picker-btn:not(:placeholder-shown) {
+    color: #d1d4dc;
+  }
+  
+  .paper-test-controls {
+    display: flex;
+    gap: 0;
+    margin-left: auto;
+  }
+  
+  .paper-test-btn {
+    padding: 8px 16px;
+    background: rgba(96, 165, 250, 0.2);
+    border: 1px solid rgba(96, 165, 250, 0.3);
+    color: #60a5fa;
+    border-radius: 4px 0 0 4px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-right: none;
+  }
+  
+  .paper-test-btn:hover {
+    background: rgba(96, 165, 250, 0.3);
+    color: #93c5fd;
+  }
+  
+  .paper-test-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .paper-test-play-btn {
+    padding: 8px 12px;
+    background: rgba(34, 197, 94, 0.2);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    color: #22c55e;
+    border-radius: 0 4px 4px 0;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .paper-test-play-btn:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.3);
+    color: #4ade80;
+  }
+  
+  .paper-test-play-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+  
+  .paper-test-play-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .paper-test-stop-btn {
+    padding: 8px 12px;
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+    border-radius: 0 4px 4px 0;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: -1px;
+  }
+  
+  .paper-test-stop-btn:hover {
+    background: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+  }
+  
+  .paper-test-stop-btn svg {
+    width: 14px;
+    height: 14px;
   }
   
   .balances {
@@ -3210,6 +3672,13 @@ No open positions{/if}</title>
     border-color: #a78bfa;
   }
   
+  .date-picker-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #758696;
+    font-style: italic;
+  }
+  
   .modal-actions {
     display: flex;
     gap: 10px;
@@ -3243,103 +3712,5 @@ No open positions{/if}</title>
   
   .btn-secondary:hover {
     background: rgba(74, 0, 224, 0.1);
-  }
-  
-  /* Paper Test Progress Overlay */
-  .paper-test-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.9);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1100;
-  }
-  
-  .test-progress {
-    text-align: center;
-    color: white;
-  }
-  
-  .test-progress h3 {
-    margin: 0 0 20px 0;
-    font-size: 24px;
-    color: #a78bfa;
-  }
-  
-  .test-progress .progress-bar {
-    width: 300px;
-    height: 30px;
-    background: rgba(74, 0, 224, 0.2);
-    border-radius: 15px;
-    overflow: hidden;
-    margin: 20px 0;
-  }
-  
-  .test-progress .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #4a00e0, #a78bfa);
-    transition: width 0.3s ease;
-  }
-  
-  .test-progress p {
-    font-size: 18px;
-    margin: 10px 0;
-  }
-  
-  .test-time {
-    color: #9ca3af;
-    font-size: 14px !important;
-  }
-  
-  /* Results Modal Styles */
-  .results-modal {
-    max-width: 500px;
-  }
-  
-  .test-date {
-    color: #9ca3af;
-    font-size: 14px;
-    margin-bottom: 20px;
-  }
-  
-  .results-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin: 20px 0;
-    padding: 20px;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 8px;
-    border: 1px solid rgba(74, 0, 224, 0.2);
-  }
-  
-  .result-item {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-  
-  .result-label {
-    font-size: 12px;
-    color: #758696;
-    text-transform: uppercase;
-  }
-  
-  .result-value {
-    font-size: 20px;
-    font-weight: 600;
-    color: #d1d4dc;
-  }
-  
-  .result-value.positive {
-    color: #22c55e;
-  }
-  
-  .result-value.negative {
-    color: #ef4444;
   }
 </style>
