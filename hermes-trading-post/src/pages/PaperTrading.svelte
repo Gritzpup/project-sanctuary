@@ -3,6 +3,7 @@
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { paperTradingService } from '../services/paperTradingService';
+  import { paperTestService } from '../services/paperTestService';
   import type { ChartDataFeed } from '../services/chartDataFeed';
   import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';
   import { GridTradingStrategy } from '../strategies/implementations/GridTradingStrategy';
@@ -67,6 +68,18 @@
   // UI state
   let isEditingBalance = false;
   let editingBalance = '10000';
+  
+  // Paper Test state
+  let showPaperTestModal = false;
+  let selectedTestDate: Date | null = null;
+  let isPaperTestRunning = false;
+  let paperTestProgress = 0;
+  let paperTestResults: any = null;
+  let showPaperTestResults = false;
+  
+  // Chart references for Paper Test
+  let chartInstance: any = null;
+  let candleSeriesInstance: any = null;
   
   // Built-in strategies (same as in Backtesting)
   const builtInStrategies = [
@@ -217,6 +230,64 @@ export class ReverseRatioStrategy extends Strategy {
 export class ${getStrategyFileName(type)} extends Strategy {
   // Strategy implementation...
 }`;
+  }
+  
+  // Handle Paper Test button click from Chart
+  function handlePaperTest(date: Date) {
+    console.log('Paper Test requested for date:', date);
+    showPaperTestModal = true;
+    selectedTestDate = date;
+  }
+  
+  // Run the paper test time-lapse
+  async function runPaperTest(date: Date) {
+    if (isPaperTestRunning || !chartInstance || !candleSeriesInstance || !chartDataFeed || !currentStrategy) {
+      console.error('Cannot start Paper Test: missing required components');
+      return;
+    }
+    
+    console.log('Starting Paper Test for date:', date);
+    isPaperTestRunning = true;
+    paperTestProgress = 0;
+    showPaperTestModal = false;
+    paperTestResults = null;
+    
+    try {
+      // Stop regular trading if running
+      if (isRunning) {
+        await stopTrading();
+      }
+      
+      await paperTestService.start({
+        date: date,
+        strategy: currentStrategy,
+        initialBalance: balance,
+        chart: chartInstance,
+        candleSeries: candleSeriesInstance,
+        dataFeed: chartDataFeed,
+        granularity: selectedGranularity,
+        onProgress: (progress) => {
+          paperTestProgress = progress;
+        },
+        onTrade: (trade) => {
+          console.log('Paper Test Trade:', trade);
+        },
+        onComplete: (results) => {
+          console.log('Paper Test Complete:', results);
+          paperTestResults = results;
+          isPaperTestRunning = false;
+          showPaperTestResults = true;
+          // Reload current data after test
+          if (chartInstance) {
+            chartInstance.timeScale().resetTimeScale();
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Paper Test error:', error);
+      isPaperTestRunning = false;
+      alert('Paper Test failed: ' + error.message);
+    }
   }
   
   onMount(async () => {
@@ -1178,6 +1249,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
               type: t.type || t.side,  // Handle both 'type' and 'side' properties
               price: t.price
             }))}
+            isPaperTrading={true}
+            onPaperTest={handlePaperTest}
+            onChartReady={(chart, candleSeries) => {
+              chartInstance = chart;
+              candleSeriesInstance = candleSeries;
+            }}
           />
           {#if isRunning}
             <div class="timeframe-locked-indicator">
@@ -1745,6 +1822,91 @@ No open positions{/if}</title>
     </div>
   </main>
 </div>
+
+<!-- Paper Test Modal -->
+{#if showPaperTestModal}
+  <div class="modal-backdrop" on:click={() => showPaperTestModal = false}>
+    <div class="modal-content" on:click|stopPropagation>
+      <h2>Paper Test - Select Date</h2>
+      <p>Select a historical date to run a 30-second time-lapse test of your trading strategy.</p>
+      
+      <div class="date-picker">
+        <input 
+          type="date" 
+          max={new Date().toISOString().split('T')[0]}
+          value={selectedTestDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0]}
+          on:change={(e) => selectedTestDate = new Date(e.target.value)}
+        />
+      </div>
+      
+      <div class="modal-actions">
+        <button class="btn-secondary" on:click={() => showPaperTestModal = false}>
+          Cancel
+        </button>
+        <button class="btn-primary" on:click={() => runPaperTest(selectedTestDate || new Date())}>
+          Start Test
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Paper Test Progress Overlay -->
+{#if isPaperTestRunning}
+  <div class="paper-test-overlay">
+    <div class="test-progress">
+      <h3>Running Paper Test...</h3>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: {paperTestProgress}%"></div>
+      </div>
+      <p>{Math.round(paperTestProgress)}% Complete</p>
+      <p class="test-time">Simulating {selectedTestDate?.toLocaleDateString() || 'today'}</p>
+    </div>
+  </div>
+{/if}
+
+<!-- Paper Test Results Modal -->
+{#if showPaperTestResults && paperTestResults}
+  <div class="modal-backdrop" on:click={() => showPaperTestResults = false}>
+    <div class="modal-content results-modal" on:click|stopPropagation>
+      <h2>Paper Test Results</h2>
+      <p class="test-date">Test Date: {selectedTestDate?.toLocaleDateString() || 'Unknown'}</p>
+      
+      <div class="results-grid">
+        <div class="result-item">
+          <span class="result-label">Total Trades</span>
+          <span class="result-value">{paperTestResults.totalTrades}</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Win Rate</span>
+          <span class="result-value" class:positive={paperTestResults.winRate > 50}>
+            {paperTestResults.winRate.toFixed(1)}%
+          </span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Total Return</span>
+          <span class="result-value" class:positive={paperTestResults.totalReturn > 0} class:negative={paperTestResults.totalReturn < 0}>
+            {paperTestResults.totalReturn > 0 ? '+' : ''}{paperTestResults.totalReturn.toFixed(2)}%
+          </span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Final Balance</span>
+          <span class="result-value">${paperTestResults.finalBalance.toFixed(2)}</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Max Drawdown</span>
+          <span class="result-value negative">-{paperTestResults.maxDrawdown.toFixed(2)}%</span>
+        </div>
+      </div>
+      
+      <div class="modal-actions">
+        <button class="btn-primary" on:click={() => showPaperTestResults = false}>
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .dashboard-layout {
@@ -2991,5 +3153,193 @@ No open positions{/if}</title>
   /* Current buy indicator styles - no hover effects */
   .current-buy-indicator {
     cursor: default;
+  }
+  
+  /* Modal styles */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  
+  .modal-content {
+    background: #1a1a1a;
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    padding: 30px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  }
+  
+  .modal-content h2 {
+    margin: 0 0 10px 0;
+    color: #a78bfa;
+    font-size: 20px;
+  }
+  
+  .modal-content p {
+    color: #9ca3af;
+    margin-bottom: 20px;
+    font-size: 14px;
+  }
+  
+  .date-picker {
+    margin: 20px 0;
+  }
+  
+  .date-picker input {
+    width: 100%;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 4px;
+    color: #d1d4dc;
+    font-size: 16px;
+  }
+  
+  .date-picker input:focus {
+    outline: none;
+    border-color: #a78bfa;
+  }
+  
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+  }
+  
+  .btn-primary, .btn-secondary {
+    padding: 8px 20px;
+    border-radius: 4px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .btn-primary {
+    background: rgba(74, 0, 224, 0.8);
+    color: white;
+    border: none;
+  }
+  
+  .btn-primary:hover {
+    background: rgba(74, 0, 224, 1);
+  }
+  
+  .btn-secondary {
+    background: transparent;
+    color: #9ca3af;
+    border: 1px solid rgba(74, 0, 224, 0.3);
+  }
+  
+  .btn-secondary:hover {
+    background: rgba(74, 0, 224, 0.1);
+  }
+  
+  /* Paper Test Progress Overlay */
+  .paper-test-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+  }
+  
+  .test-progress {
+    text-align: center;
+    color: white;
+  }
+  
+  .test-progress h3 {
+    margin: 0 0 20px 0;
+    font-size: 24px;
+    color: #a78bfa;
+  }
+  
+  .test-progress .progress-bar {
+    width: 300px;
+    height: 30px;
+    background: rgba(74, 0, 224, 0.2);
+    border-radius: 15px;
+    overflow: hidden;
+    margin: 20px 0;
+  }
+  
+  .test-progress .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4a00e0, #a78bfa);
+    transition: width 0.3s ease;
+  }
+  
+  .test-progress p {
+    font-size: 18px;
+    margin: 10px 0;
+  }
+  
+  .test-time {
+    color: #9ca3af;
+    font-size: 14px !important;
+  }
+  
+  /* Results Modal Styles */
+  .results-modal {
+    max-width: 500px;
+  }
+  
+  .test-date {
+    color: #9ca3af;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  
+  .results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 20px 0;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    border: 1px solid rgba(74, 0, 224, 0.2);
+  }
+  
+  .result-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .result-label {
+    font-size: 12px;
+    color: #758696;
+    text-transform: uppercase;
+  }
+  
+  .result-value {
+    font-size: 20px;
+    font-weight: 600;
+    color: #d1d4dc;
+  }
+  
+  .result-value.positive {
+    color: #22c55e;
+  }
+  
+  .result-value.negative {
+    color: #ef4444;
   }
 </style>
