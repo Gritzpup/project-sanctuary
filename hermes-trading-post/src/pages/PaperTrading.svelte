@@ -12,6 +12,7 @@
   import { MicroScalpingStrategy } from '../strategies/implementations/MicroScalpingStrategy';
   import { ProperScalpingStrategy } from '../strategies/implementations/ProperScalpingStrategy';
   import type { Strategy } from '../strategies/base/Strategy';
+  import type { Position } from '../strategies/base/StrategyTypes';
   import { strategyStore } from '../stores/strategyStore';
   import { chartPreferencesStore } from '../stores/chartPreferencesStore';
   
@@ -598,6 +599,30 @@ export class ${getStrategyFileName(type)} extends Strategy {
   function handleTradeLeave() {
     hoveredTradeId = null;
     linkedTradeIds = [];
+  }
+  
+  // Helper function to determine traffic light color based on proximity to profit target
+  function getTrafficLightClass(position: Position, currentPrice: number): string {
+    const pnlPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100;
+    
+    // Get profit target from current strategy config
+    // Different strategies have different property names for profit target
+    let profitTarget = 7; // Default for strategies without explicit target
+    
+    if (currentStrategy?.config) {
+      const config = currentStrategy.config as any;
+      // Check various property names used by different strategies
+      profitTarget = config.profitTargetPercent || config.profitTarget || 
+                    config.takeProfitPercent || 7;
+    }
+    
+    // Calculate proximity to target (0-100%)
+    const proximityToTarget = (pnlPercent / profitTarget) * 100;
+    
+    if (proximityToTarget >= 90) return 'red';    // 90%+ of target (about to sell)
+    if (proximityToTarget >= 70) return 'yellow'; // 70-90% of target (getting close)
+    if (proximityToTarget >= 50) return 'orange'; // 50-70% of target (halfway there)
+    return 'green';                                // Below 50% (still building)
   }
   
   // Helper function to calculate angle for a price on the gauge
@@ -1316,16 +1341,25 @@ export class ${getStrategyFileName(type)} extends Strategy {
             {:else}
               {#each positions as position}
                 <div class="position-item">
-                  <div class="position-header">
-                    <span>Entry: ${position.entryPrice.toFixed(2)}</span>
-                    <span>{position.size.toFixed(8)} BTC</span>
+                  <div class="traffic-light-container">
+                    <div class="traffic-light {getTrafficLightClass(position, currentPrice)}"
+                         title="Progress to {currentStrategy?.config?.profitTargetPercent || currentStrategy?.config?.profitTarget || 7}% profit target">
+                      <div class="light"></div>
+                    </div>
                   </div>
-                  <div class="position-details">
-                    <span>Current: ${currentPrice.toFixed(2)}</span>
-                    <span class:profit={(currentPrice - position.entryPrice) > 0} 
-                          class:loss={(currentPrice - position.entryPrice) < 0}>
-                      P&L: ${((currentPrice - position.entryPrice) * position.size).toFixed(2)}
-                    </span>
+                  <div class="position-content">
+                    <div class="position-header">
+                      <span>Entry: ${position.entryPrice.toFixed(2)}</span>
+                      <span>{position.size.toFixed(8)} BTC</span>
+                    </div>
+                    <div class="position-details">
+                      <span>Current: ${currentPrice.toFixed(2)}</span>
+                      <span class:profit={(currentPrice - position.entryPrice) > 0} 
+                            class:loss={(currentPrice - position.entryPrice) < 0}>
+                        P&L: ${((currentPrice - position.entryPrice) * position.size).toFixed(2)}
+                        ({((currentPrice - position.entryPrice) / position.entryPrice * 100).toFixed(2)}%)
+                      </span>
+                    </div>
                   </div>
                 </div>
               {/each}
@@ -2534,10 +2568,71 @@ No open positions{/if}</title>
   }
   
   .position-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     padding: 12px;
     background: rgba(255, 255, 255, 0.02);
     border-radius: 6px;
     border: 1px solid rgba(74, 0, 224, 0.2);
+  }
+  
+  .traffic-light-container {
+    flex-shrink: 0;
+  }
+  
+  .traffic-light {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .traffic-light .light {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+  }
+  
+  .traffic-light.green .light {
+    background: #26a69a;
+    box-shadow: 0 0 10px rgba(38, 166, 154, 0.5);
+  }
+  
+  .traffic-light.orange .light {
+    background: #ff9800;
+    box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
+  }
+  
+  .traffic-light.yellow .light {
+    background: #ffeb3b;
+    box-shadow: 0 0 10px rgba(255, 235, 59, 0.5);
+  }
+  
+  .traffic-light.red .light {
+    background: #ef5350;
+    box-shadow: 0 0 15px rgba(239, 83, 80, 0.7);
+    animation: pulse 1s infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { 
+      opacity: 1; 
+      transform: scale(1);
+    }
+    50% { 
+      opacity: 0.8; 
+      transform: scale(0.95);
+    }
+  }
+  
+  .position-content {
+    flex: 1;
   }
   
   .position-header {
