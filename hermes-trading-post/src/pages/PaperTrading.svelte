@@ -2319,6 +2319,7 @@ No open positions{/if}</title>
     display: flex;
     flex-direction: column;
     position: relative;
+    overflow: visible;
   }
   
   .chart-panel .panel-content > :global(.chart-container) {
@@ -2554,7 +2555,7 @@ No open positions{/if}</title>
     gap: 4px;
     margin-right: 10px;
     position: relative;
-    z-index: 100;
+    z-index: 2000;
     pointer-events: auto;
   }
   
