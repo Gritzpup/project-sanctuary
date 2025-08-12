@@ -85,6 +85,8 @@
   let paperTestBalance = 0;
   let paperTestBtcBalance = 0;
   let showSpeedDropdown = false;
+  let speedButtonElement: HTMLButtonElement;
+  let dropdownPosition = { top: 0, left: 0 };
   
   // Chart references for Paper Test
   let chartInstance: any = null;
@@ -380,6 +382,17 @@ export class ${getStrategyFileName(type)} extends Strategy {
     if (paperTestService) {
       paperTestService.setPlaybackSpeed(speed);
     }
+  }
+  
+  function toggleSpeedDropdown() {
+    if (!showSpeedDropdown && speedButtonElement) {
+      const rect = speedButtonElement.getBoundingClientRect();
+      dropdownPosition = {
+        top: rect.bottom + 4,
+        left: rect.left
+      };
+    }
+    showSpeedDropdown = !showSpeedDropdown;
   }
   
   function togglePaperTestPause() {
@@ -1468,23 +1481,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
               <!-- Speed dropdown -->
               <div class="speed-dropdown-container">
                 <button 
+                  bind:this={speedButtonElement}
                   class="period-btn speed-dropdown-btn compact"
-                  on:click|preventDefault|stopPropagation={() => {
-                    showSpeedDropdown = !showSpeedDropdown;
-                  }}
+                  on:click|preventDefault|stopPropagation={toggleSpeedDropdown}
                   on:blur={() => setTimeout(() => showSpeedDropdown = false, 200)}
                 >
                   {paperTestPlaybackSpeed}x Speed ▼
                 </button>
-                {#if showSpeedDropdown}
-                  <div class="speed-dropdown-menu">
-                    <button class="speed-dropdown-item" on:mousedown={() => { setPaperTestSpeed(0.5); showSpeedDropdown = false; }}>0.5x</button>
-                    <button class="speed-dropdown-item" on:mousedown={() => { setPaperTestSpeed(1); showSpeedDropdown = false; }}>1x</button>
-                    <button class="speed-dropdown-item" on:mousedown={() => { setPaperTestSpeed(2); showSpeedDropdown = false; }}>2x</button>
-                    <button class="speed-dropdown-item" on:mousedown={() => { setPaperTestSpeed(5); showSpeedDropdown = false; }}>5x</button>
-                    <button class="speed-dropdown-item" on:mousedown={() => { setPaperTestSpeed(10); showSpeedDropdown = false; }}>10x</button>
-                  </div>
-                {/if}
               </div>
             </div>
             
@@ -2090,6 +2093,20 @@ No open positions{/if}</title>
         </div>
       {/if}
     </div>
+    
+    <!-- Speed dropdown rendered at root level -->
+    {#if showSpeedDropdown}
+      <div class="speed-dropdown-root" style="position: fixed; top: {dropdownPosition.top}px; left: {dropdownPosition.left}px; z-index: 2147483647; width: 120px;">
+        <div style="position: absolute; inset: 0; background: #000000; opacity: 1;"></div>
+        <div style="position: relative; background: #000000; border: 1px solid #4a00e0; border-radius: 4px; overflow: hidden;">
+          <button style="display: block; width: 100%; padding: 8px 16px; background: #000000; border: none; color: #9ca3af; text-align: left; cursor: pointer; font-size: 13px;" on:mousedown={() => { setPaperTestSpeed(0.5); showSpeedDropdown = false; }}>0.5x</button>
+          <button style="display: block; width: 100%; padding: 8px 16px; background: #000000; border: none; color: #9ca3af; text-align: left; cursor: pointer; font-size: 13px;" on:mousedown={() => { setPaperTestSpeed(1); showSpeedDropdown = false; }}>1x</button>
+          <button style="display: block; width: 100%; padding: 8px 16px; background: #000000; border: none; color: #9ca3af; text-align: left; cursor: pointer; font-size: 13px;" on:mousedown={() => { setPaperTestSpeed(2); showSpeedDropdown = false; }}>2x</button>
+          <button style="display: block; width: 100%; padding: 8px 16px; background: #000000; border: none; color: #9ca3af; text-align: left; cursor: pointer; font-size: 13px;" on:mousedown={() => { setPaperTestSpeed(5); showSpeedDropdown = false; }}>5x</button>
+          <button style="display: block; width: 100%; padding: 8px 16px; background: #000000; border: none; color: #9ca3af; text-align: left; cursor: pointer; font-size: 13px;" on:mousedown={() => { setPaperTestSpeed(10); showSpeedDropdown = false; }}>10x</button>
+        </div>
+      </div>
+    {/if}
   </main>
 </div>
 
@@ -2441,6 +2458,35 @@ No open positions{/if}</title>
     position: relative;
     display: block;
     width: 100%;
+    opacity: 1 !important;
+  }
+  
+  /* Nuclear option - force everything in dropdown to be opaque */
+  .speed-dropdown-container,
+  .speed-dropdown-container *,
+  .speed-dropdown-menu,
+  .speed-dropdown-menu *,
+  .speed-dropdown-btn,
+  .speed-dropdown-item,
+  .period-buttons .speed-dropdown-container,
+  .period-buttons .speed-dropdown-container *,
+  .period-buttons .speed-dropdown-menu,
+  .period-buttons .speed-dropdown-menu *,
+  .period-buttons .speed-dropdown-btn {
+    opacity: 1 !important;
+    filter: none !important;
+    mix-blend-mode: normal !important;
+  }
+  
+  /* Override disabled state for speed dropdown */
+  .speed-dropdown-btn:disabled,
+  .period-btn.speed-dropdown-btn:disabled {
+    opacity: 1 !important;
+  }
+  
+  /* Force period buttons container to not affect dropdown */
+  .period-buttons .date-speed-container {
+    opacity: 1 !important;
   }
   
   .speed-dropdown-btn {
@@ -2457,19 +2503,110 @@ No open positions{/if}</title>
     top: 100%;
     left: 0;
     margin-top: 4px;
-    background: #1a1a1a;
+    background: #000000 !important;
+    background-color: #000000 !important;
+    opacity: 1 !important;
     border: 1px solid rgba(74, 0, 224, 0.3);
     border-radius: 4px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-    z-index: 1000;
+    z-index: 10000 !important;
     min-width: 100%;
+    /* Force no transparency */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    mix-blend-mode: normal !important;
+    isolation: isolate !important;
+  }
+  
+  /* Add a solid pseudo-element backdrop */
+  .speed-dropdown-menu::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #000000;
+    background-color: #000000;
+    opacity: 1;
+    z-index: -1;
+    border-radius: 4px;
+  }
+  
+  /* New solid dropdown styles */
+  .speed-dropdown-solid-wrapper {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    z-index: 999999 !important;
+  }
+  
+  .speed-dropdown-solid-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgb(0, 0, 0) !important;
+    background-color: rgb(0, 0, 0) !important;
+    background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==') !important;
+    background-repeat: repeat !important;
+    opacity: 1 !important;
+    z-index: 0;
+    border-radius: 4px;
+  }
+  
+  .speed-dropdown-solid-menu {
+    position: relative;
+    background: rgb(0, 0, 0) !important;
+    background-color: rgb(0, 0, 0) !important;
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    z-index: 1;
+    opacity: 1 !important;
+  }
+  
+  .speed-dropdown-solid-item {
+    display: block;
+    width: 100%;
+    padding: 8px 16px;
+    background: rgb(0, 0, 0) !important;
+    background-color: rgb(0, 0, 0) !important;
+    opacity: 1 !important;
+    border: none;
+    color: #9ca3af;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+    position: relative;
+    z-index: 2;
+  }
+  
+  .speed-dropdown-solid-item:hover {
+    background: rgb(74, 0, 224) !important;
+    background-color: rgb(74, 0, 224) !important;
+    color: #d1d4dc;
+  }
+  
+  .speed-dropdown-solid-item:first-child {
+    border-radius: 3px 3px 0 0;
+  }
+  
+  .speed-dropdown-solid-item:last-child {
+    border-radius: 0 0 3px 3px;
   }
   
   .speed-dropdown-item {
     display: block;
     width: 100%;
     padding: 8px 16px;
-    background: none;
+    background: #000000 !important;
+    background-color: #000000 !important;
+    opacity: 1 !important;
     border: none;
     color: #9ca3af;
     text-align: left;
@@ -2479,7 +2616,8 @@ No open positions{/if}</title>
   }
   
   .speed-dropdown-item:hover {
-    background: rgba(74, 0, 224, 0.3);
+    background: #4a00e0 !important;
+    background-color: #4a00e0 !important;
     color: #d1d4dc;
   }
   
