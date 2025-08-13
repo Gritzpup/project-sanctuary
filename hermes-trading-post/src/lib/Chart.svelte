@@ -1,5 +1,5 @@
 <script lang="ts">
-  console.log('Chart.svelte VERSION 6 LOADED - Disabled visible range subscription to fix null errors');
+  // console.log('Chart.svelte VERSION 6 LOADED - Disabled visible range subscription to fix null errors');
   import { onMount, onDestroy } from 'svelte';
   import { createChart, ColorType } from 'lightweight-charts';
   import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
@@ -103,8 +103,8 @@
   
   // Watch for external granularity or period changes
   $: if (isInitialized && chart && dataFeed && (granularity !== previousGranularity || period !== previousPeriod)) {
-    console.log(`📈 CHART: Props changed - Period: ${previousPeriod} → ${period}, Granularity: ${previousGranularity} → ${granularity}`);
-    console.log('📈 CHART: Triggering reactive update');
+    // console.log(`📈 CHART: Props changed - Period: ${previousPeriod} → ${period}, Granularity: ${previousGranularity} → ${granularity}`);
+    // console.log('📈 CHART: Triggering reactive update');
     
     // Clear any pending update
     clearTimeout(updateTimer);
@@ -128,18 +128,18 @@
   
   // Update trade markers when trades change
   $: if (candleSeries && trades) {
-    console.log('Chart: Trades prop changed, updating markers', {
-      tradesLength: trades.length,
-      candleSeries: !!candleSeries,
-      chart: !!chart
-    });
+    // console.log('Chart: Trades prop changed, updating markers', {
+    //   tradesLength: trades.length,
+    //   candleSeries: !!candleSeries,
+    //   chart: !!chart
+    // });
     updateTradeMarkers();
   }
   
   function handleManualGranularityChange(newGranularity: string) {
     if (!dataFeed || !chart || !candleSeries) return;
     
-    console.log(`VERSION 5: Manual granularity change from ${effectiveGranularity} to ${newGranularity}`);
+    // console.log(`VERSION 5: Manual granularity change from ${effectiveGranularity} to ${newGranularity}`);
     
     // Update granularity using ChartDataFeed API
     effectiveGranularity = newGranularity;
@@ -259,13 +259,13 @@
         return;
       }
       
-      console.log('Chart: Successfully created chart and candle series');
+      // console.log('Chart: Successfully created chart and candle series');
 
       // Initialize data feed with real Coinbase data
       dataFeed = ChartDataFeed.getInstance();
       
       // Force clear any cached data to ensure fresh start
-      console.log('Chart: Ensuring fresh data on initialization');
+      // console.log('Chart: Ensuring fresh data on initialization');
       
       // Notify parent component that dataFeed is ready
       if (onDataFeedReady && dataFeed) {
@@ -274,20 +274,20 @@
       
       // IMPORTANT: Subscribe IMMEDIATELY before any data arrives
       dataFeed.subscribe('chart', (candle, isNew, metadata) => {
-        console.log('Chart: Received candle update', { 
-          time: new Date(candle.time * 1000).toISOString(),
-          price: candle.close,
-          isNew, 
-          metadata,
-          candleSeries: !!candleSeries,
-          isLoadingData,
-          chart: !!chart,
-          effectiveGranularity
-        });
+        // console.log('Chart: Received candle update', { 
+        //   time: new Date(candle.time * 1000).toISOString(),
+        //   price: candle.close,
+        //   isNew, 
+        //   metadata,
+        //   candleSeries: !!candleSeries,
+        //   isLoadingData,
+        //   chart: !!chart,
+        //   effectiveGranularity
+        // });
         
         // Handle sliding window updates
         if (metadata?.slidingWindowUpdate && chart && autoScroll) {
-          console.log('Chart: Handling sliding window update', metadata);
+          // console.log('Chart: Handling sliding window update', metadata);
           try {
             const visibleRange = chart.timeScale().getVisibleRange();
             if (visibleRange) {
@@ -299,11 +299,11 @@
               const newFrom = Math.max(metadata.newFirstTime, candle.time - rangeWidth);
               const newTo = candle.time + 60; // Add small buffer
               
-              console.log('Chart: Adjusting visible range for sliding window', {
-                oldRange: { from: visibleRange.from, to: visibleRange.to },
-                newRange: { from: newFrom, to: newTo },
-                removedCandles: metadata.removedCount
-              });
+              // console.log('Chart: Adjusting visible range for sliding window', {
+              //   oldRange: { from: visibleRange.from, to: visibleRange.to },
+              //   newRange: { from: newFrom, to: newTo },
+              //   removedCandles: metadata.removedCount
+              // });
               
               chart.timeScale().setVisibleRange({
                 from: newFrom as Time,
@@ -319,7 +319,7 @@
         }
         
         if (candleSeries && !isLoadingData && dataFeed.currentGranularity === effectiveGranularity) {
-          console.log('Chart: Processing candle update for', effectiveGranularity);
+          // console.log('Chart: Processing candle update for', effectiveGranularity);
           
           // Set display status based on update type
           displayStatus = isNew ? 'new-candle' : 'price-update';
@@ -342,22 +342,22 @@
           const bodySize = Math.abs(candle.close - candle.open);
           const bodyPercent = (bodySize / candle.open) * 100;
           if (bodyPercent < 0.01) {
-            console.log('WARNING: Very thin candle body detected:', {
-              time: new Date(candle.time * 1000).toISOString(),
-              open: candle.open,
-              close: candle.close,
-              bodySize,
-              bodyPercent: bodyPercent.toFixed(4) + '%'
-            });
+            // console.log('WARNING: Very thin candle body detected:', {
+            //   time: new Date(candle.time * 1000).toISOString(),
+            //   open: candle.open,
+            //   close: candle.close,
+            //   bodySize,
+            //   bodyPercent: bodyPercent.toFixed(4) + '%'
+            // });
           }
           
           if (isNew) {
-            console.log(`Chart: Received new ${effectiveGranularity} candle at ${new Date(candle.time * 1000).toISOString()}`);
+            // console.log(`Chart: Received new ${effectiveGranularity} candle at ${new Date(candle.time * 1000).toISOString()}`);
           } else {
-            console.log(`Chart: Updating existing ${effectiveGranularity} candle at ${new Date(candle.time * 1000).toISOString()}`);
+            // console.log(`Chart: Updating existing ${effectiveGranularity} candle at ${new Date(candle.time * 1000).toISOString()}`);
           }
           
-          console.log('Chart: Candle data:', chartCandle);
+          // console.log('Chart: Candle data:', chartCandle);
           
           try {
             const currentData = candleSeries.data();
@@ -366,7 +366,7 @@
             if (currentData.length === 0) {
               // No data, add as first candle
               candleSeries.setData([chartCandle]);
-              console.log('Chart: Added first candle');
+              // console.log('Chart: Added first candle');
             } else {
               const existingIndex = currentData.findIndex((c: any) => c.time === chartCandle.time);
               const firstCandle = currentData[0];
@@ -375,7 +375,7 @@
               if (existingIndex >= 0) {
                 // Candle exists, update it
                 candleSeries.update(chartCandle);
-                console.log('Chart: Successfully updated candle');
+                // console.log('Chart: Successfully updated candle');
                 
                 // If auto-scroll is enabled and this is the last candle, ensure it's visible
                 if (chart && autoScroll && existingIndex === currentData.length - 1) {
@@ -383,7 +383,7 @@
                     const visibleRange = chart.timeScale().getVisibleRange();
                     if (visibleRange && Number(visibleRange.to) < chartCandle.time) {
                       // The last candle is outside the visible range, scroll to show it
-                      console.log('Chart: Scrolling to keep last candle visible');
+                      // console.log('Chart: Scrolling to keep last candle visible');
                       const rangeWidth = Number(visibleRange.to) - Number(visibleRange.from);
                       chart.timeScale().setVisibleRange({
                         from: (chartCandle.time - rangeWidth + 60) as Time,
@@ -396,16 +396,16 @@
                 }
               } else if (chartCandle.time < firstCandle.time) {
                 // New candle is older than first candle, prepend and reset data
-                console.log('Chart: Prepending older candle');
+                // console.log('Chart: Prepending older candle');
                 candleSeries.setData([chartCandle, ...currentData]);
               } else if (chartCandle.time > lastCandle.time) {
                 // New candle is newer than last candle, append
-                console.log('Chart: Appending newer candle');
+                // console.log('Chart: Appending newer candle');
                 candleSeries.setData([...currentData, chartCandle]);
                 
                 // Auto-scroll to show the new candle if enabled
                 if (chart && isNew && autoScroll) {
-                  console.log('Chart: Auto-scrolling to show new candle');
+                  // console.log('Chart: Auto-scrolling to show new candle');
                   try {
                     const visibleRange = chart.timeScale().getVisibleRange();
                     if (visibleRange) {
@@ -422,7 +422,7 @@
                 }
               } else {
                 // Insert in the middle
-                console.log('Chart: Inserting candle in the middle');
+    // console.log('Chart: Inserting candle in the middle');
                 const newData = [...currentData, chartCandle].sort((a, b) => (a.time as number) - (b.time as number));
                 candleSeries.setData(newData);
               }
@@ -450,7 +450,7 @@
       
       // Force set the initial granularity to ensure it's properly set
       effectiveGranularity = granularity;
-      console.log('Chart: Initial mount - Setting effectiveGranularity to:', effectiveGranularity);
+    // console.log('Chart: Initial mount - Setting effectiveGranularity to:', effectiveGranularity);
       
       // Load initial data
       await loadInitialData();
@@ -516,10 +516,10 @@
 
   // Load initial data
   async function loadInitialData() {
-    console.log('📈 CHART: === loadInitialData called ===');
-    console.log('chart:', !!chart, 'dataFeed:', !!dataFeed, 'candleSeries:', !!candleSeries);
-    console.log('Current settings:', { period, granularity: effectiveGranularity });
-    console.log('Caller:', new Error().stack?.split('\n')[2]);
+    // console.log('📈 CHART: === loadInitialData called ===');
+    // console.log('chart:', !!chart, 'dataFeed:', !!dataFeed, 'candleSeries:', !!candleSeries);
+    // console.log('Current settings:', { period, granularity: effectiveGranularity });
+    // console.log('Caller:', new Error().stack?.split('\n')[2]);
     
     if (!chart || !dataFeed || !candleSeries) {
       console.error('Missing required components:', { chart: !!chart, dataFeed: !!dataFeed, candleSeries: !!candleSeries });
@@ -533,7 +533,7 @@
       // Calculate initial time range based on period - USE FRESH DATE
       const now = Math.floor(Date.now() / 1000);
       const currentDateTime = new Date();
-      console.log(`🕐 CURRENT TIME: ${currentDateTime.toLocaleString()} (Unix: ${now})`);
+    // console.log(`🕐 CURRENT TIME: ${currentDateTime.toLocaleString()} (Unix: ${now})`);
       const days = periodToDays[period] || 1;
       const periodSeconds = days * 86400;
       
@@ -562,7 +562,7 @@
       if (period === '1H' && effectiveGranularity === '1m') {
         adjustedExpectedCandles = 60;
         adjustedStartTime = alignedNow - (60 * 60); // Exactly 60 minutes back
-        console.log(`Enforcing 60 candles for 1H/1m view: ${new Date(adjustedStartTime * 1000).toISOString()} to ${new Date(alignedNow * 1000).toISOString()}`);
+    // console.log(`Enforcing 60 candles for 1H/1m view: ${new Date(adjustedStartTime * 1000).toISOString()} to ${new Date(alignedNow * 1000).toISOString()}`);
       }
       
       // Update date range info
@@ -578,16 +578,16 @@
         dataDebug: ''
       };
       
-      console.log(`Initial load for ${period} with ${effectiveGranularity}:`, {
-        periodDays: days,
-        periodSeconds,
-        granularitySeconds,
-        expectedCandles: adjustedExpectedCandles,
-        visibleRange: `${new Date(adjustedStartTime * 1000).toISOString()} to ${new Date(now * 1000).toISOString()}`,
-        visibleStartTime: adjustedStartTime,
-        alignedNow,
-        rangeInSeconds: alignedNow - adjustedStartTime
-      });
+    // console.log(`Initial load for ${period} with ${effectiveGranularity}:`, {
+    //     periodDays: days,
+    //     periodSeconds,
+    //     granularitySeconds,
+    //     expectedCandles: adjustedExpectedCandles,
+    //     visibleRange: `${new Date(adjustedStartTime * 1000).toISOString()} to ${new Date(now * 1000).toISOString()}`,
+    //     visibleStartTime: adjustedStartTime,
+    //     alignedNow,
+    //     rangeInSeconds: alignedNow - adjustedStartTime
+    //   });
       
       // Load exact data for the period - no extra padding
       const dataStartTime = adjustedStartTime; // Use adjusted start time
@@ -595,12 +595,12 @@
       // Ensure we use the selected granularity
       dataFeed.setManualGranularity(effectiveGranularity);
       
-      console.log(`Fetching data from ${new Date(dataStartTime * 1000).toISOString()} to ${new Date(alignedNow * 1000).toISOString()}`);
+    // console.log(`Fetching data from ${new Date(dataStartTime * 1000).toISOString()} to ${new Date(alignedNow * 1000).toISOString()}`);
       
       // Load data using the ChartDataFeed API
       const data = await dataFeed.getDataForVisibleRange(dataStartTime, alignedNow);
       
-      console.log('Data received:', data.length > 0 ? `${data.length} candles` : 'NO DATA');
+    // console.log('Data received:', data.length > 0 ? `${data.length} candles` : 'NO DATA');
       
       // CRITICAL: Filter data to only include candles within our time range
       // For 1m granularity (paper trading), use all available candles
@@ -612,31 +612,31 @@
       
       // Removed hardcoded 60-candle limit - let chartDataFeed handle candle management
       
-      console.log(`Filtered from ${data.length} to ${filteredData.length} candles within our time range`);
-      console.log(`Loaded ${filteredData.length} candles (expected ${adjustedExpectedCandles}) for ${period} with ${effectiveGranularity}`);
+    // console.log(`Filtered from ${data.length} to ${filteredData.length} candles within our time range`);
+    // console.log(`Loaded ${filteredData.length} candles (expected ${adjustedExpectedCandles}) for ${period} with ${effectiveGranularity}`);
       
       // Update actual candle count
       dateRangeInfo.actualCandles = filteredData.length;
       
       // LOG THE ACTUAL DATA
       if (data.length > 0) {
-        console.log('FIRST 5 CANDLES:', data.slice(0, 5).map(c => ({
-          time: c.time,
-          date: new Date(c.time * 1000).toLocaleString(),
-          close: c.close
-        })));
-        console.log('LAST 5 CANDLES:', data.slice(-5).map(c => ({
-          time: c.time,
-          date: new Date(c.time * 1000).toLocaleString(),
-          close: c.close
-        })));
+    // console.log('FIRST 5 CANDLES:', data.slice(0, 5).map(c => ({
+    //       time: c.time,
+    //       date: new Date(c.time * 1000).toLocaleString(),
+    //       close: c.close
+    //     })));
+    // console.log('LAST 5 CANDLES:', data.slice(-5).map(c => ({
+    //       time: c.time,
+    //       date: new Date(c.time * 1000).toLocaleString(),
+    //       close: c.close
+    //     })));
       }
       
       // Verify candle count
       if (Math.abs(filteredData.length - expectedCandles) > 1) {
         console.warn(`⚠️ Candle count mismatch! Expected ${expectedCandles}, got ${filteredData.length}`);
       } else {
-        console.log(`✅ Correct candle count for ${period} with ${effectiveGranularity}`);
+    // console.log(`✅ Correct candle count for ${period} with ${effectiveGranularity}`);
       }
       
       if (filteredData.length === 0) {
@@ -654,7 +654,7 @@
         dateRangeInfo.actualFrom = new Date(firstCandle.time * 1000).toLocaleString();
         dateRangeInfo.actualTo = new Date(lastCandle.time * 1000).toLocaleString();
         
-        console.log('Converting data to chart format...');
+    // console.log('Converting data to chart format...');
         const chartData = filteredData.map(candle => ({
           ...candle,
           time: candle.time as Time
@@ -671,7 +671,7 @@
           return acc;
         }, [] as typeof chartData);
         
-        console.log(`Setting chart data... ${uniqueChartData.length} candles (deduplicated from ${chartData.length})`);
+    // console.log(`Setting chart data... ${uniqueChartData.length} candles (deduplicated from ${chartData.length})`);
         candleSeries.setData(uniqueChartData);
         
         // Update total candle count display
@@ -680,13 +680,13 @@
         
         // Update trade markers after data is set
         if (trades && trades.length > 0) {
-          console.log('Chart: Updating trade markers after data load');
+    // console.log('Chart: Updating trade markers after data load');
           updateTradeMarkers();
         }
         
         // IMPORTANT: Force the visible range to show ONLY the requested period
-        console.log('Setting visible range to REQUESTED time period...');
-        console.log(`FORCING visible range: ${visibleStartTime} to ${alignedNow + 30} (with 30s buffer for last candle)`);
+    // console.log('Setting visible range to REQUESTED time period...');
+    // console.log(`FORCING visible range: ${visibleStartTime} to ${alignedNow + 30} (with 30s buffer for last candle)`);
         
         // Use setTimeout to ensure the range is set after the data
         setTimeout(() => {
@@ -705,11 +705,11 @@
           try {
             const actualRange = chart?.timeScale().getVisibleRange();
             if (actualRange) {
-              console.log(`Actual visible range after setting: ${actualRange.from} to ${actualRange.to} (${(Number(actualRange.to) - Number(actualRange.from))/60} minutes`);
+    // console.log(`Actual visible range after setting: ${actualRange.from} to ${actualRange.to} (${(Number(actualRange.to) - Number(actualRange.from))/60} minutes`);
               
               // If the range is wrong, try again!
               if (Math.abs((Number(actualRange.to) - Number(actualRange.from)) - (alignedNow - rangeStart)) > 60) {
-                console.log('Range is wrong, forcing it again...');
+    // console.log('Range is wrong, forcing it again...');
                 chart?.timeScale().setVisibleRange({
                   from: rangeStart as Time,
                   to: (alignedNow + 30) as Time
@@ -734,13 +734,13 @@
               const actualRangeSeconds = Number(actualRange.to) - Number(actualRange.from);
               const actualCandles = Math.ceil(actualRangeSeconds / granularitySeconds);
               
-              console.log('Chart visible range verification:', {
-                actualCandles,
-                expectedCandles,
-              matches: Math.abs(actualCandles - expectedCandles) <= 1 ? '✅' : '❌',
-              period,
-              granularity: effectiveGranularity
-            });
+    // console.log('Chart visible range verification:', {
+    //             actualCandles,
+    //             expectedCandles,
+    //           matches: Math.abs(actualCandles - expectedCandles) <= 1 ? '✅' : '❌',
+    //           period,
+    //           granularity: effectiveGranularity
+    //         });
             
             // Always update the visible candle count with the actual range
             updateVisibleCandleCount(Number(actualRange.from), Number(actualRange.to));
@@ -760,7 +760,7 @@
       setTimeout(() => {
         try {
           chart?.timeScale().fitContent();
-          console.log('Chart: Fit content called to ensure all candles are visible');
+    // console.log('Chart: Fit content called to ensure all candles are visible');
         } catch (e) {
           console.debug('Unable to fit content:', e);
         }
@@ -798,20 +798,20 @@
   export async function reloadData() {
     if (!chart || !dataFeed || !candleSeries || isLoadingData) return;
     
-    console.log('📈 CHART: === reloadData called ===');
-    console.log('Caller:', new Error().stack?.split('\n')[2]);
+    // console.log('📈 CHART: === reloadData called ===');
+    // console.log('Caller:', new Error().stack?.split('\n')[2]);
     
     isLoadingData = true;
     
     try {
-      console.log('VERSION 5: Reloading data with granularity:', effectiveGranularity);
+    // console.log('VERSION 5: Reloading data with granularity:', effectiveGranularity);
       
       // DON'T clear the chart data - just replace it when new data arrives
       // This avoids null errors from an empty chart
       // Calculate time range based on period - USE FRESH DATE
       const now = Math.floor(Date.now() / 1000);
       const currentDateTime = new Date();
-      console.log(`🕐 RELOAD TIME: ${currentDateTime.toLocaleString()} (Unix: ${now})`);
+    // console.log(`🕐 RELOAD TIME: ${currentDateTime.toLocaleString()} (Unix: ${now})`);
       const days = periodToDays[period] || 1;
       const periodSeconds = days * 86400;
       
@@ -835,14 +835,14 @@
       if (period === '1H' && effectiveGranularity === '1m') {
         expectedCandles = 60;
         startTime = alignedNow - (60 * 60); // Exactly 60 minutes back
-        console.log(`Enforcing 60 candles for 1H/1m view on reload: ${new Date(startTime * 1000).toISOString()} to ${new Date(alignedNow * 1000).toISOString()}`);
+    // console.log(`Enforcing 60 candles for 1H/1m view on reload: ${new Date(startTime * 1000).toISOString()} to ${new Date(alignedNow * 1000).toISOString()}`);
       }
       
       // Force manual mode to ensure our selected granularity is used
       dataFeed.setManualGranularity(effectiveGranularity);
       
       // Get data for the period using ChartDataFeed API
-      console.log(`Loading ${period} data with ${effectiveGranularity} candles...`);
+    // console.log(`Loading ${period} data with ${effectiveGranularity} candles...`);
       const data = await dataFeed.getDataForVisibleRange(startTime, alignedNow);
       
       // CRITICAL: Filter data to only include candles within our time range
@@ -871,7 +871,7 @@
         dateRangeInfo.dataDebug = `First: ${firstCandle.time}, Last: ${lastCandle.time}`;
       }
       
-      console.log(`Reloading: ${filteredData.length} candles (expected ${expectedCandles}) for ${period} with ${effectiveGranularity}`);
+    // console.log(`Reloading: ${filteredData.length} candles (expected ${expectedCandles}) for ${period} with ${effectiveGranularity}`);
       
       // Verify candle count and update status
       if (filteredData.length === 0) {
@@ -905,20 +905,20 @@
           return acc;
         }, [] as typeof chartData);
         
-        console.log(`Reload: Setting chart data... ${uniqueChartData.length} candles (deduplicated from ${chartData.length})`);
+    // console.log(`Reload: Setting chart data... ${uniqueChartData.length} candles (deduplicated from ${chartData.length})`);
         
         // Update chart data
         candleSeries.setData(uniqueChartData);
         
         // Update trade markers after data reload
         if (trades && trades.length > 0) {
-          console.log('Chart: Updating trade markers after data reload');
+    // console.log('Chart: Updating trade markers after data reload');
           updateTradeMarkers();
         }
         
         // Force the chart to show all data
         if (chartData.length > 0) {
-          console.log('VERSION 5: Setting data and fitting content');
+    // console.log('VERSION 5: Setting data and fitting content');
           
           // Use requestAnimationFrame to ensure chart has processed the data
           requestAnimationFrame(() => {
@@ -952,7 +952,7 @@
       }
     } finally {
       isLoadingData = false;
-      console.log('VERSION 5: Reload complete, granularity:', effectiveGranularity);
+    // console.log('VERSION 5: Reload complete, granularity:', effectiveGranularity);
     }
   }
 
@@ -990,26 +990,26 @@
     
     const expected = expectedCounts[period]?.[effectiveGranularity];
     
-    console.log('Visible candle count:', {
-      period,
-      granularity: effectiveGranularity,
-      visibleCount: visibleCandleCount,
-      expected: expected || 'calculated',
-      range: `${(range / 60).toFixed(1)} minutes`
-    });
+    // console.log('Visible candle count:', {
+    //   period,
+    //   granularity: effectiveGranularity,
+    //   visibleCount: visibleCandleCount,
+    //   expected: expected || 'calculated',
+    //   range: `${(range / 60).toFixed(1)} minutes`
+    // });
   }
   
   // Update trade markers on the chart
   function updateTradeMarkers() {
     if (!candleSeries || !trades) {
-      console.log('Chart: Cannot update markers - missing requirements', {
-        candleSeries: !!candleSeries,
-        trades: !!trades
-      });
+    // console.log('Chart: Cannot update markers - missing requirements', {
+    //     candleSeries: !!candleSeries,
+    //     trades: !!trades
+    //   });
       return;
     }
     
-    console.log('Chart: Updating trade markers', trades.length);
+    // console.log('Chart: Updating trade markers', trades.length);
     
     if (trades.length === 0) {
       candleSeries.setMarkers([]);
@@ -1030,21 +1030,21 @@
         text: `${trade.type.toUpperCase()} @ $${trade.price.toLocaleString()}`
       };
       
-      console.log(`Chart: Trade ${index} marker:`, {
-        time: marker.time,
-        timestamp: new Date(marker.time * 1000).toISOString(),
-        type: trade.type,
-        price: trade.price
-      });
+    // console.log(`Chart: Trade ${index} marker:`, {
+    //     time: marker.time,
+    //     timestamp: new Date(marker.time * 1000).toISOString(),
+    //     type: trade.type,
+    //     price: trade.price
+    //   });
       
       return marker;
     });
     
-    console.log('Chart: Setting markers:', markers);
+    // console.log('Chart: Setting markers:', markers);
     
     try {
       candleSeries.setMarkers(markers);
-      console.log('Chart: Markers set successfully');
+    // console.log('Chart: Markers set successfully');
     } catch (error) {
       console.error('Chart: Error setting markers:', error);
     }
@@ -1112,14 +1112,14 @@
   }
 
   async function clearCache(skipPageReload = false) {
-    console.log('Clearing cache...');
+    // console.log('Clearing cache...');
     try {
       // Clear IndexedDB
       const databases = await indexedDB.databases();
       for (const db of databases) {
         if (db.name?.includes('coinbase') || db.name?.includes('chart')) {
           await indexedDB.deleteDatabase(db.name);
-          console.log(`Deleted database: ${db.name}`);
+    // console.log(`Deleted database: ${db.name}`);
         }
       }
       

@@ -14,7 +14,7 @@ function createSidebarStore() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved !== null) {
       initialState = JSON.parse(saved);
-      console.log('Sidebar state loaded from localStorage:', initialState);
+      // console.log('Sidebar state loaded from localStorage:', initialState);
     }
   } catch (error) {
     console.error('Failed to load sidebar state from localStorage:', error);
@@ -29,7 +29,7 @@ function createSidebarStore() {
     toggle: () => {
       update(collapsed => {
         const newState = !collapsed;
-        console.log('Sidebar toggled, new state:', newState);
+        // console.log('Sidebar toggled, new state:', newState);
         
         // Save to localStorage
         try {

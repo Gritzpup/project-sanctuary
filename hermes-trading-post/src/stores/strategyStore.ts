@@ -26,7 +26,7 @@ function loadStoredStrategy(): StrategyConfig {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      console.log('Strategy Store: Loaded stored strategy:', parsed.selectedType);
+      // console.log('Strategy Store: Loaded stored strategy:', parsed.selectedType);
       return parsed;
     }
   } catch (error) {

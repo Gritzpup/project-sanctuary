@@ -83,44 +83,44 @@ export class PaperTestService {
       this.endTime = Math.floor(endOfDay.getTime() / 1000);
       this.currentSimTime = this.startTime;
       
-      console.log('Loading historical data for:', startOfDay.toISOString(), 'to', endOfDay.toISOString());
-      console.log('Using granularity:', options.granularity);
-      console.log('Start timestamp:', this.startTime, 'End timestamp:', this.endTime);
-      console.log('Date range:', new Date(this.startTime * 1000).toISOString(), 'to', new Date(this.endTime * 1000).toISOString());
+      // console.log('Loading historical data for:', startOfDay.toISOString(), 'to', endOfDay.toISOString());
+      // console.log('Using granularity:', options.granularity);
+      // console.log('Start timestamp:', this.startTime, 'End timestamp:', this.endTime);
+      // console.log('Date range:', new Date(this.startTime * 1000).toISOString(), 'to', new Date(this.endTime * 1000).toISOString());
       
       // First, ensure we have the data loaded for this period
       const daysFromNow = Math.ceil((Date.now() / 1000 - this.startTime) / 86400);
-      console.log(`Date is ${daysFromNow} days ago from now`);
+      // console.log(`Date is ${daysFromNow} days ago from now`);
       
       // Set the data feed to use the correct granularity
       options.dataFeed.setGranularity(options.granularity);
       
       // Load historical data if needed - only load 2 days to cover the selected date
       if (daysFromNow > 0) {
-        console.log(`Loading 2 days of historical data for ${options.granularity} to cover the selected date`);
+        // console.log(`Loading 2 days of historical data for ${options.granularity} to cover the selected date`);
         await options.dataFeed.loadHistoricalData(options.granularity, 2, 'paper-test');
       }
       
       // Use getDataForVisibleRange which is a public method
-      console.log('Fetching data for visible range...');
+      // console.log('Fetching data for visible range...');
       this.candles = await options.dataFeed.getDataForVisibleRange(
         this.startTime,
         this.endTime,
         'paper-test'
       );
       
-      console.log('Total candles loaded:', this.candles.length);
+      // console.log('Total candles loaded:', this.candles.length);
       
       // If still no data, try progressive load as a fallback
       if (this.candles.length === 0) {
-        console.log('No data from visible range, trying progressive load...');
+        // console.log('No data from visible range, trying progressive load...');
         this.candles = await options.dataFeed.loadProgressiveData(
           this.startTime, 
           this.endTime,
           options.granularity,
           'paper-test'
         );
-        console.log('Progressive load returned:', this.candles.length, 'candles');
+        // console.log('Progressive load returned:', this.candles.length, 'candles');
       }
       
       if (this.candles.length === 0) {
@@ -150,9 +150,9 @@ export class PaperTestService {
       // Sort candles by time to ensure proper order
       this.candles.sort((a, b) => a.time - b.time);
       
-      console.log(`Loaded ${this.candles.length} candles for Paper Test at ${options.granularity} granularity`);
-      console.log('First candle:', new Date(this.candles[0].time * 1000).toISOString());
-      console.log('Last candle:', new Date(this.candles[this.candles.length - 1].time * 1000).toISOString());
+      // console.log(`Loaded ${this.candles.length} candles for Paper Test at ${options.granularity} granularity`);
+      // console.log('First candle:', new Date(this.candles[0].time * 1000).toISOString());
+      // console.log('Last candle:', new Date(this.candles[this.candles.length - 1].time * 1000).toISOString());
       
       // Pre-load all candles for the day
       const chartCandles = this.candles.map(candle => ({

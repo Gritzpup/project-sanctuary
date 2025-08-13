@@ -16,7 +16,7 @@ function createNavigationStore() {
   const validSections: Section[] = ['dashboard', 'paper-trading', 'backtesting', 'trading', 'vault', 'news'];
   const initialSection = savedSection && validSections.includes(savedSection) ? savedSection : 'dashboard';
   
-  console.log('Navigation: Initializing with section:', initialSection);
+  // console.log('Navigation: Initializing with section:', initialSection);
   const { subscribe, set, update } = writable<Section>(initialSection);
 
   return {
@@ -24,7 +24,7 @@ function createNavigationStore() {
     
     // Navigate to a section and save to localStorage
     navigate: (section: Section) => {
-      console.log('Navigation: Navigating to section:', section);
+      // console.log('Navigation: Navigating to section:', section);
       set(section);
       // Save to localStorage for persistence
       try {

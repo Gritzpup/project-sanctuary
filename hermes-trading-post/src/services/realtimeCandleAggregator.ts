@@ -27,12 +27,12 @@ class RealtimeCandleAggregator {
     this.api = new CoinbaseAPI();
     
     // Register as a WebSocket data consumer
-    console.log('RealtimeCandleAggregator: Registering as WebSocket consumer');
+    // console.log('RealtimeCandleAggregator: Registering as WebSocket consumer');
     this.unregisterWebSocket = webSocketManager.registerConsumer({
       id: 'realtime-candle-aggregator',
       onTicker: async (data: TickerData) => {
         if (data.price && data.time) {
-          console.log(`RealtimeCandleAggregator: Received ticker for ${data.product_id} - price: ${data.price}`);
+          // console.log(`RealtimeCandleAggregator: Received ticker for ${data.product_id} - price: ${data.price}`);
           await this.processTick(data.product_id, parseFloat(data.price), new Date(data.time).getTime());
         }
       }
@@ -49,15 +49,15 @@ class RealtimeCandleAggregator {
     // Debug logging
     const debugTime = new Date(timestamp);
     const debugMinute = new Date(minuteTimeMs);
-    console.log(`Process tick: ${debugTime.toISOString()} -> Minute boundary: ${debugMinute.toISOString()} (${minuteTime}s)`);
+    // console.log(`Process tick: ${debugTime.toISOString()} -> Minute boundary: ${debugMinute.toISOString()} (${minuteTime}s)`);
     
     if (!currentCandle || currentCandle.time !== minuteTime) {
       // Need to create a new candle
-      console.log(`Creating new candle at ${new Date(minuteTimeMs).toISOString()} (${minuteTime}s)`);
+      // console.log(`Creating new candle at ${new Date(minuteTimeMs).toISOString()} (${minuteTime}s)`);
       await this.createNewCandle(symbol, price, minuteTime);
     } else {
       // Update existing candle
-      console.log(`Updating existing candle at ${new Date(minuteTimeMs).toISOString()}`);
+      // console.log(`Updating existing candle at ${new Date(minuteTimeMs).toISOString()}`);
       this.updateCandle(symbol, price);
     }
     
@@ -125,7 +125,7 @@ class RealtimeCandleAggregator {
     // Clear existing timer
     const existingTimer = this.intervals.get(symbol);
     if (existingTimer) {
-      console.log(`Clearing existing timer for ${symbol}`);
+      // console.log(`Clearing existing timer for ${symbol}`);
       clearTimeout(existingTimer);
     }
 
@@ -134,13 +134,13 @@ class RealtimeCandleAggregator {
     const nextMinute = Math.ceil(now / 60000) * 60000;
     const timeUntilNext = nextMinute - now;
 
-    console.log(`Current time: ${new Date(now).toISOString()}, Next minute: ${new Date(nextMinute).toISOString()}, Wait: ${timeUntilNext}ms`);
+    // console.log(`Current time: ${new Date(now).toISOString()}, Next minute: ${new Date(nextMinute).toISOString()}, Wait: ${timeUntilNext}ms`);
     
     // Schedule candle creation with small buffer to ensure we're past boundary
     const timer = setTimeout(async () => {
-      console.log(`Timer fired for ${symbol} at ${new Date().toISOString()}`);
+      // console.log(`Timer fired for ${symbol} at ${new Date().toISOString()}`);
       const currentPrice = this.lastPrices.get(symbol);
-      console.log(`Creating new candle at ${new Date(nextMinute).toISOString()}, current price: ${currentPrice}`);
+      // console.log(`Creating new candle at ${new Date(nextMinute).toISOString()}, current price: ${currentPrice}`);
       
       // Remove timer from map since it fired
       this.intervals.delete(symbol);
@@ -153,7 +153,7 @@ class RealtimeCandleAggregator {
       this.syncWithAPI(symbol);
     }, timeUntilNext + 100); // Add 100ms buffer
 
-    console.log(`Created timer for ${symbol}, will fire in ${timeUntilNext + 100}ms`);
+    // console.log(`Created timer for ${symbol}, will fire in ${timeUntilNext + 100}ms`);
     this.intervals.set(symbol, timer);
   }
 
@@ -162,7 +162,7 @@ class RealtimeCandleAggregator {
       // Check if this is the current minute - if so, skip sync
       const currentMinute = Math.floor(Date.now() / 60000) * 60000 / 1000;
       if (candleTime === currentMinute) {
-        console.log(`Skipping API sync for current minute candle at ${new Date(candleTime * 1000).toISOString()}`);
+        // console.log(`Skipping API sync for current minute candle at ${new Date(candleTime * 1000).toISOString()}`);
         return;
       }
       
@@ -175,7 +175,7 @@ class RealtimeCandleAggregator {
       const endTime = new Date(targetTime.getTime() + 60000); // 1 minute after
       const startTime = new Date(targetTime.getTime() - 60000); // 1 minute before
       
-      console.log(`Syncing candle at ${targetTime.toISOString()} with API (attempt ${retryCount + 1})`);
+      // console.log(`Syncing candle at ${targetTime.toISOString()} with API (attempt ${retryCount + 1}`);
       
       const candles = await this.api.getCandles(
         symbol,
@@ -204,7 +204,7 @@ class RealtimeCandleAggregator {
               isNewCandle: false
             });
             
-            console.log(`Successfully synced new candle with API for ${targetTime.toISOString()}`);
+            // console.log(`Successfully synced new candle with API for ${targetTime.toISOString()}`);
           }
         } else if (retryCount < 2) {
           // API might not have the candle yet, retry
@@ -266,7 +266,7 @@ class RealtimeCandleAggregator {
           
           // Save to cache
           await this.saveCandle(symbol, currentCandle);
-          console.log(`Synced candle with API for ${new Date(currentCandle.time * 1000).toISOString()}`);
+          // console.log(`Synced candle with API for ${new Date(currentCandle.time * 1000).toISOString()}`);
         }
       }
     } catch (error) {
@@ -329,18 +329,18 @@ class RealtimeCandleAggregator {
   }
 
   async startAggregating(symbol: string) {
-    console.log(`RealtimeCandleAggregator: Starting aggregation for ${symbol}`);
+    // console.log(`RealtimeCandleAggregator: Starting aggregation for ${symbol}`);
     
     // Connect WebSocket FIRST if not already connected
     await webSocketManager.connect();
     
     // Subscribe to ticker channel for this symbol
-    console.log(`RealtimeCandleAggregator: Subscribing to ticker for ${symbol}`);
+    // console.log(`RealtimeCandleAggregator: Subscribing to ticker for ${symbol}`);
     await webSocketManager.subscribeSymbol(symbol);
     
     // Initialize with current price if available
     const currentPrice = webSocketManager.getLastPrice(symbol) || this.lastPrices.get(symbol);
-    console.log(`RealtimeCandleAggregator: Current price for ${symbol}: ${currentPrice}`);
+    // console.log(`RealtimeCandleAggregator: Current price for ${symbol}: ${currentPrice}`);
     if (currentPrice) {
       const now = Date.now();
       const minuteTimeMs = Math.floor(now / 60000) * 60000;
@@ -349,21 +349,21 @@ class RealtimeCandleAggregator {
       // Check if we already have a candle for this minute
       const existingCandle = this.currentCandles.get(symbol);
       if (existingCandle && existingCandle.time === minuteTime) {
-        console.log(`RealtimeCandleAggregator: Already have candle for ${new Date(minuteTimeMs).toISOString()}, skipping creation`);
+        // console.log(`RealtimeCandleAggregator: Already have candle for ${new Date(minuteTimeMs).toISOString()}, skipping creation`);
       } else {
         await this.createNewCandle(symbol, currentPrice, minuteTime);
       }
     } else {
-      console.log('RealtimeCandleAggregator: No current price available, waiting for first tick');
+      // console.log('RealtimeCandleAggregator: No current price available, waiting for first tick');
     }
   }
 
   async stopAggregating(symbol: string) {
-    console.log(`Stopping aggregation for ${symbol}`);
+    // console.log(`Stopping aggregation for ${symbol}`);
     // Clear timer
     const timer = this.intervals.get(symbol);
     if (timer) {
-      console.log(`Clearing timer for ${symbol} in stopAggregating`);
+      // console.log(`Clearing timer for ${symbol} in stopAggregating`);
       clearTimeout(timer);
       this.intervals.delete(symbol);
     }

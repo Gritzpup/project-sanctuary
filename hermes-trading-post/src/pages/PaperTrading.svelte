@@ -312,7 +312,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
       
       // Calculate initial candles to display based on period and granularity
       const initialCandles = calculateInitialCandles(selectedPeriod, selectedGranularity);
-      console.log(`Paper Test: Will display ${initialCandles} initial candles for ${selectedPeriod}/${selectedGranularity}`);
+      // console.log(`Paper Test: Will display ${initialCandles} initial candles for ${selectedPeriod}/${selectedGranularity}`);
       
       await paperTestService.start({
         date: date,
@@ -439,15 +439,15 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   onMount(async () => {
-    console.log('PaperTrading: Component mounted');
+    // console.log('PaperTrading: Component mounted');
     
     // Wait for service restoration to complete
     await paperTradingService.waitForRestoration();
-    console.log('PaperTrading: Restoration complete');
+    // console.log('PaperTrading: Restoration complete');
     
     // Now check current status
     const status = paperTradingService.getStatus();
-    console.log('PaperTrading: Service status after restoration:', status);
+    // console.log('PaperTrading: Service status after restoration:', status);
     
     // Update UI with current state
     updateStatus();
@@ -515,7 +515,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     // Subscribe to strategy store to sync with backtesting
     unsubscribe = strategyStore.subscribe(config => {
-      console.log('Paper Trading: Received strategy update:', config);
+      // console.log('Paper Trading: Received strategy update:', config);
       
       // Update local state from store
       selectedStrategyType = config.selectedType;
@@ -524,14 +524,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
       // Update balance if provided
       if (config.balance !== undefined) {
         balance = config.balance;
-        console.log('Paper Trading: Updated balance from store:', balance);
+        // console.log('Paper Trading: Updated balance from store:', balance);
       }
       
       // Update fees if provided (Note: Paper trading service might need these in the future)
       if (config.fees) {
         // Store fees for potential future use in paper trading service
         // Currently paper trading doesn't simulate fees, but this ensures consistency
-        console.log('Paper Trading: Received fee configuration:', config.fees);
+        // console.log('Paper Trading: Received fee configuration:', config.fees);
       }
       
       // Update custom strategies if provided
@@ -617,7 +617,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   function handleDataFeedReady(feed: ChartDataFeed) {
-    console.log('Paper Trading: Chart data feed ready');
+    // console.log('Paper Trading: Chart data feed ready');
     chartDataFeed = feed;
     
     // If trading is running, start feeding data to the strategy
@@ -640,7 +640,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
         const candles = chartDataFeed.getCurrentCandles();
         if (candles && candles.length > 0) {
           paperTradingService.updateCandles(candles);
-          console.log('Paper Trading: Fed', candles.length, 'candles to strategy');
+          // console.log('Paper Trading: Fed', candles.length, 'candles to strategy');
         }
       }
     }, 1000);
@@ -929,7 +929,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   let recentLow = 0;
   
   // Debug recentHigh changes
-  $: console.log('recentHigh changed to:', recentHigh);
+  // $: console.log('recentHigh changed to:', recentHigh);
   let lastTradeTime = 0;
   let initialTradingPrice = 0;
   let initialRecentHigh = 0;
@@ -949,8 +949,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
         if (lookbackCandles.length > 0) {
           recentHigh = Math.max(...lookbackCandles.map(c => c.high));
           recentLow = Math.min(...lookbackCandles.map(c => c.low));
-          console.log(`Paper Trading: Recent high: $${recentHigh.toFixed(2)}, Recent low: $${recentLow.toFixed(2)}, Current: $${currentPrice.toFixed(2)}`);
-          console.log('Updated recentHigh from candles:', recentHigh);
+          // console.log(`Paper Trading: Recent high: $${recentHigh.toFixed(2)}, Recent low: $${recentLow.toFixed(2)}, Current: $${currentPrice.toFixed(2)}`);
+          // console.log('Updated recentHigh from candles:', recentHigh);
         }
       }
       
@@ -958,7 +958,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
       if (recentHigh === 0) {
         recentHigh = currentPrice;
         recentLow = currentPrice;
-        console.log('Paper Trading: No candle data, using current price as recent high/low');
+        // console.log('Paper Trading: No candle data, using current price as recent high/low');
       }
     }
     
@@ -1025,13 +1025,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
     const dropFromHigh = recentHigh > 0 ? ((recentHigh - effectivePrice) / recentHigh) * 100 : 0;
     
     // Debug logging
-    console.log('nextBuyLevel calculation:', {
-      currentPrice,
-      effectivePrice,
-      recentHigh,
-      dropFromHigh,
-      selectedStrategyType
-    });
+    // console.log('nextBuyLevel calculation:', {
+    //   currentPrice,
+    //   effectivePrice,
+    //   recentHigh,
+    //   dropFromHigh,
+    //   selectedStrategyType
+    // });
     
     switch (selectedStrategyType) {
       case 'reverse-ratio': {
@@ -1186,7 +1186,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   })();
   
   // Debug what nextBuyLevel is
-  $: console.log('nextBuyLevel result:', nextBuyLevel);
+  // $: console.log('nextBuyLevel result:', nextBuyLevel);
   
   // Calculate 3-section chart data - depend on all necessary variables
   $: threeZoneData = (() => {
@@ -1203,10 +1203,10 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     // Always calculate zones based on strategy behavior
     // Ensure we have a valid recentHigh
-    console.log('threeZoneData calc - recentHigh:', recentHigh, 'currentPrice:', currentPrice);
+    // console.log('threeZoneData calc - recentHigh:', recentHigh, 'currentPrice:', currentPrice);
     const highPrice = (recentHigh && recentHigh > 0) ? recentHigh : currentPrice;
     const dropFromHigh = ((highPrice - currentPrice) / highPrice) * 100;
-    console.log('threeZoneData calc - highPrice:', highPrice);
+    // console.log('threeZoneData calc - highPrice:', highPrice);
     
     // Calculate average entry price first (needed for multiple calculations)
     let avgEntryPrice = currentPrice; // Default if no positions
@@ -1334,20 +1334,20 @@ export class ${getStrategyFileName(type)} extends Strategy {
       const avgEntry = totalSize > 0 ? totalValue / totalSize : 0;
       const profitPercent = avgEntry > 0 ? ((currentPrice - avgEntry) / avgEntry) * 100 : 0;
       
-      console.log('Trading Zone Data:', {
-        isTrading: threeZoneData.isTrading,
-        recentHigh: threeZoneData.recentHigh,
-        currentPrice: threeZoneData.current.price,
-        dropFromHigh: threeZoneData.current.dropFromHigh,
-        angle: threeZoneData.current.angle,
-        positionCount: positions.length,
-        avgEntryPrice: avgEntry,
-        positions: positions.map(p => ({ entryPrice: p.entryPrice, size: p.size })),
-        currentProfit: profitPercent.toFixed(2) + '%',
-        buyZone: threeZoneData.buyZone,
-        sellZone: threeZoneData.sellZone,
-        nextBuyLevel: nextBuyLevel
-      });
+      // console.log('Trading Zone Data:', {
+      //   isTrading: threeZoneData.isTrading,
+      //   recentHigh: threeZoneData.recentHigh,
+      //   currentPrice: threeZoneData.current.price,
+      //   dropFromHigh: threeZoneData.current.dropFromHigh,
+      //   angle: threeZoneData.current.angle,
+      //   positionCount: positions.length,
+      //   avgEntryPrice: avgEntry,
+      //   positions: positions.map(p => ({ entryPrice: p.entryPrice, size: p.size })),
+      //   currentProfit: profitPercent.toFixed(2) + '%',
+      //   buyZone: threeZoneData.buyZone,
+      //   sellZone: threeZoneData.sellZone,
+      //   nextBuyLevel: nextBuyLevel
+      // });
     }
   }
 </script>

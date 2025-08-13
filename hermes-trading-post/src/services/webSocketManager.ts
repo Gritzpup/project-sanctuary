@@ -19,7 +19,7 @@ export class WebSocketManager {
   private isConnected = false;
 
   private constructor() {
-    console.log('WebSocketManager: Creating singleton instance');
+    // console.log('WebSocketManager: Creating singleton instance');
     this.ws = new CoinbaseWebSocket();
     this.setupWebSocket();
   }
@@ -41,7 +41,7 @@ export class WebSocketManager {
 
     // Monitor connection status more aggressively
     this.ws.onStatus((status) => {
-      console.log('WebSocketManager: Connection status changed to:', status);
+      // console.log('WebSocketManager: Connection status changed to:', status);
       
       if (status === 'connected' && !this.isConnected) {
         console.log('WebSocketManager: WebSocket connected, resubscribing to symbols');
@@ -77,10 +77,10 @@ export class WebSocketManager {
   }
 
   private broadcastTicker(data: TickerData) {
-    console.log(`WebSocketManager: Broadcasting ticker data to ${this.consumers.size} consumers`);
+    // console.log(`WebSocketManager: Broadcasting ticker data to ${this.consumers.size} consumers`);
     for (const consumer of this.consumers.values()) {
       try {
-        console.log(`WebSocketManager: Sending to consumer ${consumer.id}`);
+        // console.log(`WebSocketManager: Sending to consumer ${consumer.id}`);
         consumer.onTicker(data);
       } catch (error) {
         console.error(`Error in consumer ${consumer.id}:`, error);
@@ -95,16 +95,16 @@ export class WebSocketManager {
   }
 
   async connect(): Promise<void> {
-    console.log('WebSocketManager: connect() called, isConnected:', this.isConnected, 'ws.isConnected:', this.ws.isConnected());
+    // console.log('WebSocketManager: connect() called, isConnected:', this.isConnected, 'ws.isConnected:', this.ws.isConnected());
     
     // Check if WebSocket is already connected or connecting
     if (this.ws.isConnected()) {
-      console.log('WebSocketManager: WebSocket already connected');
+      // console.log('WebSocketManager: WebSocket already connected');
       this.isConnected = true;
       return;
     }
     
-    console.log('WebSocketManager: Initiating WebSocket connection');
+    // console.log('WebSocketManager: Initiating WebSocket connection');
     this.ws.connect();
     
     // Wait for connection to establish (up to 5 seconds)
@@ -115,7 +115,7 @@ export class WebSocketManager {
     }
     
     if (this.ws.isConnected()) {
-      console.log('WebSocketManager: Connection established successfully');
+      // console.log('WebSocketManager: Connection established successfully');
       this.isConnected = true;
       // Resubscribe to all symbols
       await this.resubscribeAll();
@@ -125,7 +125,7 @@ export class WebSocketManager {
   }
 
   async subscribeSymbol(symbol: string): Promise<void> {
-    console.log('WebSocketManager: subscribeSymbol called for', symbol, 'isConnected:', this.isConnected);
+    // console.log('WebSocketManager: subscribeSymbol called for', symbol, 'isConnected:', this.isConnected);
     this.subscribedSymbols.add(symbol);
     
     if (this.isConnected) {

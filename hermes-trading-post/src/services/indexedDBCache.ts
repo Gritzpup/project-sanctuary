@@ -72,7 +72,7 @@ export class IndexedDBCache {
 
       request.onsuccess = () => {
         this.db = request.result;
-        console.log('IndexedDB initialized successfully');
+        // console.log('IndexedDB initialized successfully');
         resolve();
       };
 
@@ -81,18 +81,18 @@ export class IndexedDBCache {
         const oldVersion = event.oldVersion;
         const newVersion = event.newVersion;
         
-        console.log(`Upgrading IndexedDB from version ${oldVersion} to ${newVersion}`);
-        console.log('Existing stores:', Array.from(db.objectStoreNames));
+        // console.log(`Upgrading IndexedDB from version ${oldVersion} to ${newVersion}`);
+        // console.log('Existing stores:', Array.from(db.objectStoreNames));
         
         // Delete old store if it exists (for migration)
         if (db.objectStoreNames.contains('candles')) {
-          console.log('Deleting old candles store');
+          // console.log('Deleting old candles store');
           db.deleteObjectStore('candles');
         }
         
         // Create chunks store
         if (!db.objectStoreNames.contains(CHUNKS_STORE)) {
-          console.log('Creating chunks store');
+          // console.log('Creating chunks store');
           const chunksStore = db.createObjectStore(CHUNKS_STORE, { keyPath: 'chunkId' });
           chunksStore.createIndex('symbol', 'symbol', { unique: false });
           chunksStore.createIndex('granularity', 'granularity', { unique: false });
@@ -103,11 +103,11 @@ export class IndexedDBCache {
         
         // Create metadata store
         if (!db.objectStoreNames.contains(METADATA_STORE)) {
-          console.log('Creating metadata store');
+          // console.log('Creating metadata store');
           db.createObjectStore(METADATA_STORE, { keyPath: 'symbol' });
         }
         
-        console.log('Upgrade complete. Stores:', Array.from(db.objectStoreNames));
+        // console.log('Upgrade complete. Stores:', Array.from(db.objectStoreNames));
       };
     });
   }
@@ -514,13 +514,13 @@ export class IndexedDBCache {
       await metadataStore.put(metadata);
       
       // Log for debugging
-      console.log('Metadata recalculated from scratch:', {
-        symbol,
-        totalCandles: metadata.totalCandles,
-        granularities: Object.entries(metadata.granularityRanges).map(([g, d]) => 
-          `${g}: ${d.candleCount} candles`
-        )
-      });
+      // console.log('Metadata recalculated from scratch:', {
+      //   symbol,
+      //   totalCandles: metadata.totalCandles,
+      //   granularities: Object.entries(metadata.granularityRanges).map(([g, d]) => 
+      //     `${g}: ${d.candleCount} candles`
+      //   )
+      // });
       
     } catch (error) {
       console.error('Error recalculating metadata:', error);
@@ -792,13 +792,13 @@ export class IndexedDBCache {
     const totalCandles = chunks.reduce((sum, chunk) => sum + chunk.candles.length, 0);
     
     // Log current state
-    console.log(`Pruning check for ${symbol} ${granularity}: ${totalCandles} candles, limit: ${maxCandles}`);
+    // console.log(`Pruning check for ${symbol} ${granularity}: ${totalCandles} candles, limit: ${maxCandles}`);
     
     if (totalCandles <= maxCandles) {
       return; // No pruning needed
     }
     
-    console.warn(`PRUNING REQUIRED: ${totalCandles} candles exceeds limit of ${maxCandles} for ${symbol} ${granularity}`);
+    // console.warn(`PRUNING REQUIRED: ${totalCandles} candles exceeds limit of ${maxCandles} for ${symbol} ${granularity}`);
     
     // Sort chunks by start time (oldest first)
     chunks.sort((a, b) => a.startTime - b.startTime);
@@ -818,7 +818,7 @@ export class IndexedDBCache {
         candlesToRemove -= chunk.candles.length;
         candlesRemoved += chunk.candles.length;
         chunksRemoved++;
-        console.log(`Pruned entire chunk ${chunk.chunkId} with ${chunk.candles.length} candles`);
+        // console.log(`Pruned entire chunk ${chunk.chunkId} with ${chunk.candles.length} candles`);
       } else {
         // Partially remove candles from this chunk
         const keepCount = chunk.candles.length - candlesToRemove;
@@ -827,12 +827,12 @@ export class IndexedDBCache {
         chunk.startTime = chunk.candles[0].time;
         await store.put(chunk);
         candlesRemoved += removedCount;
-        console.log(`Pruned ${removedCount} candles from chunk ${chunk.chunkId}`);
+        // console.log(`Pruned ${removedCount} candles from chunk ${chunk.chunkId}`);
         candlesToRemove = 0;
       }
     }
     
-    console.log(`Pruning complete: removed ${candlesRemoved} candles from ${chunksRemoved} chunks`);
+    // console.log(`Pruning complete: removed ${candlesRemoved} candles from ${chunksRemoved} chunks`);
   }
 
   // Get all cache entries (for compatibility)

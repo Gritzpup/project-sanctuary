@@ -70,7 +70,7 @@ export class ChartDataFeed {
     this.cache = new IndexedDBCache();
     this.loader = new HistoricalDataLoader(this.api, this.cache);
     
-    console.log(`ChartDataFeed: Initialized with granularity ${this.currentGranularity}`);
+    // console.log(`ChartDataFeed: Initialized with granularity ${this.currentGranularity}`);
     
     // Don't clear data on initialization - preserve across navigation
     // this.clearInMemoryData();
@@ -97,7 +97,7 @@ export class ChartDataFeed {
     const currentCount = this.instanceLoadCounts.get(instanceId) || 0;
     this.instanceLoadCounts.set(instanceId, currentCount + 1);
     
-    console.log(`ChartDataFeed: Active instance set to ${instanceId} (load count: ${currentCount + 1})`);
+    // console.log(`ChartDataFeed: Active instance set to ${instanceId} (load count: ${currentCount + 1})`);
   }
 
   clearActiveInstance() {
@@ -122,28 +122,28 @@ export class ChartDataFeed {
 
   public static getInstance(): ChartDataFeed {
     if (!ChartDataFeed.instance) {
-      console.log('ChartDataFeed: Creating singleton instance');
+      // console.log('ChartDataFeed: Creating singleton instance');
       ChartDataFeed.instance = new ChartDataFeed();
     } else {
-      console.log('ChartDataFeed: Returning existing singleton instance');
+      // console.log('ChartDataFeed: Returning existing singleton instance');
     }
     return ChartDataFeed.instance;
   }
 
   // Helper to log current data state
   private logDataState(operation: string, details?: any) {
-    console.log(`📊 CANDLE TRACKER [${operation}]`, {
-      currentDataLength: this.currentData.length,
-      granularity: this.currentGranularity,
-      firstCandle: this.currentData[0] ? new Date(this.currentData[0].time * 1000).toISOString() : 'none',
-      lastCandle: this.currentData[this.currentData.length - 1] ? new Date(this.currentData[this.currentData.length - 1].time * 1000).toISOString() : 'none',
-      ...details
-    });
+    // console.log(`📊 CANDLE TRACKER [${operation}]`, {
+    //   currentDataLength: this.currentData.length,
+    //   granularity: this.currentGranularity,
+    //   firstCandle: this.currentData[0] ? new Date(this.currentData[0].time * 1000).toISOString() : 'none',
+    //   lastCandle: this.currentData[this.currentData.length - 1] ? new Date(this.currentData[this.currentData.length - 1].time * 1000).toISOString() : 'none',
+    //   ...details
+    // });
   }
 
   private async startBackgroundLoading() {
     // Skip background loading - load data on demand to optimize initial load time
-    console.log('ChartDataFeed: Background loading disabled for faster initial load');
+    // console.log('ChartDataFeed: Background loading disabled for faster initial load');
   }
 
   // Background cache pruning to keep cache size manageable
@@ -161,7 +161,7 @@ export class ChartDataFeed {
 
   // Progressive data loading for fast initial render
   async loadProgressiveData(startTime: number, endTime: number, granularity: string, instanceId: string): Promise<CandleData[]> {
-    console.log(`ChartDataFeed: Progressive load for ${granularity} - instance ${instanceId}`);
+    // console.log(`ChartDataFeed: Progressive load for ${granularity} - instance ${instanceId}`);
     
     // Check if this is still the active instance
     if (!this.isCurrentInstance(instanceId)) {
@@ -175,7 +175,7 @@ export class ChartDataFeed {
       const visibleRangeSeconds = endTime - startTime;
       const recentStartTime = Math.max(startTime, endTime - Math.min(visibleRangeSeconds, 14400)); // Max 4 hours
       
-      console.log(`ChartDataFeed: Loading recent ${granularity} data first...`);
+      // console.log(`ChartDataFeed: Loading recent ${granularity} data first...`);
       const recentData = await this.cache.getCachedCandles(
         this.symbol,
         granularity,
@@ -185,14 +185,14 @@ export class ChartDataFeed {
       
       // If we have recent data, return it immediately
       if (recentData.candles.length > 0) {
-        console.log(`ChartDataFeed: Returning ${recentData.candles.length} recent candles immediately`);
+        // console.log(`ChartDataFeed: Returning ${recentData.candles.length} recent candles immediately`);
         this.currentData = recentData.candles;
         
         // Load the rest in background (skip during Paper Test)
         if (startTime < recentStartTime && instanceId !== 'paper-test') {
           setTimeout(async () => {
             if (this.isCurrentInstance(instanceId)) {
-              console.log(`ChartDataFeed: Loading historical data in background...`);
+              // console.log(`ChartDataFeed: Loading historical data in background...`);
               await this.loadHistoricalData(granularity, Math.ceil((endTime - startTime) / 86400), instanceId);
             }
           }, 100);
@@ -209,12 +209,12 @@ export class ChartDataFeed {
   private setupWebSocket() {
     // Use realtimeCandleAggregator for 1-minute candles
     this.realtimeUnsubscribe = realtimeCandleAggregator.subscribe((update) => {
-      console.log(`ChartDataFeed: Received update from aggregator`, {
-        symbol: update.symbol,
-        currentGranularity: this.currentGranularity,
-        isNewCandle: update.isNewCandle,
-        time: new Date(Number(update.candle.time) * 1000).toISOString()
-      });
+      // console.log(`ChartDataFeed: Received update from aggregator`, {
+      //   symbol: update.symbol,
+      //   currentGranularity: this.currentGranularity,
+      //   isNewCandle: update.isNewCandle,
+      //   time: new Date(Number(update.candle.time) * 1000).toISOString()
+      // });
       
       // Always process updates for real-time price display
       if (update.symbol === this.symbol) {
@@ -235,7 +235,7 @@ export class ChartDataFeed {
         // For 1m granularity, handle new candles directly
         if (this.currentGranularity === '1m') {
           if (update.isNewCandle) {
-            console.log(`ChartDataFeed: Received new 1m candle at ${new Date(candleData.time * 1000).toISOString()}`);
+            // console.log(`ChartDataFeed: Received new 1m candle at ${new Date(candleData.time * 1000).toISOString()}`);
             
             // Check if we already have this candle (prevent duplicates)
             const existingIndex = this.currentData.findIndex(c => c.time === candleData.time);
@@ -252,7 +252,7 @@ export class ChartDataFeed {
             // DON'T remove candles - just notify chart to update viewport
             // Check if we should trigger a viewport adjustment
             if (this.currentData.length > 60) {
-              console.log(`ChartDataFeed: Total candles: ${this.currentData.length}, sending viewport update`);
+              // console.log(`ChartDataFeed: Total candles: ${this.currentData.length}, sending viewport update`);
               
               // Notify chart to adjust viewport to show recent candles
               // The chart will slide its view window, not remove data
@@ -275,7 +275,7 @@ export class ChartDataFeed {
             // Update existing candle
             const lastIndex = this.currentData.length - 1;
             if (lastIndex >= 0 && this.currentData[lastIndex].time === candleData.time) {
-              console.log(`ChartDataFeed: Updating existing 1m candle at index ${lastIndex}, time: ${new Date(candleData.time * 1000).toISOString()}`);
+              // console.log(`ChartDataFeed: Updating existing 1m candle at index ${lastIndex}, time: ${new Date(candleData.time * 1000).toISOString()}`);
               this.currentData[lastIndex] = candleData;
             } else {
               // Check if this is actually a new candle that should be added
@@ -297,7 +297,7 @@ export class ChartDataFeed {
           }
           
           // Notify subscribers with the candle update
-          console.log(`ChartDataFeed: Notifying ${this.subscribers.size} subscribers for 1m update`);
+          // console.log(`ChartDataFeed: Notifying ${this.subscribers.size} subscribers for 1m update`);
           this.subscribers.forEach((callback, subscriberId) => {
             try {
               // Only notify if subscriber ID matches active instance
@@ -309,7 +309,7 @@ export class ChartDataFeed {
             }
           });
           
-          console.log(`ChartDataFeed: Total candles after sliding window: ${this.currentData.length}`);
+          // console.log(`ChartDataFeed: Total candles after sliding window: ${this.currentData.length}`);
         } else {
           // For other granularities, update the current candle with real-time price
           const granularitySeconds = this.getGranularitySeconds(this.currentGranularity);
@@ -574,15 +574,15 @@ export class ChartDataFeed {
       console.log(`ChartDataFeed: Skipping gap fill - instance ${instanceId} is no longer active`);
       return;
     }
-    console.log(`[FILL GAPS] Received ${gaps.length} gaps for ${granularity}:`, {
-      gaps: gaps.slice(0, 5).map(g => ({
-        start: new Date(g.start * 1000).toISOString(),
-        end: new Date(g.end * 1000).toISOString(),
-        days: Math.round((g.end - g.start) / 86400)
-      })),
-      totalGaps: gaps.length,
-      ...(gaps.length > 5 ? { note: `... and ${gaps.length - 5} more gaps` } : {})
-    });
+    // console.log(`[FILL GAPS] Received ${gaps.length} gaps for ${granularity}:`, {
+    //   gaps: gaps.slice(0, 5).map(g => ({
+    //     start: new Date(g.start * 1000).toISOString(),
+    //     end: new Date(g.end * 1000).toISOString(),
+    //     days: Math.round((g.end - g.start) / 86400)
+    //   })),
+    //   totalGaps: gaps.length,
+    //   ...(gaps.length > 5 ? { note: `... and ${gaps.length - 5} more gaps` } : {})
+    // });
     
     // Filter out future gaps first
     const now = Math.floor(Date.now() / 1000);
@@ -655,13 +655,13 @@ export class ChartDataFeed {
       const maxCandlesPerRequest = 300; // Coinbase limit
       const maxTimeRange = maxCandlesPerRequest * granularitySeconds;
       
-      console.log(`[FETCH GAP] Processing gap for ${granularity}:`, {
-        start: new Date(gapStart * 1000).toISOString(),
-        end: new Date(gapEnd * 1000).toISOString(),
-        totalDays: Math.round((gapEnd - gapStart) / 86400),
-        maxTimeRange: maxTimeRange / 86400 + ' days',
-        granularitySeconds
-      });
+      // console.log(`[FETCH GAP] Processing gap for ${granularity}:`, {
+      //   start: new Date(gapStart * 1000).toISOString(),
+      //   end: new Date(gapEnd * 1000).toISOString(),
+      //   totalDays: Math.round((gapEnd - gapStart) / 86400),
+      //   maxTimeRange: maxTimeRange / 86400 + ' days',
+      //   granularitySeconds
+      // });
       
       // Note: Coinbase provides several years of daily data, so we don't need to limit how far back we fetch
       
@@ -672,7 +672,7 @@ export class ChartDataFeed {
       while (currentStart < gapEnd) {
         const currentEnd = Math.min(currentStart + maxTimeRange, gapEnd);
         
-        console.log(`Fetching data chunk: ${new Date(currentStart * 1000).toISOString()} to ${new Date(currentEnd * 1000).toISOString()}`);
+        // console.log(`Fetching data chunk: ${new Date(currentStart * 1000).toISOString()} to ${new Date(currentEnd * 1000).toISOString()}`);
         
         const candles = await this.api.getCandles(
           this.symbol,
@@ -682,7 +682,7 @@ export class ChartDataFeed {
         );
         
         if (candles.length > 0) {
-          console.log(`Fetched ${candles.length} candles for chunk`);
+          // console.log(`Fetched ${candles.length} candles for chunk`);
           
           // Check again before storing data
           if (instanceId && !this.isCurrentInstance(instanceId)) {
@@ -739,7 +739,7 @@ export class ChartDataFeed {
       const endTime = Math.floor(Date.now() / 1000);
       const startTime = Math.floor(endTime - Math.floor(days * 86400));
       
-      console.log(`Loading ${days} days of ${granularity} data`);
+      // console.log(`Loading ${days} days of ${granularity} data`);
       
       // Check if operation was aborted
       if (abortController.signal.aborted) {
@@ -766,7 +766,7 @@ export class ChartDataFeed {
     const gapTime = cacheResult.gaps.reduce((sum, gap) => sum + (gap.end - gap.start), 0);
     const gapPercentage = (gapTime / totalTimeRange) * 100;
     
-    console.log(`Cache coverage: ${(100 - gapPercentage).toFixed(1)}% (${cacheResult.candles.length} candles, ${cacheResult.gaps.length} gaps)`);
+    // console.log(`Cache coverage: ${(100 - gapPercentage).toFixed(1)}% (${cacheResult.candles.length} candles, ${cacheResult.gaps.length} gaps)`);
     
       // Only fetch if we're missing more than 10% of data
       if (cacheResult.gaps.length > 0 && gapPercentage > 10) {
@@ -833,7 +833,7 @@ export class ChartDataFeed {
     
     // Start WebSocket aggregation when first subscriber is added and granularity is 1m
     if (wasEmpty && this.subscribers.size === 1 && this.currentGranularity === '1m') {
-      console.log('ChartDataFeed: First subscriber added with 1m granularity, starting real-time aggregation');
+      // console.log('ChartDataFeed: First subscriber added with 1m granularity, starting real-time aggregation');
       realtimeCandleAggregator.startAggregating(this.symbol);
     }
   }

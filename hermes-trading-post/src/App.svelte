@@ -29,7 +29,7 @@
   let priceInterval: number;
 
   onMount(() => {
-    console.log('App mounted, currentSection:', currentSection);
+    // console.log('App mounted, currentSection:', currentSection);
     api = new CoinbaseAPI();
     
     // Get initial price

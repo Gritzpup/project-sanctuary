@@ -115,21 +115,21 @@ class PaperTradingService {
   }
   
   async restoreFromSavedState(): Promise<boolean> {
-    console.log('PaperTradingService: Starting restoration');
+    // console.log('PaperTradingService: Starting restoration');
     const savedState = paperTradingPersistence.loadState();
     if (!savedState) {
-      console.log('PaperTradingService: No saved state found');
+      // console.log('PaperTradingService: No saved state found');
       return false;
     }
     
-    console.log('PaperTradingService: Found saved state:', {
-      isRunning: savedState.isRunning,
-      strategyType: savedState.strategyType,
-      strategyTypeKey: savedState.strategyTypeKey,
-      tradesCount: savedState.trades.length,
-      positionsCount: savedState.positions.length,
-      balance: savedState.balance
-    });
+    // console.log('PaperTradingService: Found saved state:', {
+    //   isRunning: savedState.isRunning,
+    //   strategyType: savedState.strategyType,
+    //   strategyTypeKey: savedState.strategyTypeKey,
+    //   tradesCount: savedState.trades.length,
+    //   positionsCount: savedState.positions.length,
+    //   balance: savedState.balance
+    // });
     
     try {
       // Import strategy classes to recreate strategy
@@ -195,7 +195,7 @@ class PaperTradingService {
       }));
       
       // Recalculate performance metrics on next candle update
-      console.log('PaperTradingService: State restored successfully');
+      // console.log('PaperTradingService: State restored successfully');
       return true;
     } catch (error) {
       console.error('Failed to restore state:', error);
