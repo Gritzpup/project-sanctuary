@@ -12,7 +12,7 @@ export interface PaperTestOptions {
   dataFeed: ChartDataFeed;
   granularity: string;
   initialDisplayCandles?: number;
-  onProgress?: (progress: number) => void;
+  onProgress?: (progress: number, simTime: number) => void;
   onTrade?: (trade: any) => void;
   onComplete?: (results: PaperTestResults) => void;
   onCandle?: (candle: CandleData) => void;
@@ -216,7 +216,7 @@ export class PaperTestService {
       
       // Update progress
       if (options.onProgress) {
-        options.onProgress(progress * 100);
+        options.onProgress(progress * 100, this.currentSimTime);
       }
       
       // Calculate current simulation time
@@ -590,7 +590,7 @@ export class PaperTestService {
       // Update progress
       const progress = (this.currentCandleIndex / this.candles.length);
       if (this.currentOptions.onProgress) {
-        this.currentOptions.onProgress(progress * 100);
+        this.currentOptions.onProgress(progress * 100, this.currentSimTime);
       }
       
       // Update visible range and markers

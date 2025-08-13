@@ -323,8 +323,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
         dataFeed: chartDataFeed,
         granularity: selectedGranularity,
         initialDisplayCandles: initialCandles,
-        onProgress: (progress) => {
+        onProgress: (progress, simTime) => {
           paperTestProgress = progress;
+          if (simTime) {
+            paperTestSimTime = new Date(simTime * 1000);
+          }
         },
         onTrade: (trade) => {
           console.log('Paper Test Trade:', trade);
