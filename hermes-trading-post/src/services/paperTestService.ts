@@ -43,6 +43,7 @@ export class PaperTestService {
   private dataFeed: ChartDataFeed | null = null;
   private processedCandles: CandleData[] = []; // Candles fed to strategy so far
   private currentOptions: PaperTestOptions | null = null;
+  private lastLoggedProgress: number = -5; // Track last logged progress for 5% intervals
   
   // Playback control
   private playbackSpeed: number = 1; // Speed multiplier
@@ -83,44 +84,44 @@ export class PaperTestService {
       this.endTime = Math.floor(endOfDay.getTime() / 1000);
       this.currentSimTime = this.startTime;
       
-      // console.log('Loading historical data for:', startOfDay.toISOString(), 'to', endOfDay.toISOString());
-      // console.log('Using granularity:', options.granularity);
-      // console.log('Start timestamp:', this.startTime, 'End timestamp:', this.endTime);
-      // console.log('Date range:', new Date(this.startTime * 1000).toISOString(), 'to', new Date(this.endTime * 1000).toISOString());
+      console.log('Paper Test: Loading historical data for:', startOfDay.toISOString(), 'to', endOfDay.toISOString());
+      console.log('Paper Test: Using granularity:', options.granularity);
+      console.log('Paper Test: Start timestamp:', this.startTime, 'End timestamp:', this.endTime);
+      console.log('Paper Test: Date range:', new Date(this.startTime * 1000).toISOString(), 'to', new Date(this.endTime * 1000).toISOString());
       
       // First, ensure we have the data loaded for this period
       const daysFromNow = Math.ceil((Date.now() / 1000 - this.startTime) / 86400);
-      // console.log(`Date is ${daysFromNow} days ago from now`);
+      console.log(`Paper Test: Date is ${daysFromNow} days ago from now`);
       
       // Set the data feed to use the correct granularity
       options.dataFeed.setGranularity(options.granularity);
       
       // Load historical data if needed - only load 2 days to cover the selected date
       if (daysFromNow > 0) {
-        // console.log(`Loading 2 days of historical data for ${options.granularity} to cover the selected date`);
+        console.log(`Paper Test: Loading 2 days of historical data for ${options.granularity} to cover the selected date`);
         await options.dataFeed.loadHistoricalData(options.granularity, 2, 'paper-test');
       }
       
       // Use getDataForVisibleRange which is a public method
-      // console.log('Fetching data for visible range...');
+      console.log('Paper Test: Fetching data for visible range...');
       this.candles = await options.dataFeed.getDataForVisibleRange(
         this.startTime,
         this.endTime,
         'paper-test'
       );
       
-      // console.log('Total candles loaded:', this.candles.length);
+      console.log('Paper Test: Total candles loaded:', this.candles.length);
       
       // If still no data, try progressive load as a fallback
       if (this.candles.length === 0) {
-        // console.log('No data from visible range, trying progressive load...');
+        console.log('Paper Test: No data from visible range, trying progressive load...');
         this.candles = await options.dataFeed.loadProgressiveData(
           this.startTime, 
           this.endTime,
           options.granularity,
           'paper-test'
         );
-        // console.log('Progressive load returned:', this.candles.length, 'candles');
+        console.log('Paper Test: Progressive load returned:', this.candles.length, 'candles');
       }
       
       if (this.candles.length === 0) {
@@ -150,9 +151,20 @@ export class PaperTestService {
       // Sort candles by time to ensure proper order
       this.candles.sort((a, b) => a.time - b.time);
       
-      // console.log(`Loaded ${this.candles.length} candles for Paper Test at ${options.granularity} granularity`);
-      // console.log('First candle:', new Date(this.candles[0].time * 1000).toISOString());
-      // console.log('Last candle:', new Date(this.candles[this.candles.length - 1].time * 1000).toISOString());
+      // Verify all candles are within the requested date range
+      const candlesOutsideRange = this.candles.filter(c => c.time < this.startTime || c.time > this.endTime);
+      if (candlesOutsideRange.length > 0) {
+        console.warn(`Paper Test: Found ${candlesOutsideRange.length} candles outside requested date range!`);
+        console.warn(`Paper Test: First out-of-range candle: ${new Date(candlesOutsideRange[0].time * 1000).toISOString()}`);
+        // Filter to only include candles within the date range
+        this.candles = this.candles.filter(c => c.time >= this.startTime && c.time <= this.endTime);
+      }
+      
+      console.log(`Paper Test: Loaded ${this.candles.length} candles for Paper Test at ${options.granularity} granularity`);
+      console.log('Paper Test: First candle:', new Date(this.candles[0].time * 1000).toISOString(), `(Unix: ${this.candles[0].time})`);
+      console.log('Paper Test: Last candle:', new Date(this.candles[this.candles.length - 1].time * 1000).toISOString(), `(Unix: ${this.candles[this.candles.length - 1].time})`);
+      console.log('Paper Test: Expected range:', new Date(this.startTime * 1000).toISOString(), 'to', new Date(this.endTime * 1000).toISOString());
+      console.log('Paper Test: Time span:', ((this.candles[this.candles.length - 1].time - this.candles[0].time) / 3600).toFixed(2), 'hours');
       
       // Pre-load all candles for the day
       const chartCandles = this.candles.map(candle => ({
@@ -180,6 +192,7 @@ export class PaperTestService {
       this.isPaused = false;
       this.totalElapsedBeforePause = 0;
       this.markers = [];
+      this.lastLoggedProgress = -5;
       
       // Start the time-lapse animation
       this.animate(options);
@@ -201,7 +214,10 @@ export class PaperTestService {
     const WINDOW_SIZE = 60;
     
     const step = () => {
-      if (!this.isRunning) return;
+      if (!this.isRunning) {
+        console.log('Paper Test: Simulation stopped, exiting step function');
+        return;
+      }
       
       if (this.isPaused) {
         this.animationFrameId = requestAnimationFrame(step);
@@ -223,6 +239,21 @@ export class PaperTestService {
       const dayDuration = this.endTime - this.startTime;
       this.currentSimTime = this.startTime + (dayDuration * progress);
       
+      // Log progress every 5%
+      const progressPercent = Math.floor(progress * 100);
+      if (progressPercent >= this.lastLoggedProgress + 5) {
+        this.lastLoggedProgress = Math.floor(progressPercent / 5) * 5;
+        console.log(`\nPaper Test Progress: ${this.lastLoggedProgress}%`);
+        console.log(`- Simulation time: ${new Date(this.currentSimTime * 1000).toISOString()} (Unix: ${this.currentSimTime})`);
+        console.log(`- Real elapsed time: ${(totalElapsed / 1000).toFixed(1)}s of ${(effectiveDuration / 1000).toFixed(1)}s`);
+        console.log(`- Current candle index: ${this.currentCandleIndex}/${this.candles.length}`);
+        console.log(`- Playback speed: ${this.playbackSpeed}x`);
+        if (this.currentCandleIndex > 0 && this.currentCandleIndex < this.candles.length) {
+          const currentCandle = this.candles[this.currentCandleIndex - 1];
+          console.log(`- Last processed candle: ${new Date(currentCandle.time * 1000).toISOString()} @ $${currentCandle.close.toFixed(2)}`);
+        }
+      }
+      
       // Find the current candle index based on simulation time
       let currentIndex = 0;
       for (let i = 0; i < this.candles.length; i++) {
@@ -236,6 +267,15 @@ export class PaperTestService {
       // Process new candles
       while (this.currentCandleIndex <= currentIndex) {
         const candle = this.candles[this.currentCandleIndex];
+        
+        // Log candle processing with time sync details
+        if (this.currentCandleIndex === 0 || this.currentCandleIndex % 10 === 0 || this.currentCandleIndex === this.candles.length - 1) {
+          console.log(`Paper Test Candle: #${this.currentCandleIndex + 1}/${this.candles.length}`);
+          console.log(`  - Candle time: ${new Date(candle.time * 1000).toISOString()} (Unix: ${candle.time})`);
+          console.log(`  - Sim time: ${new Date(this.currentSimTime * 1000).toISOString()} (Unix: ${Math.floor(this.currentSimTime)})`);
+          console.log(`  - Time diff: ${(this.currentSimTime - candle.time).toFixed(1)}s`);
+          console.log(`  - Price: $${candle.close.toFixed(2)} (O:${candle.open.toFixed(2)} H:${candle.high.toFixed(2)} L:${candle.low.toFixed(2)})`);
+        }
         
         // Notify about new candle
         if (options.onCandle) {
@@ -318,15 +358,27 @@ export class PaperTestService {
     // Feed candles array and current price to strategy
     const signal = options.strategy.analyze(this.processedCandles, currentPrice);
     
+    // Log strategy signal
+    if (signal.type !== 'hold') {
+      console.log(`Paper Test: Strategy signal - ${signal.type.toUpperCase()} at ${new Date(candle.time * 1000).toISOString()}, price: ${currentPrice}`);
+      if (signal.confidence !== undefined) {
+        console.log(`Paper Test: Signal confidence: ${signal.confidence}`);
+      }
+    }
+    
     // Process signal based on type
     if (signal.type === 'buy') {
       // Calculate position size based on available balance
       const size = options.strategy.calculatePositionSize(this.balance, signal, currentPrice);
       if (size > 0) {
         const amount = size * currentPrice;
+        console.log(`Paper Test: Executing BUY - Size: ${size.toFixed(8)} BTC, Amount: $${amount.toFixed(2)}, Balance: $${this.balance.toFixed(2)}`);
         this.executeBuy(amount, currentPrice, candle.time, options);
+      } else {
+        console.log(`Paper Test: BUY signal but insufficient balance or position size is 0`);
       }
     } else if (signal.type === 'sell' && signal.size) {
+      console.log(`Paper Test: Executing SELL - Size: ${signal.size.toFixed(8)} BTC, Price: $${currentPrice.toFixed(2)}, BTC Balance: ${this.btcBalance.toFixed(8)}`);
       this.executeSell(signal.size, currentPrice, candle.time, options);
     }
     
@@ -335,7 +387,10 @@ export class PaperTestService {
   }
   
   private executeBuy(amount: number, price: number, timestamp: number, options: PaperTestOptions): void {
-    if (this.balance < amount) return;
+    if (this.balance < amount) {
+      console.log(`Paper Test: Buy order rejected - Insufficient balance. Required: $${amount.toFixed(2)}, Available: $${this.balance.toFixed(2)}`);
+      return;
+    }
     
     const size = amount / price;
     this.balance -= amount;
@@ -352,6 +407,7 @@ export class PaperTestService {
     };
     
     this.trades.push(trade);
+    console.log(`Paper Test: BUY executed - Trade #${this.trades.length}, Size: ${size.toFixed(8)} BTC @ $${price.toFixed(2)}, Total: $${amount.toFixed(2)}, New Balance: $${this.balance.toFixed(2)}, BTC: ${this.btcBalance.toFixed(8)}`);
     this.positions.push({
       entryPrice: price,
       size: size,
@@ -418,6 +474,7 @@ export class PaperTestService {
     };
     
     this.trades.push(trade);
+    console.log(`Paper Test: SELL executed - Trade #${this.trades.length}, Size: ${amount.toFixed(8)} BTC @ $${price.toFixed(2)}, Proceeds: $${proceeds.toFixed(2)}, Profit: $${profit.toFixed(2)}, New Balance: $${this.balance.toFixed(2)}, BTC: ${this.btcBalance.toFixed(8)}`);
     
     if (options.onTrade) {
       options.onTrade(trade);
@@ -456,6 +513,12 @@ export class PaperTestService {
   private complete(options: PaperTestOptions): void {
     this.isRunning = false;
     
+    console.log('\n========== Paper Test Simulation Complete ==========');
+    console.log(`Paper Test: Processed ${this.currentCandleIndex} candles`);
+    console.log(`Paper Test: Start time: ${new Date(this.startTime * 1000).toISOString()} (Unix: ${this.startTime})`);
+    console.log(`Paper Test: End time: ${new Date(this.currentSimTime * 1000).toISOString()} (Unix: ${Math.floor(this.currentSimTime)})`);
+    console.log(`Paper Test: Total duration: ${((this.currentSimTime - this.startTime) / 3600).toFixed(2)} hours`);
+    
     // Calculate final results
     const sellTrades = this.trades.filter(t => t.type === 'sell');
     const profitableTrades = sellTrades.filter(t => t.profit > 0);
@@ -469,6 +532,16 @@ export class PaperTestService {
     
     const finalBalance = this.balance + (this.btcBalance * lastPrice);
     const totalReturn = ((finalBalance - options.initialBalance) / options.initialBalance) * 100;
+    
+    console.log(`\nPaper Test Results:`);
+    console.log(`- Total Trades: ${this.trades.length} (${this.trades.filter(t => t.type === 'buy').length} buys, ${sellTrades.length} sells)`);
+    console.log(`- Win Rate: ${sellTrades.length > 0 ? ((profitableTrades.length / sellTrades.length) * 100).toFixed(2) : 0}%`);
+    console.log(`- Total Return: ${totalReturn.toFixed(2)}%`);
+    console.log(`- Final Balance: $${finalBalance.toFixed(2)} (started with $${options.initialBalance.toFixed(2)})`);
+    console.log(`- Open Positions: ${this.positions.length} with ${this.btcBalance.toFixed(8)} BTC`);
+    if (unrealizedPnL !== 0) {
+      console.log(`- Unrealized P&L: $${unrealizedPnL.toFixed(2)}`);
+    }
     
     // Calculate max drawdown
     let maxBalance = options.initialBalance;

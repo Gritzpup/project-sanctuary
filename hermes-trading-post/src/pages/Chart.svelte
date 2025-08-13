@@ -21,6 +21,7 @@
   export let onChartReady: ((chart: IChartApi, candleSeries: ISeriesApi<'Candlestick'>) => void) | undefined = undefined;  // Callback when chart is ready
   export let isPaperTestRunning: boolean = false;
   export let paperTestSimTime: Date | null = null;
+  export let paperTestDate: Date | null = null;  // The date being tested in paper test mode
   
   // Generate unique instance ID for this chart component
   const instanceId = `chart-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -684,7 +685,21 @@
       
       // For 1m granularity, load ALL available data (not just visible range)
       let dataToLoad;
-      if (effectiveGranularity === '1m') {
+      
+      // If in paper test mode, load only the selected day's data
+      if (isPaperTestRunning && paperTestDate) {
+        const testDate = new Date(paperTestDate);
+        const startOfDay = new Date(testDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(testDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        
+        const dayStartTime = Math.floor(startOfDay.getTime() / 1000);
+        const dayEndTime = Math.floor(endOfDay.getTime() / 1000);
+        
+        console.log(`Chart: Loading initial paper test data for ${testDate.toLocaleDateString()}: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
+        dataToLoad = await dataFeed.getDataForVisibleRange(dayStartTime, dayEndTime, instanceId);
+      } else if (effectiveGranularity === '1m') {
         console.log(`Fetching ALL available 1m data for paper trading...`);
         // Load a much wider range to get all accumulated candles
         const extendedStartTime = alignedNow - (7 * 24 * 60 * 60); // 7 days of data
@@ -927,6 +942,7 @@
     
     try {
       console.log('VERSION 5: Reloading data with granularity:', effectiveGranularity);
+      console.log('Chart: Paper test state:', { isPaperTestRunning, paperTestDate: paperTestDate ? paperTestDate.toISOString() : null });
       
       // DON'T clear the chart data - just replace it when new data arrives
       // This avoids null errors from an empty chart
@@ -965,7 +981,23 @@
       
       // Get data for the period using ChartDataFeed API
       let dataToLoad;
-      if (effectiveGranularity === '1m') {
+      
+      // If in paper test mode, load only the selected day's data
+      if (isPaperTestRunning && paperTestDate) {
+        const testDate = new Date(paperTestDate);
+        const startOfDay = new Date(testDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(testDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        
+        const dayStartTime = Math.floor(startOfDay.getTime() / 1000);
+        const dayEndTime = Math.floor(endOfDay.getTime() / 1000);
+        
+        console.log(`Chart: Loading paper test data for ${testDate.toLocaleDateString()}: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
+        console.log(`Chart: Paper test timestamps: ${dayStartTime} to ${dayEndTime}`);
+        dataToLoad = await dataFeed.getDataForVisibleRange(dayStartTime, dayEndTime, instanceId);
+        console.log(`Chart: Paper test data loaded: ${dataToLoad.length} candles`);
+      } else if (effectiveGranularity === '1m') {
         console.log(`Reloading ALL available 1m data for paper trading...`);
         // Load a much wider range to get all accumulated candles
         const extendedStartTime = alignedNow - (7 * 24 * 60 * 60); // 7 days of data
@@ -977,8 +1009,11 @@
       const data = dataToLoad;
       
       // CRITICAL: Filter data to only include candles within our time range
+      // For paper test mode, keep only the selected day's data
       // For 1m granularity (paper trading), use all available candles
-      let filteredData = effectiveGranularity === '1m'
+      let filteredData = isPaperTestRunning && paperTestDate
+        ? data // Paper test already filtered to selected day
+        : effectiveGranularity === '1m'
         ? data // Keep ALL candles for paper trading
         : data.filter(candle => 
             candle.time >= startTime && candle.time <= alignedNow

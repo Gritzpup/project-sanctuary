@@ -1443,6 +1443,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
             }}
             isPaperTestRunning={isPaperTestRunning}
             paperTestSimTime={paperTestSimTime}
+            paperTestDate={selectedTestDate}
           />
           {#if isRunning}
             <div class="timeframe-locked-indicator">
