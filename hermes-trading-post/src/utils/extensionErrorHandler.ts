@@ -3,66 +3,112 @@
  * These errors are not from our application but from installed browser extensions
  */
 
-export function setupExtensionErrorHandler() {
-  // Detect if we're in a browser that supports extensions
-  if (typeof chrome === 'undefined' || !chrome.runtime) {
-    return;
-  }
+// Track if we've already shown the extension error warning
+let extensionErrorShown = false;
+let errorCount = 0;
 
-  // Override console.error to filter out extension errors
+export function setupExtensionErrorHandler() {
+  // Remove the chrome.runtime check - it's preventing the handler from working
+  
+  // Store original console methods
   const originalError = console.error;
+  const originalLog = console.log;
+  const originalWarn = console.warn;
+  
+  // Helper to check if message is extension error
+  const isExtensionError = (str: string) => {
+    return str.includes('Unchecked runtime.lastError') || 
+           str.includes('message channel closed') ||
+           str.includes('chrome-extension://') ||
+           str.includes('Extension context invalidated');
+  };
+  
+  // Override console.error
   console.error = function(...args: any[]) {
-    // Filter out the specific extension error
-    const errorStr = args.join(' ');
-    if (errorStr.includes('Unchecked runtime.lastError') && 
-        errorStr.includes('message channel closed')) {
-      // Log it as a warning instead with helpful context
-      console.warn(
-        '%c[Browser Extension Error Detected]',
-        'color: orange; font-weight: bold',
-        '\nThis error is from a browser extension, not Hermes Trading Post.',
-        '\nTo identify which extension:',
-        '\n1. Open Chrome DevTools',
-        '\n2. Go to Sources tab',
-        '\n3. Look for inject.js or similar extension files',
-        '\n4. The extension causing this can be temporarily disabled in chrome://extensions',
-        '\n\nOriginal error:', errorStr
-      );
+    const errorStr = args.map(arg => String(arg)).join(' ');
+    if (isExtensionError(errorStr)) {
+      showExtensionWarning();
       return;
     }
-    
-    // Call original console.error for other errors
     originalError.apply(console, args);
   };
-
-  // Also add a global error handler to catch uncaught extension errors
-  window.addEventListener('error', (event) => {
-    if (event.message && event.message.includes('Unchecked runtime.lastError')) {
-      event.preventDefault(); // Prevent the error from showing in console
-      console.warn(
-        '%c[Browser Extension Error Intercepted]',
-        'color: orange; font-weight: bold',
-        '\nA browser extension is causing errors. This does not affect Hermes Trading Post functionality.'
-      );
+  
+  // Override console.log (some extension errors come through here)
+  console.log = function(...args: any[]) {
+    const logStr = args.map(arg => String(arg)).join(' ');
+    if (isExtensionError(logStr)) {
+      showExtensionWarning();
+      return;
     }
-  });
-
-  // Log extension detection info
+    originalLog.apply(console, args);
+  };
+  
+  // Override console.warn
+  console.warn = function(...args: any[]) {
+    const warnStr = args.map(arg => String(arg)).join(' ');
+    if (isExtensionError(warnStr)) {
+      showExtensionWarning();
+      return;
+    }
+    originalWarn.apply(console, args);
+  };
+  
+  // Intercept errors at the window level
+  window.addEventListener('error', (event) => {
+    if (event.message && isExtensionError(event.message)) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      showExtensionWarning();
+      return false;
+    }
+  }, true); // Use capture phase
+  
+  // Also catch unhandledrejection events
+  window.addEventListener('unhandledrejection', (event) => {
+    if (event.reason && isExtensionError(String(event.reason))) {
+      event.preventDefault();
+      showExtensionWarning();
+    }
+  }, true);
+  
+  // Log that handler is active
   console.info(
     '%c[Extension Error Handler Active]',
     'color: blue; font-weight: bold',
-    '\nFiltering out browser extension errors to keep console clean.',
-    '\nTo see all errors, disable this handler in main.ts'
+    '\nSuppressing browser extension errors. These do not affect app functionality.'
   );
+}
+
+function showExtensionWarning() {
+  errorCount++;
+  
+  // Only show the detailed warning once
+  if (!extensionErrorShown) {
+    extensionErrorShown = true;
+    
+    // Use the original console.warn to ensure it shows
+    (console as any).__proto__.warn.call(
+      console,
+      '%c[Browser Extension Error Detected]',
+      'color: orange; font-weight: bold; font-size: 14px',
+      '\n\n⚠️  This error is from a browser extension, NOT from Hermes Trading Post!\n',
+      '\n📍 Error source: inject.js (probably line 22)',
+      '\n\n🔍 To find which extension:',
+      '\n   1. Open Chrome DevTools → Sources tab',
+      '\n   2. Search for "inject.js"',
+      '\n   3. Check chrome://extensions',
+      '\n\n✅ Your app is working fine. These errors can be safely ignored.',
+      '\n\n💡 To stop these errors, disable the problematic extension.',
+      `\n\n📊 Total extension errors suppressed: ${errorCount}`
+    );
+  }
 }
 
 // Helper to identify problematic extensions
 export function identifyProblematicExtensions() {
-  if (typeof chrome === 'undefined' || !chrome.runtime) {
-    console.log('Extension detection not available in this browser');
-    return;
-  }
-
+  // Don't check for chrome.runtime - just look for extension scripts
+  
   // Check for common problematic patterns
   const suspiciousScripts = Array.from(document.scripts)
     .filter(script => {
@@ -75,11 +121,30 @@ export function identifyProblematicExtensions() {
       );
     });
 
-  if (suspiciousScripts.length > 0) {
-    console.group('%c[Detected Extension Scripts]', 'color: orange; font-weight: bold');
-    suspiciousScripts.forEach(script => {
-      console.log('Extension script:', script.src);
-    });
+  // Also check for extension-injected elements
+  const extensionElements = document.querySelectorAll('[id*="extension"], [class*="extension"], [data-extension]');
+  
+  if (suspiciousScripts.length > 0 || extensionElements.length > 0) {
+    console.group('%c[Detected Extension Activity]', 'color: orange; font-weight: bold');
+    
+    if (suspiciousScripts.length > 0) {
+      console.log(`Found ${suspiciousScripts.length} extension scripts:`);
+      suspiciousScripts.forEach(script => {
+        console.log('  📜 Extension script:', script.src);
+      });
+    }
+    
+    if (extensionElements.length > 0) {
+      console.log(`Found ${extensionElements.length} extension-injected elements`);
+    }
+    
+    console.log('\n💡 These extensions may be causing the "runtime.lastError" messages.');
     console.groupEnd();
+  } else {
+    console.log(
+      '%c[No Extension Scripts Detected]',
+      'color: green',
+      'Extension errors may be coming from background scripts not visible here.'
+    );
   }
 }

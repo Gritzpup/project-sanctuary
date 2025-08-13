@@ -8,11 +8,22 @@ Unchecked runtime.lastError: A listener indicated an asynchronous response by re
 ## What's Happening
 This error is **NOT** from Hermes Trading Post. It's caused by a browser extension installed in your Chrome browser. The extension is injecting a script called `inject.js` that's not properly handling Chrome's message passing API.
 
-## Solution Applied
-I've added an extension error handler that:
-1. Filters out these extension errors from the console
-2. Logs them as warnings with helpful context instead
-3. Identifies which extensions might be causing issues
+## Solution Applied (Updated - More Aggressive)
+I've implemented a **dual-layer defense** against extension errors:
+
+### Layer 1: Early Blocking Script (`suppress-extension-errors.js`)
+- Loads immediately when the page opens (before any app code)
+- Intercepts and blocks extension errors at the earliest possible point
+- Overrides console methods to filter out extension messages
+- Shows a single warning message instead of repeated errors
+
+### Layer 2: Runtime Error Handler (`extensionErrorHandler.ts`)
+- Enhanced error handler that catches any remaining errors
+- Removed restrictive browser checks that were preventing it from working
+- Provides helpful warnings and tracking
+- Identifies which extensions might be causing issues
+
+These two layers work together to ensure extension errors are suppressed
 
 ## How to Find the Problematic Extension
 
@@ -50,4 +61,14 @@ After refreshing the page, you'll see:
 4. **Use a different browser profile** for trading (no extensions)
 
 ## Note
-The error handler I've added will keep your console clean and won't affect the functionality of Hermes Trading Post. The app will work perfectly fine despite these extension errors.
+The dual-layer error suppression system I've added will:
+- **Completely block** these extension errors from appearing in the console
+- Show a **single helpful warning** instead of repeated errors
+- **Not affect** the functionality of Hermes Trading Post at all
+
+If you still see the errors after refreshing:
+1. Hard refresh the page (Ctrl+Shift+R or Cmd+Shift+R)
+2. Clear your browser cache
+3. Make sure the page fully reloads
+
+The app will work perfectly fine regardless of these extension errors.
