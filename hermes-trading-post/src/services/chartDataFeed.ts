@@ -148,15 +148,8 @@ export class ChartDataFeed {
 
   // Background cache pruning to keep cache size manageable
   private startBackgroundCachePruning() {
-    // Run cache pruning every 5 minutes
-    setInterval(async () => {
-      try {
-        console.log('ChartDataFeed: Running background cache pruning...');
-        await this.cache.pruneOldData();
-      } catch (error) {
-        console.error('ChartDataFeed: Error during cache pruning:', error);
-      }
-    }, 5 * 60 * 1000); // 5 minutes
+    // Cache pruning is now handled automatically by storeChunk method
+    // No need for separate background pruning
   }
 
   // Progressive data loading for fast initial render
@@ -167,6 +160,30 @@ export class ChartDataFeed {
     if (!this.isCurrentInstance(instanceId)) {
       console.log(`ChartDataFeed: Aborting progressive load - instance ${instanceId} is no longer active`);
       return [];
+    }
+    
+    // On initial load, refresh data for visible range to ensure data integrity
+    const isInitialLoad = this.currentData.length === 0;
+    if (isInitialLoad) {
+      console.log('ChartDataFeed: Initial load detected, refreshing visible range data...');
+      // For 1m granularity, limit initial refresh to avoid exceeding API limits
+      const granularitySeconds = this.getGranularitySeconds(granularity);
+      const maxCandlesPerRequest = 300;
+      const maxRefreshSeconds = maxCandlesPerRequest * granularitySeconds;
+      
+      const visibleRangeSeconds = Math.min(endTime - startTime, maxRefreshSeconds); // Respect API limit
+      const refreshStartTime = Math.max(startTime, endTime - visibleRangeSeconds);
+      
+      try {
+        const freshData = await this.refreshDataForRange(refreshStartTime, endTime, granularity);
+        if (freshData.length > 0) {
+          this.currentData = freshData;
+          console.log(`ChartDataFeed: Initial refresh loaded ${freshData.length} candles`);
+          return freshData;
+        }
+      } catch (error) {
+        console.error('ChartDataFeed: Error refreshing initial data, falling back to cache:', error);
+      }
     }
     
     // For 1m granularity, prioritize loading the visible range first
@@ -443,6 +460,61 @@ export class ChartDataFeed {
     this.isTransitioning = false;
   }
   
+  // Force refresh data for a range (used on page load)
+  async refreshDataForRange(startTime: number, endTime: number, granularity: string): Promise<CandleData[]> {
+    console.log(`ChartDataFeed: Force refreshing data for ${granularity} from ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
+    
+    // Clear the cache for this range first
+    await this.cache.clearRange(this.symbol, granularity, startTime, endTime);
+    
+    // Fetch fresh data from API
+    const granularitySeconds = this.getGranularitySeconds(granularity);
+    const maxCandlesPerRequest = 300; // Coinbase limit
+    const maxTimeRange = maxCandlesPerRequest * granularitySeconds;
+    
+    const allCandles: CandleData[] = [];
+    let currentStart = startTime;
+    
+    // If the time range exceeds the limit, split into chunks
+    while (currentStart < endTime) {
+      const currentEnd = Math.min(currentStart + maxTimeRange, endTime);
+      
+      console.log(`ChartDataFeed: Fetching chunk from ${new Date(currentStart * 1000).toISOString()} to ${new Date(currentEnd * 1000).toISOString()}`);
+      
+      try {
+        const candles = await this.api.getCandles(
+          this.symbol,
+          granularitySeconds,
+          currentStart.toString(),
+          currentEnd.toString()
+        );
+        
+        if (candles.length > 0) {
+          allCandles.push(...candles);
+          console.log(`ChartDataFeed: Fetched ${candles.length} candles for chunk`);
+        }
+      } catch (error) {
+        console.error(`ChartDataFeed: Error fetching chunk:`, error);
+        // Continue with next chunk even if one fails
+      }
+      
+      currentStart = currentEnd;
+      
+      // Add small delay between chunks to be nice to the API
+      if (currentStart < endTime) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    // Store all the fresh data
+    if (allCandles.length > 0) {
+      await this.cache.storeChunk(this.symbol, granularity, allCandles);
+      console.log(`ChartDataFeed: Stored ${allCandles.length} fresh candles total`);
+    }
+    
+    return allCandles;
+  }
+
   // Get current data for the visible range
   private async getCurrentDataForRange(startTime: number, endTime: number, instanceId?: string): Promise<CandleData[]> {
     // Check if this is still the active instance

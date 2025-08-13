@@ -6,7 +6,7 @@
 import type { CandleData } from '../types/coinbase';
 
 const DB_NAME = 'TradingDataCache';
-const DB_VERSION = 4; // Increment to force schema upgrade
+const DB_VERSION = 5; // Increment to force schema upgrade and clear broken data
 const CHUNKS_STORE = 'chunks';
 const METADATA_STORE = 'metadata';
 
@@ -43,7 +43,7 @@ export class IndexedDBCache {
   private dbPromise: Promise<void>;
   
   // Cache limits to prevent excessive storage - AGGRESSIVE LIMITS
-  private readonly MAX_CANDLES_PER_GRANULARITY = {
+  private readonly MAX_CANDLES_PER_GRANULARITY: { [key: string]: number } = {
     '1m': 2880,     // 2 days of 1-minute candles (was 7 days)
     '5m': 2016,     // 7 days of 5-minute candles (was 30 days)
     '15m': 2880,    // 30 days of 15-minute candles (was 120 days)
@@ -124,59 +124,47 @@ export class IndexedDBCache {
     return this.db;
   }
 
-  // Generate chunk ID
-  private getChunkId(symbol: string, granularity: string, startTime: number): string {
-    const date = new Date(startTime * 1000);
-    const dateStr = date.toISOString().split('T')[0];
-    return `${symbol}-${granularity}-${dateStr}`;
+  // Generate chunk ID - use exact time range for precise storage
+  private getChunkId(symbol: string, granularity: string, startTime: number, endTime: number): string {
+    return `${symbol}-${granularity}-${startTime}-${endTime}`;
   }
 
-  // Get chunk time boundaries based on granularity
-  private getChunkBoundaries(timestamp: number, granularity: string): { start: number; end: number } {
-    const date = new Date(timestamp * 1000);
-    date.setUTCHours(0, 0, 0, 0);
+  // Clear overlapping chunks when storing new data
+  private async clearOverlappingChunks(
+    symbol: string,
+    granularity: string,
+    startTime: number,
+    endTime: number,
+    transaction: IDBTransaction
+  ): Promise<void> {
+    const store = transaction.objectStore(CHUNKS_STORE);
+    const index = store.index('symbol-granularity');
     
-    let start: number;
-    let end: number;
+    const chunks: string[] = [];
+    const range = IDBKeyRange.only([symbol, granularity]);
+    const request = index.openCursor(range);
     
-    switch (granularity) {
-      case '1m':
-      case '5m':
-        // Daily chunks for minute data
-        start = Math.floor(date.getTime() / 1000);
-        end = start + 86400 - 1;
-        break;
-      case '15m':
-      case '1h':
-        // Weekly chunks for hourly data
-        const dayOfWeek = date.getUTCDay();
-        date.setUTCDate(date.getUTCDate() - dayOfWeek);
-        start = Math.floor(date.getTime() / 1000);
-        end = start + (7 * 86400) - 1;
-        break;
-      case '6h':
-        // Monthly chunks for 6h data
-        date.setUTCDate(1);
-        start = Math.floor(date.getTime() / 1000);
-        date.setUTCMonth(date.getUTCMonth() + 1);
-        end = Math.floor(date.getTime() / 1000) - 1;
-        break;
-      case '1d':
-      case '1D':
-      default:
-        // Yearly chunks for daily data
-        date.setUTCMonth(0, 1);
-        start = Math.floor(date.getTime() / 1000);
-        date.setUTCFullYear(date.getUTCFullYear() + 1);
-        end = Math.floor(date.getTime() / 1000) - 1;
-        break;
+    await new Promise<void>((resolve, reject) => {
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result;
+        if (cursor) {
+          const chunk = cursor.value as DataChunk;
+          // Check if chunk overlaps with our range
+          if (chunk.endTime >= startTime && chunk.startTime <= endTime) {
+            chunks.push(chunk.chunkId);
+          }
+          cursor.continue();
+        } else {
+          resolve();
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+    
+    // Delete all overlapping chunks
+    for (const chunkId of chunks) {
+      await store.delete(chunkId);
     }
-    
-    // Cap end time to current time to prevent future chunks
-    const now = Math.floor(Date.now() / 1000);
-    end = Math.min(end, now);
-    
-    return { start, end };
   }
 
   // Get all chunks that overlap with the requested time range
@@ -222,7 +210,7 @@ export class IndexedDBCache {
     }
   }
 
-  // Store a chunk of candle data
+  // Store a chunk of candle data - stores exactly what was fetched
   async storeChunk(
     symbol: string,
     granularity: string,
@@ -233,92 +221,36 @@ export class IndexedDBCache {
     try {
       const db = await this.ensureDB();
       
-      // Group candles into chunks
-      const candlesByChunk = new Map<string, CandleData[]>();
+      // Sort candles by time
+      candles.sort((a, b) => a.time - b.time);
       
-      for (const candle of candles) {
-        const boundaries = this.getChunkBoundaries(candle.time, granularity);
-        const chunkId = this.getChunkId(symbol, granularity, boundaries.start);
-        
-        if (!candlesByChunk.has(chunkId)) {
-          candlesByChunk.set(chunkId, []);
-        }
-        candlesByChunk.get(chunkId)!.push(candle);
-      }
+      const startTime = candles[0].time;
+      const endTime = candles[candles.length - 1].time;
+      const chunkId = this.getChunkId(symbol, granularity, startTime, endTime);
       
-      // Store each chunk
       const transaction = db.transaction([CHUNKS_STORE, METADATA_STORE], 'readwrite');
       const chunksStore = transaction.objectStore(CHUNKS_STORE);
       const metadataStore = transaction.objectStore(METADATA_STORE);
       
-      for (const [chunkId, chunkCandles] of candlesByChunk) {
-        // Sort candles by time
-        chunkCandles.sort((a, b) => a.time - b.time);
-        
-        const boundaries = this.getChunkBoundaries(chunkCandles[0].time, granularity);
-        
-        // Get existing chunk to merge data
-        const existingRequest = chunksStore.get(chunkId);
-        const existing = await new Promise<DataChunk | undefined>((resolve) => {
-          existingRequest.onsuccess = () => resolve(existingRequest.result);
-          existingRequest.onerror = () => resolve(undefined);
-        });
-        
-        let mergedCandles = chunkCandles;
-        let duplicatesFound = 0;
-        
-        if (existing) {
-          // Merge with existing candles using Map for deduplication
-          const candleMap = new Map<number, CandleData>();
-          
-          // Add existing candles
-          for (const candle of existing.candles) {
-            candleMap.set(candle.time, candle);
-          }
-          
-          // Add/update new candles, tracking duplicates
-          for (const candle of chunkCandles) {
-            if (candleMap.has(candle.time)) {
-              duplicatesFound++;
-            }
-            candleMap.set(candle.time, candle);
-          }
-          
-          // Convert back to array and sort
-          mergedCandles = Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
-          
-          // Log if many duplicates found
-          if (duplicatesFound > 10) {
-            console.warn(`Found ${duplicatesFound} duplicate candles in chunk ${chunkId}`);
-          }
-        }
-        
-        // Safety check - prevent storing chunks with excessive candles
-        const maxCandlesPerChunk = this.getMaxCandlesPerChunk(granularity);
-        if (mergedCandles.length > maxCandlesPerChunk) {
-          console.error(`Chunk ${chunkId} has ${mergedCandles.length} candles, exceeding limit of ${maxCandlesPerChunk}. Truncating.`);
-          // Keep only the most recent candles
-          mergedCandles = mergedCandles.slice(-maxCandlesPerChunk);
-        }
-        
-        const chunk: DataChunk = {
-          chunkId,
-          symbol,
-          granularity,
-          startTime: boundaries.start,
-          endTime: boundaries.end,
-          candles: mergedCandles,
-          lastUpdated: Date.now(),
-          isComplete: this.isChunkComplete(mergedCandles, granularity, boundaries)
-        };
-        
-        await chunksStore.put(chunk);
-      }
+      // Clear any overlapping chunks first
+      await this.clearOverlappingChunks(symbol, granularity, startTime, endTime, transaction);
       
-      // After storing chunks, prune old data if needed
-      await this.pruneOldData(symbol, granularity, transaction);
+      // Create new chunk with exact data
+      const chunk: DataChunk = {
+        chunkId,
+        symbol,
+        granularity,
+        startTime,
+        endTime,
+        candles,
+        lastUpdated: Date.now(),
+        isComplete: true // We store complete fetched data
+      };
       
-      // Update metadata ranges only (not counts)
+      // Store the chunk
+      await chunksStore.put(chunk);
+      
+      // Update metadata
       await this.updateMetadata(symbol, candles, granularity, metadataStore);
       
       // Wait for transaction to complete
@@ -327,18 +259,34 @@ export class IndexedDBCache {
         transaction.onerror = () => reject(transaction.error);
       });
       
-      // Now recalculate metadata with accurate counts from stored data
+      // Recalculate metadata
       await this.recalculateMetadataFromScratch(symbol);
+      
+      console.log(`Stored ${candles.length} candles for ${symbol} ${granularity} from ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
     } catch (error) {
       console.error('Error storing chunk:', error);
     }
   }
 
-  // Check if a chunk has all expected candles
-  private isChunkComplete(candles: CandleData[], granularity: string, boundaries: { start: number; end: number }): boolean {
-    // Simply mark as complete if we have any candles
-    // The gap detection in getCachedCandles will handle missing data
-    return candles.length > 0;
+  // Clear data for a specific time range
+  async clearRange(
+    symbol: string,
+    granularity: string,
+    startTime: number,
+    endTime: number
+  ): Promise<void> {
+    try {
+      const db = await this.ensureDB();
+      const transaction = db.transaction([CHUNKS_STORE], 'readwrite');
+      await this.clearOverlappingChunks(symbol, granularity, startTime, endTime, transaction);
+      
+      await new Promise<void>((resolve, reject) => {
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+      });
+    } catch (error) {
+      console.error('Error clearing range:', error);
+    }
   }
 
   // Get granularity in seconds
