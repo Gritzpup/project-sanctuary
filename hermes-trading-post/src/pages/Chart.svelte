@@ -19,6 +19,8 @@
   export let trades: Array<{timestamp: number, type: string, price: number}> = [];
   export let autoScroll: boolean = true;  // Enable auto-scrolling to new candles by default
   export let onChartReady: ((chart: IChartApi, candleSeries: ISeriesApi<'Candlestick'>) => void) | undefined = undefined;  // Callback when chart is ready
+  export let isPaperTestRunning: boolean = false;
+  export let paperTestSimTime: Date | null = null;
   
   // Generate unique instance ID for this chart component
   const instanceId = `chart-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -1254,7 +1256,8 @@
 
   // Update clock and countdown
   function updateClock() {
-    const now = new Date();
+    // Use paper test time if paper test is running
+    const now = isPaperTestRunning && paperTestSimTime ? paperTestSimTime : new Date();
     const nowSeconds = Math.floor(now.getTime() / 1000);
     
     // Format current time
@@ -1263,33 +1266,39 @@
     const seconds = now.getSeconds().toString().padStart(2, '0');
     currentTime = `${hours}:${minutes}:${seconds}`;
     
-    // Calculate countdown to next candle using effective granularity
-    const granularitySeconds = granularityToSeconds[effectiveGranularity] || 60;
-    const currentMinuteBoundary = Math.floor(nowSeconds / 60) * 60;
-    const nextMinuteBoundary = currentMinuteBoundary + 60;
-    
-    // For 1m granularity, countdown to next minute boundary
-    let secondsUntilNextCandle;
-    if (effectiveGranularity === '1m') {
-      secondsUntilNextCandle = nextMinuteBoundary - nowSeconds;
+    // Only show countdown for live trading, not paper test
+    if (!isPaperTestRunning) {
+      // Calculate countdown to next candle using effective granularity
+      const granularitySeconds = granularityToSeconds[effectiveGranularity] || 60;
+      const currentMinuteBoundary = Math.floor(nowSeconds / 60) * 60;
+      const nextMinuteBoundary = currentMinuteBoundary + 60;
+      
+      // For 1m granularity, countdown to next minute boundary
+      let secondsUntilNextCandle;
+      if (effectiveGranularity === '1m') {
+        secondsUntilNextCandle = nextMinuteBoundary - nowSeconds;
+      } else {
+        // For other granularities, calculate based on period boundaries
+        const secondsIntoCurrentCandle = nowSeconds % granularitySeconds;
+        secondsUntilNextCandle = granularitySeconds - secondsIntoCurrentCandle;
+      }
+      
+      // Format countdown
+      if (secondsUntilNextCandle >= 3600) {
+        const h = Math.floor(secondsUntilNextCandle / 3600);
+        const m = Math.floor((secondsUntilNextCandle % 3600) / 60);
+        const s = secondsUntilNextCandle % 60;
+        countdown = `${h}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+      } else if (secondsUntilNextCandle >= 60) {
+        const m = Math.floor(secondsUntilNextCandle / 60);
+        const s = secondsUntilNextCandle % 60;
+        countdown = `${m}m ${s.toString().padStart(2, '0')}s`;
+      } else {
+        countdown = `${secondsUntilNextCandle}s`;
+      }
     } else {
-      // For other granularities, calculate based on period boundaries
-      const secondsIntoCurrentCandle = nowSeconds % granularitySeconds;
-      secondsUntilNextCandle = granularitySeconds - secondsIntoCurrentCandle;
-    }
-    
-    // Format countdown
-    if (secondsUntilNextCandle >= 3600) {
-      const h = Math.floor(secondsUntilNextCandle / 3600);
-      const m = Math.floor((secondsUntilNextCandle % 3600) / 60);
-      const s = secondsUntilNextCandle % 60;
-      countdown = `${h}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
-    } else if (secondsUntilNextCandle >= 60) {
-      const m = Math.floor(secondsUntilNextCandle / 60);
-      const s = secondsUntilNextCandle % 60;
-      countdown = `${m}m ${s.toString().padStart(2, '0')}s`;
-    } else {
-      countdown = `${secondsUntilNextCandle}s`;
+      // During paper test, show simulation info
+      countdown = 'Simulation';
     }
   }
 

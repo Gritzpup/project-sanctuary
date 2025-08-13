@@ -1441,6 +1441,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
               chartInstance = chart;
               candleSeriesInstance = candleSeries;
             }}
+            isPaperTestRunning={isPaperTestRunning}
+            paperTestSimTime={paperTestSimTime}
           />
           {#if isRunning}
             <div class="timeframe-locked-indicator">
