@@ -109,9 +109,21 @@
   
   // Track previous values
   let previousGranularity = granularity;
+  let previousPaperTestRunning = isPaperTestRunning;
   let updateTimer: any = null;
   let reloadDebounceTimer: any = null;
   
+  // Watch for paper test state changes
+  $: if (dataFeed && previousPaperTestRunning && !isPaperTestRunning) {
+    console.log('Chart: Paper test stopped, reconnecting to live data...');
+    // Re-establish this chart as the active instance
+    dataFeed.setActiveInstance(instanceId);
+    // Update the previous state
+    previousPaperTestRunning = isPaperTestRunning;
+  } else if (isPaperTestRunning !== previousPaperTestRunning) {
+    previousPaperTestRunning = isPaperTestRunning;
+  }
+
   // Watch for external granularity or period changes
   $: if (isInitialized && chart && dataFeed && (granularity !== previousGranularity || period !== previousPeriod)) {
     console.log(`📈 CHART: Props changed - Period: ${previousPeriod} → ${period}, Granularity: ${previousGranularity} → ${granularity}`);
