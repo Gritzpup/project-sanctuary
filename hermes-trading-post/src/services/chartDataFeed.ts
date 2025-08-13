@@ -163,8 +163,9 @@ export class ChartDataFeed {
     }
     
     // On initial load, refresh data for visible range to ensure data integrity
+    // But skip this for paper testing - we want historical data, not current data
     const isInitialLoad = this.currentData.length === 0;
-    if (isInitialLoad) {
+    if (isInitialLoad && instanceId !== 'paper-test') {
       console.log('ChartDataFeed: Initial load detected, refreshing visible range data...');
       // For 1m granularity, limit initial refresh to avoid exceeding API limits
       const granularitySeconds = this.getGranularitySeconds(granularity);
@@ -524,14 +525,17 @@ export class ChartDataFeed {
     }
     
     // In 1m mode with real-time data, return existing data if we have it
-    if (this.currentGranularity === '1m' && this.currentData.length > 0) {
+    // But for paper testing, we need to respect the date range
+    if (this.currentGranularity === '1m' && this.currentData.length > 0 && instanceId !== 'paper-test') {
       console.log(`ChartDataFeed: In 1m mode with ${this.currentData.length} real-time candles, returning ALL candles (not filtering by time range)`);
       // Return ALL candles for paper trading - don't filter by time range
       return this.currentData;
     }
     
-    // Validate time range
-    const validatedRange = this.validateTimeRange(startTime, endTime);
+    // Validate time range - but for paper testing, don't adjust to current time
+    const validatedRange = instanceId === 'paper-test' 
+      ? { start: startTime, end: endTime, isValid: true }  // Keep original range for paper test
+      : this.validateTimeRange(startTime, endTime);
     
     if (!validatedRange.isValid) {
       return [];
@@ -840,6 +844,70 @@ export class ChartDataFeed {
     
     // console.log(`Cache coverage: ${(100 - gapPercentage).toFixed(1)}% (${cacheResult.candles.length} candles, ${cacheResult.gaps.length} gaps)`);
     
+      // Only fetch if we're missing more than 10% of data
+      if (cacheResult.gaps.length > 0 && gapPercentage > 10) {
+        // Check again before filling gaps
+        if (instanceId && !this.isCurrentInstance(instanceId)) {
+          console.log(`ChartDataFeed: Skipping gap fill - instance ${instanceId} is no longer active`);
+          return;
+        }
+        await this.fillGaps(cacheResult.gaps, granularity, instanceId);
+      }
+    } finally {
+      // Clean up abort controller
+      if (instanceId) {
+        this.pendingLoadOperations.delete(operationKey);
+      }
+    }
+  }
+
+  // Load historical data for a specific date range
+  async loadHistoricalDataForDateRange(granularity: string, startTime: number, endTime: number, instanceId?: string): Promise<void> {
+    // Create abort controller for this operation
+    const operationKey = `load-range-${granularity}-${startTime}-${endTime}-${Date.now()}`;
+    const abortController = new AbortController();
+    
+    if (instanceId) {
+      this.pendingLoadOperations.set(operationKey, abortController);
+    }
+
+    try {
+      console.log(`Loading historical data for ${granularity} from ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
+      
+      // Check if operation was aborted
+      if (abortController.signal.aborted) {
+        console.log(`ChartDataFeed: Load operation aborted for ${granularity}`);
+        return;
+      }
+      
+      // Check if this is still the active instance
+      if (instanceId && !this.isCurrentInstance(instanceId)) {
+        console.log(`ChartDataFeed: Skipping historical data load - instance ${instanceId} is no longer active`);
+        return;
+      }
+      
+      // Clear current data when loading a specific date range for paper testing
+      if (instanceId === 'paper-test') {
+        this.logDataState('BEFORE_CLEAR_FOR_PAPER_TEST');
+        this.currentData = [];
+        this.logDataState('AFTER_CLEAR_FOR_PAPER_TEST');
+      }
+    
+      // Check cache first
+      const cacheResult = await this.cache.getCachedCandles(
+        this.symbol,
+        granularity,
+        startTime,
+        endTime
+      );
+      
+      // Only fetch if we have significant gaps
+      const totalTimeRange = endTime - startTime;
+      const gapTime = cacheResult.gaps.reduce((sum, gap) => sum + (gap.end - gap.start), 0);
+      const gapPercentage = (gapTime / totalTimeRange) * 100;
+      
+      console.log(`Cache coverage for date range: ${(100 - gapPercentage).toFixed(1)}% (${cacheResult.candles.length} candles, ${cacheResult.gaps.length} gaps)`);
+      
       // Only fetch if we're missing more than 10% of data
       if (cacheResult.gaps.length > 0 && gapPercentage > 10) {
         // Check again before filling gaps

@@ -74,11 +74,19 @@ export class PaperTestService {
       // Set the paper-test instance as active
       options.dataFeed.setActiveInstance('paper-test');
       
-      // Load historical data for the selected date
+      // Load historical data for the selected date (midnight to midnight in local time)
       const startOfDay = new Date(options.date);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(options.date);
       endOfDay.setHours(23, 59, 59, 999);
+      
+      console.log('Paper Test date range:', {
+        selectedDate: options.date.toLocaleDateString(),
+        startOfDay: startOfDay.toString(),
+        endOfDay: endOfDay.toString(),
+        startUTC: startOfDay.toISOString(),
+        endUTC: endOfDay.toISOString()
+      });
       
       this.startTime = Math.floor(startOfDay.getTime() / 1000);
       this.endTime = Math.floor(endOfDay.getTime() / 1000);
@@ -96,10 +104,17 @@ export class PaperTestService {
       // Set the data feed to use the correct granularity
       options.dataFeed.setGranularity(options.granularity);
       
-      // Load historical data if needed - only load 2 days to cover the selected date
+      // Load historical data for the specific date range
       if (daysFromNow > 0) {
-        console.log(`Paper Test: Loading 2 days of historical data for ${options.granularity} to cover the selected date`);
-        await options.dataFeed.loadHistoricalData(options.granularity, 2, 'paper-test');
+        console.log(`Paper Test: Loading historical data for ${options.granularity} for date ${options.date.toLocaleDateString()}`);
+        // Add a buffer of 1 hour before and after to ensure we have all data
+        const bufferSeconds = 3600; // 1 hour buffer
+        await options.dataFeed.loadHistoricalDataForDateRange(
+          options.granularity,
+          this.startTime - bufferSeconds,
+          this.endTime + bufferSeconds,
+          'paper-test'
+        );
       }
       
       // Use getDataForVisibleRange which is a public method
