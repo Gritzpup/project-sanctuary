@@ -73,6 +73,7 @@
   let selectedTestDate: Date | null = null;
   let selectedTestDateString: string = '';  // String representation for display
   let isPaperTestRunning = false;
+  let isPaperTestMode = false;  // Stays true until user clicks stop
   let paperTestProgress = 0;
   let paperTestSimTime: Date | null = null;
   let paperTestResults: any = null;
@@ -293,6 +294,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     console.log('Starting Paper Test for date:', date);
     isPaperTestRunning = true;
+    isPaperTestMode = true;  // Enter paper test mode
     paperTestProgress = 0;
     paperTestResults = null;
     paperTestBalance = balance;
@@ -345,6 +347,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
           console.log('Paper Test Complete:', results);
           paperTestResults = results;
           isPaperTestRunning = false;
+          // Keep isPaperTestMode true so chart doesn't switch to live data
+          isPaperTestMode = true;  // Explicitly keep paper test mode active
           // Don't show modal - let user control the view
           // Chart stays at end of test day so user can analyze
         },
@@ -357,6 +361,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
     } catch (error) {
       console.error('Paper Test error:', error);
       isPaperTestRunning = false;
+      isPaperTestMode = false;  // Exit paper test mode on error
       
       let errorMessage = 'Paper Test failed: ';
       if (error.message.includes('No data available')) {
@@ -376,6 +381,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
       paperTestService.stop();
     }
     isPaperTestRunning = false;
+    isPaperTestMode = false;  // Exit paper test mode, allow live data
     paperTestProgress = 0;
     paperTestSimTime = null;
     paperTestPositions = [];
@@ -384,6 +390,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
     // Keep selected date so chart stays on the tested day
     // User can manually clear the date to go back to live trading
     // selectedTestDate = null;
+    
+    // Reconnect chart to live data
+    console.log('Paper Test stopped - chart returning to live mode');
   }
   
   // Clear all paper test trades and markers
@@ -1462,6 +1471,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
               candleSeriesInstance = candleSeries;
             }}
             isPaperTestRunning={isPaperTestRunning}
+            isPaperTestMode={isPaperTestMode}
             paperTestSimTime={paperTestSimTime}
             paperTestDate={selectedTestDate}
           />

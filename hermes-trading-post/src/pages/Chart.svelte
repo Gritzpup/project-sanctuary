@@ -20,6 +20,7 @@
   export let autoScroll: boolean = true;  // Enable auto-scrolling to new candles by default
   export let onChartReady: ((chart: IChartApi, candleSeries: ISeriesApi<'Candlestick'>) => void) | undefined = undefined;  // Callback when chart is ready
   export let isPaperTestRunning: boolean = false;
+  export let isPaperTestMode: boolean = false;  // True when in paper test mode (even after completion)
   export let paperTestSimTime: Date | null = null;
   export let paperTestDate: Date | null = null;  // The date being tested in paper test mode
   
@@ -322,6 +323,12 @@
         //   effectiveGranularity,
         //   initialDataLoaded
         // });
+        
+        // Block all live updates if in paper test mode
+        if (isPaperTestMode) {
+          // console.log('Chart: Blocking live candle update - in paper test mode');
+          return;
+        }
         
         // If initial data hasn't loaded yet, queue the candle updates
         if (!initialDataLoaded) {

@@ -91,7 +91,7 @@ export class DCAStrategy extends Strategy {
     const hoursSinceLastBuy = (currentTime - this.lastBuyTime) / 3600;
     
     if (this.lastBuyTime === 0 || hoursSinceLastBuy >= config.intervalHours) {
-      this.lastBuyTime = currentTime;
+      // Don't update lastBuyTime here - wait for onOrderFilled
       
       return {
         type: 'buy',
@@ -100,7 +100,8 @@ export class DCAStrategy extends Strategy {
         reason: `Regular DCA purchase - ${config.intervalHours}h interval`,
         metadata: {
           isDipBuy: false,
-          intervalHours: config.intervalHours
+          intervalHours: config.intervalHours,
+          scheduledTime: currentTime
         }
       };
     }
@@ -149,6 +150,20 @@ export class DCAStrategy extends Strategy {
 
   getRequiredHistoricalData(): number {
     return 30; // Need some history for dip detection
+  }
+
+  // Override addPosition to track when buy orders are actually filled
+  addPosition(position: Position): void {
+    super.addPosition(position);
+    
+    // Update lastBuyTime when a regular DCA buy is executed
+    if (position.metadata?.scheduledTime && !position.metadata?.isDipBuy) {
+      this.lastBuyTime = position.metadata.scheduledTime;
+      console.log(`DCA Strategy: Updated lastBuyTime to ${new Date(this.lastBuyTime * 1000).toISOString()}`);
+    }
+    
+    // Update average cost
+    this.updateAverageCost(position.entryPrice, position.size);
   }
 
   // Helper methods
