@@ -86,12 +86,21 @@ export class ChartDataFeed {
 
   // Instance management methods
   setActiveInstance(instanceId: string) {
+    const previousInstance = this.activeInstanceId;
+    
     if (this.activeInstanceId && this.activeInstanceId !== instanceId) {
       console.log(`ChartDataFeed: Switching from instance ${this.activeInstanceId} to ${instanceId}`);
       // Abort any pending operations for the old instance
       this.abortPendingOperations();
     }
     this.activeInstanceId = instanceId;
+    
+    // Clear data when switching away from paper test to ensure fresh data
+    if (previousInstance === 'paper-test' && instanceId !== 'paper-test') {
+      console.log('ChartDataFeed: Clearing paper test data, will reload fresh data');
+      this.currentData = [];
+      this.currentGranularity = '';
+    }
     
     // Track load count for this instance
     const currentCount = this.instanceLoadCounts.get(instanceId) || 0;
@@ -104,6 +113,14 @@ export class ChartDataFeed {
     if (this.activeInstanceId) {
       console.log(`ChartDataFeed: Clearing active instance ${this.activeInstanceId}`);
       this.abortPendingOperations();
+      
+      // If clearing paper-test instance, also clear the data
+      if (this.activeInstanceId === 'paper-test') {
+        console.log('ChartDataFeed: Clearing paper test data on instance clear');
+        this.currentData = [];
+        this.currentGranularity = '';
+      }
+      
       this.activeInstanceId = null;
     }
   }
@@ -524,12 +541,41 @@ export class ChartDataFeed {
       return [];
     }
     
-    // In 1m mode with real-time data, return existing data if we have it
+    // Check if current data is stale (doesn't overlap with requested range or is mostly historical)
+    if (this.currentData.length > 0 && instanceId !== 'paper-test') {
+      const oldestCandle = this.currentData[0];
+      const newestCandle = this.currentData[this.currentData.length - 1];
+      
+      // Check if data doesn't overlap with requested range
+      if (newestCandle.time < startTime || oldestCandle.time > endTime) {
+        console.log(`ChartDataFeed: Cached data (${new Date(oldestCandle.time * 1000).toISOString()} to ${new Date(newestCandle.time * 1000).toISOString()}) does not overlap with requested range (${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}), clearing...`);
+        this.currentData = [];
+        this.currentGranularity = '';
+      } else {
+        // Check if we have mixed historical and recent data (paper test scenario)
+        // Count how many candles are within the requested range
+        const candlesInRange = this.currentData.filter(candle => 
+          candle.time >= startTime && candle.time <= endTime
+        ).length;
+        
+        // If less than 20% of candles are in the requested range, data is mostly stale
+        if (candlesInRange < this.currentData.length * 0.2) {
+          console.log(`ChartDataFeed: Only ${candlesInRange} of ${this.currentData.length} candles are in requested range. Data is mostly historical, clearing...`);
+          this.currentData = [];
+          this.currentGranularity = '';
+        }
+      }
+    }
+    
+    // In 1m mode with real-time data, filter to requested time range
     // But for paper testing, we need to respect the date range
     if (this.currentGranularity === '1m' && this.currentData.length > 0 && instanceId !== 'paper-test') {
-      console.log(`ChartDataFeed: In 1m mode with ${this.currentData.length} real-time candles, returning ALL candles (not filtering by time range)`);
-      // Return ALL candles for paper trading - don't filter by time range
-      return this.currentData;
+      // Filter data to the requested time range even for 1m mode
+      const filteredData = this.currentData.filter(candle => 
+        candle.time >= startTime && candle.time <= endTime
+      );
+      console.log(`ChartDataFeed: In 1m mode with ${this.currentData.length} candles, returning ${filteredData.length} candles for range ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
+      return filteredData;
     }
     
     // Validate time range - but for paper testing, don't adjust to current time

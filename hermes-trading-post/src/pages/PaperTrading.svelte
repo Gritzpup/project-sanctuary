@@ -387,11 +387,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
     paperTestPositions = [];
     paperTestBalance = 0;
     paperTestBtcBalance = 0;
-    // Keep selected date so chart stays on the tested day
-    // User can manually clear the date to go back to live trading
-    // selectedTestDate = null;
     
-    // Reconnect chart to live data
+    // Clear the selected test date to return to live data
+    selectedTestDate = null;
+    selectedTestDateString = '';
+    
+    // The Chart component will detect the mode change and handle reconnection
     console.log('Paper Test stopped - chart returning to live mode');
   }
   

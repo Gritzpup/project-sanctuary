@@ -112,6 +112,7 @@
   // Track previous values
   let previousGranularity = granularity;
   let previousPaperTestRunning = isPaperTestRunning;
+  let previousPaperTestMode = isPaperTestMode;
   let updateTimer: any = null;
   let reloadDebounceTimer: any = null;
   
@@ -124,6 +125,22 @@
     previousPaperTestRunning = isPaperTestRunning;
   } else if (isPaperTestRunning !== previousPaperTestRunning) {
     previousPaperTestRunning = isPaperTestRunning;
+  }
+  
+  // Watch for paper test mode transitions (from paper test mode back to live)
+  $: if (isInitialized && chart && dataFeed && previousPaperTestMode && !isPaperTestMode) {
+    console.log('Chart: Transitioning from paper test mode to live mode, reloading chart data...');
+    // Re-establish this chart as the active instance
+    dataFeed.setActiveInstance(instanceId);
+    // Add a small delay to ensure the instance is properly set before reloading
+    setTimeout(() => {
+      // Trigger a full reload to get fresh live data
+      debouncedReloadData();
+    }, 50);
+    // Update the previous state
+    previousPaperTestMode = isPaperTestMode;
+  } else if (isPaperTestMode !== previousPaperTestMode) {
+    previousPaperTestMode = isPaperTestMode;
   }
 
   // Watch for external granularity or period changes
@@ -707,11 +724,18 @@
         console.log(`Chart: Loading initial paper test data for ${testDate.toLocaleDateString()}: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
         dataToLoad = await dataFeed.getDataForVisibleRange(dayStartTime, dayEndTime, instanceId);
       } else if (effectiveGranularity === '1m') {
-        console.log(`Fetching ALL available 1m data for paper trading...`);
-        // Load a much wider range to get all accumulated candles
-        const extendedStartTime = alignedNow - (7 * 24 * 60 * 60); // 7 days of data
-        // Use progressive loading for faster initial render
-        dataToLoad = await dataFeed.loadProgressiveData(extendedStartTime, alignedNow, effectiveGranularity, instanceId);
+        if (period === '1H') {
+          // For 1H view, only load what we need (last 60 minutes + buffer)
+          console.log(`Fetching last 60 minutes of 1m data for 1H view...`);
+          const bufferTime = 300; // 5 minute buffer
+          const sixtyMinutesAgo = alignedNow - 3600 - bufferTime;
+          dataToLoad = await dataFeed.getDataForVisibleRange(sixtyMinutesAgo, alignedNow, instanceId);
+        } else {
+          // For other periods with 1m, load appropriate range
+          console.log(`Fetching 1m data for ${period}...`);
+          // Use progressive loading for faster initial render
+          dataToLoad = await dataFeed.loadProgressiveData(dataStartTime, alignedNow, effectiveGranularity, instanceId);
+        }
       } else {
         console.log(`Fetching data from ${new Date(dataStartTime * 1000).toISOString()} to ${new Date(alignedNow * 1000).toISOString()}`);
         dataToLoad = await dataFeed.getDataForVisibleRange(dataStartTime, alignedNow, instanceId);
@@ -723,14 +747,22 @@
       // console.log('Data received:', data.length > 0 ? `${data.length} candles` : 'NO DATA');
       
       // CRITICAL: Filter data to only include candles within our time range
-      // For 1m granularity (paper trading), use all available candles
-      let filteredData = effectiveGranularity === '1m' 
-        ? data // Keep ALL candles for paper trading
-        : data.filter(candle => 
-            candle.time >= adjustedStartTime && candle.time <= alignedNow
-          );
-      
-      // For 1m granularity, we keep all candles but adjust the viewport
+      let filteredData;
+      if (isPaperTestRunning && paperTestDate) {
+        // Paper test mode: use all data for the selected day
+        filteredData = data;
+      } else if (effectiveGranularity === '1m' && period === '1H') {
+        // Live mode with 1H/1m: filter to last 60 candles only
+        const sixtyMinutesAgo = alignedNow - 3600;
+        filteredData = data.filter(candle => 
+          candle.time >= sixtyMinutesAgo && candle.time <= alignedNow
+        );
+      } else {
+        // All other cases: filter based on period
+        filteredData = data.filter(candle => 
+          candle.time >= adjustedStartTime && candle.time <= alignedNow
+        );
+      }
       
       // console.log(`Filtered from ${data.length} to ${filteredData.length} candles within our time range`);
       console.log(`Loaded ${filteredData.length} candles (expected ${adjustedExpectedCandles}) for ${period} with ${effectiveGranularity}`);
@@ -1005,10 +1037,17 @@
         dataToLoad = await dataFeed.getDataForVisibleRange(dayStartTime, dayEndTime, instanceId);
         console.log(`Chart: Paper test data loaded: ${dataToLoad.length} candles`);
       } else if (effectiveGranularity === '1m') {
-        console.log(`Reloading ALL available 1m data for paper trading...`);
-        // Load a much wider range to get all accumulated candles
-        const extendedStartTime = alignedNow - (7 * 24 * 60 * 60); // 7 days of data
-        dataToLoad = await dataFeed.getDataForVisibleRange(extendedStartTime, alignedNow, instanceId);
+        if (period === '1H') {
+          // For 1H view, only load what we need (last 60 minutes + buffer)
+          console.log(`Reloading last 60 minutes of 1m data for 1H view...`);
+          const bufferTime = 300; // 5 minute buffer
+          const sixtyMinutesAgo = alignedNow - 3600 - bufferTime;
+          dataToLoad = await dataFeed.getDataForVisibleRange(sixtyMinutesAgo, alignedNow, instanceId);
+        } else {
+          // For other periods with 1m, load appropriate range
+          console.log(`Reloading 1m data for ${period}...`);
+          dataToLoad = await dataFeed.getDataForVisibleRange(startTime, alignedNow, instanceId);
+        }
       } else {
         console.log(`Loading ${period} data with ${effectiveGranularity} candles...`);
         dataToLoad = await dataFeed.getDataForVisibleRange(startTime, alignedNow, instanceId);
@@ -1016,17 +1055,22 @@
       const data = dataToLoad;
       
       // CRITICAL: Filter data to only include candles within our time range
-      // For paper test mode, keep only the selected day's data
-      // For 1m granularity (paper trading), use all available candles
-      let filteredData = isPaperTestRunning && paperTestDate
-        ? data // Paper test already filtered to selected day
-        : effectiveGranularity === '1m'
-        ? data // Keep ALL candles for paper trading
-        : data.filter(candle => 
-            candle.time >= startTime && candle.time <= alignedNow
-          );
-      
-      // For 1m granularity, we keep all candles but adjust the viewport
+      let filteredData;
+      if (isPaperTestRunning && paperTestDate) {
+        // Paper test mode: use all data for the selected day
+        filteredData = data;
+      } else if (effectiveGranularity === '1m' && period === '1H') {
+        // Live mode with 1H/1m: filter to last 60 candles only
+        const sixtyMinutesAgo = alignedNow - 3600;
+        filteredData = data.filter(candle => 
+          candle.time >= sixtyMinutesAgo && candle.time <= alignedNow
+        );
+      } else {
+        // All other cases: filter based on period
+        filteredData = data.filter(candle => 
+          candle.time >= startTime && candle.time <= alignedNow
+        );
+      }
       
       // Update date range info for reload
       dateRangeInfo.expectedFrom = new Date(startTime * 1000).toLocaleString();
