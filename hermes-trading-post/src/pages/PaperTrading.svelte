@@ -1543,22 +1543,24 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 >
                   ▶️
                 </button>
-                <button 
-                  class="period-btn play-stop-btn"
-                  on:click={stopPaperTest}
-                  aria-label="Stop Paper Test"
-                  title="Stop Paper Test"
-                >
-                  ⏹️
-                </button>
-                <button 
-                  class="period-btn play-stop-btn"
-                  on:click={clearPaperTestTrades}
-                  aria-label="Clear All Trades"
-                  title="Clear All Trades"
-                >
-                  🗑️
-                </button>
+                <div class="stop-trash-row">
+                  <button 
+                    class="period-btn play-stop-btn"
+                    on:click={stopPaperTest}
+                    aria-label="Stop Paper Test"
+                    title="Stop Paper Test"
+                  >
+                    ⏹️
+                  </button>
+                  <button 
+                    class="period-btn play-stop-btn"
+                    on:click={clearPaperTestTrades}
+                    aria-label="Clear All Trades"
+                    title="Clear All Trades"
+                  >
+                    🗑️
+                  </button>
+                </div>
               {:else}
                 <button 
                   class="period-btn play-stop-btn"
@@ -1568,22 +1570,24 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 >
                   {paperTestIsPaused ? '▶️' : '⏸️'}
                 </button>
-                <button 
-                  class="period-btn play-stop-btn"
-                  on:click={stopPaperTest}
-                  aria-label="Stop Paper Test"
-                  title="Stop Paper Test"
-                >
-                  ⏹️
-                </button>
-                <button 
-                  class="period-btn play-stop-btn"
-                  on:click={clearPaperTestTrades}
-                  aria-label="Clear All Trades"
-                  title="Clear All Trades"
-                >
-                  🗑️
-                </button>
+                <div class="stop-trash-row">
+                  <button 
+                    class="period-btn play-stop-btn"
+                    on:click={stopPaperTest}
+                    aria-label="Stop Paper Test"
+                    title="Stop Paper Test"
+                  >
+                    ⏹️
+                  </button>
+                  <button 
+                    class="period-btn play-stop-btn"
+                    on:click={clearPaperTestTrades}
+                    aria-label="Clear All Trades"
+                    title="Clear All Trades"
+                  >
+                    🗑️
+                  </button>
+                </div>
               {/if}
             </div>
             
@@ -2702,6 +2706,12 @@ No open positions{/if}</title>
     pointer-events: auto;
     cursor: pointer;
     transition: all 0.2s;
+  }
+  
+  .stop-trash-row {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
   }
   
   /* Remove overrides - let play/stop buttons use default period-btn styles */
