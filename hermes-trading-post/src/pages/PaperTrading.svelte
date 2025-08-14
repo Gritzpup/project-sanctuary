@@ -301,11 +301,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
     paperTestBtcBalance = 0;
     paperTestPositions = [];
     paperTestIsPaused = false;
-    paperTestPlaybackSpeed = 1;
+    // Keep the user's selected speed instead of resetting to 1
     
-    // Ensure speed is reset in the service too
+    // Set the service to use the current user-selected speed
     if (paperTestService) {
-      paperTestService.setPlaybackSpeed(1);
+      paperTestService.setPlaybackSpeed(paperTestPlaybackSpeed);
     }
     
     // Show loading message while fetching data

@@ -215,7 +215,7 @@ export class PaperTestService {
       // Reset processed candles for new test
       this.processedCandles = [];
       this.currentOptions = options;
-      this.playbackSpeed = 1;
+      // Don't reset playbackSpeed - keep the user's selected speed
       this.isPaused = false;
       this.totalElapsedBeforePause = 0;
       this.markers = [];
@@ -634,7 +634,7 @@ export class PaperTestService {
   stop(): void {
     this.isRunning = false;
     this.isPaused = false;
-    this.playbackSpeed = 1;
+    // Don't reset playbackSpeed - keep the user's selected speed
     this.totalElapsedBeforePause = 0;
     
     // Clear all chart markers (trade arrows) before zooming
