@@ -301,6 +301,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
     paperTestIsPaused = false;
     paperTestPlaybackSpeed = 1;
     
+    // Ensure speed is reset in the service too
+    if (paperTestService) {
+      paperTestService.setPlaybackSpeed(1);
+    }
+    
     // Show loading message while fetching data
     paperTestProgress = 1; // Show minimal progress to indicate loading
     
@@ -323,6 +328,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
         dataFeed: chartDataFeed,
         granularity: selectedGranularity,
         initialDisplayCandles: initialCandles,
+        debug: false, // Set to true only when debugging
         onProgress: (progress, simTime) => {
           paperTestProgress = progress;
           if (simTime) {
@@ -375,8 +381,22 @@ export class ${getStrategyFileName(type)} extends Strategy {
     paperTestPositions = [];
     paperTestBalance = 0;
     paperTestBtcBalance = 0;
-    // Clear selected date to go back to paper trading
-    selectedTestDate = null;
+    // Keep selected date so chart stays on the tested day
+    // User can manually clear the date to go back to live trading
+    // selectedTestDate = null;
+  }
+  
+  // Clear all paper test trades and markers
+  function clearPaperTestTrades() {
+    if (paperTestService) {
+      paperTestService.clearAllTrades();
+    }
+    // Reset UI state
+    paperTestResults = null;
+    paperTestPositions = [];
+    paperTestBalance = balance; // Reset to initial balance
+    paperTestBtcBalance = 0;
+    console.log('Cleared all paper test trades');
   }
   
   // Paper Test playback control functions
@@ -1520,6 +1540,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 >
                   ⏹️
                 </button>
+                <button 
+                  class="period-btn play-stop-btn"
+                  on:click={clearPaperTestTrades}
+                  aria-label="Clear All Trades"
+                  title="Clear All Trades"
+                >
+                  🗑️
+                </button>
               {:else}
                 <button 
                   class="period-btn play-stop-btn"
@@ -1536,6 +1564,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
                   title="Stop Paper Test"
                 >
                   ⏹️
+                </button>
+                <button 
+                  class="period-btn play-stop-btn"
+                  on:click={clearPaperTestTrades}
+                  aria-label="Clear All Trades"
+                  title="Clear All Trades"
+                >
+                  🗑️
                 </button>
               {/if}
             </div>
