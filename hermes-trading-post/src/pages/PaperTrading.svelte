@@ -163,6 +163,10 @@
         return new MicroScalpingStrategy(params);
       case 'proper-scalping':
         return new ProperScalpingStrategy(params);
+      case 'ultra-micro-scalping':
+        // This is a custom strategy that should be loaded from strategy store
+        // If we reach here, it means custom strategies haven't been loaded yet
+        throw new Error(`Custom strategy '${type}' not yet loaded. Waiting for strategy store...`);
       default:
         throw new Error(`Unknown strategy type: ${type}`);
     }
@@ -523,7 +527,26 @@ export class ${getStrategyFileName(type)} extends Strategy {
         const state = JSON.parse(savedState);
         
         // Restore strategy configuration
-        selectedStrategyType = state.strategyTypeKey || state.strategyType || selectedStrategyType;
+        // Convert display name to key if needed
+        if (state.strategyTypeKey) {
+          selectedStrategyType = state.strategyTypeKey;
+        } else if (state.strategyType) {
+          // Convert display name to key format
+          const displayNameToKey: Record<string, string> = {
+            'Reverse Ratio Buying': 'reverse-ratio',
+            'Grid Trading': 'grid-trading',
+            'RSI Mean Reversion': 'rsi-mean-reversion',
+            'Dollar Cost Averaging': 'dca',
+            'VWAP Bounce': 'vwap-bounce',
+            'Micro Scalping (1H)': 'micro-scalping',
+            'Proper Scalping': 'proper-scalping',
+            'Ultra Micro-Scalping': 'ultra-micro-scalping'
+          };
+          selectedStrategyType = displayNameToKey[state.strategyType] || 
+                                state.strategyType.toLowerCase().replace(/\s+/g, '-');
+          console.log(`PaperTrading: Converted strategy type "${state.strategyType}" to "${selectedStrategyType}"`);
+        }
+        
         if (state.strategyConfig) {
           strategyParameters = state.strategyConfig;
         }
@@ -546,25 +569,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
       console.log('PaperTrading: chartDataFeed status:', chartDataFeed ? 'ready' : 'not ready');
       isRunning = true;
       
-      // Ensure we have a strategy instance
-      if (!currentStrategy && selectedStrategyType) {
-        try {
-          currentStrategy = createStrategy(selectedStrategyType);
-          console.log('PaperTrading: Recreated strategy for resumed trading');
-        } catch (error) {
-          console.error('Failed to recreate strategy for resumed trading:', error);
-          // Stop trading if we can't recreate the strategy
-          await stopTrading();
-          return;
-        }
-      }
-      
       // Start status updates
       statusInterval = setInterval(updateStatus, 1000);
       
-      // Note: We don't start the data feed here because chartDataFeed might not be ready
-      // The handleDataFeedReady function will handle starting the services when the chart is ready
-      console.log('PaperTrading: Waiting for chart data feed to be ready...');
+      // Note: We'll try to create the strategy after custom strategies are loaded
+      // The strategy store subscription will handle recreating the strategy
+      // And the handleDataFeedReady function will handle starting the services when the chart is ready
+      console.log('PaperTrading: Waiting for strategy store and chart data feed to be ready...');
     }
     
     // Add a small delay to ensure chart component is fully mounted
@@ -601,6 +612,18 @@ export class ${getStrategyFileName(type)} extends Strategy {
       try {
         currentStrategy = createStrategy(selectedStrategyType);
         loadStrategySourceCode();
+        
+        // If trading was running (from restored state) but we didn't have a strategy before,
+        // and now we successfully created one, ensure the trading continues
+        if (isRunning && currentStrategy && !paperTradingService.getStatus().isRunning) {
+          console.log('PaperTrading: Resuming trading with restored strategy');
+          paperTradingService.start(currentStrategy, 'BTC-USD', balance);
+          
+          // If chartDataFeed is ready, start feeding data
+          if (chartDataFeed) {
+            startDataFeedToStrategy();
+          }
+        }
       } catch (error) {
         console.error('Failed to create strategy from store:', error);
       }

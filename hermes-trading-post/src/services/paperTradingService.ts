@@ -324,9 +324,19 @@ class PaperTradingService {
       'Dollar Cost Averaging': 'dca',
       'VWAP Bounce': 'vwap-bounce',
       'Micro Scalping (1H)': 'micro-scalping',
-      'Proper Scalping': 'proper-scalping'
+      'Proper Scalping': 'proper-scalping',
+      'Ultra Micro-Scalping': 'ultra-micro-scalping'
     };
-    return mapping[strategyName] || 'unknown';
+    
+    // Check if it's already a strategy key (lowercase with hyphens)
+    if (strategyName.match(/^[a-z-]+$/)) {
+      return strategyName;
+    }
+    
+    // If not found in mapping, convert to key format (lowercase, spaces to hyphens)
+    const key = mapping[strategyName] || strategyName.toLowerCase().replace(/\s+/g, '-');
+    console.log(`PaperTradingService: Converted strategy name "${strategyName}" to key "${key}"`);
+    return key;
   }
 
   stop(): void {
