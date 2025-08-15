@@ -49,6 +49,7 @@ class PaperTradingService {
   private botId: string | null = null;
   private asset: string = 'BTC';
   private restorationPromise: Promise<boolean> | null = null;
+  private savedPositions: any[] | null = null; // Store positions for later restoration
 
   constructor() {
     this.state = writable<PaperTradingState>({
@@ -187,6 +188,11 @@ class PaperTradingService {
           balance: savedState.balance
         };
         strategy.setState(strategyState);
+        this.savedPositions = null; // Clear saved positions since they're restored
+      } else {
+        // Store positions for later restoration when strategy is created
+        this.savedPositions = savedState.positions;
+        console.log('PaperTradingService: Saved positions for later restoration:', this.savedPositions.length);
       }
       
       // Update our state - restore everything including running state
@@ -249,6 +255,17 @@ class PaperTradingService {
         currentState.strategy.getName() === strategy.getName()) {
       console.log('Paper trading already running with same strategy, skipping re-initialization');
       return;
+    }
+    
+    // Check if we have saved positions to restore
+    if (this.savedPositions && this.savedPositions.length > 0) {
+      console.log('PaperTradingService: Restoring saved positions to strategy:', this.savedPositions.length);
+      const strategyState: StrategyState = {
+        positions: this.savedPositions,
+        balance: currentState.balance
+      };
+      strategy.setState(strategyState);
+      this.savedPositions = null; // Clear saved positions after restoration
     }
     
     // Extract asset from symbol

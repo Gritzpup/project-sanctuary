@@ -619,6 +619,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
           console.log('PaperTrading: Resuming trading with restored strategy');
           paperTradingService.start(currentStrategy, 'BTC-USD', balance);
           
+          // Update status to show restored positions
+          updateStatus();
+          
           // If chartDataFeed is ready, start feeding data
           if (chartDataFeed) {
             startDataFeedToStrategy();
@@ -706,6 +709,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
       console.log('Paper Trading: Restarting trading services after chart data feed ready');
       // Ensure the strategy is connected to the service
       paperTradingService.start(currentStrategy, 'BTC-USD', balance);
+      // Update status to ensure positions are shown
+      updateStatus();
       startDataFeedToStrategy();
     }
   }

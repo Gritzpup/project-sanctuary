@@ -38,7 +38,9 @@ class PaperTradingPersistence {
       console.log('PaperTradingPersistence: Saving state:', {
         isRunning: state.isRunning,
         strategyType: state.strategyType,
-        hasStrategy: !!state.strategyType
+        hasStrategy: !!state.strategyType,
+        positionsCount: state.positions?.length || 0,
+        tradesCount: state.trades?.length || 0
       });
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
     } catch (error) {
@@ -56,7 +58,9 @@ class PaperTradingPersistence {
         isRunning: state.isRunning,
         strategyType: state.strategyType,
         hasStrategy: !!state.strategyType,
-        balance: state.balance
+        balance: state.balance,
+        positionsCount: state.positions?.length || 0,
+        tradesCount: state.trades?.length || 0
       });
       // Validate the loaded state has required fields
       if (state && typeof state.isRunning === 'boolean' && state.balance) {
