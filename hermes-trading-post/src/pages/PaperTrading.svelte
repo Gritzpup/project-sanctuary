@@ -85,6 +85,7 @@
   let paperTestPositions: any[] = [];
   let paperTestBalance = 0;
   let paperTestBtcBalance = 0;
+  let paperTestCurrentPrice = 0;
   let showSpeedDropdown = false;
   let speedButtonElement: HTMLButtonElement;
   let dropdownPosition = { top: 0, left: 0 };
@@ -301,7 +302,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
     paperTestBtcBalance = 0;
     paperTestPositions = [];
     paperTestIsPaused = false;
+    paperTestCurrentPrice = 0;
     // Keep the user's selected speed instead of resetting to 1
+    
+    // Clear previous paper test trades from the UI
+    trades = trades.filter(t => !t.isPaperTest);
     
     // Set the service to use the current user-selected speed
     if (paperTestService) {
@@ -339,9 +344,16 @@ export class ${getStrategyFileName(type)} extends Strategy {
         },
         onTrade: (trade) => {
           console.log('Paper Test Trade:', trade);
+          // Add trade to the main trades array for UI display
+          trades = [...trades, {
+            ...trade,
+            isPaperTest: true,  // Mark as paper test trade
+            size: trade.amount || trade.size // Ensure size field exists
+          }];
         },
         onCandle: (candle) => {
           paperTestSimTime = new Date(candle.time * 1000);
+          paperTestCurrentPrice = candle.close;
         },
         onComplete: (results) => {
           console.log('Paper Test Complete:', results);
@@ -948,9 +960,15 @@ export class ${getStrategyFileName(type)} extends Strategy {
     return 90;
   }
   
-  $: totalValue = balance + (btcBalance * currentPrice) + vaultBalance;
-  $: unrealizedPnl = positions.reduce((total, pos) => {
-    return total + ((currentPrice - pos.entryPrice) * pos.size);
+  // Display values that switch between live and paper test mode
+  $: displayBalance = isPaperTestMode ? paperTestBalance : balance;
+  $: displayBtcBalance = isPaperTestMode ? paperTestBtcBalance : btcBalance;
+  $: displayPositions = isPaperTestMode ? paperTestPositions : positions;
+  $: displayPrice = isPaperTestMode && paperTestCurrentPrice > 0 ? paperTestCurrentPrice : currentPrice;
+  
+  $: totalValue = displayBalance + (displayBtcBalance * displayPrice) + vaultBalance;
+  $: unrealizedPnl = displayPositions.reduce((total, pos) => {
+    return total + ((displayPrice - pos.entryPrice) * pos.size);
   }, 0);
   $: returnPercent = ((totalValue - 10000) / 10000) * 100;
   
@@ -1443,7 +1461,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
           Switching to {selectedGranularity}
         </div>
         <div class="panel-header">
-          <h2>BTC/USD Chart</h2>
+          <h2>
+            BTC/USD Chart
+            {#if isPaperTestMode}
+              <span class="paper-test-indicator">📄 Paper Test Mode</span>
+            {/if}
+          </h2>
           <div class="chart-controls">
             <div class="granularity-buttons">
               <button class="granularity-btn" class:active={selectedGranularity === '1m'} disabled={!isGranularityValid('1m', selectedPeriod)} on:click={() => selectGranularity('1m')}>1m</button>
@@ -1675,9 +1698,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
                   />
                 </div>
               {:else}
-                <span class="balance-value" class:editable={!isRunning} on:click={startEditingBalance}>
-                  ${balance.toFixed(2)}
-                  {#if !isRunning}
+                <span class="balance-value" class:editable={!isRunning && !isPaperTestMode} on:click={startEditingBalance}>
+                  ${displayBalance.toFixed(2)}
+                  {#if !isRunning && !isPaperTestMode}
                     <span class="edit-icon">✏️</span>
                   {/if}
                 </span>
@@ -1685,7 +1708,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
             </div>
             <div class="balance-item">
               <span>BTC Balance:</span>
-              <span>{btcBalance.toFixed(8)} BTC</span>
+              <span>{displayBtcBalance.toFixed(8)} BTC</span>
             </div>
             <div class="balance-item">
               <span>Vault Balance:</span>
@@ -1743,10 +1766,10 @@ export class ${getStrategyFileName(type)} extends Strategy {
         </div>
         <div class="panel-content">
           <div class="positions-list">
-            {#if positions.length === 0}
+            {#if displayPositions.length === 0}
               <p class="no-positions">No open positions</p>
             {:else}
-              {#each positions as position}
+              {#each displayPositions as position}
                 <div class="position-item">
                   <div class="traffic-light-container">
                     <div class="traffic-light {getTrafficLightClass(position, currentPrice)}"
@@ -1786,9 +1809,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
               <p class="no-trades">No trades yet</p>
             {:else}
               {#each trades.slice(-20).reverse() as trade}
-                <div class="trade-item" class:buy={(trade.type || trade.side) === 'buy'} class:sell={(trade.type || trade.side) === 'sell'}>
+                <div class="trade-item" class:buy={(trade.type || trade.side) === 'buy'} class:sell={(trade.type || trade.side) === 'sell'} class:paper-test={trade.isPaperTest}>
                   <div class="trade-header">
-                    <span class="trade-type">{(trade.type || trade.side || '').toUpperCase()}</span>
+                    <span class="trade-type">
+                      {(trade.type || trade.side || '').toUpperCase()}
+                      {#if trade.isPaperTest}
+                        <span class="paper-test-badge">📄</span>
+                      {/if}
+                    </span>
                     <span class="trade-time">{new Date((trade.timestamp || 0) * 1000).toLocaleString()}</span>
                   </div>
                   <div class="trade-details">
@@ -1820,7 +1848,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
               <div class="zone-prices">
                 <div class="zone-price buy">
                   <span class="zone-label">
-                    {#if positions.length === 0}
+                    {#if displayPositions.length === 0}
                       Drop Level
                     {:else if threeZoneData.buyZone.type === 'next'}
                       Next Buy
@@ -1909,7 +1937,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
                     {@const tradeAngle = 0 + pricePosition * 180} 
                     {@const zoneColor = tradeAngle <= 60 ? '#ef4444' : tradeAngle >= 120 ? '#22c55e' : '#3b82f6'}
                     {@const isHighlighted = hoveredTradeId === trade.id || linkedTradeIds.includes(trade.id)}
-                    {@const openPosition = positions.find(p => p.id === trade.position?.id)}
+                    {@const openPosition = displayPositions.find(p => p.id === trade.position?.id)}
                     {@const currentPnL = openPosition ? ((currentPrice - openPosition.entryPrice) * openPosition.size) : null}
                     {@const currentPnLPercent = openPosition ? ((currentPrice - openPosition.entryPrice) / openPosition.entryPrice * 100) : null}
                     <g transform="rotate({tradeAngle - 90} 120 120)">
@@ -2013,15 +2041,15 @@ Fee: ${(trade.fee || 0).toFixed(2)}</title>
                 
                 <!-- Initial trading position indicator with open position info -->
                 {#if initialTradingPrice > 0}
-                  {@const totalValue = positions.reduce((sum, p) => sum + (p.entryPrice || 0) * (p.size || 0), 0)}
-                  {@const totalSize = positions.reduce((sum, p) => sum + (p.size || 0), 0)}
+                  {@const totalValue = displayPositions.reduce((sum, p) => sum + (p.entryPrice || 0) * (p.size || 0), 0)}
+                  {@const totalSize = displayPositions.reduce((sum, p) => sum + (p.size || 0), 0)}
                   {@const avgEntryPrice = totalSize > 0 ? totalValue / totalSize : 0}
                   {@const currentValue = totalSize * currentPrice}
                   {@const unrealizedPnL = currentValue - totalValue}
                   {@const pnlPercent = totalValue > 0 ? (unrealizedPnL / totalValue) * 100 : 0}
                   <g transform="rotate({initialTradingAngle - 90} 120 120)">
                     <circle cx="120" cy="20" r="8" fill="#3b82f6" stroke="white" stroke-width="3" fill-opacity="1">
-                      <title>{#if positions.length > 0}Open Position
+                      <title>{#if displayPositions.length > 0}Open Position
 Avg Entry: ${avgEntryPrice.toFixed(2)}
 Size: {totalSize.toFixed(6)} BTC
 Cost: ${totalValue.toFixed(2)}
@@ -2281,6 +2309,16 @@ No open positions{/if}</title>
     margin: 0;
     font-size: 16px;
     color: #a78bfa;
+  }
+  
+  .paper-test-indicator {
+    font-size: 14px;
+    color: #fbbf24;
+    margin-left: 10px;
+    padding: 2px 8px;
+    background: rgba(251, 191, 36, 0.1);
+    border-radius: 4px;
+    border: 1px solid rgba(251, 191, 36, 0.3);
   }
   
   .header-actions {
@@ -3509,6 +3547,27 @@ No open positions{/if}</title>
   
   .trade-item.sell {
     border-left: 3px solid #ef5350;
+  }
+  
+  .trade-item.paper-test {
+    background: rgba(167, 139, 250, 0.05);
+    border-style: dashed;
+  }
+  
+  .paper-test-badge {
+    font-size: 12px;
+    margin-left: 4px;
+    opacity: 0.8;
+  }
+  
+  .paper-test-indicator {
+    font-size: 14px;
+    color: #a78bfa;
+    margin-left: 8px;
+    padding: 2px 8px;
+    background: rgba(167, 139, 250, 0.1);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 4px;
   }
   
   .trade-header {

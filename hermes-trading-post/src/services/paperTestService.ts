@@ -309,8 +309,8 @@ export class PaperTestService {
           options.onCandle(candle);
         }
         
-        // DISABLED: No trading in paper test
-        // this.processCandle(candle, options);
+        // Process candle for trading
+        this.processCandle(candle, options);
         
         this.currentCandleIndex++;
       }
@@ -779,8 +779,8 @@ export class PaperTestService {
         this.currentOptions.onCandle(candle);
       }
       
-      // DISABLED: No trading in paper test
-      // this.processCandle(candle, this.currentOptions);
+      // Process candle for trading
+      this.processCandle(candle, this.currentOptions);
       
       this.currentCandleIndex++;
       
