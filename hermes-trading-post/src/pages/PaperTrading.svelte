@@ -666,6 +666,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
     if (dataFeedInterval) {
       clearInterval(dataFeedInterval);
     }
+    if (chartDataUpdateTimeout) {
+      clearTimeout(chartDataUpdateTimeout);
+    }
     // Don't stop the service - just save state so trading continues in background
     if (isRunning) {
       paperTradingService.save();
@@ -1105,16 +1108,27 @@ export class ${getStrategyFileName(type)} extends Strategy {
   $: dropFromHigh = recentHigh > 0 ? ((recentHigh - currentPrice) / recentHigh) * 100 : 0;
   $: riseFromLow = recentLow > 0 ? ((currentPrice - recentLow) / recentLow) * 100 : 0;
   
+  // Debounce chart data updates to prevent excessive saving
+  let chartDataUpdateTimeout: NodeJS.Timeout | null = null;
+  
   // Update chart data in service when key values change
   $: if (isRunning && recentHigh > 0) {
-    paperTradingService.updateChartData({
-      recentHigh,
-      recentLow,
-      initialTradingPrice,
-      initialRecentHigh,
-      initialTradingAngle,
-      lastTradeTime
-    });
+    // Clear existing timeout
+    if (chartDataUpdateTimeout) {
+      clearTimeout(chartDataUpdateTimeout);
+    }
+    
+    // Debounce the update to prevent excessive saves
+    chartDataUpdateTimeout = setTimeout(() => {
+      paperTradingService.updateChartData({
+        recentHigh,
+        recentLow,
+        initialTradingPrice,
+        initialRecentHigh,
+        initialTradingAngle,
+        lastTradeTime
+      });
+    }, 1000); // Update at most once per second
   }
   
   // Calculate sell target based on positions or current price
@@ -1757,9 +1771,20 @@ export class ${getStrategyFileName(type)} extends Strategy {
               <span class="sync-text">Synced with Backtesting</span>
             </div>
             <label>
-              Strategy
-              <select bind:value={selectedStrategyType} disabled={isRunning} on:change={() => {
+              Strategy {#if isRunning}(stop trading to change){/if}
+              <select bind:value={selectedStrategyType} disabled={isRunning} on:change={async () => {
                 try {
+                  // If trading is running, stop it first
+                  if (isRunning) {
+                    const shouldChange = confirm('Changing strategy will stop current trading. Continue?');
+                    if (!shouldChange) {
+                      // Reset to current strategy
+                      selectedStrategyType = currentStrategy?.getName() || selectedStrategyType;
+                      return;
+                    }
+                    stopTrading();
+                  }
+                  
                   currentStrategy = createStrategy(selectedStrategyType);
                   loadStrategySourceCode();
                 } catch (error) {
