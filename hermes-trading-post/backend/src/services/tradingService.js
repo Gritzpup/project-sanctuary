@@ -1,5 +1,13 @@
 import axios from 'axios';
 import { EventEmitter } from 'events';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// Get current directory for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Simplified strategy implementations
 class ReverseRatioStrategy {
@@ -129,7 +137,10 @@ export class TradingService extends EventEmitter {
       // Add other strategies as needed
     };
 
-    this.loadState();
+    // Load state asynchronously
+    this.loadState().catch(error => {
+      console.error('Failed to load initial state:', error);
+    });
   }
   
   extractStrategyType(strategyName) {
@@ -318,7 +329,9 @@ export class TradingService extends EventEmitter {
       status: this.getStatus()
     });
 
-    this.saveState();
+    this.saveState().catch(error => {
+      console.error('Failed to save state:', error);
+    });
   }
 
   stopTrading() {
@@ -341,7 +354,9 @@ export class TradingService extends EventEmitter {
       status: this.getStatus()
     });
 
-    this.saveState();
+    this.saveState().catch(error => {
+      console.error('Failed to save state:', error);
+    });
   }
 
   pauseTrading() {
@@ -353,7 +368,9 @@ export class TradingService extends EventEmitter {
       status: this.getStatus()
     });
 
-    this.saveState();
+    this.saveState().catch(error => {
+      console.error('Failed to save state:', error);
+    });
   }
 
   resumeTrading() {
@@ -365,7 +382,9 @@ export class TradingService extends EventEmitter {
       status: this.getStatus()
     });
 
-    this.saveState();
+    this.saveState().catch(error => {
+      console.error('Failed to save state:', error);
+    });
   }
 
   updateStrategy(config) {
@@ -449,16 +468,22 @@ export class TradingService extends EventEmitter {
     });
     
     if (signal.type === 'buy') {
-      this.processBuySignal(signal);
+      this.processBuySignal(signal).catch(error => {
+        console.error('Error processing buy signal:', error);
+      });
     } else if (signal.type === 'sell') {
-      this.processSellSignal(signal);
+      this.processSellSignal(signal).catch(error => {
+        console.error('Error processing sell signal:', error);
+      });
     }
 
     this.lastUpdateTime = Date.now();
-    this.saveState();
+    this.saveState().catch(error => {
+      console.error('Failed to save state after trading logic:', error);
+    });
   }
 
-  processBuySignal(signal) {
+  async processBuySignal(signal) {
     if (!this.strategy) return;
     
     // Calculate position size using strategy's method
@@ -496,12 +521,14 @@ export class TradingService extends EventEmitter {
       entryPrice: this.currentPrice,
       size: positionSize,
       usdValue: cost,
-      timestamp: Date.now()
+      timestamp: Math.floor(Date.now() / 1000)
     };
     
     this.positions.push(position);
     this.trades.push({
       ...position,
+      price: this.currentPrice,
+      value: cost,
       fee: fee,
       side: 'buy',
       reason: signal.reason || 'Strategy signal'
@@ -521,12 +548,15 @@ export class TradingService extends EventEmitter {
     console.log('Executed buy:', position);
     this.broadcast({
       type: 'trade',
-      trade: position,
+      trade: this.trades[this.trades.length - 1], // Send the trade object, not the position
       status: this.getStatus()
     });
+    
+    // Save state after trade
+    await this.saveState();
   }
 
-  processSellSignal(signal) {
+  async processSellSignal(signal) {
     if (!this.strategy || this.positions.length === 0) return;
     
     const size = signal.size || this.balance.btc;
@@ -570,13 +600,15 @@ export class TradingService extends EventEmitter {
       id: Date.now(),
       type: 'sell',
       side: 'sell',
+      price: this.currentPrice,
       exitPrice: this.currentPrice,
       size: size,
+      value: proceeds,
       usdValue: proceeds,
       profit: profit,
       profitPercent: profitPercent,
       fee: fee,
-      timestamp: Date.now(),
+      timestamp: Math.floor(Date.now() / 1000),
       reason: signal.reason || 'Strategy signal'
     };
     
@@ -597,6 +629,9 @@ export class TradingService extends EventEmitter {
       trade: trade,
       status: this.getStatus()
     });
+    
+    // Save state after trade
+    await this.saveState();
   }
 
   getStatus() {
@@ -634,12 +669,147 @@ export class TradingService extends EventEmitter {
     this.chartData.lastTradeTime = 0;
   }
 
-  loadState() {
-    // TODO: Load from file or database
+  async loadState() {
+    try {
+      // Create data directory if it doesn't exist
+      const dataDir = path.join(__dirname, '../../data');
+      await fs.mkdir(dataDir, { recursive: true });
+      
+      const stateFile = path.join(dataDir, 'trading-state.json');
+      
+      try {
+        const data = await fs.readFile(stateFile, 'utf8');
+        const state = JSON.parse(data);
+        
+        // Restore state
+        this.trades = state.trades || [];
+        this.positions = state.positions || [];
+        this.balance = state.balance || { usd: 10000, btc: 0 };
+        this.chartData = state.chartData || {
+          recentHigh: 0,
+          recentLow: 0,
+          initialTradingPrice: 0,
+          initialRecentHigh: 0,
+          initialTradingAngle: 0,
+          lastTradeTime: 0
+        };
+        this.startTime = state.startTime || null;
+        this.lastUpdateTime = state.lastUpdateTime || null;
+        this.strategyConfig = state.strategyConfig || null;
+        
+        // Restore strategy if it was configured
+        if (state.strategyType && state.strategyParams) {
+          const StrategyClass = this.strategyMap[state.strategyType];
+          if (StrategyClass) {
+            this.strategy = new StrategyClass(state.strategyParams);
+            // Restore strategy-specific state
+            if (state.strategyState) {
+              this.strategy.positions = state.strategyState.positions || [];
+              this.strategy.recentHigh = state.strategyState.recentHigh || 0;
+            }
+          }
+        }
+        
+        // Restore candles
+        this.candles = state.candles || [];
+        this.currentCandle = state.currentCandle || null;
+        
+        // Restore price history (keep only recent entries)
+        this.priceHistory = state.priceHistory || [];
+        if (this.priceHistory.length > 1000) {
+          this.priceHistory = this.priceHistory.slice(-500);
+        }
+        
+        console.log('Trading state loaded successfully:', {
+          trades: this.trades.length,
+          positions: this.positions.length,
+          balance: this.balance,
+          hasStrategy: !!this.strategy
+        });
+      } catch (error) {
+        if (error.code === 'ENOENT') {
+          console.log('No saved state file found, starting fresh');
+        } else {
+          console.error('Error reading state file:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading state:', error);
+    }
   }
 
-  saveState() {
-    // TODO: Save to file or database
+  async saveState() {
+    try {
+      // Create data directory if it doesn't exist
+      const dataDir = path.join(__dirname, '../../data');
+      await fs.mkdir(dataDir, { recursive: true });
+      
+      const stateFile = path.join(dataDir, 'trading-state.json');
+      
+      // Prepare state object
+      const state = {
+        trades: this.trades,
+        positions: this.positions,
+        balance: this.balance,
+        chartData: this.chartData,
+        startTime: this.startTime,
+        lastUpdateTime: this.lastUpdateTime,
+        strategyConfig: this.strategyConfig,
+        candles: this.candles,
+        currentCandle: this.currentCandle,
+        priceHistory: this.priceHistory.slice(-100), // Keep only recent 100 entries
+        savedAt: Date.now()
+      };
+      
+      // Save strategy-specific information
+      if (this.strategy) {
+        // Determine strategy type
+        let strategyType = 'reverse-ratio'; // default
+        for (const [type, StrategyClass] of Object.entries(this.strategyMap)) {
+          if (this.strategy.constructor === StrategyClass) {
+            strategyType = type;
+            break;
+          }
+        }
+        
+        state.strategyType = strategyType;
+        state.strategyParams = this.strategy.config || {};
+        
+        // Save strategy-specific state
+        state.strategyState = {
+          positions: this.strategy.positions || [],
+          recentHigh: this.strategy.recentHigh || 0
+        };
+      }
+      
+      // Write state to file
+      await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+      
+      // Also create a backup with timestamp
+      const backupDir = path.join(dataDir, 'backups');
+      await fs.mkdir(backupDir, { recursive: true });
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupFile = path.join(backupDir, `trading-state-${timestamp}.json`);
+      await fs.writeFile(backupFile, JSON.stringify(state, null, 2));
+      
+      // Clean up old backups (keep only last 10)
+      const backups = await fs.readdir(backupDir);
+      const sortedBackups = backups
+        .filter(f => f.startsWith('trading-state-') && f.endsWith('.json'))
+        .sort()
+        .reverse();
+      
+      if (sortedBackups.length > 10) {
+        for (const oldBackup of sortedBackups.slice(10)) {
+          await fs.unlink(path.join(backupDir, oldBackup)).catch(() => {});
+        }
+      }
+      
+      console.log('Trading state saved successfully');
+    } catch (error) {
+      console.error('Error saving state:', error);
+    }
   }
 
   cleanup() {

@@ -1320,7 +1320,7 @@
         color: trade.type === 'buy' ? '#26a69a' : '#ef5350',
         shape: trade.type === 'buy' ? 'arrowUp' : 'arrowDown',
         size: 2,
-        text: `${trade.type.toUpperCase()} @ $${trade.price.toLocaleString()}`
+        text: `${(trade.type || 'TRADE').toUpperCase()} @ $${(trade.price || 0).toLocaleString()}`
       };
       
       console.log(`Chart: Trade ${index} marker:`, {

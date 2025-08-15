@@ -2129,9 +2129,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
                     <span class="trade-time">{new Date((trade.timestamp || 0) * 1000).toLocaleString()}</span>
                   </div>
                   <div class="trade-details">
-                    <span>Price: ${trade.price.toFixed(2)}</span>
-                    <span>Size: {trade.size.toFixed(8)} BTC</span>
-                    <span>Value: ${(trade.price * trade.size).toFixed(2)}</span>
+                    <span>Price: ${(trade.price || 0).toFixed(2)}</span>
+                    <span>Size: {(trade.size || 0).toFixed(8)} BTC</span>
+                    <span>Value: ${((trade.price || 0) * (trade.size || 0)).toFixed(2)}</span>
                     {#if trade.profit !== undefined}
                       <span class:profit={trade.profit > 0} class:loss={trade.profit < 0}>
                         P&L: ${trade.profit.toFixed(2)}
@@ -2261,13 +2261,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
                         class="trade-indicator"
                       >
                         <title>Buy #{i + 1}
-Price: ${trade.price.toFixed(2)}
-Size: {trade.size.toFixed(6)} BTC
-Value: ${trade.value.toFixed(2)}
+Price: ${(trade.price || 0).toFixed(2)}
+Size: {(trade.size || 0).toFixed(6)} BTC
+Value: ${(trade.value || 0).toFixed(2)}
 Fee: ${(trade.fee || 0).toFixed(2)}
 {#if openPosition}
 Status: OPEN POSITION
-Current P/L: ${currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)} ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(1)}%)
+Current P/L: ${currentPnL >= 0 ? '+' : ''}{(currentPnL || 0).toFixed(2)} ({currentPnLPercent >= 0 ? '+' : ''}{(currentPnLPercent || 0).toFixed(1)}%)
 {:else if trade.position}
 Status: CLOSED
 {/if}</title>
