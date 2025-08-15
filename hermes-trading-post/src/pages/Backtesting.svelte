@@ -17,7 +17,7 @@
   import type { BacktestConfig, BacktestResult } from '../strategies/base/StrategyTypes';
   import type { CandleData } from '../types/coinbase';
   import { historicalDataService, HistoricalDataService } from '../services/historicalDataService';
-  import { strategyStore } from '../stores/strategyStore';
+  import { strategyStore, syncStatus } from '../stores/strategyStore';
   
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
@@ -269,6 +269,9 @@
     
     strategyStore.setCustomStrategies(customStrategies);
     
+    // Call the new sync method to emit the sync event
+    strategyStore.syncToPaperTrading();
+    
     lastSyncedStrategy = selectedStrategyType;
     lastSyncedParams = { ...strategyParams[selectedStrategyType] };
     lastSyncedBalance = startBalance;
@@ -278,6 +281,7 @@
     isSynced = true;
     
     console.log('Strategy synced to Paper Trading:', selectedStrategyType);
+    alert('Strategy synchronized with Paper Trading! ✅');
   }
   
   function loadSavedPresetForTimeframe() {
@@ -1126,6 +1130,37 @@ export class ${getStrategyFileName(type)} extends Strategy {
   <main class="dashboard-content" class:expanded={sidebarCollapsed}>
     <div class="header">
       <h1>Backtesting</h1>
+      <div class="header-controls">
+        <button 
+          class="run-button"
+          class:running={isRunning}
+          on:click={runBacktest}
+          disabled={isRunning}
+        >
+          {#if isRunning}
+            <span class="spinner"></span>
+            Running...
+          {:else}
+            ▶️ Run Backtest
+          {/if}
+        </button>
+        
+        <button 
+          class="sync-button"
+          class:synced={$syncStatus.status === 'synced'}
+          class:out-of-sync={$syncStatus.status === 'out-of-sync'}
+          on:click={syncToPaperTrading}
+          title="{$syncStatus.message}"
+        >
+          {#if $syncStatus.status === 'synced'}
+            ✅ Synced
+          {:else if $syncStatus.status === 'out-of-sync'}
+            ⚠️ Sync to Paper Trading
+          {:else}
+            📤 Sync to Paper Trading
+          {/if}
+        </button>
+      </div>
       <div class="header-stats">
         <div class="stat-item">
           <span class="stat-label">BTC/USD</span>
@@ -1283,6 +1318,68 @@ export class ${getStrategyFileName(type)} extends Strategy {
     margin: 0;
     font-size: 24px;
     color: #a78bfa;
+  }
+  
+  .header-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  
+  .run-button, .sync-button {
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    border: 1px solid rgba(74, 0, 224, 0.5);
+    background: rgba(74, 0, 224, 0.1);
+    color: #a78bfa;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .run-button:hover:not(:disabled), .sync-button:hover {
+    background: rgba(74, 0, 224, 0.2);
+    border-color: rgba(74, 0, 224, 0.7);
+    transform: translateY(-1px);
+  }
+  
+  .run-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .run-button.running {
+    background: rgba(74, 0, 224, 0.3);
+  }
+  
+  .sync-button.synced {
+    border-color: rgba(34, 197, 94, 0.5);
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+  }
+  
+  .sync-button.out-of-sync {
+    border-color: rgba(245, 158, 11, 0.5);
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+  }
+  
+  .spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(167, 139, 250, 0.3);
+    border-top-color: #a78bfa;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
   
   .header-stats {

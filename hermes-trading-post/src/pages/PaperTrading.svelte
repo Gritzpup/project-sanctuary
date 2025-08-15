@@ -144,6 +144,9 @@
   // Subscribe to strategy store
   let unsubscribe: () => void;
   
+  // Define sync handler at module level so it's accessible in onDestroy
+  let handleStrategySync: (event: CustomEvent) => void;
+  
   // Reactive combined strategies list
   $: strategies = [...builtInStrategies, ...customStrategies];
   
@@ -626,6 +629,56 @@ export class ${getStrategyFileName(type)} extends Strategy {
       console.log('PaperTrading: Restoration flag cleared, normal operation resumed');
     }, 1000);
     
+    // Listen for strategy sync events from backtesting
+    handleStrategySync = (event: CustomEvent) => {
+      console.log('PaperTrading: Received strategy sync event:', event.detail);
+      
+      const { strategy, timestamp } = event.detail;
+      if (!strategy) return;
+      
+      // Check if trading is active
+      if (isRunning) {
+        const shouldUpdate = confirm('Paper Trading is currently active. Update strategy now?\n\nThis will apply the new strategy settings on the next trade.');
+        if (!shouldUpdate) return;
+      }
+      
+      // Update strategy selection and parameters
+      selectedStrategyType = strategy.type;
+      strategyParameters = { ...strategy.parameters };
+      
+      // Create new strategy instance with synced parameters
+      try {
+        currentStrategy = createStrategy(selectedStrategyType);
+        loadStrategySourceCode();
+        
+        // If trading is running, update the backend
+        if (isRunning) {
+          console.log('PaperTrading: Updating backend with synced strategy');
+          tradingBackendService.updateStrategy({
+            strategyType: selectedStrategyType,
+            strategyConfig: (currentStrategy as any).config || strategyParameters,
+            strategy: {
+              getName: () => currentStrategy.getName(),
+              config: (currentStrategy as any).config || {},
+              buyThreshold: -0.5,
+              sellThreshold: 0.5,
+              tradePercentage: 10
+            }
+          });
+        }
+        
+        // Show success notification
+        alert('Strategy synced from Backtesting! ✅\n\n' + 
+              `Strategy: ${strategies.find(s => s.value === selectedStrategyType)?.label || selectedStrategyType}\n` +
+              `Synced at: ${new Date(timestamp).toLocaleTimeString()}`);
+      } catch (error) {
+        console.error('Failed to apply synced strategy:', error);
+        alert('Failed to sync strategy. Please check the console for details.');
+      }
+    };
+    
+    window.addEventListener('strategy-synced', handleStrategySync);
+    
     // Subscribe to strategy store to sync with backtesting
     unsubscribe = strategyStore.subscribe(config => {
       // console.log('Paper Trading: Received strategy update:', config);
@@ -701,6 +754,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
     if (chartDataUpdateTimeout) {
       clearTimeout(chartDataUpdateTimeout);
     }
+    // Remove strategy sync event listener
+    window.removeEventListener('strategy-synced', handleStrategySync);
     // Backend automatically saves state
     // if (isRunning) {
     //   paperTradingService.save();
@@ -785,11 +840,15 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     // Start the service with the strategy
     tradingBackendService.startTrading({
-      getName: () => currentStrategy.getName(),
-      config: (currentStrategy as any).config || {},
-      buyThreshold: -0.5,
-      sellThreshold: 0.5,
-      tradePercentage: 10
+      strategyType: selectedStrategyType,
+      strategyConfig: (currentStrategy as any).config || strategyParameters,
+      strategy: {
+        getName: () => currentStrategy.getName(),
+        config: (currentStrategy as any).config || {},
+        buyThreshold: -0.5,
+        sellThreshold: 0.5,
+        tradePercentage: 10
+      }
     }, false);
     
     // Update status to show restored positions
@@ -905,11 +964,15 @@ export class ${getStrategyFileName(type)} extends Strategy {
     }
     
     tradingBackendService.startTrading({
-      getName: () => currentStrategy.getName(),
-      config: (currentStrategy as any).config || {},
-      buyThreshold: -0.5,
-      sellThreshold: 0.5,
-      tradePercentage: 10
+      strategyType: selectedStrategyType,
+      strategyConfig: (currentStrategy as any).config || strategyParameters,
+      strategy: {
+        getName: () => currentStrategy.getName(),
+        config: (currentStrategy as any).config || {},
+        buyThreshold: -0.5,
+        sellThreshold: 0.5,
+        tradePercentage: 10
+      }
     }, false);
     isRunning = true;
     

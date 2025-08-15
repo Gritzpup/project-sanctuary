@@ -1,6 +1,96 @@
 import axios from 'axios';
 import { EventEmitter } from 'events';
 
+// Simplified strategy implementations
+class ReverseRatioStrategy {
+  constructor(config) {
+    this.config = {
+      initialDropPercent: 0.01,
+      levelDropPercent: 0.008,
+      profitTarget: 0.85,
+      maxLevels: 12,
+      basePositionPercent: 6,
+      ...config
+    };
+    this.positions = [];
+    this.recentHigh = 0;
+  }
+
+  analyze(candles, currentPrice) {
+    // Update recent high
+    const recentCandles = candles.slice(-20);
+    if (recentCandles.length > 0) {
+      const prevHigh = this.recentHigh;
+      this.recentHigh = Math.max(...recentCandles.map(c => c.high), this.recentHigh);
+      if (this.recentHigh > prevHigh) {
+        console.log('New recent high:', this.recentHigh);
+      }
+    } else if (this.recentHigh === 0) {
+      // Initialize with current price if no candles yet
+      this.recentHigh = currentPrice;
+      console.log('Initialized recent high with current price:', this.recentHigh);
+    }
+
+    // Check for sell signal
+    if (this.positions.length > 0) {
+      const avgEntryPrice = this.positions.reduce((sum, p) => sum + p.entryPrice * p.size, 0) / 
+                           this.positions.reduce((sum, p) => sum + p.size, 0);
+      const profitPercent = ((currentPrice - avgEntryPrice) / avgEntryPrice) * 100;
+      
+      if (profitPercent >= this.config.profitTarget) {
+        return { type: 'sell', reason: `Target profit ${this.config.profitTarget}% reached` };
+      }
+    }
+
+    // Check for buy signal
+    const dropFromHigh = ((this.recentHigh - currentPrice) / this.recentHigh) * 100;
+    const currentLevel = this.positions.length + 1;
+    
+    if (currentLevel <= this.config.maxLevels) {
+      const requiredDrop = this.config.initialDropPercent + 
+                          (currentLevel - 1) * this.config.levelDropPercent;
+      
+      console.log('Buy check:', {
+        dropFromHigh: dropFromHigh.toFixed(4),
+        requiredDrop: requiredDrop.toFixed(4),
+        currentLevel,
+        recentHigh: this.recentHigh,
+        currentPrice,
+        config: this.config
+      });
+      
+      if (dropFromHigh >= requiredDrop) {
+        return { 
+          type: 'buy', 
+          reason: `Drop level ${currentLevel} reached: ${dropFromHigh.toFixed(2)}%`,
+          metadata: { level: currentLevel }
+        };
+      }
+    }
+
+    return { type: 'hold' };
+  }
+
+  calculatePositionSize(totalBalance, signal, currentPrice) {
+    const level = signal.metadata?.level || 1;
+    const baseAmount = totalBalance * (this.config.basePositionPercent / 100);
+    const multiplier = Math.pow(1.5, level - 1); // Increase size with each level
+    return (baseAmount * multiplier) / currentPrice;
+  }
+
+  addPosition(position) {
+    this.positions.push(position);
+  }
+
+  removePosition(position) {
+    this.positions = this.positions.filter(p => p !== position);
+  }
+
+  getPositions() {
+    return this.positions;
+  }
+}
+
 export class TradingService extends EventEmitter {
   constructor() {
     super();
@@ -16,6 +106,8 @@ export class TradingService extends EventEmitter {
     };
     this.currentPrice = 0;
     this.priceHistory = [];
+    this.candles = [];
+    this.currentCandle = null;
     this.startTime = null;
     this.lastUpdateTime = null;
     this.tradingInterval = null;
@@ -28,8 +120,25 @@ export class TradingService extends EventEmitter {
       initialTradingAngle: 0,
       lastTradeTime: 0
     };
+    this.strategyConfig = null;
+    
+    // Map strategy types to classes
+    this.strategyMap = {
+      'reverse-ratio': ReverseRatioStrategy,
+      'ultra-micro-scalping': ReverseRatioStrategy, // Use same for now
+      // Add other strategies as needed
+    };
 
     this.loadState();
+  }
+  
+  extractStrategyType(strategyName) {
+    const nameToType = {
+      'Reverse Ratio Buying': 'reverse-ratio',
+      'Ultra Micro-Scalping': 'ultra-micro-scalping'
+    };
+    
+    return nameToType[strategyName] || strategyName.toLowerCase().replace(/\s+/g, '-');
   }
 
   addClient(ws) {
@@ -60,10 +169,45 @@ export class TradingService extends EventEmitter {
         this.priceHistory = this.priceHistory.slice(-500);
       }
       
+      // Update or create current candle
+      this.updateCandles(price);
+      
       return price;
     } catch (error) {
       console.error('Error fetching price:', error);
       return this.currentPrice || 0;
+    }
+  }
+  
+  updateCandles(price) {
+    const now = Date.now();
+    const currentMinute = Math.floor(now / 60000) * 60000;
+    
+    if (!this.currentCandle || this.currentCandle.time < currentMinute / 1000) {
+      // Close previous candle and start new one
+      if (this.currentCandle) {
+        this.candles.push(this.currentCandle);
+        console.log(`Candle closed. Total candles: ${this.candles.length}`);
+        
+        // Keep only last 500 candles
+        if (this.candles.length > 500) {
+          this.candles = this.candles.slice(-500);
+        }
+      }
+      
+      this.currentCandle = {
+        time: currentMinute / 1000,
+        open: price,
+        high: price,
+        low: price,
+        close: price,
+        volume: 0
+      };
+    } else {
+      // Update current candle
+      this.currentCandle.high = Math.max(this.currentCandle.high, price);
+      this.currentCandle.low = Math.min(this.currentCandle.low, price);
+      this.currentCandle.close = price;
     }
   }
 
@@ -75,7 +219,52 @@ export class TradingService extends EventEmitter {
 
     console.log('Starting trading with config:', config);
     
-    this.strategy = config.strategy;
+    // Parse strategy configuration
+    let strategyType;
+    let strategyParams;
+    
+    // Priority 1: Direct strategyType and strategyConfig (preferred format)
+    if (config.strategyType && config.strategyConfig) {
+      strategyType = config.strategyType;
+      strategyParams = config.strategyConfig;
+      console.log('Using direct strategy format:', strategyType, 'with config:', strategyParams);
+    }
+    // Priority 2: Strategy object format
+    else if (config.strategy) {
+      // Handle format from frontend
+      if (config.strategy.strategyType) {
+        // New format with explicit type
+        strategyType = config.strategy.strategyType;
+        strategyParams = config.strategy.strategyConfig || config.strategy.config || {};
+        console.log('Using strategy object format:', strategyType, 'with config:', strategyParams);
+      } else {
+        // Legacy format
+        strategyType = this.extractStrategyType(config.strategy.getName ? config.strategy.getName() : 'reverse-ratio');
+        strategyParams = config.strategy.config || {};
+        console.log('Using legacy format:', strategyType, 'with config:', strategyParams);
+      }
+    } else {
+      console.error('Invalid strategy configuration');
+      return;
+    }
+    
+    // Create strategy instance
+    const StrategyClass = this.strategyMap[strategyType];
+    if (!StrategyClass) {
+      console.error(`Unknown strategy type: ${strategyType}, using reverse-ratio as default`);
+      strategyType = 'reverse-ratio';
+    }
+    
+    try {
+      const StrategyToUse = this.strategyMap[strategyType];
+      this.strategy = new StrategyToUse(strategyParams);
+      console.log(`Created ${strategyType} strategy with params:`, strategyParams);
+    } catch (error) {
+      console.error('Failed to create strategy:', error);
+      return;
+    }
+    
+    this.strategyConfig = config;
     this.isRunning = true;
     this.isPaused = false;
     this.startTime = this.startTime || Date.now();
@@ -91,6 +280,21 @@ export class TradingService extends EventEmitter {
       this.chartData.initialRecentHigh = this.currentPrice;
       this.chartData.recentHigh = this.currentPrice;
       this.chartData.recentLow = this.currentPrice;
+    }
+    
+    // Create initial candle to jumpstart trading if we don't have one
+    if (this.currentPrice && !this.currentCandle && this.candles.length === 0) {
+      const now = Date.now();
+      const currentMinute = Math.floor(now / 60000) * 60000;
+      this.currentCandle = {
+        time: currentMinute / 1000,
+        open: this.currentPrice,
+        high: this.currentPrice,
+        low: this.currentPrice,
+        close: this.currentPrice,
+        volume: 0
+      };
+      console.log('Created initial candle to jumpstart trading:', this.currentCandle);
     }
 
     this.priceUpdateInterval = setInterval(async () => {
@@ -155,7 +359,7 @@ export class TradingService extends EventEmitter {
   resumeTrading() {
     console.log('Resuming trading');
     this.isPaused = false;
-    
+
     this.broadcast({
       type: 'tradingResumed',
       status: this.getStatus()
@@ -164,16 +368,42 @@ export class TradingService extends EventEmitter {
     this.saveState();
   }
 
-  updateStrategy(strategy) {
-    console.log('Updating strategy:', strategy);
-    this.strategy = strategy;
+  updateStrategy(config) {
+    console.log('Updating strategy:', config);
+    this.strategyConfig = config;
+    
+    // Parse strategy configuration using same logic as startTrading
+    let strategyType;
+    let strategyParams;
+    
+    // Priority 1: Direct strategyType and strategyConfig (preferred format)
+    if (config.strategyType && config.strategyConfig) {
+      strategyType = config.strategyType;
+      strategyParams = config.strategyConfig;
+      console.log('Updating with direct strategy format:', strategyType, 'with config:', strategyParams);
+    }
+    // Priority 2: Strategy object format
+    else if (config.strategy) {
+      if (config.strategy.strategyType) {
+        strategyType = config.strategy.strategyType;
+        strategyParams = config.strategy.strategyConfig || config.strategy.config || {};
+      } else {
+        strategyType = this.extractStrategyType(config.strategy.getName ? config.strategy.getName() : 'reverse-ratio');
+        strategyParams = config.strategy.config || {};
+      }
+    } else {
+      strategyType = 'reverse-ratio';
+      strategyParams = {};
+    }
+    
+    const StrategyClass = this.strategyMap[strategyType] || this.strategyMap['reverse-ratio'];
+    this.strategy = new StrategyClass(strategyParams);
+    console.log(`Updated to ${strategyType} strategy with params:`, strategyParams);
     
     this.broadcast({
       type: 'strategyUpdated',
-      strategy: this.strategy
+      status: this.getStatus()
     });
-
-    this.saveState();
   }
 
   updateChartData() {
@@ -186,74 +416,109 @@ export class TradingService extends EventEmitter {
 
     if (this.currentPrice > this.chartData.initialRecentHigh) {
       this.chartData.initialTradingAngle = 
-        ((this.currentPrice - this.chartData.initialTradingPrice) / 
+        ((this.currentPrice - this.chartData.initialTradingPrice) /
          this.chartData.initialTradingPrice) * 100;
     }
   }
 
   executeTradingLogic() {
-    if (!this.strategy || !this.currentPrice) return;
+    if (!this.strategy || !this.currentPrice) {
+      console.log('Trading logic check:', {
+        hasStrategy: !!this.strategy,
+        currentPrice: this.currentPrice,
+        candleCount: this.candles.length
+      });
+      return;
+    }
 
-    const tradeAmount = this.calculateTradeAmount();
-    const shouldBuy = this.shouldBuy();
-    const shouldSell = this.shouldSell();
+    // Get candles for strategy analysis
+    const candlesForAnalysis = [...this.candles];
+    if (this.currentCandle) {
+      candlesForAnalysis.push(this.currentCandle);
+    }
 
-    if (shouldBuy && this.balance.usd >= tradeAmount) {
-      this.executeBuy(tradeAmount);
-    } else if (shouldSell && this.balance.btc > 0) {
-      this.executeSell();
+    // Get signal from strategy
+    const signal = this.strategy.analyze(candlesForAnalysis, this.currentPrice);
+    console.log('Strategy signal:', {
+      type: signal.type,
+      reason: signal.reason,
+      currentPrice: this.currentPrice,
+      recentHigh: this.strategy.recentHigh,
+      positionCount: this.positions.length,
+      candleCount: candlesForAnalysis.length
+    });
+    
+    if (signal.type === 'buy') {
+      this.processBuySignal(signal);
+    } else if (signal.type === 'sell') {
+      this.processSellSignal(signal);
     }
 
     this.lastUpdateTime = Date.now();
     this.saveState();
   }
 
-  calculateTradeAmount() {
-    const percentage = this.strategy.tradePercentage || 10;
-    return (this.balance.usd * percentage) / 100;
-  }
-
-  shouldBuy() {
-    if (!this.strategy || this.positions.length > 0) return false;
-
-    const priceDropThreshold = this.strategy.buyThreshold || -0.5;
-    const priceChangePercent = ((this.currentPrice - this.chartData.recentHigh) / 
-                                this.chartData.recentHigh) * 100;
-
-    return priceChangePercent <= priceDropThreshold;
-  }
-
-  shouldSell() {
-    if (!this.strategy || this.positions.length === 0) return false;
-
-    const position = this.positions[0];
-    const profitPercent = ((this.currentPrice - position.entryPrice) / 
-                           position.entryPrice) * 100;
-
-    return profitPercent >= (this.strategy.sellThreshold || 0.5);
-  }
-
-  executeBuy(amount) {
-    const btcAmount = amount / this.currentPrice;
+  processBuySignal(signal) {
+    if (!this.strategy) return;
     
-    this.balance.usd -= amount;
-    this.balance.btc += btcAmount;
-
+    // Calculate position size using strategy's method
+    const totalAvailable = this.balance.usd;
+    const positionSize = this.strategy.calculatePositionSize(totalAvailable, signal, this.currentPrice);
+    
+    console.log('Buy signal processing:', {
+      totalAvailable,
+      positionSize,
+      currentPrice: this.currentPrice,
+      signal: signal
+    });
+    
+    if (positionSize <= 0) {
+      console.log('Position size too small or no funds available');
+      return;
+    }
+    
+    const cost = positionSize * this.currentPrice;
+    const fee = cost * 0.001; // 0.1% fee
+    const totalCost = cost + fee;
+    
+    if (totalCost > this.balance.usd) {
+      console.log('Insufficient funds for trade:', { totalCost, availableUSD: this.balance.usd });
+      return;
+    }
+    
+    // Execute buy
+    this.balance.usd -= totalCost;
+    this.balance.btc += positionSize;
+    
     const position = {
       id: Date.now(),
       type: 'buy',
       entryPrice: this.currentPrice,
-      amount: btcAmount,
-      usdValue: amount,
+      size: positionSize,
+      usdValue: cost,
       timestamp: Date.now()
     };
-
+    
     this.positions.push(position);
-    this.trades.push(position);
-    this.chartData.lastTradeTime = Date.now();
-
+    this.trades.push({
+      ...position,
+      fee: fee,
+      side: 'buy',
+      reason: signal.reason || 'Strategy signal'
+    });
+    
+    // Update strategy state
+    if (this.strategy.addPosition) {
+      this.strategy.addPosition({
+        entryPrice: this.currentPrice,
+        entryTime: Date.now() / 1000,
+        size: positionSize,
+        type: 'long',
+        metadata: signal.metadata
+      });
+    }
+    
     console.log('Executed buy:', position);
-
     this.broadcast({
       type: 'trade',
       trade: position,
@@ -261,30 +526,72 @@ export class TradingService extends EventEmitter {
     });
   }
 
-  executeSell() {
-    const position = this.positions[0];
-    const usdAmount = this.balance.btc * this.currentPrice;
+  processSellSignal(signal) {
+    if (!this.strategy || this.positions.length === 0) return;
     
-    this.balance.btc = 0;
-    this.balance.usd += usdAmount;
-
+    const size = signal.size || this.balance.btc;
+    if (size <= 0 || size > this.balance.btc) {
+      console.log('Invalid sell size');
+      return;
+    }
+    
+    const proceeds = size * this.currentPrice;
+    const fee = proceeds * 0.001; // 0.1% fee
+    const netProceeds = proceeds - fee;
+    
+    // Calculate profit
+    let totalCost = 0;
+    let remainingSize = size;
+    const closedPositions = [];
+    
+    for (const position of this.positions) {
+      if (remainingSize <= 0) break;
+      
+      const closeSize = Math.min(remainingSize, position.size);
+      totalCost += closeSize * position.entryPrice;
+      remainingSize -= closeSize;
+      
+      if (closeSize === position.size) {
+        closedPositions.push(position);
+      }
+    }
+    
+    const profit = netProceeds - totalCost;
+    const profitPercent = (profit / totalCost) * 100;
+    
+    // Execute sell
+    this.balance.btc -= size;
+    this.balance.usd += netProceeds;
+    
+    // Remove closed positions
+    this.positions = this.positions.filter(p => !closedPositions.includes(p));
+    
     const trade = {
       id: Date.now(),
       type: 'sell',
+      side: 'sell',
       exitPrice: this.currentPrice,
-      amount: position.amount,
-      usdValue: usdAmount,
-      profit: usdAmount - position.usdValue,
-      profitPercent: ((usdAmount - position.usdValue) / position.usdValue) * 100,
-      timestamp: Date.now()
+      size: size,
+      usdValue: proceeds,
+      profit: profit,
+      profitPercent: profitPercent,
+      fee: fee,
+      timestamp: Date.now(),
+      reason: signal.reason || 'Strategy signal'
     };
-
-    this.positions = [];
+    
     this.trades.push(trade);
-    this.chartData.lastTradeTime = Date.now();
-
+    
+    // Update strategy state
+    if (this.strategy.removePosition) {
+      closedPositions.forEach(p => {
+        if (this.strategy && this.strategy.removePosition) {
+          this.strategy.removePosition(p);
+        }
+      });
+    }
+    
     console.log('Executed sell:', trade);
-
     this.broadcast({
       type: 'trade',
       trade: trade,
@@ -300,7 +607,7 @@ export class TradingService extends EventEmitter {
     return {
       isRunning: this.isRunning,
       isPaused: this.isPaused,
-      strategy: this.strategy,
+      strategy: this.strategyConfig,
       balance: this.balance,
       positions: this.positions,
       trades: this.trades,
@@ -324,69 +631,15 @@ export class TradingService extends EventEmitter {
       btc: 0
     };
     this.startTime = Date.now();
-    this.chartData = {
-      recentHigh: this.currentPrice,
-      recentLow: this.currentPrice,
-      initialTradingPrice: this.currentPrice,
-      initialRecentHigh: this.currentPrice,
-      initialTradingAngle: 0,
-      lastTradeTime: 0
-    };
-  }
-
-  saveState() {
-    const state = {
-      isRunning: this.isRunning,
-      isPaused: this.isPaused,
-      strategy: this.strategy,
-      balance: this.balance,
-      positions: this.positions,
-      trades: this.trades,
-      startTime: this.startTime,
-      lastUpdateTime: this.lastUpdateTime,
-      chartData: this.chartData,
-      currentPrice: this.currentPrice,
-      priceHistory: this.priceHistory.slice(-100)
-    };
-
-    global.tradingState = state;
+    this.chartData.lastTradeTime = 0;
   }
 
   loadState() {
-    if (global.tradingState) {
-      const state = global.tradingState;
-      
-      this.isRunning = state.isRunning || false;
-      this.isPaused = state.isPaused || false;
-      this.strategy = state.strategy || null;
-      this.balance = state.balance || { usd: 10000, btc: 0 };
-      this.positions = state.positions || [];
-      this.trades = state.trades || [];
-      this.startTime = state.startTime || null;
-      this.lastUpdateTime = state.lastUpdateTime || null;
-      this.chartData = state.chartData || {
-        recentHigh: 0,
-        recentLow: 0,
-        initialTradingPrice: 0,
-        initialRecentHigh: 0,
-        initialTradingAngle: 0,
-        lastTradeTime: 0
-      };
-      this.currentPrice = state.currentPrice || 0;
-      this.priceHistory = state.priceHistory || [];
+    // TODO: Load from file or database
+  }
 
-      console.log('Loaded trading state:', {
-        isRunning: this.isRunning,
-        isPaused: this.isPaused,
-        tradesCount: this.trades.length,
-        positionsCount: this.positions.length
-      });
-
-      if (this.isRunning) {
-        console.log('Resuming trading from saved state');
-        this.startTrading({ strategy: this.strategy, reset: false });
-      }
-    }
+  saveState() {
+    // TODO: Save to file or database
   }
 
   cleanup() {

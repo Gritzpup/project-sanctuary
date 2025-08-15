@@ -2,7 +2,7 @@
  * @file strategyStore.ts
  * @description Global strategy configuration and state management
  */
-import { writable } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 
 interface StrategyConfig {
   selectedType: string;
@@ -16,6 +16,12 @@ interface StrategyConfig {
     taker: number;
   };
   paperTradingActive?: boolean;
+  lastSyncedAt?: number;
+  syncedStrategy?: {
+    type: string;
+    parameters: Record<string, any>;
+    customCode?: string;
+  };
 }
 
 const STORAGE_KEY = 'hermes_active_strategy';
@@ -148,8 +154,79 @@ function createStrategyStore() {
       set(defaultConfig);
       saveStrategy(defaultConfig);
       console.log('Strategy Store: Reset to defaults');
+    },
+    
+    // Sync current backtesting strategy to paper/live trading
+    syncToPaperTrading: () => {
+      update(state => {
+        const newState = {
+          ...state,
+          lastSyncedAt: Date.now(),
+          syncedStrategy: {
+            type: state.selectedType,
+            parameters: { ...state.parameters },
+            customCode: state.customCode
+          }
+        };
+        saveStrategy(newState);
+        
+        // Emit custom event for paper trading to listen to
+        window.dispatchEvent(new CustomEvent('strategy-synced', {
+          detail: {
+            strategy: newState.syncedStrategy,
+            timestamp: newState.lastSyncedAt
+          }
+        }));
+        
+        console.log('Strategy Store: Synced strategy to paper/live trading:', newState.syncedStrategy);
+        return newState;
+      });
+    },
+    
+    // Get the currently synced strategy
+    getSyncedStrategy: () => {
+      let syncedStrategy = null;
+      const unsubscribe = subscribe(state => {
+        syncedStrategy = state.syncedStrategy;
+      });
+      unsubscribe();
+      return syncedStrategy;
+    },
+    
+    // Check if current strategy matches synced strategy
+    isInSync: () => {
+      let inSync = false;
+      const unsubscribe = subscribe(state => {
+        if (!state.syncedStrategy) {
+          inSync = false;
+        } else {
+          inSync = state.selectedType === state.syncedStrategy.type &&
+                   JSON.stringify(state.parameters) === JSON.stringify(state.syncedStrategy.parameters);
+        }
+      });
+      unsubscribe();
+      return inSync;
     }
   };
 }
 
 export const strategyStore = createStrategyStore();
+
+// Derived store to track sync status
+export const syncStatus = derived(strategyStore, $strategyStore => {
+  if (!$strategyStore.syncedStrategy) {
+    return { status: 'never-synced', message: 'Not synced' };
+  }
+  
+  const isInSync = $strategyStore.selectedType === $strategyStore.syncedStrategy.type &&
+                   JSON.stringify($strategyStore.parameters) === JSON.stringify($strategyStore.syncedStrategy.parameters);
+  
+  if (isInSync) {
+    const timeAgo = Date.now() - ($strategyStore.lastSyncedAt || 0);
+    const minutes = Math.floor(timeAgo / 60000);
+    const timeStr = minutes < 1 ? 'just now' : `${minutes}m ago`;
+    return { status: 'synced', message: `Synced ${timeStr}` };
+  } else {
+    return { status: 'out-of-sync', message: 'Out of sync' };
+  }
+});
