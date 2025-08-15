@@ -168,6 +168,9 @@
     }, 50); // Small delay to let both props settle
   }
   
+  // Debounce trade marker updates
+  let tradeMarkerTimeout: NodeJS.Timeout | null = null;
+  
   // Update trade markers when trades change
   $: if (candleSeries && trades) {
     // console.log('Chart: Trades prop changed, updating markers', {
@@ -175,7 +178,15 @@
     //   candleSeries: !!candleSeries,
     //   chart: !!chart
     // });
-    updateTradeMarkers();
+    
+    // Debounce marker updates to prevent excessive calls
+    if (tradeMarkerTimeout) {
+      clearTimeout(tradeMarkerTimeout);
+    }
+    
+    tradeMarkerTimeout = setTimeout(() => {
+      updateTradeMarkers();
+    }, 100);
   }
   
   function handleManualGranularityChange(newGranularity: string) {

@@ -168,8 +168,12 @@ class PaperTradingService {
           strategy = new strategies.VWAPBounceStrategy(savedState.strategyConfig);
           break;
         case 'Micro Scalping (1H)':
-        case 'Ultra Micro-Scalping':  // Handle custom/legacy name
           strategy = new strategies.MicroScalpingStrategy(savedState.strategyConfig);
+          break;
+        case 'Ultra Micro-Scalping':
+          // This is a custom strategy, can't create it here
+          console.log('PaperTradingService: Ultra Micro-Scalping is a custom strategy, deferring creation');
+          strategy = null;
           break;
         case 'Proper Scalping':
           strategy = new strategies.ProperScalpingStrategy(savedState.strategyConfig);
@@ -784,6 +788,14 @@ class PaperTradingService {
     }));
     // Save state immediately for pause state changes
     this.saveState();
+  }
+  
+  // Method to ensure trades are preserved when strategy changes
+  preserveTrades(trades: Trade[]): void {
+    this.state.update(state => ({
+      ...state,
+      trades: trades
+    }));
   }
 }
 

@@ -49,6 +49,7 @@
   let selectedStrategyType = 'reverse-ratio';
   let currentStrategy: Strategy | null = null;
   let statusInterval: NodeJS.Timer | null = null;
+  let isRestoringState = false; // Flag to prevent overwrites during restoration
   
   // Tab state for strategy panel
   let activeTab: 'config' | 'code' = 'config';
@@ -488,6 +489,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   onMount(async () => {
     // console.log('PaperTrading: Component mounted');
+    isRestoringState = true; // Set flag to prevent overwrites during restoration
     
     // Wait for service restoration to complete
     await paperTradingService.waitForRestoration();
@@ -582,13 +584,22 @@ export class ${getStrategyFileName(type)} extends Strategy {
     await new Promise(resolve => setTimeout(resolve, 200));
     console.log('PaperTrading: Ready to initialize');
     
+    // Clear restoration flag after a delay to ensure strategy store doesn't overwrite
+    setTimeout(() => {
+      isRestoringState = false;
+      console.log('PaperTrading: Restoration flag cleared, normal operation resumed');
+    }, 1000);
+    
     // Subscribe to strategy store to sync with backtesting
     unsubscribe = strategyStore.subscribe(config => {
       // console.log('Paper Trading: Received strategy update:', config);
       
-      // Update local state from store
-      selectedStrategyType = config.selectedType;
-      strategyParameters = config.parameters || {};
+      // Don't overwrite during restoration
+      if (!isRestoringState) {
+        // Update local state from store
+        selectedStrategyType = config.selectedType;
+        strategyParameters = config.parameters || {};
+      }
       
       // Update balance if provided
       if (config.balance !== undefined) {
@@ -610,6 +621,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
       
       // Recreate strategy with new configuration
       try {
+        // Preserve trades before creating new strategy
+        const currentStatus = paperTradingService.getStatus();
+        const preservedTrades = currentStatus.trades || [];
+        const preservedPositions = currentStatus.positions || [];
+        
         currentStrategy = createStrategy(selectedStrategyType);
         loadStrategySourceCode();
         
@@ -617,6 +633,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
         // and now we successfully created one, ensure the trading continues
         if (isRunning && currentStrategy && !paperTradingService.getStatus().isRunning) {
           console.log('PaperTrading: Resuming trading with restored strategy');
+          console.log('PaperTrading: Preserved trades:', preservedTrades.length, 'positions:', preservedPositions.length);
+          
+          // Restore trades if they were lost
+          if (preservedTrades.length > 0) {
+            paperTradingService.preserveTrades(preservedTrades);
+          }
+          
           paperTradingService.start(currentStrategy, 'BTC-USD', balance);
           
           // Update status to show restored positions
