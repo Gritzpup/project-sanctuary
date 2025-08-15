@@ -5,6 +5,7 @@
 
 interface PersistentTradingState {
   isRunning: boolean;
+  isPaused?: boolean; // Added for pause state
   strategyType: string;
   strategyTypeKey?: string; // e.g. 'reverse-ratio', 'grid-trading', etc.
   strategyConfig: any;
@@ -18,6 +19,15 @@ interface PersistentTradingState {
   trades: any[];
   startTime: number;
   lastUpdateTime: number;
+  // Chart-related data for market position persistence
+  chartData?: {
+    recentHigh: number;
+    recentLow: number;
+    initialTradingPrice: number;
+    initialRecentHigh: number;
+    initialTradingAngle: number;
+    lastTradeTime: number;
+  };
 }
 
 class PaperTradingPersistence {

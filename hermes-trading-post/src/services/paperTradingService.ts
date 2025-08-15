@@ -13,6 +13,7 @@ import type { PersistentTradingState } from './paperTradingPersistence';
 
 export interface PaperTradingState {
   isRunning: boolean;
+  isPaused?: boolean;
   strategy: Strategy | null;
   balance: {
     usd: number;
@@ -30,6 +31,14 @@ export interface PaperTradingState {
     totalTrades: number;
   };
   lastUpdate: number;
+  chartData?: {
+    recentHigh: number;
+    recentLow: number;
+    initialTradingPrice: number;
+    initialRecentHigh: number;
+    initialTradingAngle: number;
+    lastTradeTime: number;
+  };
 }
 
 class PaperTradingService {
@@ -44,6 +53,7 @@ class PaperTradingService {
   constructor() {
     this.state = writable<PaperTradingState>({
       isRunning: false,
+      isPaused: false,
       strategy: null,
       balance: {
         usd: this.initialBalance,
@@ -60,7 +70,8 @@ class PaperTradingService {
         winRate: 0,
         totalTrades: 0
       },
-      lastUpdate: Date.now()
+      lastUpdate: Date.now(),
+      chartData: undefined
     });
     
     // Subscribe to state changes to auto-save
@@ -101,6 +112,7 @@ class PaperTradingService {
     
     const persistentState: PersistentTradingState = {
       isRunning: currentState.isRunning,
+      isPaused: currentState.isPaused || false,
       strategyType: strategyName, // Keep the display name for compatibility
       strategyTypeKey: strategyTypeKey, // Add the key for easier restoration
       strategyConfig: (currentState.strategy as any).config || {},
@@ -108,7 +120,8 @@ class PaperTradingService {
       positions: currentState.strategy.getState().positions,
       trades: currentState.trades,
       startTime: currentState.lastUpdate,
-      lastUpdateTime: Date.now()
+      lastUpdateTime: Date.now(),
+      chartData: currentState.chartData
     };
     
     paperTradingPersistence.saveState(persistentState);
@@ -180,6 +193,7 @@ class PaperTradingService {
       this.state.update(s => ({
         ...s,
         isRunning: strategy ? savedState.isRunning : false, // Only set running if we have a strategy
+        isPaused: savedState.isPaused || false,
         strategy: strategy || null,
         balance: savedState.balance,
         trades: savedState.trades,
@@ -191,7 +205,8 @@ class PaperTradingService {
           winRate: 0,
           totalTrades: savedState.trades.length
         },
-        lastUpdate: savedState.lastUpdateTime
+        lastUpdate: savedState.lastUpdateTime,
+        chartData: savedState.chartData
       }));
       
       // Recalculate performance metrics on next candle update
@@ -717,6 +732,31 @@ class PaperTradingService {
 
       return newState;
     });
+  }
+  
+  updateChartData(chartData: {
+    recentHigh: number;
+    recentLow: number;
+    initialTradingPrice: number;
+    initialRecentHigh: number;
+    initialTradingAngle: number;
+    lastTradeTime: number;
+  }): void {
+    this.state.update(state => ({
+      ...state,
+      chartData
+    }));
+    // Save state immediately for chart data updates
+    this.saveState();
+  }
+  
+  setPaused(isPaused: boolean): void {
+    this.state.update(state => ({
+      ...state,
+      isPaused
+    }));
+    // Save state immediately for pause state changes
+    this.saveState();
   }
 }
 

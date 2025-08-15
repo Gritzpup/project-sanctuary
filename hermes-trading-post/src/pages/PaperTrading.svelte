@@ -2,6 +2,7 @@
   import Chart from './Chart.svelte';
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+  import { get } from 'svelte/store';
   import { paperTradingService } from '../services/paperTradingService';
   import { paperTestService } from '../services/paperTestService';
   import type { ChartDataFeed } from '../services/chartDataFeed';
@@ -44,6 +45,7 @@
   
   // Paper trading state
   let isRunning = false;
+  let isPaused = false;
   let selectedStrategyType = 'reverse-ratio';
   let currentStrategy: Strategy | null = null;
   let statusInterval: NodeJS.Timer | null = null;
@@ -491,6 +493,26 @@ export class ${getStrategyFileName(type)} extends Strategy {
     const status = paperTradingService.getStatus();
     // console.log('PaperTrading: Service status after restoration:', status);
     
+    // Get the full state from the service to restore chart data
+    const fullState = paperTradingService.getState();
+    const currentState = get(fullState);
+    
+    // Restore chart data if available
+    if (currentState.chartData) {
+      console.log('PaperTrading: Restoring chart data:', currentState.chartData);
+      recentHigh = currentState.chartData.recentHigh;
+      recentLow = currentState.chartData.recentLow;
+      initialTradingPrice = currentState.chartData.initialTradingPrice;
+      initialRecentHigh = currentState.chartData.initialRecentHigh;
+      initialTradingAngle = currentState.chartData.initialTradingAngle;
+      lastTradeTime = currentState.chartData.lastTradeTime;
+    }
+    
+    // Restore isPaused state
+    if (currentState.isPaused !== undefined) {
+      isPaused = currentState.isPaused;
+    }
+    
     // Update UI with current state
     updateStatus();
     
@@ -737,6 +759,16 @@ export class ${getStrategyFileName(type)} extends Strategy {
     if (threeZoneData && threeZoneData.current) {
       initialTradingAngle = threeZoneData.current.angle;
     }
+    
+    // Save chart data to service for persistence
+    paperTradingService.updateChartData({
+      recentHigh,
+      recentLow,
+      initialTradingPrice,
+      initialRecentHigh,
+      initialTradingAngle,
+      lastTradeTime
+    });
     
     // Update store to indicate paper trading is active
     strategyStore.setPaperTradingActive(true);
@@ -1021,6 +1053,18 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   $: dropFromHigh = recentHigh > 0 ? ((recentHigh - currentPrice) / recentHigh) * 100 : 0;
   $: riseFromLow = recentLow > 0 ? ((currentPrice - recentLow) / recentLow) * 100 : 0;
+  
+  // Update chart data in service when key values change
+  $: if (isRunning && recentHigh > 0) {
+    paperTradingService.updateChartData({
+      recentHigh,
+      recentLow,
+      initialTradingPrice,
+      initialRecentHigh,
+      initialTradingAngle,
+      lastTradeTime
+    });
+  }
   
   // Calculate sell target based on positions or current price
   $: sellTarget = (() => {
