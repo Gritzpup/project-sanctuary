@@ -3,7 +3,7 @@
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { get } from 'svelte/store';
-  import { paperTradingService } from '../services/paperTradingService';
+  import { tradingBackendService } from '../services/tradingBackendService';
   import { paperTestService } from '../services/paperTestService';
   import type { ChartDataFeed } from '../services/chartDataFeed';
   import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';
@@ -50,6 +50,23 @@
   let currentStrategy: Strategy | null = null;
   let statusInterval: NodeJS.Timer | null = null;
   let isRestoringState = false; // Flag to prevent overwrites during restoration
+  
+  // Subscribe to backend state
+  const backendState = tradingBackendService.getState();
+  $: {
+    if ($backendState) {
+      isRunning = $backendState.isRunning;
+      isPaused = $backendState.isPaused;
+      balance = $backendState.balance?.usd || 10000;
+      btcBalance = $backendState.balance?.btc || 0;
+      positions = $backendState.positions || [];
+      trades = $backendState.trades || [];
+      currentPrice = $backendState.currentPrice || 0;
+      totalReturn = $backendState.profitLoss || 0;
+      winRate = $backendState.trades.length > 0 ? 
+        ($backendState.trades.filter((t: any) => t.profit > 0).length / $backendState.trades.length) * 100 : 0;
+    }
+  }
   
   // Tab state for strategy panel
   let activeTab: 'config' | 'code' = 'config';
@@ -491,16 +508,16 @@ export class ${getStrategyFileName(type)} extends Strategy {
     // console.log('PaperTrading: Component mounted');
     isRestoringState = true; // Set flag to prevent overwrites during restoration
     
-    // Wait for service restoration to complete
-    await paperTradingService.waitForRestoration();
+    // Backend service handles its own state restoration
+    // await paperTradingService.waitForRestoration();
     // console.log('PaperTrading: Restoration complete');
     
     // Now check current status
-    const status = paperTradingService.getStatus();
+    const status = await tradingBackendService.fetchStatus();
     // console.log('PaperTrading: Service status after restoration:', status);
     
     // Get the full state from the service to restore chart data
-    const fullState = paperTradingService.getState();
+    const fullState = tradingBackendService.getState();
     const currentState = get(fullState);
     
     // Restore chart data if available
@@ -530,9 +547,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
         
         // Restore strategy configuration
         // Convert display name to key if needed
-        if (state.strategyTypeKey) {
+        if (state.strategyTypeKey && state.strategyTypeKey !== 'unknown') {
           selectedStrategyType = state.strategyTypeKey;
-        } else if (state.strategyType) {
+        } else if (state.strategyType && state.strategyType !== 'Unknown') {
           // Convert display name to key format
           const displayNameToKey: Record<string, string> = {
             'Reverse Ratio Buying': 'reverse-ratio',
@@ -553,12 +570,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
           strategyParameters = state.strategyConfig;
         }
         
-        // Recreate the strategy instance
+        // Try to recreate the strategy instance (might fail for custom strategies)
         try {
           currentStrategy = createStrategy(selectedStrategyType);
           await loadStrategySourceCode();
+          console.log('PaperTrading: Successfully recreated strategy on mount');
         } catch (error) {
-          console.error('Failed to recreate strategy:', error);
+          console.log('PaperTrading: Strategy creation deferred (likely custom strategy):', error.message);
+          // This is expected for custom strategies - they'll be created when the store loads
         }
       } catch (error) {
         console.error('Failed to restore UI settings:', error);
@@ -583,6 +602,18 @@ export class ${getStrategyFileName(type)} extends Strategy {
       // The strategy store subscription will handle recreating the strategy
       // And the handleDataFeedReady function will handle starting the services when the chart is ready
       console.log('PaperTrading: Waiting for strategy store and chart data feed to be ready...');
+      
+      // Set up a periodic check to ensure trading restarts when all conditions are met
+      const restartCheckInterval = setInterval(() => {
+        if (isRunning && currentStrategy && chartDataFeed && !hasRestartedTrading) {
+          console.log('PaperTrading: All conditions met, restarting trading from periodic check');
+          clearInterval(restartCheckInterval);
+          restartTradingAfterRestore();
+        }
+      }, 1000);
+      
+      // Clear interval after 60 seconds
+      setTimeout(() => clearInterval(restartCheckInterval), 60000);
     }
     
     // Add a small delay to ensure chart component is fully mounted
@@ -631,7 +662,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
       // Recreate strategy with new configuration
       try {
         // Preserve trades before creating new strategy
-        const currentStatus = paperTradingService.getStatus();
+        const currentStatus = get(tradingBackendService.getState());
         const preservedTrades = currentStatus.trades || [];
         const preservedPositions = currentStatus.positions || [];
         
@@ -640,26 +671,15 @@ export class ${getStrategyFileName(type)} extends Strategy {
           currentStrategy = createStrategy(selectedStrategyType);
           loadStrategySourceCode();
           
-          // If trading was running (from restored state) but we didn't have a strategy before,
-          // and now we successfully created one, ensure the trading continues
-          if (isRunning && currentStrategy && !paperTradingService.getStatus().isRunning) {
-            console.log('PaperTrading: Resuming trading with restored strategy');
+          // If trading was running (from restored state) and now we have a strategy, ensure trading continues
+          if (isRunning && currentStrategy) {
+            console.log('PaperTrading: Strategy created, checking trading status');
             console.log('PaperTrading: Preserved trades:', preservedTrades.length, 'positions:', preservedPositions.length);
             
-            // Restore trades if they were lost
-            if (preservedTrades.length > 0) {
-              paperTradingService.preserveTrades(preservedTrades);
-            }
-            
-            paperTradingService.start(currentStrategy, 'BTC-USD', balance);
-            
-            // Update status to show restored positions
-            updateStatus();
-            
-            // If chartDataFeed is ready, start feeding data
-            if (chartDataFeed) {
-              startDataFeedToStrategy();
-            }
+            // Call the function that properly restarts trading
+            restartTradingAfterRestore();
+          } else if (isRunning && !currentStrategy) {
+            console.log('PaperTrading: Still waiting for strategy creation for type:', selectedStrategyType);
           }
         }
       } catch (error) {
@@ -681,10 +701,10 @@ export class ${getStrategyFileName(type)} extends Strategy {
     if (chartDataUpdateTimeout) {
       clearTimeout(chartDataUpdateTimeout);
     }
-    // Don't stop the service - just save state so trading continues in background
-    if (isRunning) {
-      paperTradingService.save();
-    }
+    // Backend automatically saves state
+    // if (isRunning) {
+    //   paperTradingService.save();
+    // }
   });
   
   // Valid granularities for each period
@@ -738,23 +758,88 @@ export class ${getStrategyFileName(type)} extends Strategy {
     }
   }
   
+  // Track if we've already restarted trading to prevent multiple restarts
+  let hasRestartedTrading = false;
+  
+  // Centralized function to restart trading after restoration
+  async function restartTradingAfterRestore() {
+    if (!isRunning || !currentStrategy) {
+      console.log('PaperTrading: Cannot restart - missing requirements', { isRunning, hasStrategy: !!currentStrategy });
+      return;
+    }
+    
+    // Prevent multiple restarts
+    if (hasRestartedTrading) {
+      console.log('PaperTrading: Trading already restarted, skipping');
+      return;
+    }
+    
+    hasRestartedTrading = true;
+    console.log('PaperTrading: Restarting trading after restore');
+    
+    // Get current status to preserve trades
+    const currentStatus = get(tradingBackendService.getState());
+    const preservedTrades = currentStatus.trades || [];
+    
+    // Backend handles trade preservation automatically
+    
+    // Start the service with the strategy
+    tradingBackendService.startTrading({
+      getName: () => currentStrategy.getName(),
+      config: (currentStrategy as any).config || {},
+      buyThreshold: -0.5,
+      sellThreshold: 0.5,
+      tradePercentage: 10
+    }, false);
+    
+    // Update status to show restored positions
+    updateStatus();
+    
+    // If chartDataFeed is ready, start feeding data
+    if (chartDataFeed) {
+      console.log('PaperTrading: Starting data feed to strategy');
+      startDataFeedToStrategy();
+    } else {
+      console.log('PaperTrading: Chart data feed not ready yet, will start when ready');
+      // Set up a watcher for chart data feed
+      const chartCheckInterval = setInterval(() => {
+        if (chartDataFeed) {
+          console.log('PaperTrading: Chart data feed now available, starting feed');
+          clearInterval(chartCheckInterval);
+          startDataFeedToStrategy();
+        }
+      }, 500);
+      
+      // Clear interval after 30 seconds
+      setTimeout(() => clearInterval(chartCheckInterval), 30000);
+    }
+  }
+  
   function handleDataFeedReady(feed: ChartDataFeed) {
-    console.log('Paper Trading: Chart data feed ready, isRunning:', isRunning);
+    console.log('Paper Trading: Chart data feed ready, isRunning:', isRunning, 'currentStrategy:', !!currentStrategy);
     chartDataFeed = feed;
     
-    // If trading is running (from restored state), restart everything
+    // If trading is running (from restored state), restart if we have a strategy
     if (isRunning && currentStrategy) {
-      console.log('Paper Trading: Restarting trading services after chart data feed ready');
-      // Ensure the strategy is connected to the service
-      paperTradingService.start(currentStrategy, 'BTC-USD', balance);
-      // Update status to ensure positions are shown
-      updateStatus();
-      startDataFeedToStrategy();
+      restartTradingAfterRestore();
+    } else if (isRunning && !currentStrategy) {
+      console.log('Paper Trading: Trading is running but strategy not yet loaded, waiting for strategy creation...');
+      // Set up a watcher to restart trading when strategy becomes available
+      const checkInterval = setInterval(() => {
+        if (currentStrategy) {
+          console.log('Paper Trading: Strategy now available, restarting trading');
+          clearInterval(checkInterval);
+          restartTradingAfterRestore();
+        }
+      }, 500);
+      
+      // Clear interval after 30 seconds to prevent memory leak
+      setTimeout(() => clearInterval(checkInterval), 30000);
     }
   }
   
   function startDataFeedToStrategy() {
-    if (!chartDataFeed || !paperTradingService) return;
+    if (!chartDataFeed) return;
     
     // Clear any existing interval
     if (dataFeedInterval) {
@@ -764,11 +849,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
     // Update strategy with current candles every second
     dataFeedInterval = setInterval(() => {
       if (chartDataFeed && isRunning) {
-        const candles = chartDataFeed.getCurrentCandles();
-        if (candles && candles.length > 0) {
-          paperTradingService.updateCandles(candles);
-          // console.log('Paper Trading: Fed', candles.length, 'candles to strategy');
-        }
+        // Backend fetches its own price data
+        // const candles = chartDataFeed.getCurrentCandles();
+        // if (candles && candles.length > 0) {
+        //   paperTradingService.updateCandles(candles);
+        //   // console.log('Paper Trading: Fed', candles.length, 'candles to strategy');
+        // }
       }
     }, 1000);
   }
@@ -781,7 +867,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   async function startTrading() {
-    if (!paperTradingService || isRunning) return;
+    if (!tradingBackendService || isRunning) return;
+    
+    // Check if backend is connected
+    const backendState = get(tradingBackendService.getState());
+    if (!backendState.isConnected) {
+      alert('Backend service is not connected. Please ensure the backend server is running.');
+      return;
+    }
     
     console.log('Starting trading - checking data:', {
       chartDataFeed: !!chartDataFeed,
@@ -811,11 +904,20 @@ export class ${getStrategyFileName(type)} extends Strategy {
       selectedPeriod = requiredPeriod;
     }
     
-    paperTradingService.start(currentStrategy, 'BTC-USD', balance);
+    tradingBackendService.startTrading({
+      getName: () => currentStrategy.getName(),
+      config: (currentStrategy as any).config || {},
+      buyThreshold: -0.5,
+      sellThreshold: 0.5,
+      tradePercentage: 10
+    }, false);
     isRunning = true;
     
-    // Save state immediately to ensure persistence
-    paperTradingService.save();
+    // Backend automatically saves state
+    setTimeout(() => {
+      // paperTradingService.save();
+      console.log('PaperTrading: Backend auto-saves state');
+    }, 100);
     
     // Capture initial trading price and recent high
     initialTradingPrice = currentPrice;
@@ -826,15 +928,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
       initialTradingAngle = threeZoneData.current.angle;
     }
     
-    // Save chart data to service for persistence
-    paperTradingService.updateChartData({
-      recentHigh,
-      recentLow,
-      initialTradingPrice,
-      initialRecentHigh,
-      initialTradingAngle,
-      lastTradeTime
-    });
+    // Backend handles chart data updates via WebSocket
+    // Chart data will be updated automatically from the backend
     
     // Update store to indicate paper trading is active
     strategyStore.setPaperTradingActive(true);
@@ -846,15 +941,25 @@ export class ${getStrategyFileName(type)} extends Strategy {
     statusInterval = setInterval(updateStatus, 1000);
   }
   
+  function pauseTrading() {
+    if (!tradingBackendService || !isRunning) return;
+    tradingBackendService.pauseTrading();
+  }
+  
+  function resumeTrading() {
+    if (!tradingBackendService || !isRunning) return;
+    tradingBackendService.resumeTrading();
+  }
+  
   function stopTrading() {
-    if (!paperTradingService || !isRunning) return;
+    if (!tradingBackendService || !isRunning) return;
     
-    // Save state before stopping
-    paperTradingService.save();
+    // Backend automatically saves state
     
-    // Stop the service (without clearing persistence)
-    paperTradingService.stopStrategy(false);
+    // Stop the service
+    tradingBackendService.stopTrading();
     isRunning = false;
+    hasRestartedTrading = false; // Reset the restart flag
     
     // Update store to indicate paper trading is not active
     strategyStore.setPaperTradingActive(false);
@@ -871,12 +976,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   function updateStatus() {
-    if (!paperTradingService) return;
+    if (!tradingBackendService) return;
     
-    const status = paperTradingService.getStatus();
-    balance = status.usdBalance;
-    btcBalance = status.btcBalance;
-    vaultBalance = status.vaultBalance;
+    const status = get(tradingBackendService.getState());
+    balance = status.balance?.usd || 0;
+    btcBalance = status.balance?.btc || 0;
+    vaultBalance = 0; // Backend doesn't have vault concept
     positions = status.positions;
     trades = status.trades;
     
@@ -895,7 +1000,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   function resetTrading() {
     console.log('Reset clicked, currentPrice:', currentPrice);
     
-    if (!paperTradingService) return;
+    if (!tradingBackendService) return;
     
     // Stop if running
     if (isRunning) {
@@ -903,7 +1008,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
     }
     
     // Reset the service
-    paperTradingService.resetStrategy();
+    // Backend doesn't have a reset method - we restart with reset flag
     
     // Reset local state
     balance = 10000;
@@ -1130,17 +1235,17 @@ export class ${getStrategyFileName(type)} extends Strategy {
       clearTimeout(chartDataUpdateTimeout);
     }
     
-    // Debounce the update to prevent excessive saves
-    chartDataUpdateTimeout = setTimeout(() => {
-      paperTradingService.updateChartData({
-        recentHigh,
-        recentLow,
-        initialTradingPrice,
-        initialRecentHigh,
-        initialTradingAngle,
-        lastTradeTime
-      });
-    }, 1000); // Update at most once per second
+    // Backend handles chart data updates automatically
+    // chartDataUpdateTimeout = setTimeout(() => {
+    //   paperTradingService.updateChartData({
+    //     recentHigh,
+    //     recentLow,
+    //     initialTradingPrice,
+    //     initialRecentHigh,
+    //     initialTradingAngle,
+    //     lastTradeTime
+    //   });
+    // }, 1000); // Update at most once per second
   }
   
   // Calculate sell target based on positions or current price
@@ -1860,6 +1965,15 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 Start Automated Trading
               </button>
             {:else}
+              {#if !isPaused}
+                <button class="pause-btn" on:click={pauseTrading}>
+                  Pause Trading
+                </button>
+              {:else}
+                <button class="resume-btn" on:click={resumeTrading}>
+                  Resume Trading
+                </button>
+              {/if}
               <button class="stop-btn" on:click={stopTrading}>
                 Stop Trading
               </button>
@@ -3227,6 +3341,24 @@ No open positions{/if}</title>
   
   .stop-btn:hover {
     background: #d32f2f;
+  }
+  
+  .pause-btn {
+    background: #ffa726;
+    color: white;
+  }
+  
+  .pause-btn:hover {
+    background: #ff9800;
+  }
+  
+  .resume-btn {
+    background: #66bb6a;
+    color: white;
+  }
+  
+  .resume-btn:hover {
+    background: #4caf50;
   }
   
   .status-indicator {

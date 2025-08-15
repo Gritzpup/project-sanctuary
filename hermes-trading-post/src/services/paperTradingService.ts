@@ -105,26 +105,32 @@ class PaperTradingService {
   private saveState(): void {
     const currentState = get(this.state);
     
-    if (!currentState || !currentState.strategy) return;
+    if (!currentState) {
+      console.warn('PaperTradingService: Cannot save - no state');
+      return;
+    }
     
-    // Get the strategy type key from the strategy name
-    const strategyName = currentState.strategy.getName();
-    const strategyTypeKey = this.getStrategyKey(strategyName);
+    // We can save even without a strategy if we have trades/positions
+    // This is important for custom strategies that load asynchronously
+    const strategyName = currentState.strategy?.getName() || 'Unknown';
+    const strategyTypeKey = currentState.strategy ? this.getStrategyKey(strategyName) : 'unknown';
+    const positions = currentState.strategy?.getState().positions || this.savedPositions || [];
     
     const persistentState: PersistentTradingState = {
       isRunning: currentState.isRunning,
       isPaused: currentState.isPaused || false,
-      strategyType: strategyName, // Keep the display name for compatibility
-      strategyTypeKey: strategyTypeKey, // Add the key for easier restoration
-      strategyConfig: (currentState.strategy as any).config || {},
+      strategyType: strategyName,
+      strategyTypeKey: strategyTypeKey,
+      strategyConfig: (currentState.strategy as any)?.config || {},
       balance: currentState.balance,
-      positions: currentState.strategy.getState().positions,
+      positions: positions,
       trades: currentState.trades,
       startTime: currentState.lastUpdate,
       lastUpdateTime: Date.now(),
       chartData: currentState.chartData
     };
     
+    console.log('PaperTradingService: Saving state with positions:', positions.length, 'trades:', currentState.trades.length);
     paperTradingPersistence.saveState(persistentState);
   }
   
@@ -202,7 +208,7 @@ class PaperTradingService {
       // Update our state - restore everything including running state
       this.state.update(s => ({
         ...s,
-        isRunning: strategy ? savedState.isRunning : false, // Only set running if we have a strategy
+        isRunning: savedState.isRunning, // Preserve the running state even without strategy
         isPaused: savedState.isPaused || false,
         strategy: strategy || null,
         balance: savedState.balance,

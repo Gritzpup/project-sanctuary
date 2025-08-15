@@ -10,6 +10,10 @@ export default defineConfig({
         target: 'https://api.exchange.coinbase.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/coinbase/, '')
+      },
+      '/api/trading': {
+        target: 'http://localhost:4827',
+        changeOrigin: true
       }
     }
   }
