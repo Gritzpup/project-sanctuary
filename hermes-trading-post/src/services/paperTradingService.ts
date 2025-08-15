@@ -242,11 +242,14 @@ class PaperTradingService {
       };
     }
     
+    // If we have saved positions and no strategy, return the saved positions
+    const positions = currentState.strategy?.getState().positions || this.savedPositions || [];
+    
     return {
       usdBalance: currentState.balance.usd,
       btcBalance: (currentState.balance.btcVault || 0) + (currentState.balance.btcPositions || 0),
       vaultBalance: currentState.balance.vault,
-      positions: currentState.strategy?.getState().positions || [],
+      positions: positions,
       trades: currentState.trades,
       isRunning: currentState.isRunning
     };
@@ -270,6 +273,12 @@ class PaperTradingService {
       };
       strategy.setState(strategyState);
       this.savedPositions = null; // Clear saved positions after restoration
+      
+      // Update state to ensure positions are reflected
+      this.state.update(s => ({
+        ...s,
+        strategy: strategy
+      }));
     }
     
     // Extract asset from symbol

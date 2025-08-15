@@ -569,7 +569,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
     if (status.isRunning) {
       console.log('PaperTrading: Trading is running, starting services');
       console.log('PaperTrading: chartDataFeed status:', chartDataFeed ? 'ready' : 'not ready');
+      console.log('PaperTrading: Current positions:', status.positions.length, 'trades:', status.trades.length);
       isRunning = true;
+      
+      // Update UI immediately with any restored positions/trades
+      positions = status.positions;
+      trades = status.trades;
       
       // Start status updates
       statusInterval = setInterval(updateStatus, 1000);
@@ -617,7 +622,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
       // Update custom strategies if provided
       if (config.customStrategies) {
         customStrategies = config.customStrategies;
+        console.log('PaperTrading: Custom strategies loaded:', customStrategies.map(s => s.value));
       }
+      
+      // Check if we need to create a strategy (especially for custom strategies that just loaded)
+      const needsStrategyCreation = isRunning && !currentStrategy && selectedStrategyType;
       
       // Recreate strategy with new configuration
       try {
@@ -626,28 +635,31 @@ export class ${getStrategyFileName(type)} extends Strategy {
         const preservedTrades = currentStatus.trades || [];
         const preservedPositions = currentStatus.positions || [];
         
-        currentStrategy = createStrategy(selectedStrategyType);
-        loadStrategySourceCode();
-        
-        // If trading was running (from restored state) but we didn't have a strategy before,
-        // and now we successfully created one, ensure the trading continues
-        if (isRunning && currentStrategy && !paperTradingService.getStatus().isRunning) {
-          console.log('PaperTrading: Resuming trading with restored strategy');
-          console.log('PaperTrading: Preserved trades:', preservedTrades.length, 'positions:', preservedPositions.length);
+        // Try to create the strategy now that custom strategies might be available
+        if (needsStrategyCreation || (!isRestoringState && selectedStrategyType)) {
+          currentStrategy = createStrategy(selectedStrategyType);
+          loadStrategySourceCode();
           
-          // Restore trades if they were lost
-          if (preservedTrades.length > 0) {
-            paperTradingService.preserveTrades(preservedTrades);
-          }
-          
-          paperTradingService.start(currentStrategy, 'BTC-USD', balance);
-          
-          // Update status to show restored positions
-          updateStatus();
-          
-          // If chartDataFeed is ready, start feeding data
-          if (chartDataFeed) {
-            startDataFeedToStrategy();
+          // If trading was running (from restored state) but we didn't have a strategy before,
+          // and now we successfully created one, ensure the trading continues
+          if (isRunning && currentStrategy && !paperTradingService.getStatus().isRunning) {
+            console.log('PaperTrading: Resuming trading with restored strategy');
+            console.log('PaperTrading: Preserved trades:', preservedTrades.length, 'positions:', preservedPositions.length);
+            
+            // Restore trades if they were lost
+            if (preservedTrades.length > 0) {
+              paperTradingService.preserveTrades(preservedTrades);
+            }
+            
+            paperTradingService.start(currentStrategy, 'BTC-USD', balance);
+            
+            // Update status to show restored positions
+            updateStatus();
+            
+            // If chartDataFeed is ready, start feeding data
+            if (chartDataFeed) {
+              startDataFeedToStrategy();
+            }
           }
         }
       } catch (error) {
