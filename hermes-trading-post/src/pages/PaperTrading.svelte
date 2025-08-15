@@ -521,6 +521,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
     // If trading is running, start the necessary services
     if (status.isRunning) {
       console.log('PaperTrading: Trading is running, starting services');
+      console.log('PaperTrading: chartDataFeed status:', chartDataFeed ? 'ready' : 'not ready');
       isRunning = true;
       
       // Ensure we have a strategy instance
@@ -539,16 +540,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
       // Start status updates
       statusInterval = setInterval(updateStatus, 1000);
       
-      // Wait for chart to be ready then start data feed
-      await new Promise(resolve => setTimeout(resolve, 500));
-      if (chartDataFeed && currentStrategy) {
-        // Call start again to ensure the strategy is properly connected
-        // The service will skip re-initialization if already running with same strategy
-        paperTradingService.start(currentStrategy, 'BTC-USD', balance);
-        startDataFeedToStrategy();
-      } else {
-        console.error('PaperTrading: Cannot resume trading - missing chartDataFeed or strategy');
-      }
+      // Note: We don't start the data feed here because chartDataFeed might not be ready
+      // The handleDataFeedReady function will handle starting the services when the chart is ready
+      console.log('PaperTrading: Waiting for chart data feed to be ready...');
     }
     
     // Add a small delay to ensure chart component is fully mounted
@@ -659,11 +653,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   function handleDataFeedReady(feed: ChartDataFeed) {
-    // console.log('Paper Trading: Chart data feed ready');
+    console.log('Paper Trading: Chart data feed ready, isRunning:', isRunning);
     chartDataFeed = feed;
     
-    // If trading is running, start feeding data to the strategy
-    if (isRunning) {
+    // If trading is running (from restored state), restart everything
+    if (isRunning && currentStrategy) {
+      console.log('Paper Trading: Restarting trading services after chart data feed ready');
+      // Ensure the strategy is connected to the service
+      paperTradingService.start(currentStrategy, 'BTC-USD', balance);
       startDataFeedToStrategy();
     }
   }
@@ -728,6 +725,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     paperTradingService.start(currentStrategy, 'BTC-USD', balance);
     isRunning = true;
+    
+    // Save state immediately to ensure persistence
+    paperTradingService.save();
     
     // Capture initial trading price and recent high
     initialTradingPrice = currentPrice;

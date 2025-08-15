@@ -25,6 +25,11 @@ class PaperTradingPersistence {
   
   saveState(state: PersistentTradingState): void {
     try {
+      console.log('PaperTradingPersistence: Saving state:', {
+        isRunning: state.isRunning,
+        strategyType: state.strategyType,
+        hasStrategy: !!state.strategyType
+      });
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
     } catch (error) {
       console.error('Failed to save paper trading state:', error);
@@ -37,6 +42,12 @@ class PaperTradingPersistence {
       if (!saved) return null;
       
       const state = JSON.parse(saved);
+      console.log('PaperTradingPersistence: Loaded state:', {
+        isRunning: state.isRunning,
+        strategyType: state.strategyType,
+        hasStrategy: !!state.strategyType,
+        balance: state.balance
+      });
       // Validate the loaded state has required fields
       if (state && typeof state.isRunning === 'boolean' && state.balance) {
         return state;
