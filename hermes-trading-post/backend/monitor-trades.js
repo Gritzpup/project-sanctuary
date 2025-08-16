@@ -44,16 +44,28 @@ ws.on('message', (data) => {
     if (price < lowPrice) lowPrice = price;
     
     let nextBuyInfo = '';
+    let nextSellInfo = '';
+    
     if (lastStatus && lastStatus.nextBuyPrice) {
       const distanceToNextBuy = ((price - lastStatus.nextBuyPrice) / price) * 100;
       nextBuyInfo = ` | Next buy: $${lastStatus.nextBuyPrice.toFixed(2)} (${distanceToNextBuy.toFixed(3)}% away)`;
     }
     
-    console.log(`[${time}] Price: $${price.toFixed(2)} | Change: ${change >= 0 ? '+' : ''}${change.toFixed(4)}% | Drop from high: ${dropFromHigh.toFixed(4)}%${nextBuyInfo}`);
+    if (lastStatus && lastStatus.nextSellPrice) {
+      const distanceToNextSell = ((lastStatus.nextSellPrice - price) / price) * 100;
+      nextSellInfo = ` | Next sell: $${lastStatus.nextSellPrice.toFixed(2)} (${distanceToNextSell.toFixed(3)}% away)`;
+    }
+    
+    console.log(`[${time}] Price: $${price.toFixed(2)} | Change: ${change >= 0 ? '+' : ''}${change.toFixed(4)}% | Drop from high: ${dropFromHigh.toFixed(4)}%${nextBuyInfo}${nextSellInfo}`);
     
     // Alert if price is close to next buy price
     if (lastStatus && lastStatus.nextBuyPrice && price <= lastStatus.nextBuyPrice * 1.001) {
       console.log(`🎯 BUY SIGNAL APPROACHING - Price near next buy level ${lastStatus.nextBuyLevel} at $${lastStatus.nextBuyPrice.toFixed(2)}!`);
+    }
+    
+    // Alert if price is close to next sell price
+    if (lastStatus && lastStatus.nextSellPrice && price >= lastStatus.nextSellPrice * 0.999) {
+      console.log(`💰 SELL SIGNAL APPROACHING - Price near sell target at $${lastStatus.nextSellPrice.toFixed(2)}!`);
     }
     
     lastPrice = price;
@@ -75,7 +87,10 @@ ws.on('message', (data) => {
       trades: message.data.trades?.length || 0,
       currentPrice: message.data.currentPrice ? `$${message.data.currentPrice.toFixed(2)}` : 'N/A',
       nextBuyPrice: message.data.nextBuyPrice ? `$${message.data.nextBuyPrice.toFixed(2)}` : 'N/A',
-      nextBuyLevel: message.data.nextBuyLevel || 'N/A'
+      nextBuyLevel: message.data.nextBuyLevel || 'N/A',
+      nextSellPrice: message.data.nextSellPrice ? `$${message.data.nextSellPrice.toFixed(2)}` : 'N/A',
+      lowestEntry: message.data.lowestEntryPrice ? `$${message.data.lowestEntryPrice.toFixed(2)}` : 'N/A',
+      avgEntry: message.data.avgEntryPrice ? `$${message.data.avgEntryPrice.toFixed(2)}` : 'N/A'
     });
   }
 });

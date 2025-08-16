@@ -50,8 +50,10 @@ class PaperTradingService {
   private asset: string = 'BTC';
   private restorationPromise: Promise<boolean> | null = null;
   private savedPositions: any[] | null = null; // Store positions for later restoration
+  private instanceId: string;
 
-  constructor() {
+  constructor(instanceId: string = 'default') {
+    this.instanceId = instanceId;
     this.state = writable<PaperTradingState>({
       isRunning: false,
       isPaused: false,
@@ -96,6 +98,31 @@ class PaperTradingService {
     return this.state;
   }
   
+  getInitialState(): PaperTradingState {
+    return {
+      isRunning: false,
+      isPaused: false,
+      strategy: null,
+      balance: {
+        usd: this.initialBalance,
+        btcVault: 0,
+        btcPositions: 0,
+        vault: 0
+      },
+      trades: [],
+      currentSignal: null,
+      performance: {
+        totalValue: this.initialBalance,
+        pnl: 0,
+        pnlPercent: 0,
+        winRate: 0,
+        totalTrades: 0
+      },
+      lastUpdate: Date.now(),
+      chartData: undefined
+    };
+  }
+  
   async waitForRestoration(): Promise<void> {
     if (this.restorationPromise) {
       await this.restorationPromise;
@@ -130,13 +157,13 @@ class PaperTradingService {
       chartData: currentState.chartData
     };
     
-    console.log('PaperTradingService: Saving state with positions:', positions.length, 'trades:', currentState.trades.length);
-    paperTradingPersistence.saveState(persistentState);
+    console.log('PaperTradingService: Saving state with positions:', positions.length, 'trades:', currentState.trades.length, 'instanceId:', this.instanceId);
+    paperTradingPersistence.saveState(persistentState, this.instanceId);
   }
   
   async restoreFromSavedState(): Promise<boolean> {
     // console.log('PaperTradingService: Starting restoration');
-    const savedState = paperTradingPersistence.loadState();
+    const savedState = paperTradingPersistence.loadState(this.instanceId);
     if (!savedState) {
       // console.log('PaperTradingService: No saved state found');
       return false;
@@ -393,7 +420,7 @@ class PaperTradingService {
     
     // Only clear persisted state if explicitly requested (e.g., when resetting)
     if (clearPersistence) {
-      paperTradingPersistence.clearState();
+      paperTradingPersistence.clearState(this.instanceId);
     } else {
       // Save final state before stopping
       this.saveState();
@@ -402,7 +429,7 @@ class PaperTradingService {
 
   resetStrategy(): void {
     // Clear persisted state
-    paperTradingPersistence.clearState();
+    paperTradingPersistence.clearState(this.instanceId);
     
     // Reset vault bot if exists
     if (this.botId) {
@@ -811,6 +838,22 @@ class PaperTradingService {
       ...state,
       trades: trades
     }));
+  }
+  
+  setInitialBalance(newBalance: number): void {
+    this.initialBalance = newBalance;
+    this.state.update(s => ({
+      ...s,
+      balance: {
+        ...s.balance,
+        usd: newBalance
+      },
+      performance: {
+        ...s.performance,
+        totalValue: newBalance + (s.balance.btcPositions * (s.strategy?.getCurrentPrice?.() || 0)) + s.balance.vault
+      }
+    }));
+    this.saveState();
   }
 }
 

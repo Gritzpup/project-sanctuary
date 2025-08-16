@@ -473,14 +473,17 @@ export class TradingService extends EventEmitter {
     this._executionCounter++;
     
     if (signal.type !== 'hold' || this._executionCounter % 100 === 0) {
+      const status = this.getStatus();
       console.log('Strategy signal:', {
         type: signal.type,
         reason: signal.reason,
         currentPrice: this.currentPrice,
         recentHigh: this.strategy.recentHigh,
         positionCount: this.positions.length,
-        nextBuyPrice: this.getStatus().nextBuyPrice,
-        nextBuyLevel: this.getStatus().nextBuyLevel
+        nextBuyPrice: status.nextBuyPrice,
+        nextBuyLevel: status.nextBuyLevel,
+        nextSellPrice: status.nextSellPrice,
+        lowestEntry: status.lowestEntryPrice
       });
     }
     
@@ -667,6 +670,22 @@ export class TradingService extends EventEmitter {
       nextBuyLevel = currentLevel;
     }
 
+    // Calculate next sell price (based on lowest entry price)
+    let nextSellPrice = null;
+    let lowestEntryPrice = null;
+    let avgEntryPrice = null;
+    if (this.positions.length > 0 && this.strategy) {
+      // Find lowest entry price
+      lowestEntryPrice = Math.min(...this.positions.map(p => p.entryPrice));
+      
+      // Calculate average entry price
+      avgEntryPrice = this.positions.reduce((sum, p) => sum + p.entryPrice * p.size, 0) / 
+                      this.positions.reduce((sum, p) => sum + p.size, 0);
+      
+      // Next sell price based on average (this is what actually triggers)
+      nextSellPrice = avgEntryPrice * (1 + this.strategy.config.profitTarget / 100);
+    }
+
     return {
       isRunning: this.isRunning,
       isPaused: this.isPaused,
@@ -684,7 +703,10 @@ export class TradingService extends EventEmitter {
       tradesCount: this.trades.length,
       openPositions: this.positions.length,
       nextBuyPrice,
-      nextBuyLevel
+      nextBuyLevel,
+      nextSellPrice,
+      lowestEntryPrice,
+      avgEntryPrice
     };
   }
 

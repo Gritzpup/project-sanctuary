@@ -1,10 +1,12 @@
 <script lang="ts">
   import Chart from './Chart.svelte';
   import CollapsibleSidebar from './CollapsibleSidebar.svelte';
+  import BotTabs from './PaperTrading/BotTabs.svelte';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { get } from 'svelte/store';
   import { tradingBackendService } from '../services/tradingBackendService';
   import { paperTestService } from '../services/paperTestService';
+  import { paperTradingManager } from '../services/paperTradingManager';
   import type { ChartDataFeed } from '../services/chartDataFeed';
   import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';
   import { GridTradingStrategy } from '../strategies/implementations/GridTradingStrategy';
@@ -32,6 +34,16 @@
     dispatch('navigate', event.detail);
   }
   
+  function handleStrategyChange(event: Event) {
+    const select = event.target as HTMLSelectElement;
+    paperTradingManager.selectStrategy(select.value);
+  }
+  
+  function handleBotTabSelect(event: CustomEvent) {
+    const { botId } = event.detail;
+    paperTradingManager.selectBot(selectedStrategyType, botId);
+  }
+  
   // Load saved chart preferences
   const savedPrefs = chartPreferencesStore.getPreferences('paper-trading');
   let selectedGranularity = savedPrefs.granularity;
@@ -51,20 +63,65 @@
   let statusInterval: NodeJS.Timer | null = null;
   let isRestoringState = false; // Flag to prevent overwrites during restoration
   
-  // Subscribe to backend state
-  const backendState = tradingBackendService.getState();
+  // Bot manager state
+  const managerState = paperTradingManager.getState();
+  let activeBotInstance: any = null;
+  let botTabs: any[] = [];
+  
+  // Subscribe to manager state changes
   $: {
-    if ($backendState) {
-      isRunning = $backendState.isRunning;
-      isPaused = $backendState.isPaused;
-      balance = $backendState.balance?.usd || 10000;
-      btcBalance = $backendState.balance?.btc || 0;
-      positions = $backendState.positions || [];
-      trades = $backendState.trades || [];
-      currentPrice = $backendState.currentPrice || 0;
-      totalReturn = $backendState.profitLoss || 0;
-      winRate = $backendState.trades.length > 0 ? 
-        ($backendState.trades.filter((t: any) => t.profit > 0).length / $backendState.trades.length) * 100 : 0;
+    if ($managerState) {
+      selectedStrategyType = $managerState.selectedStrategy;
+      activeBotInstance = paperTradingManager.getActiveBot();
+      
+      // Get bots for current strategy
+      const strategyBots = $managerState.bots[selectedStrategyType] || [];
+      botTabs = strategyBots.map(bot => ({
+        id: bot.id,
+        name: bot.name,
+        status: bot.state.isRunning ? (bot.state.isPaused ? 'paused' : 'running') : 
+                (bot.state.trades.length > 0 ? 'stopped' : 'empty'),
+        balance: bot.state.balance.usd + (bot.state.balance.btcPositions * currentPrice),
+        profitLoss: ((bot.state.balance.usd + (bot.state.balance.btcPositions * currentPrice)) - 10000) / 100
+      }));
+    }
+  }
+  
+  // Subscribe to active bot state
+  let activeBotState: any = null;
+  let activeBotStateUnsubscribe: (() => void) | null = null;
+  
+  $: {
+    if (activeBotInstance) {
+      // Unsubscribe from previous bot if exists
+      if (activeBotStateUnsubscribe) {
+        activeBotStateUnsubscribe();
+      }
+      
+      // Subscribe to the active bot's state
+      const stateStore = activeBotInstance.service.getState();
+      
+      // Create reactive subscription
+      activeBotStateUnsubscribe = stateStore.subscribe(state => {
+        activeBotState = state;
+        
+        // Update local variables from active bot state
+        isRunning = state.isRunning;
+        isPaused = state.isPaused || false;
+        balance = state.balance?.usd || 10000;
+        btcBalance = state.balance?.btcPositions || 0;
+        vaultBalance = state.balance?.vault || 0;
+        positions = state.strategy?.getPositions ? state.strategy.getPositions() : [];
+        trades = state.trades || [];
+        totalReturn = state.performance?.pnl || 0;
+        winRate = state.performance?.winRate || 0;
+        currentStrategy = state.strategy;
+        
+        // Update strategy parameters if available
+        if (state.strategy && (state.strategy as any).config) {
+          strategyParameters = (state.strategy as any).config;
+        }
+      });
     }
   }
   
@@ -140,6 +197,9 @@
   
   let customStrategies: any[] = [];
   let strategyParameters: Record<string, any> = {};
+  
+  // Reactive combined strategies list
+  $: strategies = [...builtInStrategies, ...customStrategies];
   
   // Subscribe to strategy store
   let unsubscribe: () => void;
@@ -511,6 +571,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
     // console.log('PaperTrading: Component mounted');
     isRestoringState = true; // Set flag to prevent overwrites during restoration
     
+    // Initialize bot manager with current strategy
+    paperTradingManager.initializeBotsForStrategy(selectedStrategyType);
+    
     // Backend service handles its own state restoration
     // await paperTradingService.waitForRestoration();
     // console.log('PaperTrading: Restoration complete');
@@ -766,12 +829,18 @@ export class ${getStrategyFileName(type)} extends Strategy {
     if (chartDataUpdateTimeout) {
       clearTimeout(chartDataUpdateTimeout);
     }
+    if (activeBotStateUnsubscribe) {
+      activeBotStateUnsubscribe();
+    }
     // Remove strategy sync event listener
     window.removeEventListener('strategy-synced', handleStrategySync);
     // Backend automatically saves state
     // if (isRunning) {
     //   paperTradingService.save();
     // }
+    
+    // Save bot manager configuration
+    paperTradingManager.saveConfiguration();
   });
   
   // Valid granularities for each period
@@ -921,7 +990,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   function startDataFeedToStrategy() {
-    if (!chartDataFeed) return;
+    if (!chartDataFeed || !activeBotInstance) return;
     
     // Clear any existing interval
     if (dataFeedInterval) {
@@ -930,13 +999,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     // Update strategy with current candles every second
     dataFeedInterval = setInterval(() => {
-      if (chartDataFeed && isRunning) {
-        // Backend fetches its own price data
-        // const candles = chartDataFeed.getCurrentCandles();
-        // if (candles && candles.length > 0) {
-        //   paperTradingService.updateCandles(candles);
-        //   // console.log('Paper Trading: Fed', candles.length, 'candles to strategy');
-        // }
+      if (chartDataFeed && isRunning && activeBotInstance) {
+        const candles = chartDataFeed.getCurrentCandles();
+        if (candles && candles.length > 0) {
+          activeBotInstance.service.updateCandles(candles);
+          // console.log('Paper Trading: Fed', candles.length, 'candles to bot', activeBotInstance.id);
+        }
       }
     }, 1000);
   }
@@ -949,14 +1017,10 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   async function startTrading() {
-    if (!tradingBackendService || isRunning) return;
+    if (!activeBotInstance || isRunning) return;
     
-    // Check if backend is connected
-    const backendState = get(tradingBackendService.getState());
-    if (!backendState.isConnected) {
-      alert('Backend service is not connected. Please ensure the backend server is running.');
-      return;
-    }
+    // Get the active bot's service
+    const botService = activeBotInstance.service;
     
     console.log('Starting trading - checking data:', {
       chartDataFeed: !!chartDataFeed,
@@ -997,18 +1061,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
       fullConfig: configToSend
     });
     
-    tradingBackendService.startTrading({
-      strategyType: selectedStrategyType,
-      strategyConfig: (currentStrategy as any).config || strategyParameters,
-      strategy: {
-        getName: () => currentStrategy.getName(),
-        config: (currentStrategy as any).config || {},
-        buyThreshold: -0.5,
-        sellThreshold: 0.5,
-        tradePercentage: 10
-      }
-    }, false);
-    isRunning = true;
+    // Start trading on the active bot
+    botService.start(currentStrategy, 'BTC-USD', balance);
+    
+    // Update bot state in manager
+    paperTradingManager.updateBotState(activeBotInstance.id, {
+      isRunning: true,
+      strategy: currentStrategy
+    });
     
     // Backend automatically saves state
     setTimeout(() => {
@@ -1039,24 +1099,36 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   function pauseTrading() {
-    if (!tradingBackendService || !isRunning) return;
-    tradingBackendService.pauseTrading();
+    if (!activeBotInstance || !isRunning) return;
+    const botService = activeBotInstance.service;
+    botService.setPaused(true);
+    
+    paperTradingManager.updateBotState(activeBotInstance.id, {
+      isPaused: true
+    });
   }
   
   function resumeTrading() {
-    if (!tradingBackendService || !isRunning) return;
-    tradingBackendService.resumeTrading();
+    if (!activeBotInstance || !isRunning) return;
+    const botService = activeBotInstance.service;
+    botService.setPaused(false);
+    
+    paperTradingManager.updateBotState(activeBotInstance.id, {
+      isPaused: false
+    });
   }
   
   function stopTrading() {
-    if (!tradingBackendService || !isRunning) return;
-    
-    // Backend automatically saves state
+    if (!activeBotInstance || !isRunning) return;
+    const botService = activeBotInstance.service;
     
     // Stop the service
-    tradingBackendService.stopTrading();
-    isRunning = false;
-    hasRestartedTrading = false; // Reset the restart flag
+    botService.stop();
+    
+    paperTradingManager.updateBotState(activeBotInstance.id, {
+      isRunning: false,
+      isPaused: false
+    });
     
     // Update store to indicate paper trading is not active
     strategyStore.setPaperTradingActive(false);
@@ -1073,14 +1145,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   function updateStatus() {
-    if (!tradingBackendService) return;
+    if (!activeBotInstance) return;
     
-    const status = get(tradingBackendService.getState());
-    balance = status.balance?.usd || 0;
-    btcBalance = status.balance?.btc || 0;
-    vaultBalance = 0; // Backend doesn't have vault concept
-    positions = status.positions;
-    trades = status.trades;
+    const botState = get(activeBotInstance.service.getState());
+    balance = botState.balance?.usd || 0;
+    btcBalance = botState.balance?.btcPositions || 0;
+    vaultBalance = botState.balance?.vault || 0;
+    positions = botState.strategy?.getPositions ? botState.strategy.getPositions() : [];
+    trades = botState.trades;
     
     // Calculate metrics
     if (trades.length > 0) {
@@ -1097,31 +1169,37 @@ export class ${getStrategyFileName(type)} extends Strategy {
   function resetTrading() {
     console.log('Reset clicked, currentPrice:', currentPrice);
     
-    if (!tradingBackendService) return;
+    if (!activeBotInstance) return;
     
     // Stop if running
     if (isRunning) {
       stopTrading();
     }
     
-    // Reset the service
-    // Backend doesn't have a reset method - we restart with reset flag
+    // Reset the bot service
+    const botService = activeBotInstance.service;
+    botService.resetStrategy();
     
-    // Reset local state
-    balance = 10000;
-    btcBalance = 0;
-    vaultBalance = 0;
-    trades = [];
-    positions = [];
-    totalReturn = 0;
-    winRate = 0;
-    editingBalance = '10000';
-    initialTradingPrice = 0;
-    initialRecentHigh = 0;
-    initialTradingAngle = 90;
-    recentHigh = 0;
-    recentLow = 0;
-    lastTradeTime = 0;
+    // Update bot state in manager
+    paperTradingManager.updateBotState(activeBotInstance.id, {
+      balance: {
+        usd: 10000,
+        btcVault: 0,
+        btcPositions: 0,
+        vault: 0
+      },
+      trades: [],
+      performance: {
+        totalValue: 10000,
+        pnl: 0,
+        pnlPercent: 0,
+        winRate: 0,
+        totalTrades: 0
+      }
+    });
+    
+    // Update local state
+    updateStatus();
   }
   
   function startEditingBalance() {
@@ -1133,7 +1211,21 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   function saveBalance() {
     const newBalance = parseFloat(editingBalance);
-    if (!isNaN(newBalance) && newBalance > 0) {
+    if (!isNaN(newBalance) && newBalance > 0 && activeBotInstance) {
+      // Update the bot's balance
+      const botService = activeBotInstance.service;
+      const currentState = get(botService.getState());
+      
+      botService.setInitialBalance(newBalance);
+      
+      // Update bot state in manager
+      paperTradingManager.updateBotState(activeBotInstance.id, {
+        balance: {
+          ...currentState.balance,
+          usd: newBalance
+        }
+      });
+      
       balance = newBalance;
       isEditingBalance = false;
     } else {
@@ -1270,7 +1362,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
   $: unrealizedPnl = displayPositions.reduce((total, pos) => {
     return total + ((displayPrice - pos.entryPrice) * pos.size);
   }, 0);
-  $: returnPercent = ((totalValue - 10000) / 10000) * 100;
+  
+  // Get initial balance from active bot or use default
+  $: initialBalance = activeBotInstance ? 
+    (get(activeBotInstance.service.getState()).performance?.totalValue - 
+     get(activeBotInstance.service.getState()).performance?.pnl) || 10000 : 10000;
+  
+  $: returnPercent = ((totalValue - initialBalance) / initialBalance) * 100;
   
   // Calculate next buy trigger for all strategies
   let recentHigh = 0;
@@ -1777,6 +1875,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
       </div>
     </div>
     
+    
     <div class="trading-grid">
       <!-- Chart Panel -->
       <div class="panel chart-panel">
@@ -1986,7 +2085,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
             </div>
             <label>
               Strategy {#if isRunning}(stop trading to change){/if}
-              <select bind:value={selectedStrategyType} disabled={isRunning} on:change={async () => {
+              <select bind:value={selectedStrategyType} disabled={isRunning} on:change={async (e) => {
+                const newStrategy = (e.target as HTMLSelectElement).value;
+                paperTradingManager.selectStrategy(newStrategy);
                 try {
                   // If trading is running, stop it first
                   if (isRunning) {
@@ -2014,6 +2115,16 @@ export class ${getStrategyFileName(type)} extends Strategy {
               </select>
             </label>
           </div>
+          
+          {#if botTabs.length > 0}
+            <div class="bot-tabs-container">
+              <BotTabs 
+                bots={botTabs} 
+                activeTabId={$managerState.activeTabId}
+                on:selectTab={handleBotTabSelect}
+              />
+            </div>
+          {/if}
           
           <div class="balances">
             <div class="balance-item">
@@ -2671,11 +2782,11 @@ No open positions{/if}</title>
   }
   
   .reset-btn {
-    padding: 15px 20px;
+    padding: 8px 10px;
     background: rgba(156, 163, 175, 0.1);
     border: 1px solid rgba(156, 163, 175, 0.3);
     border-radius: 6px;
-    font-size: 16px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -2695,13 +2806,13 @@ No open positions{/if}</title>
   }
   
   .tab {
-    padding: 8px 16px;
+    padding: 4px 8px;
     background: rgba(74, 0, 224, 0.1);
     border: 1px solid rgba(74, 0, 224, 0.3);
     color: #888;
     cursor: pointer;
     border-radius: 4px;
-    font-size: 12px;
+    font-size: 11px;
     transition: all 0.2s;
   }
   
@@ -2782,6 +2893,10 @@ No open positions{/if}</title>
     min-height: 400px;
   }
   
+  .bot-tabs-container {
+    margin: 8px 0;
+  }
+  
   .trading-panel {
     min-height: 400px;
   }
@@ -2822,12 +2937,12 @@ No open positions{/if}</title>
   }
   
   .granularity-btn {
-    padding: 6px 12px;
+    padding: 3px 6px;
     background: rgba(74, 0, 224, 0.2);
     border: 1px solid rgba(74, 0, 224, 0.3);
     color: #9ca3af;
     border-radius: 4px;
-    font-size: 12px;
+    font-size: 10px;
     cursor: pointer;
     transition: all 0.2s;
   }
@@ -2861,12 +2976,12 @@ No open positions{/if}</title>
   }
   
   .period-btn {
-    padding: 8px 16px;
+    padding: 4px 8px;
     background: rgba(74, 0, 224, 0.2);
     border: 1px solid rgba(74, 0, 224, 0.3);
     color: #9ca3af;
     border-radius: 4px;
-    font-size: 13px;
+    font-size: 11px;
     cursor: pointer;
     transition: all 0.2s;
   }
@@ -3079,9 +3194,9 @@ No open positions{/if}</title>
   }
   
   .play-stop-btn {
-    padding: 4px 12px;
-    font-size: 12px;
-    height: 24px;
+    padding: 2px 6px;
+    font-size: 10px;
+    height: 20px;
     line-height: 1;
     min-width: 50px;
     pointer-events: auto;
@@ -3199,12 +3314,12 @@ No open positions{/if}</title>
   }
   
   .paper-test-btn {
-    padding: 8px 16px;
+    padding: 4px 8px;
     background: rgba(96, 165, 250, 0.2);
     border: 1px solid rgba(96, 165, 250, 0.3);
     color: #60a5fa;
     border-radius: 4px 0 0 4px;
-    font-size: 13px;
+    font-size: 11px;
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
@@ -3219,17 +3334,17 @@ No open positions{/if}</title>
   }
   
   .paper-test-btn svg {
-    width: 14px;
-    height: 14px;
+    width: 10px;
+    height: 10px;
   }
   
   .paper-test-play-btn {
-    padding: 8px 12px;
+    padding: 4px 6px;
     background: rgba(34, 197, 94, 0.2);
     border: 1px solid rgba(34, 197, 94, 0.3);
     color: #22c55e;
     border-radius: 0 4px 4px 0;
-    font-size: 13px;
+    font-size: 11px;
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
@@ -3248,17 +3363,17 @@ No open positions{/if}</title>
   }
   
   .paper-test-play-btn svg {
-    width: 14px;
-    height: 14px;
+    width: 10px;
+    height: 10px;
   }
   
   .paper-test-stop-btn {
-    padding: 8px 12px;
+    padding: 4px 6px;
     background: rgba(239, 68, 68, 0.2);
     border: 1px solid rgba(239, 68, 68, 0.3);
     color: #ef4444;
     border-radius: 0 4px 4px 0;
-    font-size: 13px;
+    font-size: 11px;
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
@@ -3273,8 +3388,8 @@ No open positions{/if}</title>
   }
   
   .paper-test-stop-btn svg {
-    width: 14px;
-    height: 14px;
+    width: 10px;
+    height: 10px;
   }
   
   .balances {
@@ -3413,10 +3528,10 @@ No open positions{/if}</title>
   
   .start-btn, .stop-btn {
     flex: 1;
-    padding: 15px;
+    padding: 8px;
     border: none;
     border-radius: 6px;
-    font-size: 16px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -3443,6 +3558,13 @@ No open positions{/if}</title>
   .pause-btn {
     background: #ffa726;
     color: white;
+    padding: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
   }
   
   .pause-btn:hover {
@@ -3452,6 +3574,13 @@ No open positions{/if}</title>
   .resume-btn {
     background: #66bb6a;
     color: white;
+    padding: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
   }
   
   .resume-btn:hover {
