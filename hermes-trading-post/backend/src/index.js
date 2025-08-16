@@ -36,7 +36,10 @@ wss.on('connection', (ws) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message.toString());
-      console.log('Received message:', data);
+      // Only log non-status messages to reduce spam
+      if (data.type !== 'getStatus' && data.type !== 'getManagerState') {
+        console.log('Received message:', data.type);
+      }
       
       switch (data.type) {
         // Bot management commands

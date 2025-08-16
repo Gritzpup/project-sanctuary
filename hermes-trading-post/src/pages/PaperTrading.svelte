@@ -42,6 +42,12 @@
   function handleBotTabSelect(event: CustomEvent) {
     const { botId } = event.detail;
     paperTradingManager.selectBot(selectedStrategyType, botId);
+    
+    // Force update of active bot instance when tab is selected
+    const state = get(managerState);
+    if (state) {
+      activeBotInstance = paperTradingManager.getActiveBot();
+    }
   }
   
   // Load saved chart preferences
@@ -96,6 +102,7 @@
       // Unsubscribe from previous bot if exists
       if (activeBotStateUnsubscribe) {
         activeBotStateUnsubscribe();
+        activeBotStateUnsubscribe = null;
       }
       
       // Subscribe to the active bot's state
@@ -121,7 +128,21 @@
         if (state.strategy && (state.strategy as any).config) {
           strategyParameters = (state.strategy as any).config;
         }
+        
+        // Force update of derived values
+        updateChartData();
       });
+    } else {
+      // Clear state when no bot is active
+      isRunning = false;
+      isPaused = false;
+      balance = 10000;
+      btcBalance = 0;
+      vaultBalance = 0;
+      positions = [];
+      trades = [];
+      totalReturn = 0;
+      winRate = 0;
     }
   }
   

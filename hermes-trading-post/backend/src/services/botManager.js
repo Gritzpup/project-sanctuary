@@ -12,10 +12,15 @@ export class BotManager {
   addClient(ws) {
     this.clients.add(ws);
     // Send initial state to new client
-    ws.send(JSON.stringify({
-      type: 'botManagerState',
-      data: this.getManagerState()
-    }));
+    try {
+      ws.send(JSON.stringify({
+        type: 'botManagerState',
+        data: this.getManagerState()
+      }));
+    } catch (error) {
+      // Client might have disconnected
+      this.clients.delete(ws);
+    }
   }
 
   removeClient(ws) {
@@ -72,7 +77,7 @@ export class BotManager {
       }
     });
 
-    console.log(`Created bot ${botId} for strategy ${strategyType}`);
+    // console.log(`Created bot ${botId} for strategy ${strategyType}`);
     return botId;
   }
 
@@ -92,7 +97,7 @@ export class BotManager {
       }
     });
 
-    console.log(`Selected bot ${botId}`);
+    // console.log(`Selected bot ${botId}`);
   }
 
   getActiveBot() {
@@ -140,7 +145,7 @@ export class BotManager {
       data: { botId }
     });
 
-    console.log(`Deleted bot ${botId}`);
+    // console.log(`Deleted bot ${botId}`);
   }
 
   // Initialize default bots for each strategy
@@ -166,7 +171,7 @@ export class BotManager {
       }
     });
 
-    console.log(`Initialized ${this.bots.size} default bots`);
+    console.log(`Bot Manager: Initialized ${this.bots.size} bots (${this.maxBotsPerStrategy} per strategy)`);
   }
 
   // Get state for a specific strategy
@@ -274,7 +279,7 @@ export class BotManager {
 
   // Clean up all bots
   cleanup() {
-    console.log('Cleaning up bot manager...');
+    // console.log('Cleaning up bot manager...');
     for (const [botId, bot] of this.bots.entries()) {
       if (bot.isRunning) {
         bot.stopTrading();

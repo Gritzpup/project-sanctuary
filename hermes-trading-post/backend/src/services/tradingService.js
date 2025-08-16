@@ -32,12 +32,15 @@ class ReverseRatioStrategy {
       const prevHigh = this.recentHigh;
       this.recentHigh = Math.max(...recentCandles.map(c => c.high), this.recentHigh);
       if (this.recentHigh > prevHigh) {
-        console.log('New recent high:', this.recentHigh);
+        // Only log significant high changes (more than 1%)
+        if ((this.recentHigh - prevHigh) / prevHigh > 0.01) {
+          console.log('New recent high:', this.recentHigh);
+        }
       }
     } else if (this.recentHigh === 0) {
       // Initialize with current price if no candles yet
       this.recentHigh = currentPrice;
-      console.log('Initialized recent high with current price:', this.recentHigh);
+      // console.log('Initialized recent high with current price:', this.recentHigh);
     }
 
     // Check for sell signal
@@ -59,16 +62,9 @@ class ReverseRatioStrategy {
       const requiredDrop = this.config.initialDropPercent + 
                           (currentLevel - 1) * this.config.levelDropPercent;
       
-      // Only log when close to trigger
-      if (Math.abs(dropFromHigh - requiredDrop) < 0.1) {
-        console.log('Buy check (close to trigger):', {
-          dropFromHigh: dropFromHigh.toFixed(4),
-          requiredDrop: requiredDrop.toFixed(4),
-          currentLevel,
-          recentHigh: this.recentHigh,
-          currentPrice,
-          nextBuyPrice: this.recentHigh * (1 - requiredDrop / 100)
-        });
+      // Only log when very close to trigger (within 0.05%)
+      if (Math.abs(dropFromHigh - requiredDrop) < 0.05) {
+        console.log(`Buy trigger approaching: ${dropFromHigh.toFixed(3)}% / ${requiredDrop.toFixed(3)}%`);
       }
       
       if (dropFromHigh >= requiredDrop) {
@@ -202,7 +198,10 @@ export class TradingService extends EventEmitter {
       // Close previous candle and start new one
       if (this.currentCandle) {
         this.candles.push(this.currentCandle);
-        console.log(`Candle closed. Total candles: ${this.candles.length}`);
+        // Only log every 10th candle to reduce spam
+        if (this.candles.length % 10 === 0) {
+          console.log(`Candle update: ${this.candles.length} candles`);
+        }
         
         // Keep only last 500 candles
         if (this.candles.length > 500) {
@@ -232,7 +231,7 @@ export class TradingService extends EventEmitter {
       return;
     }
 
-    console.log('Starting trading with config:', config);
+    console.log('Starting trading');
     
     // Parse strategy configuration
     let strategyType;
@@ -242,7 +241,7 @@ export class TradingService extends EventEmitter {
     if (config.strategyType && config.strategyConfig) {
       strategyType = config.strategyType;
       strategyParams = config.strategyConfig;
-      console.log('Using direct strategy format:', strategyType, 'with config:', strategyParams);
+      // console.log('Using direct strategy format:', strategyType, 'with config:', strategyParams);
     }
     // Priority 2: Strategy object format
     else if (config.strategy) {
@@ -251,12 +250,12 @@ export class TradingService extends EventEmitter {
         // New format with explicit type
         strategyType = config.strategy.strategyType;
         strategyParams = config.strategy.strategyConfig || config.strategy.config || {};
-        console.log('Using strategy object format:', strategyType, 'with config:', strategyParams);
+        // console.log('Using strategy object format:', strategyType, 'with config:', strategyParams);
       } else {
         // Legacy format
         strategyType = this.extractStrategyType(config.strategy.getName ? config.strategy.getName() : 'reverse-ratio');
         strategyParams = config.strategy.config || {};
-        console.log('Using legacy format:', strategyType, 'with config:', strategyParams);
+        // console.log('Using legacy format:', strategyType, 'with config:', strategyParams);
       }
     } else {
       console.error('Invalid strategy configuration');
@@ -273,7 +272,7 @@ export class TradingService extends EventEmitter {
     try {
       const StrategyToUse = this.strategyMap[strategyType];
       this.strategy = new StrategyToUse(strategyParams);
-      console.log(`Created ${strategyType} strategy with params:`, strategyParams);
+      console.log(`Created ${strategyType} strategy`);
     } catch (error) {
       console.error('Failed to create strategy:', error);
       return;
@@ -309,7 +308,7 @@ export class TradingService extends EventEmitter {
         close: this.currentPrice,
         volume: 0
       };
-      console.log('Created initial candle to jumpstart trading:', this.currentCandle);
+      // console.log('Created initial candle to jumpstart trading:', this.currentCandle);
     }
 
     this.priceUpdateInterval = setInterval(async () => {
@@ -472,19 +471,9 @@ export class TradingService extends EventEmitter {
     if (!this._executionCounter) this._executionCounter = 0;
     this._executionCounter++;
     
-    if (signal.type !== 'hold' || this._executionCounter % 100 === 0) {
-      const status = this.getStatus();
-      console.log('Strategy signal:', {
-        type: signal.type,
-        reason: signal.reason,
-        currentPrice: this.currentPrice,
-        recentHigh: this.strategy.recentHigh,
-        positionCount: this.positions.length,
-        nextBuyPrice: status.nextBuyPrice,
-        nextBuyLevel: status.nextBuyLevel,
-        nextSellPrice: status.nextSellPrice,
-        lowestEntry: status.lowestEntryPrice
-      });
+    // Only log buy/sell signals, not holds
+    if (signal.type !== 'hold') {
+      console.log(`${signal.type.toUpperCase()}: ${signal.reason}`);
     }
     
     if (signal.type === 'buy') {
@@ -510,15 +499,10 @@ export class TradingService extends EventEmitter {
     const totalAvailable = this.balance.usd;
     const positionSize = this.strategy.calculatePositionSize(totalAvailable, signal, this.currentPrice);
     
-    console.log('Buy signal processing:', {
-      totalAvailable,
-      positionSize,
-      currentPrice: this.currentPrice,
-      signal: signal
-    });
+    // Removed verbose buy signal logging
     
     if (positionSize <= 0) {
-      console.log('Position size too small or no funds available');
+      // console.log('Position size too small or no funds available');
       return;
     }
     
@@ -527,7 +511,7 @@ export class TradingService extends EventEmitter {
     const totalCost = cost + fee;
     
     if (totalCost > this.balance.usd) {
-      console.log('Insufficient funds for trade:', { totalCost, availableUSD: this.balance.usd });
+      // console.log('Insufficient funds for trade:', { totalCost, availableUSD: this.balance.usd });
       return;
     }
     
@@ -565,7 +549,7 @@ export class TradingService extends EventEmitter {
       });
     }
     
-    console.log('Executed buy:', position);
+    console.log(`BUY executed at $${this.currentPrice.toFixed(2)}`);
     this.broadcast({
       type: 'trade',
       trade: this.trades[this.trades.length - 1], // Send the trade object, not the position
@@ -643,7 +627,7 @@ export class TradingService extends EventEmitter {
       });
     }
     
-    console.log('Executed sell:', trade);
+    console.log(`SELL executed at $${this.currentPrice.toFixed(2)}, profit: ${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`);
     this.broadcast({
       type: 'trade',
       trade: trade,
