@@ -218,6 +218,19 @@ class TradingBackendService {
 
   startTrading(strategy: any, reset: boolean = false) {
     console.log('Starting trading with strategy:', strategy);
+    
+    // Log the actual configuration being sent
+    if (strategy.strategyConfig) {
+      console.log('📊 Strategy Configuration Details:', {
+        strategyType: strategy.strategyType,
+        initialDropPercent: strategy.strategyConfig.initialDropPercent,
+        levelDropPercent: strategy.strategyConfig.levelDropPercent,
+        profitTarget: strategy.strategyConfig.profitTarget || strategy.strategyConfig.profitTargetPercent,
+        maxLevels: strategy.strategyConfig.maxLevels,
+        fullConfig: strategy.strategyConfig
+      });
+    }
+    
     this.send({
       type: 'start',
       config: { strategy, reset }
@@ -241,6 +254,19 @@ class TradingBackendService {
 
   updateStrategy(strategy: any) {
     console.log('Updating strategy:', strategy);
+    
+    // Log the actual configuration being sent
+    if (strategy.strategyConfig) {
+      console.log('📊 Updated Strategy Configuration Details:', {
+        strategyType: strategy.strategyType,
+        initialDropPercent: strategy.strategyConfig.initialDropPercent,
+        levelDropPercent: strategy.strategyConfig.levelDropPercent,
+        profitTarget: strategy.strategyConfig.profitTarget || strategy.strategyConfig.profitTargetPercent,
+        maxLevels: strategy.strategyConfig.maxLevels,
+        fullConfig: strategy.strategyConfig
+      });
+    }
+    
     this.send({
       type: 'updateStrategy',
       strategy

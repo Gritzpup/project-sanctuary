@@ -243,12 +243,12 @@ export class ReverseRatioStrategy extends Strategy {
     this.name = 'Reverse Ratio Buying';
     this.description = 'Buys on dips with increasing position sizes, sells all at 7% profit';
     
-    // Default configuration
+    // Default configuration - Ultra micro-scalping values
     this.config = {
-      initialDropPercent: 5,
-      levelDropPercent: 5,
-      profitTargetPercent: 7,
-      maxLevels: 5,
+      initialDropPercent: 0.1,    // Changed from 5% to 0.1%
+      levelDropPercent: 0.1,      // Changed from 5% to 0.1%
+      profitTargetPercent: 0.85,  // Changed from 7% to 0.85%
+      maxLevels: 12,              // Increased from 5 to 12
       ratioMultipliers: [1, 1.5, 2, 2.5, 3],
       vaultAllocation: 99,
       btcGrowthAllocation: 1,
@@ -654,6 +654,18 @@ export class ${getStrategyFileName(type)} extends Strategy {
         // If trading is running, update the backend
         if (isRunning) {
           console.log('PaperTrading: Updating backend with synced strategy');
+          
+          // Log the actual configuration being sent during update
+          const configToSend = (currentStrategy as any).config || strategyParameters;
+          console.log('📊 PaperTrading: Sending strategy configuration (update):', {
+            strategyType: selectedStrategyType,
+            initialDropPercent: configToSend.initialDropPercent,
+            levelDropPercent: configToSend.levelDropPercent,
+            profitTarget: configToSend.profitTarget || configToSend.profitTargetPercent,
+            maxLevels: configToSend.maxLevels,
+            fullConfig: configToSend
+          });
+          
           tradingBackendService.updateStrategy({
             strategyType: selectedStrategyType,
             strategyConfig: (currentStrategy as any).config || strategyParameters,
@@ -838,6 +850,17 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     // Backend handles trade preservation automatically
     
+    // Log the actual configuration being sent during restore
+    const configToSend = (currentStrategy as any).config || strategyParameters;
+    console.log('📊 PaperTrading: Sending strategy configuration (restore):', {
+      strategyType: selectedStrategyType,
+      initialDropPercent: configToSend.initialDropPercent,
+      levelDropPercent: configToSend.levelDropPercent,
+      profitTarget: configToSend.profitTarget || configToSend.profitTargetPercent,
+      maxLevels: configToSend.maxLevels,
+      fullConfig: configToSend
+    });
+    
     // Start the service with the strategy
     tradingBackendService.startTrading({
       strategyType: selectedStrategyType,
@@ -962,6 +985,17 @@ export class ${getStrategyFileName(type)} extends Strategy {
       // Optionally auto-switch to required period
       selectedPeriod = requiredPeriod;
     }
+    
+    // Log the actual configuration being sent
+    const configToSend = (currentStrategy as any).config || strategyParameters;
+    console.log('📊 PaperTrading: Sending strategy configuration:', {
+      strategyType: selectedStrategyType,
+      initialDropPercent: configToSend.initialDropPercent,
+      levelDropPercent: configToSend.levelDropPercent,
+      profitTarget: configToSend.profitTarget || configToSend.profitTargetPercent,
+      maxLevels: configToSend.maxLevels,
+      fullConfig: configToSend
+    });
     
     tradingBackendService.startTrading({
       strategyType: selectedStrategyType,

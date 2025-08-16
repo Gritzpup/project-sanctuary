@@ -12,10 +12,10 @@ const __dirname = dirname(__filename);
 // Simplified strategy implementations
 class ReverseRatioStrategy {
   constructor(config) {
-    // Ensure we use the correct defaults for Ultra Micro-Scalping
+    // Ensure we use the correct defaults for Micro-Scalping
     this.config = {
-      initialDropPercent: 0.01,    // 0.01% drop triggers entry
-      levelDropPercent: 0.008,     // 0.008% between levels
+      initialDropPercent: 0.1,     // 0.1% drop triggers entry
+      levelDropPercent: 0.1,       // 0.1% between levels
       profitTarget: 0.85,          // 0.85% profit target
       maxLevels: 12,               // Up to 12 levels
       basePositionPercent: 6,      // 6% of balance for first level

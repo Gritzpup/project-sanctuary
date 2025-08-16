@@ -21,10 +21,10 @@ import type { CandleData, Position, Signal, StrategyConfig } from '../base/Strat
  * - 20 trades/day = $13.50 daily profit (1.35% return)
  */
 export interface ReverseRatioConfig extends StrategyConfig {
-  initialDropPercent: number;    // % drop from recent high to start buying (default: 5)
-  levelDropPercent: number;      // % drop between levels (default: 5)
+  initialDropPercent: number;    // % drop from recent high to start buying (default: 0.01)
+  levelDropPercent: number;      // % drop between levels (default: 0.008)
   ratioMultiplier: number;       // Multiplier for each level (default: 2)
-  profitTarget: number;          // % above initial entry to sell all (default: 7)
+  profitTarget: number;          // % above initial entry to sell all (default: 0.85)
   maxLevels: number;            // Maximum number of buy levels (default: 5)
   lookbackPeriod: number;       // Candles to look back for recent high (default: 30)
   positionSizeMode: 'percentage' | 'fixed';  // How to calculate position sizes
@@ -44,8 +44,8 @@ export class ReverseRatioStrategy extends Strategy {
     const fullConfig: ReverseRatioConfig = {
       vaultAllocation: 85.7,     // 6/7 of profit goes to vault
       btcGrowthAllocation: 14.3, // 1/7 of profit goes to BTC growth
-      initialDropPercent: 0.01,  // Ultra micro-scalping: 0.01% drop triggers entry
-      levelDropPercent: 0.008,   // Ultra micro-scalping: 0.008% between levels
+      initialDropPercent: 0.1,   // Micro-scalping: 0.1% drop triggers entry
+      levelDropPercent: 0.1,     // Micro-scalping: 0.1% between levels
       ratioMultiplier: 2,
       profitTarget: 0.85,        // Ultra micro-scalping: 0.85% profit target
       maxLevels: 12,             // Ultra micro-scalping: up to 12 levels
