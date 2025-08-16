@@ -59,6 +59,9 @@
   let activeTab: 'config' | 'code' | 'backups' = 'config';
   let strategySourceCode = '';
   
+  // Visual feedback state
+  let showSaveSuccess = false;
+  
   // Strategy management state
   let backupName = '';
   let backupDescription = '';
@@ -429,7 +432,12 @@
     backupDescription = '';
     
     console.log('Configuration saved:', config.name);
-    alert(`Configuration "${config.name}" saved successfully!`);
+    
+    // Show visual feedback instead of alert
+    showSaveSuccess = true;
+    setTimeout(() => {
+      showSaveSuccess = false;
+    }, 2000);
   }
   
   function loadSavedBackups() {
@@ -1238,6 +1246,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
             {customPresets}
             {selectedPresetIndex}
             {strategySourceCode}
+            {showSaveSuccess}
             on:syncToPaperTrading={syncToPaperTrading}
             on:runBacktest={runBacktest}
             on:updateStrategy={updateCurrentStrategy}
@@ -1247,7 +1256,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
             on:addNewPreset={addNewPreset}
             on:deletePreset={(e) => deletePreset(e.detail.index)}
             on:saveCurrentAsPreset={(e) => saveCurrentAsPreset(e.detail.index)}
-            on:saveCurrentStrategy={saveCurrentStrategy}
+            on:saveCurrentStrategy={(e) => saveCurrentStrategy(e.detail?.useAutoName || false)}
             on:loadSavedBackups={loadSavedBackups}
             on:importStrategy={(e) => { importJsonText = e.detail.jsonText; importStrategy(); }}
             on:exportCurrentStrategy={exportCurrentStrategy}

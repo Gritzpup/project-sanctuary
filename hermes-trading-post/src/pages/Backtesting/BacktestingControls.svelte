@@ -14,6 +14,7 @@
   export let currentPrice: number = 0;
   export let customPresets: Array<any>;
   export let selectedPresetIndex: number;
+  export let showSaveSuccess: boolean = false;
   
   const dispatch = createEventDispatcher();
   
@@ -107,7 +108,7 @@
   }
   
   function saveCurrentStrategy() {
-    dispatch('saveCurrentStrategy');
+    dispatch('saveCurrentStrategy', { useAutoName: true });
   }
   
   function loadSavedBackups() {
@@ -217,10 +218,15 @@
           <div class="strategy-actions">
             <button 
               class="icon-btn save-btn" 
-              on:click={saveStrategyConfig}
+              class:success={showSaveSuccess}
+              on:click={saveCurrentStrategy}
               title="Save current configuration"
             >
-              💾
+              {#if showSaveSuccess}
+                ✅
+              {:else}
+                💾
+              {/if}
             </button>
             <button 
               class="icon-btn import-btn" 
@@ -594,6 +600,12 @@
   .icon-btn:hover {
     background: rgba(74, 0, 224, 0.2);
     border-color: rgba(74, 0, 224, 0.5);
+  }
+  
+  .icon-btn.success {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: rgba(34, 197, 94, 0.5);
+    color: #22c55e;
   }
   
   .strategy-description {
