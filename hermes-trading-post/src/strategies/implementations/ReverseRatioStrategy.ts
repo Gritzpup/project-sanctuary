@@ -44,16 +44,16 @@ export class ReverseRatioStrategy extends Strategy {
     const fullConfig: ReverseRatioConfig = {
       vaultAllocation: 85.7,     // 6/7 of profit goes to vault
       btcGrowthAllocation: 14.3, // 1/7 of profit goes to BTC growth
-      initialDropPercent: 5,
-      levelDropPercent: 5,
+      initialDropPercent: 0.01,  // Ultra micro-scalping: 0.01% drop triggers entry
+      levelDropPercent: 0.008,   // Ultra micro-scalping: 0.008% between levels
       ratioMultiplier: 2,
-      profitTarget: 7,
-      maxLevels: 5,
+      profitTarget: 0.85,        // Ultra micro-scalping: 0.85% profit target
+      maxLevels: 12,             // Ultra micro-scalping: up to 12 levels
       lookbackPeriod: 30,
       positionSizeMode: 'percentage',
-      basePositionPercent: 5,    // 5% of balance for first level
+      basePositionPercent: 6,    // 6% of balance for first level
       basePositionAmount: 50,    // $50 for first level if using fixed mode
-      maxPositionPercent: 50,    // Max 50% of balance across all levels
+      maxPositionPercent: 90,    // Max 90% of balance across all levels
       ...config
     };
 
