@@ -361,7 +361,31 @@
     localStorage.setItem('reverseRatioPresets', JSON.stringify(customPresets));
   }
   
-  function saveCurrentStrategy() {
+  function getNextBackupNumber(strategyType: string): number {
+    // Get all existing backups for this strategy type
+    const existingNumbers: number[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(`strategy_config_${strategyType}_`)) {
+        try {
+          const backup = JSON.parse(localStorage.getItem(key));
+          // Extract number from names like "reverse-ratio-1", "reverse-ratio-2", etc.
+          const match = backup.name.match(new RegExp(`^${strategyType}-(\\d+)$`));
+          if (match) {
+            existingNumbers.push(parseInt(match[1]));
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+    }
+    
+    // Find the next available number
+    if (existingNumbers.length === 0) return 1;
+    return Math.max(...existingNumbers) + 1;
+  }
+
+  function saveCurrentStrategy(useAutoName: boolean = false) {
     if (!currentStrategy) return;
     
     const timestamp = Date.now();
@@ -372,14 +396,23 @@
       minute: '2-digit'
     });
     
-    const backupNameWithTime = backupName.trim() 
-      ? `${backupName.trim()} (${dateStr})`
-      : `${selectedStrategyType} - ${dateStr}`;
+    let finalBackupName: string;
+    
+    if (useAutoName) {
+      // Auto-generate name like "reverse-ratio-1", "reverse-ratio-2", etc.
+      const nextNumber = getNextBackupNumber(selectedStrategyType);
+      finalBackupName = `${selectedStrategyType}-${nextNumber}`;
+    } else {
+      // Use provided name or fallback to timestamp-based name
+      finalBackupName = backupName.trim() 
+        ? `${backupName.trim()} (${dateStr})`
+        : `${selectedStrategyType} - ${dateStr}`;
+    }
     
     const configKey = `strategy_config_${selectedStrategyType}_${timestamp}`;
     
     const config = {
-      name: backupNameWithTime,
+      name: finalBackupName,
       description: backupDescription.trim(),
       strategyType: selectedStrategyType,
       parameters: { ...strategyParams[selectedStrategyType] },
@@ -1255,7 +1288,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
             <div slot="backups-content">
               <BacktestingBackups
                 {savedBackups}
-                on:saveCurrentStrategy={saveCurrentStrategy}
+                on:saveCurrentStrategy={(e) => saveCurrentStrategy(e.detail?.useAutoName || false)}
                 on:loadSavedBackups={loadSavedBackups}
                 on:loadBackup={(e) => loadBackup(e.detail.key)}
                 on:deleteBackup={(e) => deleteBackup(e.detail.key)}

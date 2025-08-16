@@ -22,8 +22,8 @@
   let backupName = '';
   let backupDescription = '';
   
-  function saveCurrentStrategy() {
-    dispatch('saveCurrentStrategy');
+  function saveCurrentStrategy(useAutoName: boolean = false) {
+    dispatch('saveCurrentStrategy', { useAutoName });
   }
   
   function loadSavedBackups() {
@@ -49,7 +49,7 @@
     <h3>Saved Strategy Configurations</h3>
     <div class="backup-buttons">
       <button class="btn-secondary" on:click={() => { 
-        saveCurrentStrategy(); 
+        saveCurrentStrategy(true); 
         loadSavedBackups(); 
       }} title="Quick save with auto-generated name">
         Quick Save
