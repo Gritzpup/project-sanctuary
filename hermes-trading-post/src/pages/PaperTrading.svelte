@@ -100,7 +100,7 @@
   // Subscribe to manager state changes
   $: {
     if ($managerState) {
-      selectedStrategyType = $managerState.selectedStrategy;
+      // Don't override selectedStrategyType here - let the dropdown binding handle it
       activeBotInstance = paperTradingManager.getActiveBot();
       
       // Get bots for current strategy
@@ -608,6 +608,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
   onMount(async () => {
     // console.log('PaperTrading: Component mounted');
     isRestoringState = true; // Set flag to prevent overwrites during restoration
+    
+    // Initialize selectedStrategyType from manager state
+    const currentManagerState = get(managerState);
+    if (currentManagerState.selectedStrategy) {
+      selectedStrategyType = currentManagerState.selectedStrategy;
+    }
     
     // Initialize bot manager with current strategy
     paperTradingManager.initializeBotsForStrategy(selectedStrategyType);
@@ -1960,6 +1966,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
             {/if}
           </h2>
           <div class="chart-controls">
+            {#if isRunning}
+              <span class="timeframe-lock-icon" title="Timeframe locked during trading ({selectedGranularity} / {selectedPeriod}){currentStrategy?.getRequiredGranularity?.() ? `\nStrategy requires: ${currentStrategy.getRequiredGranularity()} / ${currentStrategy.getRequiredPeriod() || 'any period'}` : ''}">
+                🔒
+              </span>
+            {/if}
             <div class="granularity-buttons">
               <button class="granularity-btn" class:active={selectedGranularity === '1m'} disabled={!isGranularityValid('1m', selectedPeriod)} on:click={() => selectGranularity('1m')}>1m</button>
               <button class="granularity-btn" class:active={selectedGranularity === '5m'} disabled={!isGranularityValid('5m', selectedPeriod)} on:click={() => selectGranularity('5m')}>5m</button>
@@ -1991,16 +2002,6 @@ export class ${getStrategyFileName(type)} extends Strategy {
             paperTestSimTime={paperTestSimTime}
             paperTestDate={selectedTestDate}
           />
-          {#if isRunning}
-            <div class="timeframe-locked-indicator">
-              🔒 Timeframe locked during trading ({selectedGranularity} / {selectedPeriod})
-              {#if currentStrategy?.getRequiredGranularity?.()}
-                <div class="required-timeframe">
-                  Strategy requires: {currentStrategy.getRequiredGranularity()} / {currentStrategy.getRequiredPeriod() || 'any period'}
-                </div>
-              {/if}
-            </div>
-          {/if}
           <div class="period-buttons">
             <button class="period-btn" class:active={selectedPeriod === '1H'} disabled={isRunning} on:click={() => selectPeriod('1H')}>1H</button>
             <button class="period-btn" class:active={selectedPeriod === '4H'} disabled={isRunning} on:click={() => selectPeriod('4H')}>4H</button>
@@ -2154,22 +2155,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
               <span class="sync-text">Synced with Backtesting</span>
             </div>
             <label>
-              Strategy {#if isRunning}(stop trading to change){/if}
-              <select bind:value={selectedStrategyType} disabled={isRunning} on:change={async (e) => {
+              Strategy
+              <select bind:value={selectedStrategyType} on:change={async (e) => {
                 const newStrategy = (e.target as HTMLSelectElement).value;
                 paperTradingManager.selectStrategy(newStrategy);
                 try {
-                  // If trading is running, stop it first
-                  if (isRunning) {
-                    const shouldChange = confirm('Changing strategy will stop current trading. Continue?');
-                    if (!shouldChange) {
-                      // Reset to current strategy
-                      selectedStrategyType = currentStrategy?.getName() || selectedStrategyType;
-                      return;
-                    }
-                    stopTrading();
-                  }
-                  
+                  // Simply switch to the new strategy's bots without stopping anything
                   currentStrategy = createStrategy(selectedStrategyType);
                   loadStrategySourceCode();
                 } catch (error) {
@@ -2998,6 +2989,7 @@ No open positions{/if}</title>
   
   .chart-controls {
     display: flex;
+    align-items: center;
     gap: 10px;
   }
   
@@ -4216,22 +4208,17 @@ No open positions{/if}</title>
     50% { opacity: 0.6; }
   }
   
-  .timeframe-locked-indicator {
-    background: rgba(255, 165, 0, 0.1);
-    color: #ffa500;
-    padding: 8px 12px;
-    margin: 10px 0;
-    border-radius: 4px;
-    border: 1px solid rgba(255, 165, 0, 0.3);
-    text-align: center;
-    font-size: 0.9em;
+  .timeframe-lock-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    font-size: 14px;
+    opacity: 0.8;
     animation: pulse 2s infinite;
-  }
-  
-  .required-timeframe {
-    margin-top: 5px;
-    font-size: 0.85em;
-    color: #ff9999;
+    cursor: help;
   }
   
   .period-btn:disabled {

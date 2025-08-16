@@ -351,6 +351,9 @@ export class TradingService extends EventEmitter {
       clearInterval(this.priceUpdateInterval);
       this.priceUpdateInterval = null;
     }
+    
+    // Clear strategy to prevent any lingering analysis
+    this.strategy = null;
 
     this.broadcast({
       type: 'tradingStopped',
@@ -765,23 +768,20 @@ export class TradingService extends EventEmitter {
           this.priceHistory = this.priceHistory.slice(-500);
         }
         
-        // Check if we should auto-resume trading
+        // Check saved running state but DO NOT auto-resume
         const wasRunning = state.isRunning || false;
         const wasPaused = state.isPaused || false;
         
         // Only log successful loads for debugging
         // console.log('Trading state loaded successfully');
         
-        // Auto-resume trading if it was running
-        if (wasRunning && this.strategy && this.strategyConfig) {
-          console.log('Auto-resuming trading with saved strategy...');
-          // Set a small delay to ensure everything is initialized
-          setTimeout(() => {
-            this.startTrading(this.strategyConfig);
-            if (wasPaused) {
-              this.pauseTrading();
-            }
-          }, 1000);
+        // Do NOT auto-resume trading - user must manually start
+        // This prevents unexpected trading continuation after stops
+        if (wasRunning) {
+          console.log('Previous trading session was running but NOT auto-resuming');
+          // Reset running state to prevent confusion
+          this.isRunning = false;
+          this.isPaused = false;
         }
       } catch (error) {
         if (error.code === 'ENOENT') {

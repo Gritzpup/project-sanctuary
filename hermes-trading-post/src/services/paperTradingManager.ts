@@ -120,6 +120,9 @@ class PaperTradingManager {
       activeTabId: botId
     }));
 
+    // Save configuration immediately when bot is selected
+    this.saveConfiguration();
+
     // Notify backend
     tradingBackendService.selectBot(botId);
   }

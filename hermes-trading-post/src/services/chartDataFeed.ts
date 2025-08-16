@@ -615,6 +615,26 @@ export class ChartDataFeed {
       endTime
     );
     
+    // Check if cache is completely empty on startup
+    if (this.currentData.length === 0 && cacheResult.candles.length === 0) {
+      console.log('ChartDataFeed: Cache is empty on startup, forcing initial data load...');
+      // For 1m granularity, ensure we load enough data
+      const rangeInDays = (endTime - startTime) / 86400;
+      const requiredCandles = this.activeGranularity === '1m' && rangeInDays < 1 ? 70 : Math.ceil((endTime - startTime) / this.getGranularitySeconds(this.activeGranularity));
+      await this.forceLoadInitialData(startTime, endTime, requiredCandles, instanceId);
+      
+      // Re-fetch from cache after initial load
+      const updatedResult = await this.cache.getCachedCandles(
+        this.symbol,
+        this.activeGranularity,
+        startTime,
+        endTime
+      );
+      this.currentData = updatedResult.candles;
+      console.log(`ChartDataFeed: After initial load, have ${this.currentData.length} candles`);
+      return this.currentData;
+    }
+    
     // Fill gaps if any
     if (cacheResult.gaps.length > 0) {
       console.log(`ChartDataFeed: Found ${cacheResult.gaps.length} gaps, filling...`);
@@ -847,6 +867,41 @@ export class ChartDataFeed {
     }
   }
 
+  // Force load initial data when cache is empty
+  private async forceLoadInitialData(startTime: number, endTime: number, minCandles: number, instanceId?: string): Promise<void> {
+    console.log(`ChartDataFeed: Force loading initial data for ${this.activeGranularity}, expecting ${minCandles} candles`);
+    
+    // Check if this is still the active instance
+    if (instanceId && !this.isCurrentInstance(instanceId)) {
+      console.log(`ChartDataFeed: Skipping force load - instance ${instanceId} is no longer active`);
+      return;
+    }
+    
+    // Extend time range to ensure we get enough candles
+    const granularitySeconds = this.getGranularitySeconds(this.activeGranularity);
+    const extendedStartTime = startTime - (granularitySeconds * 10); // Add 10 extra candles buffer
+    
+    try {
+      // Fetch directly from API
+      const candles = await this.api.getCandles(
+        this.symbol,
+        granularitySeconds,
+        extendedStartTime.toString(),
+        endTime.toString()
+      );
+      
+      if (candles.length > 0) {
+        // Store in cache
+        await this.cache.storeChunk(this.symbol, this.activeGranularity, candles);
+        console.log(`ChartDataFeed: Stored ${candles.length} initial candles in cache`);
+      } else {
+        console.error('ChartDataFeed: Failed to load initial data from API');
+      }
+    } catch (error) {
+      console.error('ChartDataFeed: Error loading initial data:', error);
+    }
+  }
+
   // Load historical data for a specific period
   async loadHistoricalData(granularity: string, days: number, instanceId?: string): Promise<void> {
     // Create abort controller for this operation
@@ -890,14 +945,19 @@ export class ChartDataFeed {
     
     // console.log(`Cache coverage: ${(100 - gapPercentage).toFixed(1)}% (${cacheResult.candles.length} candles, ${cacheResult.gaps.length} gaps)`);
     
-      // Only fetch if we're missing more than 10% of data
-      if (cacheResult.gaps.length > 0 && gapPercentage > 10) {
-        // Check again before filling gaps
-        if (instanceId && !this.isCurrentInstance(instanceId)) {
-          console.log(`ChartDataFeed: Skipping gap fill - instance ${instanceId} is no longer active`);
-          return;
+      // Fill gaps if needed
+      if (cacheResult.gaps.length > 0) {
+        // For initial loads (empty cache), always fill gaps
+        const isInitialLoad = cacheResult.candles.length === 0;
+        if (isInitialLoad || gapPercentage > 10) {
+          console.log(`ChartDataFeed: ${isInitialLoad ? 'Initial load' : `Gap percentage ${gapPercentage.toFixed(1)}%`} triggering gap fill`);
+          // Check again before filling gaps
+          if (instanceId && !this.isCurrentInstance(instanceId)) {
+            console.log(`ChartDataFeed: Skipping gap fill - instance ${instanceId} is no longer active`);
+            return;
+          }
+          await this.fillGaps(cacheResult.gaps, granularity, instanceId);
         }
-        await this.fillGaps(cacheResult.gaps, granularity, instanceId);
       }
     } finally {
       // Clean up abort controller
