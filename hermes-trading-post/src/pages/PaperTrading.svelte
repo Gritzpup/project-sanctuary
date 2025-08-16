@@ -39,15 +39,38 @@
     paperTradingManager.selectStrategy(select.value);
   }
   
+  // Helper function to clear all bot data
+  function clearBotData() {
+    isRunning = false;
+    isPaused = false;
+    balance = 10000;
+    btcBalance = 0;
+    vaultBalance = 0;
+    positions = [];
+    trades = [];
+    totalReturn = 0;
+    winRate = 0;
+    currentStrategy = null;
+    strategyParameters = {};
+  }
+
   function handleBotTabSelect(event: CustomEvent) {
     const { botId } = event.detail;
+    
+    // Unsubscribe from current bot first
+    if (activeBotStateUnsubscribe) {
+      activeBotStateUnsubscribe();
+      activeBotStateUnsubscribe = null;
+    }
+    
+    // Clear all current data
+    clearBotData();
+    
+    // Select new bot
     paperTradingManager.selectBot(selectedStrategyType, botId);
     
-    // Force update of active bot instance when tab is selected
-    const state = get(managerState);
-    if (state) {
-      activeBotInstance = paperTradingManager.getActiveBot();
-    }
+    // Force immediate update
+    activeBotInstance = paperTradingManager.getActiveBot();
   }
   
   // Load saved chart preferences
@@ -105,6 +128,9 @@
         activeBotStateUnsubscribe = null;
       }
       
+      // Clear all data first to ensure no bleed-through
+      clearBotData();
+      
       // Subscribe to the active bot's state
       const stateStore = activeBotInstance.service.getState();
       
@@ -113,33 +139,27 @@
         activeBotState = state;
         
         // Update local variables from active bot state
-        isRunning = state.isRunning;
+        isRunning = state.isRunning || false;
         isPaused = state.isPaused || false;
         balance = state.balance?.usd || 10000;
         btcBalance = state.balance?.btcPositions || 0;
         vaultBalance = state.balance?.vault || 0;
         positions = state.strategy?.getPositions ? state.strategy.getPositions() : [];
-        trades = state.trades || [];
+        trades = state.trades ? [...state.trades] : []; // Create new array to ensure reactivity
         totalReturn = state.performance?.pnl || 0;
         winRate = state.performance?.winRate || 0;
-        currentStrategy = state.strategy;
+        currentStrategy = state.strategy || null;
         
         // Update strategy parameters if available
         if (state.strategy && (state.strategy as any).config) {
-          strategyParameters = (state.strategy as any).config;
+          strategyParameters = { ...(state.strategy as any).config }; // Create new object
+        } else {
+          strategyParameters = {};
         }
       });
     } else {
       // Clear state when no bot is active
-      isRunning = false;
-      isPaused = false;
-      balance = 10000;
-      btcBalance = 0;
-      vaultBalance = 0;
-      positions = [];
-      trades = [];
-      totalReturn = 0;
-      winRate = 0;
+      clearBotData();
     }
   }
   
@@ -1037,6 +1057,9 @@ export class ${getStrategyFileName(type)} extends Strategy {
   async function startTrading() {
     if (!activeBotInstance || isRunning) return;
     
+    // Store bot ID to verify we're still working with the same bot
+    const startingBotId = activeBotInstance.id;
+    
     // Get the active bot's service
     const botService = activeBotInstance.service;
     
@@ -1082,6 +1105,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
     // Start trading on the active bot
     botService.start(currentStrategy, 'BTC-USD', balance);
     
+    // Verify we're still working with the same bot
+    if (activeBotInstance.id !== startingBotId) {
+      console.warn('Bot changed during startup, aborting');
+      return;
+    }
+    
     // Update bot state in manager
     paperTradingManager.updateBotState(activeBotInstance.id, {
       isRunning: true,
@@ -1118,6 +1147,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   function pauseTrading() {
     if (!activeBotInstance || !isRunning) return;
+    
+    // Ensure we're working with the correct bot
+    if (activeBotState?.botId && activeBotState.botId !== activeBotInstance.id) {
+      console.warn('Bot mismatch detected, refreshing state');
+      return;
+    }
+    
     const botService = activeBotInstance.service;
     botService.setPaused(true);
     
@@ -1128,6 +1164,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   function resumeTrading() {
     if (!activeBotInstance || !isRunning) return;
+    
+    // Ensure we're working with the correct bot
+    if (activeBotState?.botId && activeBotState.botId !== activeBotInstance.id) {
+      console.warn('Bot mismatch detected, refreshing state');
+      return;
+    }
+    
     const botService = activeBotInstance.service;
     botService.setPaused(false);
     
@@ -1138,6 +1181,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   function stopTrading() {
     if (!activeBotInstance || !isRunning) return;
+    
+    // Ensure we're working with the correct bot
+    if (activeBotState?.botId && activeBotState.botId !== activeBotInstance.id) {
+      console.warn('Bot mismatch detected, refreshing state');
+      return;
+    }
+    
     const botService = activeBotInstance.service;
     
     // Stop the service
@@ -1165,12 +1215,14 @@ export class ${getStrategyFileName(type)} extends Strategy {
   function updateStatus() {
     if (!activeBotInstance) return;
     
-    const botState = get(activeBotInstance.service.getState());
-    balance = botState.balance?.usd || 0;
-    btcBalance = botState.balance?.btcPositions || 0;
-    vaultBalance = botState.balance?.vault || 0;
-    positions = botState.strategy?.getPositions ? botState.strategy.getPositions() : [];
-    trades = botState.trades;
+    // Use the reactive bot state instead of getting it again
+    if (!activeBotState) return;
+    
+    balance = activeBotState.balance?.usd || 0;
+    btcBalance = activeBotState.balance?.btcPositions || 0;
+    vaultBalance = activeBotState.balance?.vault || 0;
+    positions = activeBotState.strategy?.getPositions ? activeBotState.strategy.getPositions() : [];
+    trades = activeBotState.trades || [];
     
     // Calculate metrics
     if (trades.length > 0) {
@@ -1925,11 +1977,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
             period={selectedPeriod} 
             onGranularityChange={handleChartGranularityChange}
             onDataFeedReady={handleDataFeedReady}
-            trades={trades.map(t => ({
+            trades={activeBotState?.trades ? activeBotState.trades.map(t => ({
               timestamp: t.timestamp,
               type: t.type || t.side,  // Handle both 'type' and 'side' properties
               price: t.price
-            }))}
+            })) : []}
             onChartReady={(chart, candleSeries) => {
               chartInstance = chart;
               candleSeriesInstance = candleSeries;
