@@ -59,14 +59,17 @@ class ReverseRatioStrategy {
       const requiredDrop = this.config.initialDropPercent + 
                           (currentLevel - 1) * this.config.levelDropPercent;
       
-      console.log('Buy check:', {
-        dropFromHigh: dropFromHigh.toFixed(4),
-        requiredDrop: requiredDrop.toFixed(4),
-        currentLevel,
-        recentHigh: this.recentHigh,
-        currentPrice,
-        config: this.config
-      });
+      // Only log when close to trigger
+      if (Math.abs(dropFromHigh - requiredDrop) < 0.1) {
+        console.log('Buy check (close to trigger):', {
+          dropFromHigh: dropFromHigh.toFixed(4),
+          requiredDrop: requiredDrop.toFixed(4),
+          currentLevel,
+          recentHigh: this.recentHigh,
+          currentPrice,
+          nextBuyPrice: this.recentHigh * (1 - requiredDrop / 100)
+        });
+      }
       
       if (dropFromHigh >= requiredDrop) {
         return { 
@@ -443,49 +446,43 @@ export class TradingService extends EventEmitter {
 
   executeTradingLogic() {
     if (!this.strategy || !this.currentPrice) {
-      console.log('Trading logic check:', {
-        hasStrategy: !!this.strategy,
-        currentPrice: this.currentPrice,
-        candleCount: this.candles.length
-      });
+      // Only log on first occurrence
+      if (!this._loggedMissingStrategy) {
+        console.log('Trading logic check:', {
+          hasStrategy: !!this.strategy,
+          currentPrice: this.currentPrice,
+          candleCount: this.candles.length
+        });
+        this._loggedMissingStrategy = true;
+      }
       return;
     }
+    this._loggedMissingStrategy = false;
 
-    // Log detailed state before analysis
-    console.log('=== TRADING EXECUTION ===');
-    console.log('Current price:', this.currentPrice);
-    console.log('Strategy recentHigh:', this.strategy.recentHigh);
-    console.log('Strategy config:', this.strategy.config);
-    console.log('Candles count:', this.candles.length);
-    console.log('Positions count:', this.positions.length);
-    
     // Get candles for strategy analysis
     const candlesForAnalysis = [...this.candles];
     if (this.currentCandle) {
       candlesForAnalysis.push(this.currentCandle);
     }
-    
-    if (candlesForAnalysis.length > 0) {
-      const lastCandle = candlesForAnalysis[candlesForAnalysis.length - 1];
-      console.log('Last candle:', {
-        time: new Date(lastCandle.time * 1000).toISOString(),
-        open: lastCandle.open,
-        high: lastCandle.high,
-        low: lastCandle.low,
-        close: lastCandle.close
-      });
-    }
 
     // Get signal from strategy
     const signal = this.strategy.analyze(candlesForAnalysis, this.currentPrice);
-    console.log('Strategy signal:', {
-      type: signal.type,
-      reason: signal.reason,
-      currentPrice: this.currentPrice,
-      recentHigh: this.strategy.recentHigh,
-      positionCount: this.positions.length,
-      candleCount: candlesForAnalysis.length
-    });
+    
+    // Only log if we have a buy/sell signal or every 100 executions
+    if (!this._executionCounter) this._executionCounter = 0;
+    this._executionCounter++;
+    
+    if (signal.type !== 'hold' || this._executionCounter % 100 === 0) {
+      console.log('Strategy signal:', {
+        type: signal.type,
+        reason: signal.reason,
+        currentPrice: this.currentPrice,
+        recentHigh: this.strategy.recentHigh,
+        positionCount: this.positions.length,
+        nextBuyPrice: this.getStatus().nextBuyPrice,
+        nextBuyLevel: this.getStatus().nextBuyLevel
+      });
+    }
     
     if (signal.type === 'buy') {
       this.processBuySignal(signal).catch(error => {
@@ -659,6 +656,17 @@ export class TradingService extends EventEmitter {
     const profitLoss = totalValue - 10000;
     const profitLossPercent = (profitLoss / 10000) * 100;
 
+    // Calculate next buy price
+    let nextBuyPrice = null;
+    let nextBuyLevel = null;
+    if (this.strategy && this.strategy.recentHigh > 0) {
+      const currentLevel = this.positions.length + 1;
+      const requiredDrop = this.strategy.config.initialDropPercent + 
+                          (currentLevel - 1) * this.strategy.config.levelDropPercent;
+      nextBuyPrice = this.strategy.recentHigh * (1 - requiredDrop / 100);
+      nextBuyLevel = currentLevel;
+    }
+
     return {
       isRunning: this.isRunning,
       isPaused: this.isPaused,
@@ -674,7 +682,9 @@ export class TradingService extends EventEmitter {
       lastUpdateTime: this.lastUpdateTime,
       chartData: this.chartData,
       tradesCount: this.trades.length,
-      openPositions: this.positions.length
+      openPositions: this.positions.length,
+      nextBuyPrice,
+      nextBuyLevel
     };
   }
 

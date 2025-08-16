@@ -15,6 +15,7 @@
   export let customPresets: Array<any>;
   export let selectedPresetIndex: number;
   export let showSaveSuccess: boolean = false;
+  export let showSyncSuccess: boolean = false;
   
   const dispatch = createEventDispatcher();
   
@@ -173,8 +174,10 @@
       {/if}
     </h2>
     <div class="header-buttons">
-      <button class="sync-btn" class:warning={paperTradingActive} on:click={syncToPaperTrading} disabled={isSynced}>
-        {#if paperTradingActive && !isSynced}
+      <button class="sync-btn" class:warning={paperTradingActive} class:success={showSyncSuccess} on:click={syncToPaperTrading} disabled={isSynced && !showSyncSuccess}>
+        {#if showSyncSuccess}
+          ✅ Synced!
+        {:else if paperTradingActive && !isSynced}
           ⚠️ Sync to Paper Trading (Active)
         {:else if isSynced}
           Already Synced
@@ -491,6 +494,12 @@
     background: rgba(255, 167, 38, 0.2);
     border-color: rgba(255, 167, 38, 0.4);
     color: #ffa726;
+  }
+  
+  .sync-btn.success {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: rgba(34, 197, 94, 0.5);
+    color: #22c55e;
   }
   
   .tabs {

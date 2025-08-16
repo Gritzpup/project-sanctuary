@@ -61,6 +61,7 @@
   
   // Visual feedback state
   let showSaveSuccess = false;
+  let showSyncSuccess = false;
   
   // Strategy management state
   let backupName = '';
@@ -284,7 +285,12 @@
     isSynced = true;
     
     console.log('Strategy synced to Paper Trading:', selectedStrategyType);
-    alert('Strategy synchronized with Paper Trading! ✅');
+    
+    // Show visual feedback instead of alert
+    showSyncSuccess = true;
+    setTimeout(() => {
+      showSyncSuccess = false;
+    }, 2000);
   }
   
   function loadSavedPresetForTimeframe() {
@@ -428,6 +434,14 @@
     
     localStorage.setItem(configKey, JSON.stringify(config));
     
+    // Also save the current parameters as the active configuration
+    localStorage.setItem(`active_strategy_params_${selectedStrategyType}`, JSON.stringify(strategyParams[selectedStrategyType]));
+    localStorage.setItem('active_strategy_type', selectedStrategyType);
+    localStorage.setItem('active_start_balance', startBalance.toString());
+    localStorage.setItem('active_maker_fee', makerFeePercent.toString());
+    localStorage.setItem('active_taker_fee', takerFeePercent.toString());
+    localStorage.setItem('active_fee_rebate', feeRebatePercent.toString());
+    
     backupName = '';
     backupDescription = '';
     
@@ -440,6 +454,31 @@
     }, 2000);
   }
   
+  function loadActiveConfiguration() {
+    // Load saved active configuration if it exists
+    const savedParams = localStorage.getItem(`active_strategy_params_${selectedStrategyType}`);
+    if (savedParams) {
+      try {
+        strategyParams[selectedStrategyType] = JSON.parse(savedParams);
+        console.log('Loaded saved parameters for', selectedStrategyType);
+      } catch (e) {
+        console.error('Failed to load saved parameters:', e);
+      }
+    }
+    
+    const savedBalance = localStorage.getItem('active_start_balance');
+    if (savedBalance) startBalance = parseFloat(savedBalance);
+    
+    const savedMakerFee = localStorage.getItem('active_maker_fee');
+    if (savedMakerFee) makerFeePercent = parseFloat(savedMakerFee);
+    
+    const savedTakerFee = localStorage.getItem('active_taker_fee');
+    if (savedTakerFee) takerFeePercent = parseFloat(savedTakerFee);
+    
+    const savedFeeRebate = localStorage.getItem('active_fee_rebate');
+    if (savedFeeRebate) feeRebatePercent = parseFloat(savedFeeRebate);
+  }
+
   function loadSavedBackups() {
     savedBackups = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -906,9 +945,10 @@
       console.log('Strategy created successfully:', currentStrategy.getName());
       loadStrategySourceCode();
       
-      if (selectedStrategyType === 'reverse-ratio') {
-        loadSavedPresetForTimeframe();
-      }
+      // Don't auto-load presets as it overwrites user's custom values
+      // if (selectedStrategyType === 'reverse-ratio') {
+      //   loadSavedPresetForTimeframe();
+      // }
     } catch (error) {
       console.error('Failed to update strategy:', error);
       currentStrategy = null;
@@ -1081,7 +1121,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
     console.log('Backtesting component mounted');
     console.log('Initial state:', { selectedStrategyType, startBalance, selectedPeriod, selectedGranularity });
     
-    loadSavedPresetForTimeframe();
+    // Load saved active configuration first
+    loadActiveConfiguration();
+    
+    // Don't auto-load preset on mount as it overwrites saved values
+    // loadSavedPresetForTimeframe();
     updateCurrentStrategy();
     
     await loadChartData(true);
@@ -1171,37 +1215,6 @@ export class ${getStrategyFileName(type)} extends Strategy {
   <main class="dashboard-content" class:expanded={sidebarCollapsed}>
     <div class="header">
       <h1>Backtesting</h1>
-      <div class="header-controls">
-        <button 
-          class="run-button"
-          class:running={isRunning}
-          on:click={runBacktest}
-          disabled={isRunning}
-        >
-          {#if isRunning}
-            <span class="spinner"></span>
-            Running...
-          {:else}
-            ▶️ Run Backtest
-          {/if}
-        </button>
-        
-        <button 
-          class="sync-button"
-          class:synced={$syncStatus.status === 'synced'}
-          class:out-of-sync={$syncStatus.status === 'out-of-sync'}
-          on:click={syncToPaperTrading}
-          title="{$syncStatus.message}"
-        >
-          {#if $syncStatus.status === 'synced'}
-            ✅ Synced
-          {:else if $syncStatus.status === 'out-of-sync'}
-            ⚠️ Sync to Paper Trading
-          {:else}
-            📤 Sync to Paper Trading
-          {/if}
-        </button>
-      </div>
       <div class="header-stats">
         <div class="stat-item">
           <span class="stat-label">BTC/USD</span>
@@ -1247,6 +1260,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
             {selectedPresetIndex}
             {strategySourceCode}
             {showSaveSuccess}
+            {showSyncSuccess}
             on:syncToPaperTrading={syncToPaperTrading}
             on:runBacktest={runBacktest}
             on:updateStrategy={updateCurrentStrategy}
@@ -1360,68 +1374,6 @@ export class ${getStrategyFileName(type)} extends Strategy {
     margin: 0;
     font-size: 24px;
     color: #a78bfa;
-  }
-  
-  .header-controls {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-  }
-  
-  .run-button, .sync-button {
-    padding: 8px 16px;
-    font-size: 14px;
-    font-weight: 500;
-    border: 1px solid rgba(74, 0, 224, 0.5);
-    background: rgba(74, 0, 224, 0.1);
-    color: #a78bfa;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  
-  .run-button:hover:not(:disabled), .sync-button:hover {
-    background: rgba(74, 0, 224, 0.2);
-    border-color: rgba(74, 0, 224, 0.7);
-    transform: translateY(-1px);
-  }
-  
-  .run-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  
-  .run-button.running {
-    background: rgba(74, 0, 224, 0.3);
-  }
-  
-  .sync-button.synced {
-    border-color: rgba(34, 197, 94, 0.5);
-    background: rgba(34, 197, 94, 0.1);
-    color: #22c55e;
-  }
-  
-  .sync-button.out-of-sync {
-    border-color: rgba(245, 158, 11, 0.5);
-    background: rgba(245, 158, 11, 0.1);
-    color: #f59e0b;
-  }
-  
-  .spinner {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border: 2px solid rgba(167, 139, 250, 0.3);
-    border-top-color: #a78bfa;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-  }
-  
-  @keyframes spin {
-    to { transform: rotate(360deg); }
   }
   
   .header-stats {
