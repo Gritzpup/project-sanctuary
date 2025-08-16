@@ -450,10 +450,29 @@ export class TradingService extends EventEmitter {
       return;
     }
 
+    // Log detailed state before analysis
+    console.log('=== TRADING EXECUTION ===');
+    console.log('Current price:', this.currentPrice);
+    console.log('Strategy recentHigh:', this.strategy.recentHigh);
+    console.log('Strategy config:', this.strategy.config);
+    console.log('Candles count:', this.candles.length);
+    console.log('Positions count:', this.positions.length);
+    
     // Get candles for strategy analysis
     const candlesForAnalysis = [...this.candles];
     if (this.currentCandle) {
       candlesForAnalysis.push(this.currentCandle);
+    }
+    
+    if (candlesForAnalysis.length > 0) {
+      const lastCandle = candlesForAnalysis[candlesForAnalysis.length - 1];
+      console.log('Last candle:', {
+        time: new Date(lastCandle.time * 1000).toISOString(),
+        open: lastCandle.open,
+        high: lastCandle.high,
+        low: lastCandle.low,
+        close: lastCandle.close
+      });
     }
 
     // Get signal from strategy
