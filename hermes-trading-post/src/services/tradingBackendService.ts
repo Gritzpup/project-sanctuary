@@ -33,6 +33,10 @@ export interface BackendTradingState {
   };
   tradesCount: number;
   openPositions: number;
+  // Bot manager state
+  activeBotId: string | null;
+  botName: string | null;
+  managerState: any;
 }
 
 class TradingBackendService {
@@ -73,7 +77,10 @@ class TradingBackendService {
         lastTradeTime: 0
       },
       tradesCount: 0,
-      openPositions: 0
+      openPositions: 0,
+      activeBotId: null,
+      botName: null,
+      managerState: null
     });
 
     this.connect();
@@ -89,7 +96,8 @@ class TradingBackendService {
         this.reconnectAttempts = 0;
         this.state.update(s => ({ ...s, isConnected: true }));
         
-        // Request current status immediately after connecting
+        // Request manager state and current status immediately after connecting
+        this.send({ type: 'getManagerState' });
         this.send({ type: 'getStatus' });
       };
 
@@ -137,6 +145,9 @@ class TradingBackendService {
     switch (message.type) {
       case 'connected':
         console.log('Backend connection established:', message.message);
+        if (message.managerState) {
+          this.state.update(s => ({ ...s, managerState: message.managerState }));
+        }
         if (message.status) {
           this.updateStateFromBackend(message.status);
         }
@@ -178,6 +189,26 @@ class TradingBackendService {
         console.error('Backend error:', message.message);
         break;
         
+      // Bot manager messages
+      case 'botManagerState':
+      case 'managerState':
+        this.state.update(s => ({ 
+          ...s, 
+          managerState: message.data,
+          activeBotId: message.data?.activeBotId || s.activeBotId
+        }));
+        break;
+        
+      case 'botCreated':
+      case 'botSelected':
+      case 'botDeleted':
+        // Request updated manager state
+        this.send({ type: 'getManagerState' });
+        if (message.data?.status) {
+          this.updateStateFromBackend(message.data.status);
+        }
+        break;
+        
       default:
         console.log('Unknown message type:', message.type);
     }
@@ -200,7 +231,9 @@ class TradingBackendService {
       lastUpdateTime: status.lastUpdateTime || s.lastUpdateTime,
       chartData: status.chartData || s.chartData,
       tradesCount: status.tradesCount || status.trades?.length || 0,
-      openPositions: status.openPositions || status.positions?.length || 0
+      openPositions: status.openPositions || status.positions?.length || 0,
+      activeBotId: status.activeBotId || s.activeBotId,
+      botName: status.botName || s.botName
     }));
   }
 
@@ -288,6 +321,37 @@ class TradingBackendService {
       console.error('Failed to fetch status:', error);
       return null;
     }
+  }
+
+  // Bot manager methods
+  createBot(strategyType: string, botName: string, config: any = {}) {
+    console.log('Creating bot:', { strategyType, botName, config });
+    this.send({
+      type: 'createBot',
+      strategyType,
+      botName,
+      config
+    });
+  }
+
+  selectBot(botId: string) {
+    console.log('Selecting bot:', botId);
+    this.send({
+      type: 'selectBot',
+      botId
+    });
+  }
+
+  deleteBot(botId: string) {
+    console.log('Deleting bot:', botId);
+    this.send({
+      type: 'deleteBot',
+      botId
+    });
+  }
+
+  getManagerState() {
+    this.send({ type: 'getManagerState' });
   }
 
   disconnect() {

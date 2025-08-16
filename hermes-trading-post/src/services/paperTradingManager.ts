@@ -119,6 +119,9 @@ class PaperTradingManager {
       ...s,
       activeTabId: botId
     }));
+
+    // Notify backend
+    tradingBackendService.selectBot(botId);
   }
 
   getActiveBot(): BotInstance | null {

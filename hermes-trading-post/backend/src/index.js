@@ -4,6 +4,7 @@ import { WebSocketServer } from 'ws';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { TradingService } from './services/tradingService.js';
+import { BotManager } from './services/botManager.js';
 import tradingRoutes from './routes/trading.js';
 
 dotenv.config();
@@ -17,12 +18,20 @@ app.use(express.json());
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
-const tradingService = new TradingService();
+const botManager = new BotManager();
+
+// Initialize default bots on startup
+botManager.initializeDefaultBots();
 
 wss.on('connection', (ws) => {
   console.log('New WebSocket connection established');
 
-  tradingService.addClient(ws);
+  botManager.addClient(ws);
+
+  // Also add client to all bot instances for price updates
+  botManager.bots.forEach(bot => {
+    bot.addClient(ws);
+  });
 
   ws.on('message', (message) => {
     try {
@@ -30,26 +39,51 @@ wss.on('connection', (ws) => {
       console.log('Received message:', data);
       
       switch (data.type) {
+        // Bot management commands
+        case 'createBot':
+          const botId = botManager.createBot(data.strategyType, data.botName, data.config);
+          ws.send(JSON.stringify({
+            type: 'botCreated',
+            data: { botId }
+          }));
+          break;
+          
+        case 'selectBot':
+          botManager.selectBot(data.botId);
+          break;
+          
+        case 'deleteBot':
+          botManager.deleteBot(data.botId);
+          break;
+          
+        case 'getManagerState':
+          ws.send(JSON.stringify({
+            type: 'managerState',
+            data: botManager.getManagerState()
+          }));
+          break;
+          
+        // Trading commands (forwarded to active bot)
         case 'start':
-          tradingService.startTrading(data.config);
+          botManager.startTrading(data.config);
           break;
         case 'stop':
-          tradingService.stopTrading();
+          botManager.stopTrading();
           break;
         case 'pause':
-          tradingService.pauseTrading();
+          botManager.pauseTrading();
           break;
         case 'resume':
-          tradingService.resumeTrading();
+          botManager.resumeTrading();
           break;
         case 'getStatus':
           ws.send(JSON.stringify({
             type: 'status',
-            data: tradingService.getStatus()
+            data: botManager.getStatus()
           }));
           break;
         case 'updateStrategy':
-          tradingService.updateStrategy(data.strategy);
+          botManager.updateStrategy(data.strategy);
           break;
         default:
           console.log('Unknown message type:', data.type);
@@ -65,7 +99,12 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     console.log('WebSocket connection closed');
-    tradingService.removeClient(ws);
+    botManager.removeClient(ws);
+    
+    // Remove from all bot instances
+    botManager.bots.forEach(bot => {
+      bot.removeClient(ws);
+    });
   });
 
   ws.on('error', (error) => {
@@ -74,18 +113,23 @@ wss.on('connection', (ws) => {
 
   ws.send(JSON.stringify({
     type: 'connected',
-    message: 'Connected to trading backend',
-    status: tradingService.getStatus()
+    message: 'Connected to trading backend with bot manager',
+    managerState: botManager.getManagerState(),
+    status: botManager.getStatus()
   }));
 });
 
-app.use('/api/trading', tradingRoutes(tradingService));
+app.use('/api/trading', tradingRoutes(botManager));
 
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy',
     uptime: process.uptime(),
-    trading: tradingService.getStatus()
+    botManager: {
+      totalBots: botManager.bots.size,
+      activeBotId: botManager.activeBotId,
+      status: botManager.getStatus()
+    }
   });
 });
 
@@ -107,8 +151,8 @@ const gracefulShutdown = (signal) => {
   isShuttingDown = true;
   console.log(`\n${signal} received, shutting down gracefully`);
   
-  // Stop trading service
-  tradingService.cleanup();
+  // Stop bot manager
+  botManager.cleanup();
   
   // Close all WebSocket connections
   wss.clients.forEach(client => {

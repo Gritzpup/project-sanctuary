@@ -1,74 +1,158 @@
 import express from 'express';
 
-export default function tradingRoutes(tradingService) {
+export default function tradingRoutes(botManager) {
   const router = express.Router();
 
   router.get('/status', (req, res) => {
-    res.json(tradingService.getStatus());
+    res.json(botManager.getStatus());
   });
 
   router.post('/start', (req, res) => {
     const { strategy, reset } = req.body;
-    tradingService.startTrading({ strategy, reset });
-    res.json({ 
-      message: 'Trading started',
-      status: tradingService.getStatus() 
-    });
+    try {
+      botManager.startTrading({ strategy, reset });
+      res.json({ 
+        message: 'Trading started',
+        status: botManager.getStatus() 
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
   });
 
   router.post('/stop', (req, res) => {
-    tradingService.stopTrading();
-    res.json({ 
-      message: 'Trading stopped',
-      status: tradingService.getStatus() 
-    });
+    try {
+      botManager.stopTrading();
+      res.json({ 
+        message: 'Trading stopped',
+        status: botManager.getStatus() 
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
   });
 
   router.post('/pause', (req, res) => {
-    tradingService.pauseTrading();
-    res.json({ 
-      message: 'Trading paused',
-      status: tradingService.getStatus() 
-    });
+    try {
+      botManager.pauseTrading();
+      res.json({ 
+        message: 'Trading paused',
+        status: botManager.getStatus() 
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
   });
 
   router.post('/resume', (req, res) => {
-    tradingService.resumeTrading();
-    res.json({ 
-      message: 'Trading resumed',
-      status: tradingService.getStatus() 
-    });
+    try {
+      botManager.resumeTrading();
+      res.json({ 
+        message: 'Trading resumed',
+        status: botManager.getStatus() 
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
   });
 
   router.put('/strategy', (req, res) => {
     const { strategy } = req.body;
-    tradingService.updateStrategy(strategy);
-    res.json({ 
-      message: 'Strategy updated',
-      status: tradingService.getStatus() 
-    });
+    try {
+      botManager.updateStrategy(strategy);
+      res.json({ 
+        message: 'Strategy updated',
+        status: botManager.getStatus() 
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
   });
 
   router.get('/trades', (req, res) => {
-    res.json({
-      trades: tradingService.trades,
-      count: tradingService.trades.length
-    });
+    const activeBot = botManager.getActiveBot();
+    if (!activeBot) {
+      res.json({ trades: [], count: 0 });
+    } else {
+      res.json({
+        trades: activeBot.trades || [],
+        count: activeBot.trades?.length || 0
+      });
+    }
   });
 
   router.get('/positions', (req, res) => {
-    res.json({
-      positions: tradingService.positions,
-      count: tradingService.positions.length
-    });
+    const activeBot = botManager.getActiveBot();
+    if (!activeBot) {
+      res.json({ positions: [], count: 0 });
+    } else {
+      res.json({
+        positions: activeBot.positions || [],
+        count: activeBot.positions?.length || 0
+      });
+    }
   });
 
   router.post('/reset', (req, res) => {
-    tradingService.resetState();
-    res.json({ 
-      message: 'Trading state reset',
-      status: tradingService.getStatus() 
-    });
+    try {
+      const activeBot = botManager.getActiveBot();
+      if (activeBot) {
+        activeBot.resetState();
+      }
+      res.json({ 
+        message: 'Trading state reset',
+        status: botManager.getStatus() 
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Bot management routes
+  router.get('/bots', (req, res) => {
+    res.json(botManager.getManagerState());
+  });
+
+  router.post('/bots', (req, res) => {
+    const { strategyType, botName, config } = req.body;
+    try {
+      const botId = botManager.createBot(strategyType, botName, config);
+      res.json({ 
+        message: 'Bot created',
+        botId,
+        state: botManager.getManagerState()
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  router.put('/bots/:botId/select', (req, res) => {
+    const { botId } = req.params;
+    try {
+      botManager.selectBot(botId);
+      res.json({ 
+        message: 'Bot selected',
+        botId,
+        status: botManager.getStatus()
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  router.delete('/bots/:botId', (req, res) => {
+    const { botId } = req.params;
+    try {
+      botManager.deleteBot(botId);
+      res.json({ 
+        message: 'Bot deleted',
+        botId,
+        state: botManager.getManagerState()
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
   });
 
   return router;
