@@ -1580,7 +1580,17 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     switch (selectedStrategyType) {
       case 'reverse-ratio': {
-        const levels = [5, 10, 15, 20, 25]; // Drop percentages for each level
+        // Get strategy parameters or use defaults
+        const initialDrop = strategyParameters?.initialDropPercent || 0.1;
+        const levelDrop = strategyParameters?.levelDropPercent || 0.1;
+        const maxLevels = strategyParameters?.maxLevels || 12;
+        
+        // Generate levels based on strategy config
+        const levels = [];
+        for (let i = 0; i < maxLevels; i++) {
+          levels.push(initialDrop + (i * levelDrop));
+        }
+        
         // Always show next buy level, even if max positions reached
         
         // Find the next level that hasn't been reached yet
@@ -1622,7 +1632,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
         
         // If no next level found, show the first available level as a reference
         if (!nextLevel) {
-          nextLevel = levels[0]; // Default to first level (5%)
+          nextLevel = levels[0]; // Default to first level
           // If we're above all levels, show where the first buy would be
           for (let level of levels) {
             const targetPrice = (recentHigh || effectivePrice) * (1 - level / 100);
@@ -1633,15 +1643,25 @@ export class ${getStrategyFileName(type)} extends Strategy {
           }
         }
         
+        console.log('Next buy calculation:', {
+          recentHigh,
+          currentPrice: effectivePrice,
+          nextLevel: `${nextLevel}%`,
+          nextBuyPrice: (recentHigh || effectivePrice) * (1 - nextLevel / 100),
+          currentDrop: dropFromHigh,
+          positionCount: currentPositionCount,
+          strategyParams: { initialDrop, levelDrop, maxLevels }
+        });
+        
         return {
           type: 'price',
           label: 'Drop Target',
-          value: `${nextLevel}%`,
+          value: `${nextLevel.toFixed(2)}%`,
           price: (recentHigh || effectivePrice) * (1 - nextLevel / 100),
           progress: (dropFromHigh / nextLevel) * 100,
           dropPercent: nextLevel,
           currentDrop: dropFromHigh,
-          description: `${nextLevel}% drop from high`
+          description: `${nextLevel.toFixed(2)}% drop from high`
         };
       }
       

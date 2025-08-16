@@ -1062,9 +1062,9 @@
         if (period === '1H') {
           // For 1H view, only load what we need (last 60 minutes + buffer)
           console.log(`Reloading last 60 minutes of 1m data for 1H view...`);
-          const bufferTime = 300; // 5 minute buffer
-          const sixtyMinutesAgo = alignedNow - 3600 - bufferTime;
-          dataToLoad = await dataFeed.getDataForVisibleRange(sixtyMinutesAgo, alignedNow, instanceId);
+          const bufferTime = 600; // 10 minute buffer (increased from 5)
+          const dataRangeStart = alignedNow - 3600 - bufferTime; // 70 minutes total
+          dataToLoad = await dataFeed.getDataForVisibleRange(dataRangeStart, alignedNow, instanceId);
         } else {
           // For other periods with 1m, load appropriate range
           console.log(`Reloading 1m data for ${period}...`);
@@ -1082,11 +1082,22 @@
         // Paper test mode: use all data for the selected day
         filteredData = data;
       } else if (effectiveGranularity === '1m' && period === '1H') {
-        // Live mode with 1H/1m: filter to last 60 candles only
+        // Live mode with 1H/1m: ensure exactly 60 candles
         const sixtyMinutesAgo = alignedNow - 3600;
-        filteredData = data.filter(candle => 
-          candle.time >= sixtyMinutesAgo && candle.time <= alignedNow
-        );
+        filteredData = data
+          .filter(candle => candle.time >= sixtyMinutesAgo && candle.time <= alignedNow)
+          .sort((a, b) => a.time - b.time); // Ensure proper ordering
+        
+        // If we have fewer than 60 candles, log a warning
+        if (filteredData.length < 60) {
+          console.warn(`Chart: Only ${filteredData.length} candles available for 1H/1m view on reload, expected 60`);
+          console.log('Available data range:', {
+            firstCandle: filteredData[0] ? new Date(filteredData[0].time * 1000).toISOString() : 'none',
+            lastCandle: filteredData[filteredData.length - 1] ? new Date(filteredData[filteredData.length - 1].time * 1000).toISOString() : 'none',
+            expectedStart: new Date(sixtyMinutesAgo * 1000).toISOString(),
+            expectedEnd: new Date(alignedNow * 1000).toISOString()
+          });
+        }
       } else {
         // All other cases: filter based on period
         filteredData = data.filter(candle => 
@@ -1111,6 +1122,11 @@
       }
       
       console.log(`Reloading: ${filteredData.length} candles (expected ${expectedCandles}) for ${period} with ${effectiveGranularity}`);
+      
+      // Log warning if we don't have the expected number of candles for 1H/1m
+      if (period === '1H' && effectiveGranularity === '1m' && filteredData.length !== 60) {
+        console.warn(`Chart: Expected exactly 60 candles for 1H/1m but got ${filteredData.length} after reload`);
+      }
       
       // Verify candle count and update status
       if (filteredData.length === 0) {

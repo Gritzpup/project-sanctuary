@@ -45,15 +45,6 @@
       on:click={() => selectTab(bot.id)}
     >
       <span class="bot-name">{bot.name}</span>
-      {#if bot.status !== 'empty' && bot.profitLoss !== undefined}
-        <span 
-          class="profit-indicator" 
-          class:positive={bot.profitLoss >= 0}
-          class:negative={bot.profitLoss < 0}
-        >
-          {bot.profitLoss >= 0 ? '+' : ''}{bot.profitLoss.toFixed(0)}%
-        </span>
-      {/if}
       <span 
         class="status-dot" 
         style="background-color: {getStatusColor(bot.status)}"
@@ -122,19 +113,5 @@
     border-radius: 50%;
     flex-shrink: 0;
     margin-left: auto;
-  }
-  
-  .profit-indicator {
-    font-weight: 600;
-    font-size: 10px;
-    margin-left: auto;
-  }
-  
-  .profit-indicator.positive {
-    color: #22c55e;
-  }
-  
-  .profit-indicator.negative {
-    color: #ef4444;
   }
 </style>

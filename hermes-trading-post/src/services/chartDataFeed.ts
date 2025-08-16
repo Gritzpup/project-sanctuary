@@ -1227,6 +1227,13 @@ export class ChartDataFeed {
       oldGranularity: this.currentGranularity,
       caller: new Error().stack?.split('\n').slice(2,4).join(' -> ')
     });
+    
+    // Clear current data when switching granularities to ensure fresh load
+    if (this.currentGranularity !== granularity) {
+      console.log(`ChartDataFeed: Clearing current data when switching from ${this.currentGranularity} to ${granularity}`);
+      this.currentData = [];
+    }
+    
     this.isManualMode = true;
     this.activeGranularity = granularity;
     this.currentGranularity = granularity;
