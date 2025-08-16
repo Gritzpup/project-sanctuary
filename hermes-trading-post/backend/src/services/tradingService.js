@@ -711,10 +711,19 @@ export class TradingService extends EventEmitter {
       const dataDir = path.join(__dirname, '../../data');
       await fs.mkdir(dataDir, { recursive: true });
       
-      const stateFile = path.join(dataDir, 'trading-state.json');
+      // Use botId for unique state files
+      const filename = this.botId ? `trading-state-${this.botId}.json` : 'trading-state.json';
+      const stateFile = path.join(dataDir, filename);
       
       try {
         const data = await fs.readFile(stateFile, 'utf8');
+        
+        // Check if file has content
+        if (!data || data.trim() === '') {
+          console.log('State file is empty, using defaults');
+          return;
+        }
+        
         const state = JSON.parse(data);
         
         // Restore state
@@ -760,14 +769,8 @@ export class TradingService extends EventEmitter {
         const wasRunning = state.isRunning || false;
         const wasPaused = state.isPaused || false;
         
-        console.log('Trading state loaded successfully:', {
-          trades: this.trades.length,
-          positions: this.positions.length,
-          balance: this.balance,
-          hasStrategy: !!this.strategy,
-          wasRunning,
-          wasPaused
-        });
+        // Only log successful loads for debugging
+        // console.log('Trading state loaded successfully');
         
         // Auto-resume trading if it was running
         if (wasRunning && this.strategy && this.strategyConfig) {
@@ -782,9 +785,9 @@ export class TradingService extends EventEmitter {
         }
       } catch (error) {
         if (error.code === 'ENOENT') {
-          console.log('No saved state file found, starting fresh');
+          // Expected for new bots, don't log
         } else {
-          console.error('Error reading state file:', error);
+          console.error(`Error reading state file for bot ${this.botId}:`, error.message);
         }
       }
     } catch (error) {
@@ -798,7 +801,9 @@ export class TradingService extends EventEmitter {
       const dataDir = path.join(__dirname, '../../data');
       await fs.mkdir(dataDir, { recursive: true });
       
-      const stateFile = path.join(dataDir, 'trading-state.json');
+      // Use botId for unique state files
+      const filename = this.botId ? `trading-state-${this.botId}.json` : 'trading-state.json';
+      const stateFile = path.join(dataDir, filename);
       
       // Prepare state object
       const state = {

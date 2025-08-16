@@ -128,9 +128,6 @@
         if (state.strategy && (state.strategy as any).config) {
           strategyParameters = (state.strategy as any).config;
         }
-        
-        // Force update of derived values
-        updateChartData();
       });
     } else {
       // Clear state when no bot is active
