@@ -720,12 +720,30 @@ export class TradingService extends EventEmitter {
           this.priceHistory = this.priceHistory.slice(-500);
         }
         
+        // Check if we should auto-resume trading
+        const wasRunning = state.isRunning || false;
+        const wasPaused = state.isPaused || false;
+        
         console.log('Trading state loaded successfully:', {
           trades: this.trades.length,
           positions: this.positions.length,
           balance: this.balance,
-          hasStrategy: !!this.strategy
+          hasStrategy: !!this.strategy,
+          wasRunning,
+          wasPaused
         });
+        
+        // Auto-resume trading if it was running
+        if (wasRunning && this.strategy && this.strategyConfig) {
+          console.log('Auto-resuming trading with saved strategy...');
+          // Set a small delay to ensure everything is initialized
+          setTimeout(() => {
+            this.startTrading(this.strategyConfig);
+            if (wasPaused) {
+              this.pauseTrading();
+            }
+          }, 1000);
+        }
       } catch (error) {
         if (error.code === 'ENOENT') {
           console.log('No saved state file found, starting fresh');
@@ -758,6 +776,8 @@ export class TradingService extends EventEmitter {
         candles: this.candles,
         currentCandle: this.currentCandle,
         priceHistory: this.priceHistory.slice(-100), // Keep only recent 100 entries
+        isRunning: this.isRunning,
+        isPaused: this.isPaused,
         savedAt: Date.now()
       };
       
