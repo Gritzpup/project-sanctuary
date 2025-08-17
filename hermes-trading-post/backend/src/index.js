@@ -125,6 +125,10 @@ wss.on('connection', (ws) => {
           const botToReset = data.botId ? botManager.getBot(data.botId) : botManager.getActiveBot();
           if (botToReset) {
             botToReset.resetState();
+            // Save the cleared state to file
+            botToReset.saveState().catch(error => {
+              console.error('Failed to save reset state:', error);
+            });
             ws.send(JSON.stringify({
               type: 'resetComplete',
               botId: data.botId || botManager.activeBotId,
