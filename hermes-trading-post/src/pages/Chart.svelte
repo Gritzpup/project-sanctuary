@@ -23,6 +23,8 @@
   export let isPaperTestMode: boolean = false;  // True when in paper test mode (even after completion)
   export let paperTestSimTime: Date | null = null;
   export let paperTestDate: Date | null = null;  // The date being tested in paper test mode
+  export let enableZoom: boolean = true;  // Enable chart zoom/pan interactions
+  export let lockedTimeframe: boolean = false;  // Whether timeframe is locked (for display only)
   
   // Generate unique instance ID for this chart component
   const instanceId = `chart-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -267,15 +269,15 @@
           shiftVisibleRangeOnNewBar: false, // We'll handle shifting manually
         },
         handleScroll: {
-          mouseWheel: false,  // DISABLED - NO ZOOM
-          pressedMouseMove: false,  // DISABLED - NO DRAG
-          horzTouchDrag: false,  // DISABLED - NO TOUCH
-          vertTouchDrag: false,  // DISABLED
+          mouseWheel: enableZoom,  // Enable scroll wheel zoom
+          pressedMouseMove: enableZoom,  // Enable click-drag to pan
+          horzTouchDrag: enableZoom,  // Enable touch drag
+          vertTouchDrag: false,  // Keep vertical drag disabled
         },
         handleScale: {
-          mouseWheel: false,  // DISABLED - NO ZOOM
-          pinch: false,  // DISABLED - NO PINCH
-          axisPressedMouseMove: false,  // DISABLED - NO AXIS SCALE
+          mouseWheel: enableZoom,  // Enable scroll wheel zoom
+          pinch: enableZoom,  // Enable pinch zoom
+          axisPressedMouseMove: enableZoom,  // Enable axis scale
         },
         localization: {
           priceFormatter: (price: number) => {

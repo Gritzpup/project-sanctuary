@@ -39,6 +39,42 @@
     paperTradingManager.selectStrategy(select.value);
   }
   
+  function resetChartZoom() {
+    if (chartInstance && candleSeriesInstance) {
+      try {
+        // Get the current visible range
+        const visibleLogicalRange = chartInstance.timeScale().getVisibleLogicalRange();
+        
+        if (visibleLogicalRange !== null) {
+          // Get all data points
+          const data = candleSeriesInstance.data();
+          
+          if (data && data.length > 0) {
+            // Calculate the range to show exactly 60 candles from the most recent
+            const endIndex = data.length - 1;
+            const startIndex = Math.max(0, endIndex - 59); // 60 candles total
+            
+            // Set the visible range using logical indices
+            chartInstance.timeScale().setVisibleLogicalRange({
+              from: startIndex,
+              to: endIndex + 1 // Add 1 to include the last candle
+            });
+          } else {
+            // If no data, just fit content
+            chartInstance.timeScale().fitContent();
+          }
+        } else {
+          // Fallback to fit content
+          chartInstance.timeScale().fitContent();
+        }
+      } catch (error) {
+        console.error('Error resetting chart zoom:', error);
+        // Fallback to fit content
+        chartInstance.timeScale().fitContent();
+      }
+    }
+  }
+  
   // Helper function to clear all bot data
   function clearBotData() {
     isRunning = false;
@@ -138,14 +174,35 @@
       
       // Get bots for current strategy without price calculations
       const strategyBots = $managerState.bots[selectedStrategyType] || [];
-      botTabs = strategyBots.map(bot => ({
-        id: bot.id,
-        name: bot.name,
-        status: bot.state.isRunning ? (bot.state.isPaused ? 'paused' : 'running') : 
-                (bot.state.trades.length > 0 ? 'stopped' : 'empty'),
-        usdBalance: bot.state.balance.usd,
-        btcBalance: bot.state.balance.btcPositions
-      }));
+      botTabs = strategyBots.map(bot => {
+        // Check backend state for this bot
+        const backendBot = $backendState.managerState?.bots?.[bot.id];
+        let status = 'empty';
+        
+        if (backendBot && backendBot.status) {
+          // Use backend status if available
+          if (backendBot.status.isRunning) {
+            status = backendBot.status.isPaused ? 'paused' : 'running';
+          } else if (backendBot.status.trades && backendBot.status.trades.length > 0) {
+            status = 'stopped';
+          }
+        } else {
+          // Fall back to frontend state
+          if (bot.state.isRunning) {
+            status = bot.state.isPaused ? 'paused' : 'running';
+          } else if (bot.state.trades.length > 0) {
+            status = 'stopped';
+          }
+        }
+        
+        return {
+          id: bot.id,
+          name: bot.name,
+          status,
+          usdBalance: bot.state.balance.usd,
+          btcBalance: bot.state.balance.btcPositions
+        };
+      });
     }
   }
   
@@ -179,16 +236,8 @@
     backendSyncInterval = setInterval(() => {
       const backendBot = $backendState.managerState?.bots?.[activeBotInstance.id];
       if (backendBot && backendBot.status) {
-        console.log('Backend sync interval - bot status:', {
-          botId: activeBotInstance.id,
-          hasTrades: !!backendBot.status.trades,
-          tradeCount: backendBot.status.trades?.length || 0,
-          isRunning: backendBot.status.isRunning
-        });
-        
         // Only update if backend has data
         if (backendBot.status.trades && backendBot.status.trades.length > 0) {
-          console.log('Updating trades from backend sync:', backendBot.status.trades.length);
           trades = [...backendBot.status.trades];
         }
         if (backendBot.status.positions) {
@@ -197,10 +246,21 @@
         // Always update balances and running state from backend
         balance = backendBot.status.balance?.usd || balance;
         btcBalance = backendBot.status.balance?.btc || btcBalance;
+        
+        // Update vault balances if available
+        if (backendBot.status.vaultBalance !== undefined) {
+          vaultBalance = backendBot.status.vaultBalance;
+        }
+        if (backendBot.status.btcVaultBalance !== undefined) {
+          btcVaultBalance = backendBot.status.btcVaultBalance;
+        }
+        
+        // Update trading state
         isRunning = backendBot.status.isRunning || false;
         isPaused = backendBot.status.isPaused || false;
-      } else {
-        console.log('Backend sync - no bot data found for:', activeBotInstance.id);
+        
+        // Recalculate total return with vault values
+        totalReturn = vaultBalance + (btcVaultBalance * currentPrice);
       }
     }, 2000);
   } else if (backendSyncInterval) {
@@ -226,11 +286,6 @@
   function syncWithBackendState() {
     if (!activeBotInstance || !$backendState) return;
     
-    console.log('syncWithBackendState called:', {
-      activeBotId: activeBotInstance.id,
-      backendBots: Object.keys($backendState.managerState?.bots || {}),
-      isConnected: $backendState.isConnected
-    });
     
     const backendBot = $backendState.managerState?.bots?.[activeBotInstance.id];
     
@@ -259,20 +314,11 @@
       }
       
       // Only update trades if backend has them - NEVER clear existing trades
-      console.log('syncWithBackendState - backend bot trades:', {
-        hasTrades: !!backendBot.status?.trades,
-        tradeCount: backendBot.status?.trades?.length || 0,
-        existingTradeCount: trades.length
-      });
-      
       if (backendBot.status?.trades && backendBot.status.trades.length > 0) {
-        console.log('Updating trades from syncWithBackendState:', backendBot.status.trades.length);
         trades = [...backendBot.status.trades];
-      } else {
-        console.log('Backend has no trades, keeping existing trades:', trades.length);
       }
-      // Calculate total return without using currentPrice
-      totalReturn = (balance - 10000) + (vaultBalance);
+      // Total return should only count realized profits in vault
+      totalReturn = vaultBalance + (btcVaultBalance * currentPrice);
       winRate = backendBot.status?.winRate || 0;
       currentStrategy = backendBot.status?.strategy || null;
       
@@ -284,8 +330,6 @@
       }
     } else {
       // Bot not found in backend yet - might be loading
-      console.log(`Bot ${activeBotInstance.id} not found in backend state yet. Available bots:`, Object.keys($backendState.managerState?.bots || {}));
-      
       // DON'T create a frontend subscription that will overwrite backend data
       // Just keep the existing data and wait for backend sync
       
@@ -1315,10 +1359,18 @@ export class ${getStrategyFileName(type)} extends Strategy {
     if (!activeBotInstance || !isRunning) return;
     
     try {
-      // Backend uses the already-selected active bot
-      await tradingBackendService.pauseTrading();
+      // Send pause command with bot ID
+      await tradingBackendService.send({ 
+        type: 'pause',
+        botId: activeBotInstance.id 
+      });
       console.log('Backend trading paused for bot:', activeBotInstance.id);
       isPaused = true;
+      
+      // Force sync
+      setTimeout(() => {
+        syncWithBackendState();
+      }, 500);
     } catch (error) {
       console.error('Failed to pause backend trading:', error);
     }
@@ -1328,23 +1380,42 @@ export class ${getStrategyFileName(type)} extends Strategy {
     if (!activeBotInstance || !isRunning) return;
     
     try {
-      // Backend uses the already-selected active bot
-      await tradingBackendService.resumeTrading();
+      // Send resume command with bot ID
+      await tradingBackendService.send({ 
+        type: 'resume',
+        botId: activeBotInstance.id 
+      });
       console.log('Backend trading resumed for bot:', activeBotInstance.id);
       isPaused = false;
+      
+      // Force sync
+      setTimeout(() => {
+        syncWithBackendState();
+      }, 500);
     } catch (error) {
       console.error('Failed to resume backend trading:', error);
     }
   }
   
   async function stopTrading() {
-    if (!activeBotInstance || !isRunning) return;
+    if (!activeBotInstance) return;
+    
+    console.log('Stopping trading for bot:', activeBotInstance.id);
     
     try {
-      // Backend uses the already-selected active bot
-      await tradingBackendService.stopTrading();
-      console.log('Backend trading stopped for bot:', activeBotInstance.id);
+      // Send stop command with bot ID to ensure correct bot is stopped
+      await tradingBackendService.send({ 
+        type: 'stop',
+        botId: activeBotInstance.id 
+      });
       
+      // Wait for backend to process
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Force refresh manager state
+      tradingBackendService.send({ type: 'getManagerState' });
+      
+      // Update local state immediately
       isRunning = false;
       isPaused = false;
       
@@ -1359,9 +1430,27 @@ export class ${getStrategyFileName(type)} extends Strategy {
         statusInterval = null;
       }
       
-      updateStatus();
+      // Force sync with backend after a delay
+      setTimeout(() => {
+        syncWithBackendState();
+      }, 1000);
+      
+      console.log('Trading stopped successfully');
     } catch (error) {
       console.error('Failed to stop backend trading:', error);
+      // Retry once after a delay
+      setTimeout(async () => {
+        try {
+          await tradingBackendService.send({ 
+            type: 'stop',
+            botId: activeBotInstance.id 
+          });
+          isRunning = false;
+          isPaused = false;
+        } catch (retryError) {
+          console.error('Retry failed:', retryError);
+        }
+      }, 1000);
     }
   }
   
@@ -1388,9 +1477,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
       const profitableTrades = closedTrades.filter(t => t.profit && t.profit > 0);
       winRate = closedTrades.length > 0 ? (profitableTrades.length / closedTrades.length) * 100 : 0;
       
-      const initialBalance = 10000;
-      const currentTotal = balance + (btcBalance * currentPrice) + vaultBalance;
-      totalReturn = currentTotal - initialBalance;
+      // Total return only counts realized profits in vault
+      totalReturn = vaultBalance + (btcVaultBalance * currentPrice);
     }
   }
   
@@ -1632,10 +1720,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
     }
   }
   
-  // Get initial balance from active bot or use default
-  $: initialBalance = activeBotInstance ? 
-    (get(activeBotInstance.service.getState()).performance?.totalValue - 
-     get(activeBotInstance.service.getState()).performance?.pnl) || 10000 : 10000;
+  // Initial balance is always 10000 (starting amount)
+  $: initialBalance = 10000;
   
   $: returnPercent = ((totalValue - initialBalance) / initialBalance) * 100;
   
@@ -1948,7 +2034,32 @@ export class ${getStrategyFileName(type)} extends Strategy {
   
   // Calculate 3-section chart data - depend on all necessary variables
   $: threeZoneData = (() => {
-    if (currentPrice <= 0) return null;
+    // Always return data if we have ANY price
+    if (!currentPrice || currentPrice <= 0) {
+      // Return default data structure even without price
+      return {
+        buyZone: {
+          price: 0,
+          distance: 0,
+          percent: 0,
+          dropToNext: 5,
+          type: 'next'
+        },
+        current: {
+          price: 0,
+          angle: 90, // Default center position
+          dropFromHigh: 0
+        },
+        sellZone: {
+          price: 0,
+          distance: 0,
+          percent: 0,
+          hasPositions: false
+        },
+        isTrading: false,
+        recentHigh: 0
+      };
+    }
     
     // Force reactivity by referencing these variables
     positions.length; // Force dependency on positions array changes
@@ -2147,7 +2258,7 @@ export class ${getStrategyFileName(type)} extends Strategy {
             </span>
           {:else}
             <span class="stat-value" class:profit={totalReturn > 0} class:loss={totalReturn < 0}>
-              ${totalReturn.toFixed(2)} ({returnPercent.toFixed(2)}%)
+              ${totalReturn.toFixed(2)} ({totalReturn > 0 ? (totalReturn / 10000 * 100).toFixed(2) : '0.00'}%)
             </span>
           {/if}
         </div>
@@ -2184,6 +2295,15 @@ export class ${getStrategyFileName(type)} extends Strategy {
                 🔒
               </span>
             {/if}
+            <button 
+              class="zoom-reset-btn" 
+              title="Reset zoom to show 60 candles"
+              on:click={resetChartZoom}
+            >
+              <span style="position: relative; display: inline-block;">
+                🔍<span style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.6em; font-weight: bold;">✕</span>
+              </span>
+            </button>
             <div class="granularity-buttons">
               <button class="granularity-btn" class:active={selectedGranularity === '1m'} disabled={!isGranularityValid('1m', selectedPeriod)} on:click={() => selectGranularity('1m')}>1m</button>
               <button class="granularity-btn" class:active={selectedGranularity === '5m'} disabled={!isGranularityValid('5m', selectedPeriod)} on:click={() => selectGranularity('5m')}>5m</button>
@@ -2214,6 +2334,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
             isPaperTestMode={isPaperTestMode}
             paperTestSimTime={paperTestSimTime}
             paperTestDate={selectedTestDate}
+            enableZoom={true}
+            lockedTimeframe={isRunning}
           />
           <div class="period-buttons">
             <button class="period-btn" class:active={selectedPeriod === '1H'} disabled={isRunning} on:click={() => selectPeriod('1H')}>1H</button>
@@ -3984,7 +4106,7 @@ No open positions{/if}</title>
   .status-dot {
     width: 8px;
     height: 8px;
-    background: #a78bfa;
+    background: #22c55e; /* Green for running */
     border-radius: 50%;
     animation: pulse 2s infinite;
   }
@@ -4539,6 +4661,29 @@ No open positions{/if}</title>
     opacity: 0.8;
     animation: pulse 2s infinite;
     cursor: help;
+  }
+  
+  .zoom-reset-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 4px;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 14px;
+    margin-right: 8px;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+    padding: 2px 6px;
+  }
+  
+  .zoom-reset-btn:hover {
+    opacity: 1;
+    color: #4ade80;
+    border-color: #4ade80;
+    background: rgba(74, 222, 128, 0.1);
   }
   
   .period-btn:disabled {

@@ -79,12 +79,29 @@ wss.on('connection', (ws) => {
           botManager.startTrading(data.config);
           break;
         case 'stop':
+          // If botId provided, select that bot first
+          if (data.botId) {
+            botManager.selectBot(data.botId);
+          }
           botManager.stopTrading();
+          // Send updated status
+          ws.send(JSON.stringify({
+            type: 'tradingStopped',
+            status: botManager.getStatus()
+          }));
           break;
         case 'pause':
+          // If botId provided, select that bot first
+          if (data.botId) {
+            botManager.selectBot(data.botId);
+          }
           botManager.pauseTrading();
           break;
         case 'resume':
+          // If botId provided, select that bot first
+          if (data.botId) {
+            botManager.selectBot(data.botId);
+          }
           botManager.resumeTrading();
           break;
         case 'getStatus':
