@@ -9,6 +9,7 @@ export class ChartAPIService {
   private ws: WebSocket | null = null;
   private wsReconnectTimeout: NodeJS.Timeout | null = null;
   private wsSubscriptions: Map<string, (data: WebSocketCandle) => void> = new Map();
+  private onReconnectCallback: (() => void) | null = null;
 
   constructor() {
     this.coinbaseApi = new CoinbaseAPI();
@@ -187,12 +188,18 @@ export class ChartAPIService {
     pair: string,
     granularity: string,
     onMessage: (candle: WebSocketCandle) => void,
-    onError?: (error: Error) => void
+    onError?: (error: Error) => void,
+    onReconnect?: () => void
   ): { unsubscribe: () => void } {
     const subscriptionKey = `${pair}:${granularity}`;
     
     // Store the callback
     this.wsSubscriptions.set(subscriptionKey, onMessage);
+    
+    // Store reconnect callback
+    if (onReconnect) {
+      this.onReconnectCallback = onReconnect;
+    }
 
     // Connect WebSocket if not connected
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
@@ -225,6 +232,11 @@ export class ChartAPIService {
         for (const key of this.wsSubscriptions.keys()) {
           const [pair, granularity] = key.split(':');
           this.sendSubscription(pair, granularity);
+        }
+        
+        // Call reconnect callback if this is a reconnection
+        if (this.onReconnectCallback && this.wsSubscriptions.size > 0) {
+          this.onReconnectCallback();
         }
       };
 

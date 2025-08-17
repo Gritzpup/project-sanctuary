@@ -9,6 +9,7 @@ import type { TickerData } from '../types/coinbase';
 type DataConsumer = {
   id: string;
   onTicker: (data: TickerData) => void;
+  onReconnect?: () => void;
 };
 
 export class WebSocketManager {
@@ -47,6 +48,17 @@ export class WebSocketManager {
         console.log('WebSocketManager: WebSocket connected, resubscribing to symbols');
         this.isConnected = true;
         this.resubscribeAll();
+        
+        // Notify all consumers about reconnection
+        for (const consumer of this.consumers.values()) {
+          if (consumer.onReconnect) {
+            try {
+              consumer.onReconnect();
+            } catch (error) {
+              console.error(`Error in consumer ${consumer.id} onReconnect:`, error);
+            }
+          }
+        }
       } else if (status !== 'connected' && this.isConnected) {
         console.log('WebSocketManager: WebSocket disconnected');
         this.isConnected = false;

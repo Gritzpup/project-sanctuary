@@ -120,7 +120,8 @@ export class ChartDataService {
 
   subscribeToRealtime(
     onUpdate: (update: WebSocketCandle) => void,
-    onError?: (error: Error) => void
+    onError?: (error: Error) => void,
+    onReconnect?: () => void
   ): () => void {
     // Clean up existing subscription
     this.unsubscribeFromRealtime();
@@ -136,7 +137,8 @@ export class ChartDataService {
           onUpdate(aggregated);
         }
       },
-      onError
+      onError,
+      onReconnect
     );
 
     // Return unsubscribe function

@@ -105,6 +105,26 @@ class DataStore {
     this.updateStats();
   }
 
+  async fetchGapData(fromTime: number, toTime: number): Promise<CandlestickData[]> {
+    ChartDebug.log(`Fetching gap data from ${new Date(fromTime * 1000).toISOString()} to ${new Date(toTime * 1000).toISOString()}`);
+    
+    try {
+      // Fetch data for the gap period without using cache
+      const gapData = await this.dataService.fetchHistoricalData(fromTime, toTime, false);
+      
+      // Filter out any candles we already have
+      const existingTimes = new Set(this._candles.map(c => c.time));
+      const newCandles = gapData.filter(candle => !existingTimes.has(candle.time));
+      
+      ChartDebug.log(`Gap fetch returned ${gapData.length} candles, ${newCandles.length} are new`);
+      
+      return newCandles;
+    } catch (error) {
+      ChartDebug.error('Error fetching gap data:', error);
+      return [];
+    }
+  }
+
   setCandles(candles: CandlestickData[]) {
     this._candles = candles;
     this._visibleCandles = candles; // Initially all candles are visible
@@ -155,7 +175,8 @@ class DataStore {
   subscribeToRealtime(
     pair: string,
     granularity: string,
-    onUpdate?: (candle: CandlestickData) => void
+    onUpdate?: (candle: CandlestickData) => void,
+    onReconnect?: () => void
   ) {
     // Unsubscribe from previous
     this.unsubscribeFromRealtime();
@@ -195,7 +216,9 @@ class DataStore {
         if (onUpdate) {
           onUpdate(candleData);
         }
-      }
+      },
+      undefined, // onError
+      onReconnect
     );
   }
 

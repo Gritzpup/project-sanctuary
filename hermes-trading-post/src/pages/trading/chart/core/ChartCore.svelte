@@ -37,6 +37,25 @@
     performanceStore.startMonitoring();
     statusStore.setInitializing('Initializing chart core...');
     
+    // Handle page visibility changes to detect app resume
+    let lastVisibleTime = Date.now();
+    const handleVisibilityChange = async () => {
+      if (!document.hidden && isInitialized) {
+        const currentTime = Date.now();
+        const timeDiff = currentTime - lastVisibleTime;
+        
+        // If hidden for more than 30 seconds, check for data gaps
+        if (timeDiff > 30000) {
+          ChartDebug.log('App resumed after being hidden, checking for data gaps...');
+          await checkAndFillDataGaps();
+        }
+      } else {
+        lastVisibleTime = Date.now();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
     try {
       // Initialize plugin manager if enabled
       if (enablePlugins) {
@@ -83,6 +102,7 @@
       // Cleanup
       return () => {
         unsubscribeConfig();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
       };
     } catch (error) {
       ChartDebug.error('Initialization error:', error);
@@ -236,6 +256,68 @@
     }
   }
   
+  async function checkAndFillDataGaps() {
+    const candles = dataStore.candles;
+    if (candles.length === 0) return;
+    
+    const lastCandle = candles[candles.length - 1];
+    const lastCandleTime = lastCandle.time as number;
+    const currentTime = Math.floor(Date.now() / 1000);
+    const config = chartStore.config;
+    
+    // Calculate expected time gap based on granularity
+    const candleInterval = getGranularitySeconds(config.granularity);
+    const timeDiff = currentTime - lastCandleTime;
+    
+    // If gap is more than 2 candle intervals, we need to fill it
+    if (timeDiff > candleInterval * 2) {
+      ChartDebug.log(`Data gap detected: ${timeDiff} seconds (${Math.floor(timeDiff / candleInterval)} candles)`);
+      statusStore.setLoading('Filling data gap...');
+      
+      try {
+        // Fetch missing data from last candle time to current time
+        const gapData = await dataStore.fetchGapData(lastCandleTime, currentTime);
+        
+        if (gapData.length > 0) {
+          ChartDebug.log(`Filled gap with ${gapData.length} candles`);
+          
+          // Merge gap data with existing candles
+          const mergedCandles = [...candles, ...gapData].sort(
+            (a, b) => (a.time as number) - (b.time as number)
+          );
+          
+          dataStore.setCandles(mergedCandles);
+          
+          // Update chart series
+          if (chartCanvas) {
+            const series = chartCanvas.getSeries();
+            if (series) {
+              series.setData(mergedCandles);
+            }
+          }
+        }
+        
+        statusStore.setReady();
+      } catch (error) {
+        ChartDebug.error('Error filling data gap:', error);
+        statusStore.setError('Failed to fill data gap');
+      }
+    }
+  }
+  
+  function getGranularitySeconds(granularity: string): number {
+    const map: Record<string, number> = {
+      '1m': 60,
+      '5m': 300,
+      '15m': 900,
+      '1h': 3600,
+      '4h': 14400,
+      '1d': 86400,
+      '1D': 86400
+    };
+    return map[granularity] || 60;
+  }
+  
   function subscribeToRealtime() {
     dataStore.subscribeToRealtime(
       pair,
@@ -258,6 +340,11 @@
             }
           }
         }
+      },
+      // onReconnect callback to handle data gaps
+      async () => {
+        ChartDebug.log('WebSocket reconnected, checking for data gaps...');
+        await checkAndFillDataGaps();
       }
     );
   }
