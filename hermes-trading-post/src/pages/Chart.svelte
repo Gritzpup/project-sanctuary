@@ -592,18 +592,69 @@
       updateTotalCandleCount();
       setInterval(updateTotalCandleCount, 30000); // Update every 30s
       
-      // VERSION 6: Commented out visible range subscription to prevent null errors
-      // Subscribe to visible range changes to keep candle count accurate
-      /* chart.timeScale().subscribeVisibleTimeRangeChange(() => {
+      // Subscribe to visible range changes for infinite scroll
+      let isLoadingHistorical = false;
+      let loadingDebounceTimer: any = null;
+      
+      chart.timeScale().subscribeVisibleLogicalRangeChange(async (logicalRange) => {
         try {
-          const visibleRange = chart?.timeScale().getVisibleRange();
-          if (visibleRange) {
-            updateVisibleCandleCount(Number(visibleRange.from), Number(visibleRange.to));
+          // Update visible candle count
+          if (logicalRange) {
+            const visibleRange = chart?.timeScale().getVisibleRange();
+            if (visibleRange) {
+              updateVisibleCandleCount(Number(visibleRange.from), Number(visibleRange.to));
+            }
           }
-        } catch (e) {
-          console.debug('Unable to get visible range in range change callback');
+          
+          // Check if we need to load more historical data
+          if (!logicalRange || isLoadingHistorical || !dataFeed) return;
+          
+          // Clear any pending load
+          if (loadingDebounceTimer) {
+            clearTimeout(loadingDebounceTimer);
+          }
+          
+          // Debounce to avoid multiple loads while scrolling
+          loadingDebounceTimer = setTimeout(async () => {
+            // Check if we're near the left edge (need more historical data)
+            if (logicalRange.from < 50) {
+              console.log('Chart: Approaching left edge, loading more historical data...');
+              isLoadingHistorical = true;
+              cacheStatus = 'loading historical';
+              
+              try {
+                const data = candleSeries.data();
+                if (data && data.length > 0) {
+                  const oldestCandle = data[0];
+                  const oldestTime = oldestCandle.time as number;
+                  
+                  // Load 300 more candles before the oldest
+                  const loaded = await dataFeed.loadHistoricalDataBefore(oldestTime, 300, instanceId);
+                  
+                  if (loaded > 0) {
+                    console.log(`Chart: Loaded ${loaded} historical candles`);
+                    // Data will be updated through the subscription
+                  } else {
+                    console.log('Chart: No more historical data available');
+                    cacheStatus = 'no more data';
+                  }
+                }
+              } catch (error) {
+                console.error('Chart: Error loading historical data:', error);
+                cacheStatus = 'error';
+              } finally {
+                isLoadingHistorical = false;
+                // Reset status after delay
+                setTimeout(() => {
+                  cacheStatus = 'ready';
+                }, 2000);
+              }
+            }
+          }, 200); // 200ms debounce
+        } catch (error) {
+          console.error('Chart: Error in visible range change:', error);
         }
-      }); */
+      });
       
       // Set cache status
       cacheStatus = 'ready';
@@ -680,14 +731,20 @@
       // Calculate exact number of candles for this period and granularity
       const expectedCandles = Math.ceil(periodSeconds / granularitySeconds);
       
-      // For 1H with 1m granularity, enforce exactly 60 candles
-      let adjustedStartTime = visibleStartTime;
-      let adjustedExpectedCandles = expectedCandles;
+      // Load extra historical data for smooth zooming (300-500 candles minimum)
+      const minInitialCandles = 300;
+      const targetInitialCandles = Math.max(minInitialCandles, expectedCandles * 2); // Load at least 2x the visible range
       
+      // Calculate start time for initial load
+      let adjustedStartTime = alignedNow - (targetInitialCandles * granularitySeconds);
+      let adjustedExpectedCandles = targetInitialCandles;
+      
+      // Special handling for 1H with 1m granularity
       if (period === '1H' && effectiveGranularity === '1m') {
-        adjustedExpectedCandles = 60;
-        adjustedStartTime = alignedNow - (60 * 60); // Exactly 60 minutes back
-        // console.log(`Enforcing 60 candles for 1H/1m view: ${new Date(adjustedStartTime * 1000).toISOString()} to ${new Date(alignedNow * 1000).toISOString()}`);
+        // Load 300 candles (5 hours) for smooth scrolling
+        adjustedExpectedCandles = 300;
+        adjustedStartTime = alignedNow - (300 * 60); // 5 hours back
+        console.log(`Loading ${adjustedExpectedCandles} candles for 1H/1m view (5 hours of data)`);
       }
       
       // Update date range info

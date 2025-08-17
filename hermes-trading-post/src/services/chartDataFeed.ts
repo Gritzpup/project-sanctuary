@@ -1302,6 +1302,98 @@ export class ChartDataFeed {
     this.setManualGranularity(granularity);
   }
   
+  // Load historical data before a specific timestamp for infinite scroll
+  async loadHistoricalDataBefore(beforeTime: number, numCandles: number, instanceId: string): Promise<number> {
+    // Validate instance
+    if (this.activeInstanceId !== instanceId) {
+      console.log(`ChartDataFeed: Ignoring historical load request from inactive instance ${instanceId}`);
+      return 0;
+    }
+    
+    try {
+      console.log(`ChartDataFeed: Loading ${numCandles} candles before ${new Date(beforeTime * 1000).toLocaleString()}`);
+      
+      // Calculate time range
+      const granularitySeconds = this.getGranularitySeconds(this.currentGranularity);
+      const startTime = beforeTime - (numCandles * granularitySeconds);
+      const endTime = beforeTime - granularitySeconds; // Exclude the candle at beforeTime
+      
+      // Validate time range
+      const validatedRange = this.validateTimeRange(startTime, endTime);
+      if (!validatedRange.isValid) {
+        console.log('ChartDataFeed: Invalid time range for historical data');
+        return 0;
+      }
+      
+      // Check cache first
+      const cacheResult = await this.cache.getCachedCandles(
+        this.symbol,
+        this.currentGranularity,
+        validatedRange.start,
+        validatedRange.end
+      );
+      
+      let candles: CandleData[] = [];
+      
+      if (cacheResult.candles.length > 0) {
+        console.log(`ChartDataFeed: Found ${cacheResult.candles.length} candles in cache`);
+        candles = cacheResult.candles;
+      } else {
+        console.log('ChartDataFeed: No cached data, fetching from API...');
+        
+        // Fetch from API
+        const apiCandles = await this.api.getCandles(
+          this.symbol,
+          this.getGranularitySeconds(this.currentGranularity),
+          validatedRange.start.toString(),
+          validatedRange.end.toString()
+        );
+        
+        if (apiCandles.length > 0) {
+          console.log(`ChartDataFeed: Fetched ${apiCandles.length} candles from API`);
+          
+          // Cache the new data
+          await this.cache.setCachedCandles(
+            this.symbol,
+            this.currentGranularity,
+            apiCandles
+          );
+          
+          candles = apiCandles;
+        }
+      }
+      
+      if (candles.length > 0) {
+        // Merge with existing data
+        const existingTimes = new Set(this.currentData.map(c => c.time));
+        const newCandles = candles.filter(c => !existingTimes.has(c.time));
+        
+        if (newCandles.length > 0) {
+          // Prepend new candles and sort
+          this.currentData = [...newCandles, ...this.currentData].sort((a, b) => a.time - b.time);
+          
+          console.log(`ChartDataFeed: Added ${newCandles.length} new historical candles`);
+          
+          // Notify all subscribers with the full dataset
+          this.subscribers.forEach(callback => {
+            // Send all data to update the chart
+            this.currentData.forEach(candle => callback(candle, false, { 
+              isHistorical: true,
+              totalCandles: this.currentData.length 
+            }));
+          });
+        }
+        
+        return newCandles.length;
+      }
+      
+      return 0;
+    } catch (error) {
+      console.error('ChartDataFeed: Error loading historical data:', error);
+      return 0;
+    }
+  }
+  
   disconnect() {
     this.logDataState('BEFORE_DISCONNECT', { 
       caller: new Error().stack?.split('\n').slice(2,4).join(' -> ')
