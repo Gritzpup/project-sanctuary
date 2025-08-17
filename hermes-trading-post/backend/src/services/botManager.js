@@ -47,9 +47,8 @@ export class BotManager {
     const botNumber = strategyBotSet.size + 1;
     const botId = `${strategyType}-bot-${botNumber}`;
     
-    // Create new trading service instance for this bot
-    const botService = new TradingService();
-    botService.botId = botId;
+    // Create new trading service instance for this bot with ID
+    const botService = new TradingService(botId);
     botService.botName = botName || `Bot ${botNumber}`;
     
     // Store bot
@@ -87,17 +86,21 @@ export class BotManager {
     }
 
     this.activeBotId = botId;
+    console.log(`Bot Manager: Selected bot ${botId}`);
+    
+    // Get bot status for logging
+    const bot = this.getActiveBot();
+    const status = bot?.getStatus();
+    console.log(`  Bot status: Running=${status?.isRunning}, Positions=${status?.positions?.length || 0}`);
     
     // Broadcast update
     this.broadcast({
       type: 'botSelected',
       data: {
         botId,
-        status: this.getActiveBot()?.getStatus()
+        status: status
       }
     });
-
-    // console.log(`Selected bot ${botId}`);
   }
 
   getActiveBot() {
@@ -149,7 +152,7 @@ export class BotManager {
   }
 
   // Initialize default bots for each strategy
-  initializeDefaultBots() {
+  async initializeDefaultBots() {
     const strategies = [
       'reverse-ratio',
       'grid-trading',
@@ -160,18 +163,102 @@ export class BotManager {
       'proper-scalping'
     ];
 
-    strategies.forEach(strategy => {
+    // First, check which bots already exist by looking for state files
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const { dirname } = await import('path');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const dataDir = path.join(__dirname, '../../data');
+    
+    // Track which bots need to be restarted
+    const botsToRestart = [];
+
+    for (const strategy of strategies) {
       // Create 6 bots for each strategy
       for (let i = 1; i <= this.maxBotsPerStrategy; i++) {
+        const botId = `${strategy}-bot-${i}`;
+        const stateFile = path.join(dataDir, `trading-state-${botId}.json`);
+        
         try {
+          // Check if state file exists
+          const stateData = await fs.readFile(stateFile, 'utf8');
+          const state = JSON.parse(stateData);
+          
+          // Create the bot
           this.createBot(strategy, `Bot ${i}`, {});
+          
+          // If it was running, mark it for restart
+          if (state.isRunning && !state.isPaused && state.strategyConfig) {
+            // Extract the actual strategy params from nested config
+            let actualConfig = state.strategyConfig;
+            let strategyParams = state.strategyParams;
+            
+            // If we have saved strategyParams, use those directly
+            if (strategyParams) {
+              botsToRestart.push({
+                botId,
+                strategyConfig: {
+                  strategyType: state.strategyType || 'reverse-ratio',
+                  strategyConfig: strategyParams
+                }
+              });
+            } else {
+              // Otherwise use the nested config
+              botsToRestart.push({
+                botId,
+                strategyConfig: actualConfig
+              });
+            }
+          }
         } catch (error) {
-          console.error(`Failed to create bot for ${strategy}:`, error);
+          // State file doesn't exist or is invalid, just create the bot
+          try {
+            this.createBot(strategy, `Bot ${i}`, {});
+          } catch (createError) {
+            console.error(`Failed to create bot for ${strategy}:`, createError);
+          }
         }
       }
-    });
+    }
 
     console.log(`Bot Manager: Initialized ${this.bots.size} bots (${this.maxBotsPerStrategy} per strategy)`);
+    console.log(`Found ${botsToRestart.length} bots that need to restart`);
+    
+    // Wait a bit for all bots to fully initialize
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Restart bots that were running
+    for (const { botId, strategyConfig } of botsToRestart) {
+      const bot = this.bots.get(botId);
+      if (bot) {
+        console.log(`Restarting bot ${botId}...`);
+        try {
+          // Make sure bot is not marked as running yet
+          bot.isRunning = false;
+          bot.startTrading(strategyConfig);
+          console.log(`Bot ${botId} restarted successfully`);
+        } catch (error) {
+          console.error(`Failed to restart bot ${botId}:`, error);
+        }
+      }
+    }
+    
+    // Log final status after a delay
+    setTimeout(() => {
+      console.log('\nBot states after initialization:');
+      let runningCount = 0;
+      for (const [botId, bot] of this.bots.entries()) {
+        const status = bot.getStatus();
+        if (status.isRunning) {
+          runningCount++;
+          console.log(`  ${botId}: Running=true, Positions=${status.positions.length}, Balance=$${status.balance.usd.toFixed(2)}`);
+        }
+      }
+      console.log(`Total running bots: ${runningCount}`);
+    }, 2000);
   }
 
   // Get state for a specific strategy
@@ -221,10 +308,18 @@ export class BotManager {
 
   // Forward trading commands to active bot
   startTrading(config) {
+    console.log('BotManager.startTrading called:', {
+      activeBotId: this.activeBotId,
+      config
+    });
+    
     const bot = this.getActiveBot();
     if (!bot) {
+      console.error('No active bot selected!');
       throw new Error('No active bot selected');
     }
+    
+    console.log('Starting trading on bot:', this.activeBotId);
     return bot.startTrading(config);
   }
 
@@ -258,6 +353,14 @@ export class BotManager {
       throw new Error('No active bot selected');
     }
     return bot.updateStrategy(strategy);
+  }
+
+  updateRealtimePrice(price, productId) {
+    // Update ALL bots with the real-time price (not just running ones)
+    // This ensures bots waiting for initial price can start
+    for (const [botId, bot] of this.bots.entries()) {
+      bot.updateRealtimePrice(price, productId);
+    }
   }
 
   getStatus() {

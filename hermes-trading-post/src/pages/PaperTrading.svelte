@@ -46,10 +46,14 @@
     balance = 10000;
     btcBalance = 0;
     vaultBalance = 0;
+    btcVaultBalance = 0;
     positions = [];
     trades = [];
     totalReturn = 0;
     winRate = 0;
+    totalFees = 0;
+    totalRebates = 0;
+    startingBalanceGrowth = 0;
     currentStrategy = null;
     strategyParameters = {};
   }
@@ -63,14 +67,43 @@
       activeBotStateUnsubscribe = null;
     }
     
-    // Clear all current data
-    clearBotData();
+    // Store current data temporarily
+    const previousTrades = trades;
+    const previousPositions = positions;
+    const previousBalance = balance;
+    const previousBtcBalance = btcBalance;
     
     // Select new bot
     paperTradingManager.selectBot(selectedStrategyType, botId);
     
     // Force immediate update
     activeBotInstance = paperTradingManager.getActiveBot();
+    
+    // Force immediate sync with backend
+    if ($backendState.isConnected) {
+      // Request fresh manager state
+      tradingBackendService.send({ type: 'getManagerState' });
+      
+      // Wait a bit then sync
+      setTimeout(() => {
+        const backendBot = $backendState.managerState?.bots?.[botId];
+        if (backendBot && backendBot.status && backendBot.status.trades) {
+          // Use backend data
+          syncWithBackendState();
+        } else {
+          // No backend data yet, restore previous data to prevent flashing
+          trades = previousTrades;
+          positions = previousPositions;
+          balance = previousBalance;
+          btcBalance = previousBtcBalance;
+          
+          // Try sync again
+          syncWithBackendState();
+        }
+      }, 100);
+    } else {
+      syncWithBackendState();
+    }
   }
   
   // Load saved chart preferences
@@ -103,15 +136,26 @@
       // Don't override selectedStrategyType here - let the dropdown binding handle it
       activeBotInstance = paperTradingManager.getActiveBot();
       
-      // Get bots for current strategy
+      // Get bots for current strategy without price calculations
       const strategyBots = $managerState.bots[selectedStrategyType] || [];
       botTabs = strategyBots.map(bot => ({
         id: bot.id,
         name: bot.name,
         status: bot.state.isRunning ? (bot.state.isPaused ? 'paused' : 'running') : 
                 (bot.state.trades.length > 0 ? 'stopped' : 'empty'),
-        balance: bot.state.balance.usd + (bot.state.balance.btcPositions * currentPrice),
-        profitLoss: ((bot.state.balance.usd + (bot.state.balance.btcPositions * currentPrice)) - 10000) / 100
+        usdBalance: bot.state.balance.usd,
+        btcBalance: bot.state.balance.btcPositions
+      }));
+    }
+  }
+  
+  // Separate reactive statement for price-dependent calculations
+  $: {
+    if (botTabs && currentPrice) {
+      botTabs = botTabs.map(tab => ({
+        ...tab,
+        balance: tab.usdBalance + (tab.btcBalance * currentPrice),
+        profitLoss: ((tab.usdBalance + (tab.btcBalance * currentPrice)) - 10000) / 100
       }));
     }
   }
@@ -119,47 +163,141 @@
   // Subscribe to active bot state
   let activeBotState: any = null;
   let activeBotStateUnsubscribe: (() => void) | null = null;
+  let backendStateUnsubscribe: (() => void) | null = null;
   
-  $: {
-    if (activeBotInstance) {
-      // Unsubscribe from previous bot if exists
-      if (activeBotStateUnsubscribe) {
-        activeBotStateUnsubscribe();
-        activeBotStateUnsubscribe = null;
+  // Subscribe to backend service state
+  const backendState = tradingBackendService.getState();
+  
+  // Periodically sync with backend state to update trades and positions
+  let backendSyncInterval: NodeJS.Timer | null = null;
+  
+  $: if (activeBotInstance && $backendState.isConnected) {
+    // Clear any existing interval
+    if (backendSyncInterval) clearInterval(backendSyncInterval);
+    
+    // Sync every 2 seconds
+    backendSyncInterval = setInterval(() => {
+      const backendBot = $backendState.managerState?.bots?.[activeBotInstance.id];
+      if (backendBot && backendBot.status) {
+        console.log('Backend sync interval - bot status:', {
+          botId: activeBotInstance.id,
+          hasTrades: !!backendBot.status.trades,
+          tradeCount: backendBot.status.trades?.length || 0,
+          isRunning: backendBot.status.isRunning
+        });
+        
+        // Only update if backend has data
+        if (backendBot.status.trades && backendBot.status.trades.length > 0) {
+          console.log('Updating trades from backend sync:', backendBot.status.trades.length);
+          trades = [...backendBot.status.trades];
+        }
+        if (backendBot.status.positions) {
+          positions = backendBot.status.positions;
+        }
+        // Always update balances and running state from backend
+        balance = backendBot.status.balance?.usd || balance;
+        btcBalance = backendBot.status.balance?.btc || btcBalance;
+        isRunning = backendBot.status.isRunning || false;
+        isPaused = backendBot.status.isPaused || false;
+      } else {
+        console.log('Backend sync - no bot data found for:', activeBotInstance.id);
+      }
+    }, 2000);
+  } else if (backendSyncInterval) {
+    clearInterval(backendSyncInterval);
+    backendSyncInterval = null;
+  }
+  
+  // Only update when active bot instance changes, not on every state update
+  $: if (activeBotInstance) {
+    // Unsubscribe from previous bot if exists
+    if (activeBotStateUnsubscribe) {
+      activeBotStateUnsubscribe();
+      activeBotStateUnsubscribe = null;
+    }
+    
+    // Don't clear data - let syncWithBackendState handle updating
+    // This prevents trades from being wiped out
+    
+    // Initial sync with backend state
+    syncWithBackendState();
+  }
+  
+  function syncWithBackendState() {
+    if (!activeBotInstance || !$backendState) return;
+    
+    console.log('syncWithBackendState called:', {
+      activeBotId: activeBotInstance.id,
+      backendBots: Object.keys($backendState.managerState?.bots || {}),
+      isConnected: $backendState.isConnected
+    });
+    
+    const backendBot = $backendState.managerState?.bots?.[activeBotInstance.id];
+    
+    if (backendBot) {
+      // Use backend state for this bot
+      activeBotState = backendBot;
+      
+      // Update local variables from backend bot state
+      const wasRunning = isRunning;
+      // The backend stores the running state in bot.status
+      isRunning = backendBot.status?.isRunning || false;
+      isPaused = backendBot.status?.isPaused || false;
+      
+      // Only log significant state changes
+      if (wasRunning !== isRunning) {
+        console.log(`Bot running state changed (backend): ${wasRunning} -> ${isRunning}`);
+      }
+      balance = backendBot.status?.balance?.usd || 10000;
+      btcBalance = backendBot.status?.balance?.btc || 0;
+      vaultBalance = 0; // Backend doesn't track vault balance yet
+      btcVaultBalance = 0; // Backend doesn't track BTC vault yet
+      
+      // Only update positions if backend has them
+      if (backendBot.status?.positions) {
+        positions = backendBot.status.positions;
       }
       
-      // Clear all data first to ensure no bleed-through
-      clearBotData();
-      
-      // Subscribe to the active bot's state
-      const stateStore = activeBotInstance.service.getState();
-      
-      // Create reactive subscription
-      activeBotStateUnsubscribe = stateStore.subscribe(state => {
-        activeBotState = state;
-        
-        // Update local variables from active bot state
-        isRunning = state.isRunning || false;
-        isPaused = state.isPaused || false;
-        balance = state.balance?.usd || 10000;
-        btcBalance = state.balance?.btcPositions || 0;
-        vaultBalance = state.balance?.vault || 0;
-        positions = state.strategy?.getPositions ? state.strategy.getPositions() : [];
-        trades = state.trades ? [...state.trades] : []; // Create new array to ensure reactivity
-        totalReturn = state.performance?.pnl || 0;
-        winRate = state.performance?.winRate || 0;
-        currentStrategy = state.strategy || null;
-        
-        // Update strategy parameters if available
-        if (state.strategy && (state.strategy as any).config) {
-          strategyParameters = { ...(state.strategy as any).config }; // Create new object
-        } else {
-          strategyParameters = {};
-        }
+      // Only update trades if backend has them - NEVER clear existing trades
+      console.log('syncWithBackendState - backend bot trades:', {
+        hasTrades: !!backendBot.status?.trades,
+        tradeCount: backendBot.status?.trades?.length || 0,
+        existingTradeCount: trades.length
       });
+      
+      if (backendBot.status?.trades && backendBot.status.trades.length > 0) {
+        console.log('Updating trades from syncWithBackendState:', backendBot.status.trades.length);
+        trades = [...backendBot.status.trades];
+      } else {
+        console.log('Backend has no trades, keeping existing trades:', trades.length);
+      }
+      // Calculate total return without using currentPrice
+      totalReturn = (balance - 10000) + (vaultBalance);
+      winRate = backendBot.status?.winRate || 0;
+      currentStrategy = backendBot.status?.strategy || null;
+      
+      // Update strategy parameters if available
+      if (backendBot.status?.strategy) {
+        strategyParameters = { ...backendBot.status.strategy };
+      } else {
+        strategyParameters = {};
+      }
     } else {
-      // Clear state when no bot is active
-      clearBotData();
+      // Bot not found in backend yet - might be loading
+      console.log(`Bot ${activeBotInstance.id} not found in backend state yet. Available bots:`, Object.keys($backendState.managerState?.bots || {}));
+      
+      // DON'T create a frontend subscription that will overwrite backend data
+      // Just keep the existing data and wait for backend sync
+      
+      // Only update isRunning state from frontend if we don't have backend data
+      if (!trades.length && !positions.length) {
+        const stateStore = activeBotInstance.service.getState();
+        const currentState = get(stateStore);
+        
+        // Only update running states, not data
+        isRunning = currentState.isRunning || false;
+        isPaused = currentState.isPaused || false;
+      }
     }
   }
   
@@ -171,10 +309,14 @@
   let balance = 10000;
   let btcBalance = 0;
   let vaultBalance = 0;
+  let btcVaultBalance = 0;
   let trades: any[] = [];
   let positions: any[] = [];
   let totalReturn = 0;
   let winRate = 0;
+  let totalFees = 0;
+  let totalRebates = 0;
+  let startingBalanceGrowth = 0;
   
   // Chart data feed for strategy
   let chartDataFeed: ChartDataFeed | null = null;
@@ -618,13 +760,33 @@ export class ${getStrategyFileName(type)} extends Strategy {
     // Initialize bot manager with current strategy
     paperTradingManager.initializeBotsForStrategy(selectedStrategyType);
     
-    // Backend service handles its own state restoration
-    // await paperTradingService.waitForRestoration();
-    // console.log('PaperTrading: Restoration complete');
+    // Wait a bit for WebSocket to connect and then restore saved bot selection
+    setTimeout(() => {
+      const savedState = get(managerState);
+      if (savedState.activeTabId) {
+        console.log('Restoring saved bot selection from frontend:', savedState.activeTabId);
+        paperTradingManager.selectBot(savedState.selectedStrategy, savedState.activeTabId);
+      }
+    }, 500);
+    
+    // Initialize backend connection
+    console.log('PaperTrading: Connecting to backend service...');
+    await tradingBackendService.connect();
     
     // Now check current status
     const status = await tradingBackendService.fetchStatus();
-    // console.log('PaperTrading: Service status after restoration:', status);
+    console.log('PaperTrading: Backend service status:', status);
+    
+    // Force sync with backend after connection
+    // First request the manager state to ensure we have all bot data
+    tradingBackendService.send({ type: 'getManagerState' });
+    
+    // Then sync after a delay
+    if (activeBotInstance) {
+      setTimeout(() => {
+        syncWithBackendState();
+      }, 1500);
+    }
     
     // Get the full state from the service to restore chart data
     const fullState = tradingBackendService.getState();
@@ -694,12 +856,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
       }
     }
     
-    // If trading is running, start the necessary services
+    // Trust the backend state - it knows if trading is actually running
     if (status.isRunning) {
-      console.log('PaperTrading: Trading is running, starting services');
+      console.log('PaperTrading: Backend reports trading as running');
       console.log('PaperTrading: chartDataFeed status:', chartDataFeed ? 'ready' : 'not ready');
       console.log('PaperTrading: Current positions:', status.positions.length, 'trades:', status.trades.length);
-      isRunning = true;
+      isRunning = true;  // Trust the backend state
       
       // Update UI immediately with any restored positions/trades
       positions = status.positions;
@@ -713,17 +875,8 @@ export class ${getStrategyFileName(type)} extends Strategy {
       // And the handleDataFeedReady function will handle starting the services when the chart is ready
       console.log('PaperTrading: Waiting for strategy store and chart data feed to be ready...');
       
-      // Set up a periodic check to ensure trading restarts when all conditions are met
-      const restartCheckInterval = setInterval(() => {
-        if (isRunning && currentStrategy && chartDataFeed && !hasRestartedTrading) {
-          console.log('PaperTrading: All conditions met, restarting trading from periodic check');
-          clearInterval(restartCheckInterval);
-          restartTradingAfterRestore();
-        }
-      }, 1000);
-      
-      // Clear interval after 60 seconds
-      setTimeout(() => clearInterval(restartCheckInterval), 60000);
+      // Do NOT restart trading - backend is already running
+      console.log('PaperTrading: Backend is running, UI will observe only');
     }
     
     // Add a small delay to ensure chart component is fully mounted
@@ -843,13 +996,13 @@ export class ${getStrategyFileName(type)} extends Strategy {
           currentStrategy = createStrategy(selectedStrategyType);
           loadStrategySourceCode();
           
-          // If trading was running (from restored state) and now we have a strategy, ensure trading continues
+          // If trading was running (from restored state) and now we have a strategy, just observe
           if (isRunning && currentStrategy) {
-            console.log('PaperTrading: Strategy created, checking trading status');
+            console.log('PaperTrading: Strategy created, backend is already running');
             console.log('PaperTrading: Preserved trades:', preservedTrades.length, 'positions:', preservedPositions.length);
             
-            // Call the function that properly restarts trading
-            restartTradingAfterRestore();
+            // Do NOT restart trading - backend is already running
+            console.log('PaperTrading: Not restarting - observing backend state only');
           } else if (isRunning && !currentStrategy) {
             console.log('PaperTrading: Still waiting for strategy creation for type:', selectedStrategyType);
           }
@@ -875,6 +1028,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
     }
     if (activeBotStateUnsubscribe) {
       activeBotStateUnsubscribe();
+    }
+    if (backendStateUnsubscribe) {
+      backendStateUnsubscribe();
+    }
+    if (backendSyncInterval) {
+      clearInterval(backendSyncInterval);
     }
     // Remove strategy sync event listener
     window.removeEventListener('strategy-synced', handleStrategySync);
@@ -1014,22 +1173,12 @@ export class ${getStrategyFileName(type)} extends Strategy {
     console.log('Paper Trading: Chart data feed ready, isRunning:', isRunning, 'currentStrategy:', !!currentStrategy);
     chartDataFeed = feed;
     
-    // If trading is running (from restored state), restart if we have a strategy
+    // If trading is running (from restored state), just observe
     if (isRunning && currentStrategy) {
-      restartTradingAfterRestore();
+      console.log('Paper Trading: Chart ready, backend is already running - observing only');
     } else if (isRunning && !currentStrategy) {
-      console.log('Paper Trading: Trading is running but strategy not yet loaded, waiting for strategy creation...');
-      // Set up a watcher to restart trading when strategy becomes available
-      const checkInterval = setInterval(() => {
-        if (currentStrategy) {
-          console.log('Paper Trading: Strategy now available, restarting trading');
-          clearInterval(checkInterval);
-          restartTradingAfterRestore();
-        }
-      }, 500);
-      
-      // Clear interval after 30 seconds to prevent memory leak
-      setTimeout(() => clearInterval(checkInterval), 30000);
+      console.log('Paper Trading: Trading is running but strategy not yet loaded in UI');
+      // Backend has the strategy, UI just needs to display
     }
   }
   
@@ -1061,19 +1210,38 @@ export class ${getStrategyFileName(type)} extends Strategy {
   }
   
   async function startTrading() {
-    if (!activeBotInstance || isRunning) return;
-    
-    // Store bot ID to verify we're still working with the same bot
-    const startingBotId = activeBotInstance.id;
-    
-    // Get the active bot's service
-    const botService = activeBotInstance.service;
-    
-    console.log('Starting trading - checking data:', {
-      chartDataFeed: !!chartDataFeed,
-      recentHigh,
+    console.log('startTrading called:', {
+      activeBotInstance,
+      isRunning,
+      selectedStrategyType,
       currentPrice
     });
+    
+    if (!activeBotInstance) {
+      console.error('Cannot start trading: No active bot selected');
+      // Try to select the first bot for the current strategy
+      const state = get(managerState);
+      const strategyBots = state.bots[selectedStrategyType];
+      if (strategyBots && strategyBots.length > 0) {
+        console.log('Auto-selecting first bot:', strategyBots[0].id);
+        paperTradingManager.selectBot(selectedStrategyType, strategyBots[0].id);
+        // Wait for state update
+        await new Promise(resolve => setTimeout(resolve, 100));
+        activeBotInstance = paperTradingManager.getActiveBot();
+      }
+      
+      if (!activeBotInstance) {
+        console.error('Still no active bot after auto-selection');
+        return;
+      }
+    }
+    
+    if (isRunning) {
+      console.log('Trading already running');
+      return;
+    }
+    
+    console.log('Starting trading with backend service...');
     
     // Only create new strategy if we don't have one from restored state
     if (!currentStrategy) {
@@ -1087,135 +1255,114 @@ export class ${getStrategyFileName(type)} extends Strategy {
     
     if (requiredGranularity && requiredGranularity !== selectedGranularity) {
       console.warn(`Strategy requires ${requiredGranularity} granularity, but chart is set to ${selectedGranularity}`);
-      // Optionally auto-switch to required granularity
       selectedGranularity = requiredGranularity;
     }
     
     if (requiredPeriod && requiredPeriod !== selectedPeriod) {
       console.warn(`Strategy requires ${requiredPeriod} period, but chart is set to ${selectedPeriod}`);
-      // Optionally auto-switch to required period
       selectedPeriod = requiredPeriod;
     }
     
-    // Log the actual configuration being sent
+    // Get strategy configuration
     const configToSend = (currentStrategy as any).config || strategyParameters;
     console.log('📊 PaperTrading: Sending strategy configuration:', {
       strategyType: selectedStrategyType,
-      initialDropPercent: configToSend.initialDropPercent,
-      levelDropPercent: configToSend.levelDropPercent,
-      profitTarget: configToSend.profitTarget || configToSend.profitTargetPercent,
-      maxLevels: configToSend.maxLevels,
-      fullConfig: configToSend
+      config: configToSend
     });
     
-    // Start trading on the active bot
-    botService.start(currentStrategy, 'BTC-USD', balance);
-    
-    // Verify we're still working with the same bot
-    if (activeBotInstance.id !== startingBotId) {
-      console.warn('Bot changed during startup, aborting');
-      return;
+    // Use backend service to start trading for this bot
+    try {
+      // The backend expects a strategy object with strategyType and strategyConfig
+      const strategyPayload = {
+        strategyType: selectedStrategyType,
+        strategyConfig: configToSend
+      };
+      
+      // First select the bot in the backend
+      tradingBackendService.selectBot(activeBotInstance.id);
+      
+      // Then start trading with the strategy
+      await tradingBackendService.startTrading(strategyPayload, false);
+      console.log('Backend trading started successfully for bot:', activeBotInstance.id);
+      
+      // Let the backend state update propagate
+      isRunning = true;
+      isPaused = false;
+      
+      // Capture initial trading price and recent high
+      initialTradingPrice = currentPrice;
+      initialRecentHigh = recentHigh > 0 ? recentHigh : currentPrice;
+      
+      // Capture initial trading angle
+      if (threeZoneData && threeZoneData.current) {
+        initialTradingAngle = threeZoneData.current.angle;
+      }
+      
+      // Update store to indicate paper trading is active
+      strategyStore.setPaperTradingActive(true);
+      
+      // Start feeding chart data to strategy
+      startDataFeedToStrategy();
+      
+      // Start periodic status updates
+      statusInterval = setInterval(updateStatus, 1000);
+    } catch (error) {
+      console.error('Failed to start backend trading:', error);
     }
-    
-    // Update bot state in manager
-    paperTradingManager.updateBotState(activeBotInstance.id, {
-      isRunning: true,
-      strategy: currentStrategy
-    });
-    
-    // Backend automatically saves state
-    setTimeout(() => {
-      // paperTradingService.save();
-      console.log('PaperTrading: Backend auto-saves state');
-    }, 100);
-    
-    // Capture initial trading price and recent high
-    initialTradingPrice = currentPrice;
-    initialRecentHigh = recentHigh > 0 ? recentHigh : currentPrice;
-    
-    // Capture initial trading angle (where the needle is right now)
-    if (threeZoneData && threeZoneData.current) {
-      initialTradingAngle = threeZoneData.current.angle;
-    }
-    
-    // Backend handles chart data updates via WebSocket
-    // Chart data will be updated automatically from the backend
-    
-    // Update store to indicate paper trading is active
-    strategyStore.setPaperTradingActive(true);
-    
-    // Start feeding chart data to strategy
-    startDataFeedToStrategy();
-    
-    // Start periodic status updates
-    statusInterval = setInterval(updateStatus, 1000);
   }
   
-  function pauseTrading() {
+  async function pauseTrading() {
     if (!activeBotInstance || !isRunning) return;
     
-    // Ensure we're working with the correct bot
-    if (activeBotState?.botId && activeBotState.botId !== activeBotInstance.id) {
-      console.warn('Bot mismatch detected, refreshing state');
-      return;
+    try {
+      // Backend uses the already-selected active bot
+      await tradingBackendService.pauseTrading();
+      console.log('Backend trading paused for bot:', activeBotInstance.id);
+      isPaused = true;
+    } catch (error) {
+      console.error('Failed to pause backend trading:', error);
     }
-    
-    const botService = activeBotInstance.service;
-    botService.setPaused(true);
-    
-    paperTradingManager.updateBotState(activeBotInstance.id, {
-      isPaused: true
-    });
   }
   
-  function resumeTrading() {
+  async function resumeTrading() {
     if (!activeBotInstance || !isRunning) return;
     
-    // Ensure we're working with the correct bot
-    if (activeBotState?.botId && activeBotState.botId !== activeBotInstance.id) {
-      console.warn('Bot mismatch detected, refreshing state');
-      return;
+    try {
+      // Backend uses the already-selected active bot
+      await tradingBackendService.resumeTrading();
+      console.log('Backend trading resumed for bot:', activeBotInstance.id);
+      isPaused = false;
+    } catch (error) {
+      console.error('Failed to resume backend trading:', error);
     }
-    
-    const botService = activeBotInstance.service;
-    botService.setPaused(false);
-    
-    paperTradingManager.updateBotState(activeBotInstance.id, {
-      isPaused: false
-    });
   }
   
-  function stopTrading() {
+  async function stopTrading() {
     if (!activeBotInstance || !isRunning) return;
     
-    // Ensure we're working with the correct bot
-    if (activeBotState?.botId && activeBotState.botId !== activeBotInstance.id) {
-      console.warn('Bot mismatch detected, refreshing state');
-      return;
+    try {
+      // Backend uses the already-selected active bot
+      await tradingBackendService.stopTrading();
+      console.log('Backend trading stopped for bot:', activeBotInstance.id);
+      
+      isRunning = false;
+      isPaused = false;
+      
+      // Update store to indicate paper trading is not active
+      strategyStore.setPaperTradingActive(false);
+      
+      // Stop feeding chart data to strategy
+      stopDataFeedToStrategy();
+      
+      if (statusInterval) {
+        clearInterval(statusInterval);
+        statusInterval = null;
+      }
+      
+      updateStatus();
+    } catch (error) {
+      console.error('Failed to stop backend trading:', error);
     }
-    
-    const botService = activeBotInstance.service;
-    
-    // Stop the service
-    botService.stop();
-    
-    paperTradingManager.updateBotState(activeBotInstance.id, {
-      isRunning: false,
-      isPaused: false
-    });
-    
-    // Update store to indicate paper trading is not active
-    strategyStore.setPaperTradingActive(false);
-    
-    // Stop feeding chart data to strategy
-    stopDataFeedToStrategy();
-    
-    if (statusInterval) {
-      clearInterval(statusInterval);
-      statusInterval = null;
-    }
-    
-    updateStatus();
   }
   
   function updateStatus() {
@@ -1224,11 +1371,16 @@ export class ${getStrategyFileName(type)} extends Strategy {
     // Use the reactive bot state instead of getting it again
     if (!activeBotState) return;
     
-    balance = activeBotState.balance?.usd || 0;
-    btcBalance = activeBotState.balance?.btcPositions || 0;
-    vaultBalance = activeBotState.balance?.vault || 0;
-    positions = activeBotState.strategy?.getPositions ? activeBotState.strategy.getPositions() : [];
-    trades = activeBotState.trades || [];
+    // Don't update balances here - they're already being updated by the reactive subscription
+    // This prevents flickering caused by duplicate updates
+    
+    // NEVER update trades from frontend state - only backend should update trades
+    // trades = activeBotState.trades || []; // REMOVED - this was overwriting backend trades!
+    
+    // Only update positions from frontend if backend doesn't have them
+    if (!positions || positions.length === 0) {
+      positions = activeBotState.strategy?.getPositions ? activeBotState.strategy.getPositions() : [];
+    }
     
     // Calculate metrics
     if (trades.length > 0) {
@@ -1242,17 +1394,23 @@ export class ${getStrategyFileName(type)} extends Strategy {
     }
   }
   
-  function resetTrading() {
-    console.log('Reset clicked, currentPrice:', currentPrice);
+  async function resetTrading() {
+    console.log('Reset clicked for bot:', activeBotInstance?.id);
     
     if (!activeBotInstance) return;
     
     // Stop if running
     if (isRunning) {
-      stopTrading();
+      await stopTrading();
     }
     
-    // Reset the bot service
+    // Use the new backend reset handler
+    tradingBackendService.resetTrading(activeBotInstance.id);
+    
+    // Clear local state immediately for responsive UI
+    clearBotData();
+    
+    // Reset the frontend bot service as well
     const botService = activeBotInstance.service;
     botService.resetStrategy();
     
@@ -1274,8 +1432,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
       }
     });
     
-    // Update local state
-    updateStatus();
+    // The backend will send resetComplete message which will trigger state refresh
+    // Re-sync with backend after a short delay to ensure state is updated
+    setTimeout(() => {
+      syncWithBackendState();
+    }, 500);
   }
   
   function startEditingBalance() {
@@ -1438,6 +1599,38 @@ export class ${getStrategyFileName(type)} extends Strategy {
   $: unrealizedPnl = displayPositions.reduce((total, pos) => {
     return total + ((displayPrice - pos.entryPrice) * pos.size);
   }, 0);
+  
+  // Calculate total portfolio value
+  $: totalPortfolioValue = displayBalance + (displayBtcBalance * currentPrice) + vaultBalance + btcVaultBalance * currentPrice;
+  $: totalPnl = totalPortfolioValue - 10000;
+  $: totalPnlPercent = (totalPnl / 10000) * 100;
+  
+  // Calculate trading metrics from trades
+  $: {
+    if (trades && trades.length > 0) {
+      // Calculate total fees and rebates
+      let fees = 0;
+      let rebates = 0;
+      
+      trades.forEach(trade => {
+        if (trade.fee) {
+          fees += trade.fee;
+        }
+        // Assuming 20% rebate on fees (can be adjusted)
+        rebates += (trade.fee || 0) * 0.2;
+      });
+      
+      totalFees = fees;
+      totalRebates = rebates;
+      
+      // Calculate starting balance growth
+      startingBalanceGrowth = totalPortfolioValue - 10000;
+    } else {
+      totalFees = 0;
+      totalRebates = 0;
+      startingBalanceGrowth = 0;
+    }
+  }
   
   // Get initial balance from active bot or use default
   $: initialBalance = activeBotInstance ? 
@@ -2008,11 +2201,11 @@ export class ${getStrategyFileName(type)} extends Strategy {
             period={selectedPeriod} 
             onGranularityChange={handleChartGranularityChange}
             onDataFeedReady={handleDataFeedReady}
-            trades={activeBotState?.trades ? activeBotState.trades.map(t => ({
+            trades={trades.map(t => ({
               timestamp: t.timestamp,
               type: t.type || t.side,  // Handle both 'type' and 'side' properties
               price: t.price
-            })) : []}
+            }))}
             onChartReady={(chart, candleSeries) => {
               chartInstance = chart;
               candleSeriesInstance = candleSeries;
@@ -2208,62 +2401,111 @@ export class ${getStrategyFileName(type)} extends Strategy {
           {/if}
           
           <div class="balances">
-            <div class="balance-item">
-              <span>USD Balance:</span>
-              {#if isEditingBalance}
-                <div class="balance-edit">
-                  $<input 
-                    type="number" 
-                    bind:value={editingBalance} 
-                    on:keydown={(e) => {
-                      if (e.key === 'Enter') saveBalance();
-                      if (e.key === 'Escape') cancelEditBalance();
-                    }}
-                    on:blur={saveBalance}
-                    autofocus
-                  />
-                </div>
-              {:else}
-                <span class="balance-value" class:editable={!isRunning && !isPaperTestMode} on:click={startEditingBalance}>
-                  ${displayBalance.toFixed(2)}
-                  {#if !isRunning && !isPaperTestMode}
-                    <span class="edit-icon">✏️</span>
-                  {/if}
+            <div class="balance-row">
+              <div class="balance-item">
+                <span class="balance-label">USD Balance:</span>
+                {#if isEditingBalance}
+                  <div class="balance-edit">
+                    $<input 
+                      type="number" 
+                      bind:value={editingBalance} 
+                      on:keydown={(e) => {
+                        if (e.key === 'Enter') saveBalance();
+                        if (e.key === 'Escape') cancelEditBalance();
+                      }}
+                      on:blur={saveBalance}
+                      autofocus
+                    />
+                  </div>
+                {:else}
+                  <span class="balance-value" class:editable={!isRunning && !isPaperTestMode} on:click={startEditingBalance}>
+                    ${displayBalance.toFixed(2)}
+                    {#if !isRunning && !isPaperTestMode}
+                      <span class="edit-icon">✏️</span>
+                    {/if}
+                  </span>
+                {/if}
+              </div>
+              <div class="balance-item">
+                <span class="balance-label">BTC Positions:</span>
+                <span class="balance-value">{displayBtcBalance.toFixed(8)} BTC</span>
+              </div>
+            </div>
+            <div class="balance-row">
+              <div class="balance-item">
+                <span class="balance-label">USDC Vault:</span>
+                <span class="balance-value vault">${vaultBalance.toFixed(2)}</span>
+              </div>
+              <div class="balance-item">
+                <span class="balance-label">BTC Vault:</span>
+                <span class="balance-value vault">{btcVaultBalance.toFixed(8)} BTC (${(btcVaultBalance * currentPrice).toFixed(2)})</span>
+              </div>
+            </div>
+            <div class="balance-row">
+              <div class="balance-item">
+                <span class="balance-label">Total Trades:</span>
+                <span class="balance-value">{trades.length}</span>
+              </div>
+              <div class="balance-item">
+                <span class="balance-label">Total Return:</span>
+                <span class="balance-value" class:profit={totalReturn > 0} class:loss={totalReturn < 0}>
+                  ${totalReturn.toFixed(2)}
                 </span>
-              {/if}
+              </div>
             </div>
-            <div class="balance-item">
-              <span>BTC Balance:</span>
-              <span>{displayBtcBalance.toFixed(8)} BTC</span>
+            <div class="balance-row">
+              <div class="balance-item">
+                <span class="balance-label">BTC Open Positions:</span>
+                <span class="balance-value">{positions.reduce((sum, p) => sum + p.size, 0).toFixed(8)} BTC</span>
+              </div>
+              <div class="balance-item">
+                <span class="balance-label">Starting Balance Growth:</span>
+                <span class="balance-value" class:profit={startingBalanceGrowth > 0} class:loss={startingBalanceGrowth < 0}>
+                  ${startingBalanceGrowth.toFixed(2)} ({(startingBalanceGrowth/10000*100).toFixed(2)}%)
+                </span>
+              </div>
             </div>
-            <div class="balance-item">
-              <span>Vault Balance:</span>
-              <span class="vault">${vaultBalance.toFixed(2)}</span>
+            <div class="balance-row">
+              <div class="balance-item">
+                <span class="balance-label">Total Fees:</span>
+                <span class="balance-value loss">${totalFees.toFixed(2)}</span>
+              </div>
+              <div class="balance-item">
+                <span class="balance-label">Net Fees (after rebates):</span>
+                <span class="balance-value loss">${(totalFees - totalRebates).toFixed(2)} (Rebates: ${totalRebates.toFixed(2)})</span>
+              </div>
             </div>
-            <div class="balance-item">
-              <span>Unrealized P&L:</span>
-              <span class:profit={unrealizedPnl > 0} class:loss={unrealizedPnl < 0}>
-                ${unrealizedPnl.toFixed(2)}
-              </span>
+            <div class="balance-divider"></div>
+            <div class="balance-row">
+              <div class="balance-item">
+                <span class="balance-label">Total Value:</span>
+                <span class="balance-value total">${totalPortfolioValue.toFixed(2)}</span>
+              </div>
+              <div class="balance-item">
+                <span class="balance-label">Total P&L:</span>
+                <span class="balance-value" class:profit={totalPnl > 0} class:loss={totalPnl < 0}>
+                  ${totalPnl.toFixed(2)} ({totalPnlPercent.toFixed(2)}%)
+                </span>
+              </div>
             </div>
           </div>
           
           <div class="control-buttons">
             {#if !isRunning}
-              <button class="start-btn" on:click={startTrading}>
+              <button class="start-btn" on:click={() => startTrading()}>
                 Start Automated Trading
               </button>
             {:else}
               {#if !isPaused}
-                <button class="pause-btn" on:click={pauseTrading}>
+                <button class="pause-btn" on:click={() => pauseTrading()}>
                   Pause Trading
                 </button>
               {:else}
-                <button class="resume-btn" on:click={resumeTrading}>
+                <button class="resume-btn" on:click={() => resumeTrading()}>
                   Resume Trading
                 </button>
               {/if}
-              <button class="stop-btn" on:click={stopTrading}>
+              <button class="stop-btn" on:click={() => stopTrading()}>
                 Stop Trading
               </button>
             {/if}
@@ -3475,23 +3717,61 @@ No open positions{/if}</title>
   }
   
   .balances {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(74, 0, 224, 0.2);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 15px;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  
+  /* Custom scrollbar for balances */
+  .balances::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .balances::-webkit-scrollbar-track {
+    background: rgba(74, 0, 224, 0.1);
+    border-radius: 3px;
+  }
+  
+  .balances::-webkit-scrollbar-thumb {
+    background: rgba(74, 0, 224, 0.4);
+    border-radius: 3px;
+  }
+  
+  .balances::-webkit-scrollbar-thumb:hover {
+    background: rgba(74, 0, 224, 0.6);
+  }
+  
+  .balance-row {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-bottom: 20px;
+    gap: 20px;
+    margin-bottom: 8px;
+  }
+  
+  .balance-row:last-child {
+    margin-bottom: 0;
   }
   
   .balance-item {
     display: flex;
-    justify-content: space-between;
-    padding: 10px;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 4px;
-    font-size: 14px;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
   }
   
-  .balance-item span:last-child {
-    font-weight: 600;
+  .balance-label {
+    color: #888;
+    font-size: 10px;
+    min-width: 100px;
+  }
+  
+  .balance-divider {
+    height: 1px;
+    background: rgba(74, 0, 224, 0.2);
+    margin: 6px 0;
   }
   
   .balance-value {
@@ -3499,10 +3779,30 @@ No open positions{/if}</title>
     align-items: center;
     gap: 5px;
     cursor: default;
+    color: #fff;
+    font-weight: 400;
+    font-size: 11px;
   }
   
   .balance-value.editable {
     cursor: pointer;
+  }
+  
+  .balance-value.vault {
+    color: #22c55e;
+  }
+  
+  .balance-value.total {
+    font-size: 13px;
+    font-weight: 500;
+  }
+  
+  .balance-value.profit {
+    color: #22c55e;
+  }
+  
+  .balance-value.loss {
+    color: #ef4444;
   }
   
   .balance-value.editable:hover {
@@ -3510,7 +3810,7 @@ No open positions{/if}</title>
   }
   
   .edit-icon {
-    font-size: 12px;
+    font-size: 10px;
     opacity: 0.5;
   }
   

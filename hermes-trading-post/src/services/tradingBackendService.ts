@@ -192,6 +192,12 @@ class TradingBackendService {
       // Bot manager messages
       case 'botManagerState':
       case 'managerState':
+        console.log('Received manager state update:', {
+          hasBots: !!message.data?.bots,
+          botCount: Object.keys(message.data?.bots || {}).length,
+          activeBotId: message.data?.activeBotId
+        });
+        
         this.state.update(s => ({ 
           ...s, 
           managerState: message.data,
@@ -209,6 +215,15 @@ class TradingBackendService {
         }
         break;
         
+      case 'resetComplete':
+        console.log('Reset complete for bot:', message.botId);
+        if (message.status) {
+          this.updateStateFromBackend(message.status);
+        }
+        // Request updated manager state to refresh all bot states
+        this.send({ type: 'getManagerState' });
+        break;
+        
       default:
         console.log('Unknown message type:', message.type);
     }
@@ -221,8 +236,8 @@ class TradingBackendService {
       isPaused: status.isPaused || false,
       strategy: status.strategy || null,
       balance: status.balance || s.balance,
-      positions: status.positions || [],
-      trades: status.trades || [],
+      positions: status.positions || s.positions,
+      trades: status.trades || s.trades,
       currentPrice: status.currentPrice || s.currentPrice,
       totalValue: status.totalValue || s.totalValue,
       profitLoss: status.profitLoss || 0,
@@ -243,6 +258,10 @@ class TradingBackendService {
     } else {
       console.error('WebSocket is not connected');
     }
+  }
+
+  isConnected(): boolean {
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 
   getState(): Writable<BackendTradingState> {
@@ -283,6 +302,14 @@ class TradingBackendService {
   resumeTrading() {
     console.log('Resuming trading');
     this.send({ type: 'resume' });
+  }
+
+  resetTrading(botId?: string) {
+    console.log('Resetting trading for bot:', botId || 'active bot');
+    this.send({ 
+      type: 'reset',
+      botId: botId 
+    });
   }
 
   updateStrategy(strategy: any) {

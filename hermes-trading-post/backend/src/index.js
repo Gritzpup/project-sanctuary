@@ -21,7 +21,10 @@ const wss = new WebSocketServer({ server });
 const botManager = new BotManager();
 
 // Initialize default bots on startup
-botManager.initializeDefaultBots();
+// Use async IIFE to handle async initialization
+(async () => {
+  await botManager.initializeDefaultBots();
+})();
 
 wss.on('connection', (ws) => {
   console.log('New WebSocket connection established');
@@ -68,6 +71,11 @@ wss.on('connection', (ws) => {
           
         // Trading commands (forwarded to active bot)
         case 'start':
+          console.log('Start trading request received:', {
+            config: data.config,
+            activeBotId: botManager.activeBotId,
+            hasActiveBot: !!botManager.getActiveBot()
+          });
           botManager.startTrading(data.config);
           break;
         case 'stop':
@@ -87,6 +95,35 @@ wss.on('connection', (ws) => {
           break;
         case 'updateStrategy':
           botManager.updateStrategy(data.strategy);
+          break;
+        case 'realtimePrice':
+          // Forward real-time price to bot manager
+          if (data.data && data.data.price) {
+            console.log(`Backend received real-time price: ${data.data.price}`);
+            botManager.updateRealtimePrice(data.data.price, data.data.product_id);
+          }
+          break;
+        case 'reset':
+          console.log('Reset request received for bot:', data.botId);
+          const botToReset = data.botId ? botManager.getBot(data.botId) : botManager.getActiveBot();
+          if (botToReset) {
+            botToReset.resetState();
+            ws.send(JSON.stringify({
+              type: 'resetComplete',
+              botId: data.botId || botManager.activeBotId,
+              status: botToReset.getStatus()
+            }));
+            // Broadcast updated manager state
+            botManager.broadcast({
+              type: 'managerState',
+              data: botManager.getManagerState()
+            });
+          } else {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'No bot found to reset'
+            }));
+          }
           break;
         default:
           console.log('Unknown message type:', data.type);
@@ -153,6 +190,9 @@ const gracefulShutdown = (signal) => {
 
   isShuttingDown = true;
   console.log(`\n${signal} received, shutting down gracefully`);
+  
+  // Set environment variable to indicate we're truly shutting down
+  process.env.SHUTTING_DOWN = 'true';
   
   // Stop bot manager
   botManager.cleanup();

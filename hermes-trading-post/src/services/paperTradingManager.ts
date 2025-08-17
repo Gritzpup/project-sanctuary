@@ -7,6 +7,7 @@ import { writable, get } from 'svelte/store';
 import type { Writable } from 'svelte/store';
 import { PaperTradingService, type PaperTradingState } from './paperTradingService';
 import { Strategy } from '../strategies/base/Strategy';
+import { tradingBackendService } from './tradingBackendService';
 
 export interface BotInstance {
   id: string;
@@ -91,8 +92,19 @@ class PaperTradingManager {
       }
     }));
 
-    // Set first bot as active if none selected
-    if (!state.activeTabId || !state.activeTabId.startsWith(strategyType)) {
+    // Set active bot
+    if (state.activeTabId && state.activeTabId.startsWith(strategyType)) {
+      // Restore the saved bot selection if it exists
+      const savedBot = bots.find(bot => bot.id === state.activeTabId);
+      if (savedBot) {
+        console.log('Restoring saved bot selection:', state.activeTabId);
+        this.selectBot(strategyType, state.activeTabId);
+      } else {
+        // Saved bot not found, select first bot
+        this.selectBot(strategyType, bots[0].id);
+      }
+    } else if (!state.activeTabId) {
+      // No saved selection, select first bot
       this.selectBot(strategyType, bots[0].id);
     }
   }
@@ -123,8 +135,17 @@ class PaperTradingManager {
     // Save configuration immediately when bot is selected
     this.saveConfiguration();
 
-    // Notify backend
-    tradingBackendService.selectBot(botId);
+    // Notify backend - retry if WebSocket is not ready
+    const notifyBackend = () => {
+      if (tradingBackendService.isConnected()) {
+        console.log('Notifying backend of bot selection:', botId);
+        tradingBackendService.selectBot(botId);
+      } else {
+        console.log('WebSocket not ready, retrying bot selection in 100ms...');
+        setTimeout(notifyBackend, 100);
+      }
+    };
+    notifyBackend();
   }
 
   getActiveBot(): BotInstance | null {

@@ -1220,7 +1220,7 @@ export class ChartDataFeed {
   }
   
   // Set manual granularity (disables auto for 2 seconds)
-  setManualGranularity(granularity: string) {
+  async setManualGranularity(granularity: string) {
     console.log(`Manual granularity set to: ${granularity}`);
     this.logDataState('BEFORE_SET_MANUAL_GRANULARITY', { 
       newGranularity: granularity,
@@ -1228,10 +1228,36 @@ export class ChartDataFeed {
       caller: new Error().stack?.split('\n').slice(2,4).join(' -> ')
     });
     
-    // Clear current data when switching granularities to ensure fresh load
+    // When switching granularities, try to load cached data first
     if (this.currentGranularity !== granularity) {
-      console.log(`ChartDataFeed: Clearing current data when switching from ${this.currentGranularity} to ${granularity}`);
-      this.currentData = [];
+      console.log(`ChartDataFeed: Switching from ${this.currentGranularity} to ${granularity}`);
+      
+      // Save current data for this granularity before switching
+      if (this.currentData.length > 0) {
+        this.dataByGranularity.set(this.currentGranularity, [...this.currentData]);
+      }
+      
+      // Check if we have cached data for the new granularity
+      const cachedData = this.dataByGranularity.get(granularity);
+      if (cachedData && cachedData.length > 0) {
+        console.log(`ChartDataFeed: Restoring ${cachedData.length} cached candles for ${granularity}`);
+        this.currentData = [...cachedData];
+      } else {
+        // No cached data in memory, try to load from IndexedDB
+        console.log(`ChartDataFeed: Loading data from cache for ${granularity}`);
+        this.currentData = []; // Clear while loading
+        
+        // Load historical data for the new granularity
+        const days = granularity === '1m' ? 1 : 
+                    granularity === '5m' ? 2 : 
+                    granularity === '15m' ? 7 : 14;
+        
+        try {
+          await this.loadHistoricalData(granularity, days, this.activeInstanceId || undefined);
+        } catch (error) {
+          console.error(`ChartDataFeed: Failed to load historical data for ${granularity}:`, error);
+        }
+      }
     }
     
     this.isManualMode = true;

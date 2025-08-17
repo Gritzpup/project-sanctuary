@@ -1,4 +1,5 @@
 import type { WebSocketMessage, TickerMessage, SubscribeMessage } from '../types/coinbase';
+import { priceForwarder } from './priceForwarder';
 
 export class CoinbaseWebSocket {
   private ws: WebSocket | null = null;
@@ -79,6 +80,11 @@ export class CoinbaseWebSocket {
                   console.error('Error in message listener:', error);
                 }
               });
+              
+              // Forward price to backend
+              if (tickerData.price && tickerData.product_id) {
+                priceForwarder.forwardPrice(parseFloat(tickerData.price), tickerData.product_id);
+              }
               
               // Legacy support for BTC-USD price callback
               if (data.product_id === 'BTC-USD' && tickerData.price) {
