@@ -1922,15 +1922,15 @@ export class ${getStrategyFileName(type)} extends Strategy {
           }
         }
         
-        console.log('Next buy calculation:', {
-          recentHigh,
-          currentPrice: effectivePrice,
-          nextLevel: `${nextLevel}%`,
-          nextBuyPrice: (recentHigh || effectivePrice) * (1 - nextLevel / 100),
-          currentDrop: dropFromHigh,
-          positionCount: currentPositionCount,
-          strategyParams: { initialDrop, levelDrop, maxLevels }
-        });
+        // console.log('Next buy calculation:', {
+        //   recentHigh,
+        //   currentPrice: effectivePrice,
+        //   nextLevel: `${nextLevel}%`,
+        //   nextBuyPrice: (recentHigh || effectivePrice) * (1 - nextLevel / 100),
+        //   currentDrop: dropFromHigh,
+        //   positionCount: currentPositionCount,
+        //   strategyParams: { initialDrop, levelDrop, maxLevels }
+        // });
         
         return {
           type: 'price',

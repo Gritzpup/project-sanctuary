@@ -268,9 +268,9 @@ export class TradingService extends EventEmitter {
       if (this.currentCandle) {
         this.candles.push(this.currentCandle);
         // Only log every 10th candle to reduce spam
-        if (this.candles.length % 10 === 0) {
-          console.log(`Candle update: ${this.candles.length} candles`);
-        }
+        // if (this.candles.length % 10 === 0) {
+        //   console.log(`Candle update: ${this.candles.length} candles`);
+        // }
         
         // Keep only last 500 candles
         if (this.candles.length > 500) {
@@ -597,7 +597,7 @@ export class TradingService extends EventEmitter {
   updateRealtimePrice(price, productId) {
     // First price update - always accept it
     if (this.currentPrice === 0) {
-      console.log('First price received:', price);
+      // console.log('First price received:', price);
       this.currentPrice = price;
     } else {
       // Always update the current price
@@ -769,15 +769,15 @@ export class TradingService extends EventEmitter {
     const totalAvailable = this.balance.usd;
     const positionSize = this.strategy.calculatePositionSize(totalAvailable, signal, this.currentPrice);
     
-    console.log('Buy calculation:', {
-      totalAvailable,
-      positionSize,
-      currentPrice: this.currentPrice,
-      signal
-    });
+    // console.log('Buy calculation:', {
+    //   totalAvailable,
+    //   positionSize,
+    //   currentPrice: this.currentPrice,
+    //   signal
+    // });
     
     if (positionSize <= 0) {
-      console.log('Position size too small or no funds available');
+      // console.log('Position size too small or no funds available');
       return;
     }
     
@@ -1004,13 +1004,13 @@ export class TradingService extends EventEmitter {
         
         const state = JSON.parse(data);
         
-        console.log(`Loading state for bot ${this.botId}:`, {
-          trades: state.trades?.length || 0,
-          positions: state.positions?.length || 0,
-          balance: state.balance,
-          wasRunning: state.isRunning,
-          wasPaused: state.isPaused
-        });
+        // console.log(`Loading state for bot ${this.botId}:`, {
+        //   trades: state.trades?.length || 0,
+        //   positions: state.positions?.length || 0,
+        //   balance: state.balance,
+        //   wasRunning: state.isRunning,
+        //   wasPaused: state.isPaused
+        // });
         
         // Restore state
         this.trades = state.trades || [];
@@ -1077,7 +1077,7 @@ export class TradingService extends EventEmitter {
         // Restore current price from last known value
         if (state.currentPrice && state.currentPrice > 0) {
           this.currentPrice = state.currentPrice;
-          console.log(`Restored current price: $${this.currentPrice}`);
+          // console.log(`Restored current price: $${this.currentPrice}`);
         }
         
         // Check saved running state but DO NOT auto-resume
@@ -1088,7 +1088,7 @@ export class TradingService extends EventEmitter {
         // console.log('Trading state loaded successfully');
         
         // Simply restore the state - DO NOT restart trading
-        console.log(`Bot ${this.botId} loaded state: running=${wasRunning}, paused=${wasPaused}`);
+        // console.log(`Bot ${this.botId} loaded state: running=${wasRunning}, paused=${wasPaused}`);
         
         // Restore the state flags
         this.isRunning = wasRunning;

@@ -86,12 +86,12 @@ export class BotManager {
     }
 
     this.activeBotId = botId;
-    console.log(`Bot Manager: Selected bot ${botId}`);
+    // console.log(`Bot Manager: Selected bot ${botId}`);
     
     // Get bot status for logging
     const bot = this.getActiveBot();
     const status = bot?.getStatus();
-    console.log(`  Bot status: Running=${status?.isRunning}, Positions=${status?.positions?.length || 0}`);
+    // console.log(`  Bot status: Running=${status?.isRunning}, Positions=${status?.positions?.length || 0}`);
     
     // Broadcast update
     this.broadcast({
@@ -224,8 +224,8 @@ export class BotManager {
       }
     }
 
-    console.log(`Bot Manager: Initialized ${this.bots.size} bots (${this.maxBotsPerStrategy} per strategy)`);
-    console.log(`Found ${botsToRestart.length} bots that need to restart`);
+    // console.log(`Bot Manager: Initialized ${this.bots.size} bots (${this.maxBotsPerStrategy} per strategy)`);
+    // console.log(`Found ${botsToRestart.length} bots that need to restart`);
     
     // Wait a bit for all bots to fully initialize
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -247,18 +247,18 @@ export class BotManager {
     }
     
     // Log final status after a delay
-    setTimeout(() => {
-      console.log('\nBot states after initialization:');
-      let runningCount = 0;
-      for (const [botId, bot] of this.bots.entries()) {
-        const status = bot.getStatus();
-        if (status.isRunning) {
-          runningCount++;
-          console.log(`  ${botId}: Running=true, Positions=${status.positions.length}, Balance=$${status.balance.usd.toFixed(2)}`);
-        }
-      }
-      console.log(`Total running bots: ${runningCount}`);
-    }, 2000);
+    // setTimeout(() => {
+    //   console.log('\nBot states after initialization:');
+    //   let runningCount = 0;
+    //   for (const [botId, bot] of this.bots.entries()) {
+    //     const status = bot.getStatus();
+    //     if (status.isRunning) {
+    //       runningCount++;
+    //       console.log(`  ${botId}: Running=true, Positions=${status.positions.length}, Balance=$${status.balance.usd.toFixed(2)}`);
+    //     }
+    //   }
+    //   console.log(`Total running bots: ${runningCount}`);
+    // }, 2000);
   }
 
   // Get state for a specific strategy

@@ -341,6 +341,9 @@
       }
       
       // IMPORTANT: Subscribe IMMEDIATELY before any data arrives
+      let historicalBatch: any[] = [];
+      let historicalTimeout: NodeJS.Timeout | null = null;
+      
       dataFeed.subscribe(instanceId, (candle, isNew, metadata) => {
         // console.log('Chart: Received candle update', { 
         //   time: new Date(candle.time * 1000).toISOString(),
@@ -365,6 +368,54 @@
           // console.log('Chart: Queueing candle update - initial data not yet loaded');
           pendingCandles.push({ candle, isNew, metadata });
           return;
+        }
+        
+        // Handle historical data batch updates
+        if (metadata?.isHistorical && candleSeries) {
+          // Collect historical candles in a batch
+          historicalBatch.push({
+            time: candle.time as Time,
+            open: candle.open,
+            high: candle.high,
+            low: candle.low,
+            close: candle.close
+          });
+          
+          // Clear existing timeout
+          if (historicalTimeout) {
+            clearTimeout(historicalTimeout);
+          }
+          
+          // Set a new timeout to process the batch
+          historicalTimeout = setTimeout(() => {
+            if (historicalBatch.length > 0 && candleSeries) {
+              try {
+                // Get existing data
+                const existingData = candleSeries.data();
+                
+                // Combine and sort all data
+                const allData = [...historicalBatch, ...existingData]
+                  .sort((a, b) => (a.time as number) - (b.time as number))
+                  // Remove duplicates
+                  .filter((candle, index, array) => 
+                    index === 0 || (candle.time as number) !== (array[index - 1].time as number)
+                  );
+                
+                // Replace all data at once
+                candleSeries.setData(allData);
+                console.log(`Chart: Loaded ${historicalBatch.length} historical candles`);
+                
+                // Clear the batch
+                historicalBatch = [];
+              } catch (error) {
+                console.error('Chart: Error loading historical data batch:', error);
+                historicalBatch = [];
+              }
+            }
+            historicalTimeout = null;
+          }, 100); // Small delay to batch updates
+          
+          return; // Don't process historical data through normal update flow
         }
         
         // Handle viewport updates - slide the view without removing data
@@ -412,7 +463,12 @@
             clearTimeout(statusResetTimer);
           }
           
-          // Always update the candle
+          // Always update the candle - ensure time is a valid number
+          if (!candle.time || typeof candle.time !== 'number' || isNaN(candle.time)) {
+            console.error('Chart: Invalid candle time received:', candle);
+            return;
+          }
+          
           const chartCandle = {
             time: candle.time as Time,
             open: candle.open,
@@ -455,6 +511,15 @@
               const firstCandle = currentData[0];
               const lastCandle = currentData[currentData.length - 1];
               
+              // Validate candle times before comparison
+              const firstTime = typeof firstCandle.time === 'number' ? firstCandle.time : Number(firstCandle.time);
+              const lastTime = typeof lastCandle.time === 'number' ? lastCandle.time : Number(lastCandle.time);
+              
+              if (isNaN(firstTime) || isNaN(lastTime)) {
+                console.error('Chart: Invalid time in existing data:', { firstCandle, lastCandle });
+                return;
+              }
+              
               if (existingIndex >= 0) {
                 // Candle exists, update it
                 candleSeries.update(chartCandle);
@@ -478,7 +543,7 @@
                     console.debug('Chart: Unable to maintain sliding window:', e);
                   }
                 }
-              } else if (chartCandle.time < firstCandle.time) {
+              } else if (chartCandle.time < firstTime) {
                 // New candle is older than first candle, prepend and reset data
                 // console.log('Chart: Prepending older candle');
                 // For 1m granularity, accumulate all candles
@@ -490,7 +555,7 @@
                 } else {
                   candleSeries.setData([chartCandle, ...currentData]);
                 }
-              } else if (chartCandle.time > lastCandle.time) {
+              } else if (chartCandle.time > lastTime) {
                 // New candle is newer than last candle, append
                 // console.log('Chart: Appending newer candle');
                 // For 1m granularity, keep accumulating candles
@@ -1369,13 +1434,13 @@
     
     const expected = expectedCounts[period]?.[effectiveGranularity];
     
-    console.log('Visible candle count:', {
-      period,
-      granularity: effectiveGranularity,
-      visibleCount: visibleCandleCount,
-      expected: expected || 'calculated',
-      range: `${(range / 60).toFixed(1)} minutes`
-    });
+    // console.log('Visible candle count:', {
+    //   period,
+    //   granularity: effectiveGranularity,
+    //   visibleCount: visibleCandleCount,
+    //   expected: expected || 'calculated',
+    //   range: `${(range / 60).toFixed(1)} minutes`
+    // });
   }
   
   // Update trade markers on the chart
