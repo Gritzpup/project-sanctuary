@@ -140,11 +140,11 @@ class TradingBackendService {
   }
 
   private handleMessage(message: any) {
-    console.log('Received message:', message.type);
+    // console.log('Received message:', message.type);
     
     switch (message.type) {
       case 'connected':
-        console.log('Backend connection established:', message.message);
+        // console.log('Backend connection established:', message.message);
         if (message.managerState) {
           this.state.update(s => ({ ...s, managerState: message.managerState }));
         }
@@ -192,11 +192,11 @@ class TradingBackendService {
       // Bot manager messages
       case 'botManagerState':
       case 'managerState':
-        console.log('Received manager state update:', {
-          hasBots: !!message.data?.bots,
-          botCount: Object.keys(message.data?.bots || {}).length,
-          activeBotId: message.data?.activeBotId
-        });
+        // console.log('Received manager state update:', {
+        //   hasBots: !!message.data?.bots,
+        //   botCount: Object.keys(message.data?.bots || {}).length,
+        //   activeBotId: message.data?.activeBotId
+        // });
         
         this.state.update(s => ({ 
           ...s, 

@@ -27,7 +27,7 @@ const botManager = new BotManager();
 })();
 
 wss.on('connection', (ws) => {
-  console.log('New WebSocket connection established');
+  // console.log('New WebSocket connection established');
 
   botManager.addClient(ws);
 
@@ -41,7 +41,7 @@ wss.on('connection', (ws) => {
       const data = JSON.parse(message.toString());
       // Only log non-status messages to reduce spam
       if (data.type !== 'getStatus' && data.type !== 'getManagerState') {
-        console.log('Received message:', data.type);
+        // console.log('Received message:', data.type);
       }
       
       switch (data.type) {
@@ -116,7 +116,7 @@ wss.on('connection', (ws) => {
         case 'realtimePrice':
           // Forward real-time price to bot manager
           if (data.data && data.data.price) {
-            console.log(`Backend received real-time price: ${data.data.price}`);
+            // console.log(`Backend received real-time price: ${data.data.price}`);
             botManager.updateRealtimePrice(data.data.price, data.data.product_id);
           }
           break;
