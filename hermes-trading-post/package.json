@@ -7,7 +7,10 @@
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "vite",
     "dev:backend": "cd backend && npm install && npm run dev",
+    "dev:router": "concurrently \"npm run dev:backend\" \"npm run dev:frontend:router\"",
+    "dev:frontend:router": "vite --config vite.config.router.ts",
     "build": "vite build",
+    "build:router": "vite build --config vite.config.router.ts",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.node.json",
     "install:all": "npm install && cd backend && npm install"
@@ -28,6 +31,7 @@
     "axios": "^1.10.0",
     "lightweight-charts": "^4.1.0",
     "p-limit": "^6.2.0",
+    "svelte-routing": "^2.13.0",
     "ws": "^8.18.3"
   }
 }

@@ -2536,16 +2536,15 @@ export class ${getStrategyFileName(type)} extends Strategy {
                         if (e.key === 'Escape') cancelEditBalance();
                       }}
                       on:blur={saveBalance}
-                      autofocus
                     />
                   </div>
                 {:else}
-                  <span class="balance-value" class:editable={!isRunning && !isPaperTestMode} on:click={startEditingBalance}>
+                  <button class="balance-value" class:editable={!isRunning && !isPaperTestMode} on:click={startEditingBalance} type="button">
                     ${displayBalance.toFixed(2)}
                     {#if !isRunning && !isPaperTestMode}
                       <span class="edit-icon">✏️</span>
                     {/if}
-                  </span>
+                  </button>
                 {/if}
               </div>
               <div class="balance-item">
@@ -3779,10 +3778,6 @@ No open positions{/if}</title>
     color: #93c5fd;
   }
   
-  .paper-test-btn svg {
-    width: 10px;
-    height: 10px;
-  }
   
   .paper-test-play-btn {
     padding: 4px 6px;
@@ -3808,10 +3803,6 @@ No open positions{/if}</title>
     cursor: not-allowed;
   }
   
-  .paper-test-play-btn svg {
-    width: 10px;
-    height: 10px;
-  }
   
   .paper-test-stop-btn {
     padding: 4px 6px;
@@ -3833,10 +3824,6 @@ No open positions{/if}</title>
     color: #f87171;
   }
   
-  .paper-test-stop-btn svg {
-    width: 10px;
-    height: 10px;
-  }
   
   .balances {
     background: rgba(0, 0, 0, 0.3);
@@ -3963,9 +3950,6 @@ No open positions{/if}</title>
     background: rgba(74, 0, 224, 0.2);
   }
   
-  .balance-item span.long {
-    color: #26a69a;
-  }
   
   .balance-item span.vault {
     color: #a78bfa;

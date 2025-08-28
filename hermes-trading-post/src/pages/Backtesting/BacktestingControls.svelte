@@ -345,14 +345,14 @@
 </div>
 
 {#if showImportDialog}
-  <div class="import-dialog-overlay" on:click={() => showImportDialog = false}>
-    <div class="import-dialog" on:click|stopPropagation>
+  <div class="import-dialog-overlay" on:click={() => showImportDialog = false} role="button" tabindex="0" aria-label="Close dialog">
+    <div class="import-dialog" on:click|stopPropagation role="dialog" on:keydown={e => e.key === 'Escape' && (showImportDialog = false)}>
       <h3>Import Strategy</h3>
       <textarea
         bind:value={importJsonText}
         placeholder="Paste exported strategy JSON here..."
         rows="10"
-      />
+      ></textarea>
       <div class="dialog-actions">
         <button on:click={importStrategy}>Import</button>
         <button on:click={() => { showImportDialog = false; importJsonText = ''; }}>Cancel</button>
@@ -362,8 +362,8 @@
 {/if}
 
 {#if showStrategyEditor}
-  <div class="strategy-editor-overlay" on:click={() => showStrategyEditor = false}>
-    <div class="strategy-editor-dialog" on:click|stopPropagation>
+  <div class="strategy-editor-overlay" on:click={() => showStrategyEditor = false} role="button" tabindex="0" aria-label="Close dialog">
+    <div class="strategy-editor-dialog" on:click|stopPropagation role="dialog" on:keydown={e => e.key === 'Escape' && (showStrategyEditor = false)}>
       <h3>{editingStrategy ? 'Edit' : 'Create New'} Strategy</h3>
       
       <div class="editor-form">
@@ -404,7 +404,7 @@
               class="strategy-code-editor"
               rows="20"
               spellcheck="false"
-            />
+            ></textarea>
           </div>
         </label>
       </div>

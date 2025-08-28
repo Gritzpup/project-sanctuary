@@ -82,7 +82,6 @@
                     editingBackupKey = '';
                   }
                 }}
-                autofocus
               />
             {:else}
               <h4>{backup.name}</h4>
@@ -112,20 +111,19 @@
 </div>
 
 {#if showBackupDialog}
-  <div class="modal-overlay" on:click={() => showBackupDialog = false}>
-    <div class="modal-content" on:click|stopPropagation>
+  <div class="modal-overlay" on:click={() => showBackupDialog = false} on:keydown={e => e.key === 'Enter' && (showBackupDialog = false)} role="button" tabindex="0" aria-label="Close modal">
+    <div class="modal-content" on:click|stopPropagation role="dialog" tabindex="-1" on:keydown={e => e.key === 'Escape' && (showBackupDialog = false)}>
       <h3>Save Configuration Backup</h3>
       <input 
         type="text" 
         placeholder="Backup name (optional - timestamp will be added)" 
         bind:value={backupName}
-        autofocus
       />
       <textarea 
         placeholder="Description (optional)" 
         bind:value={backupDescription}
         rows="3"
-      />
+      ></textarea>
       <div class="modal-actions">
         <button class="btn-secondary" on:click={() => showBackupDialog = false}>
           Cancel

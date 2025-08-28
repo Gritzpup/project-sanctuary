@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { Router, Route } from 'svelte-routing';
+  import { Router, Route, navigate } from 'svelte-routing';
   import Dashboard from './pages/Dashboard.svelte';
-  import Portfolio from './pages/Portfolio.svelte';
   import PaperTrading from './pages/PaperTrading.svelte';
   import Backtesting from './pages/Backtesting.svelte';
   import Trading from './pages/Trading.svelte';
@@ -51,88 +50,37 @@
     };
   });
 
-  function toggleSidebar() {
-    sidebarStore.toggle();
+  function handleNavigation(event: CustomEvent) {
+    navigate(event.detail.section);
   }
 
-  function handleNavigation(event: CustomEvent) {
-    // Navigation is handled by the router
+  function toggleSidebar() {
+    sidebarStore.toggle();
   }
 </script>
 
 <Router {url}>
   <main>
     <Route path="/">
-      <Dashboard 
-        {currentPrice} 
-        bind:connectionStatus 
-        {sidebarCollapsed} 
-        on:toggle={toggleSidebar}
-        on:navigate={handleNavigation}
-      />
+      <Dashboard {currentPrice} bind:connectionStatus {sidebarCollapsed} on:toggle={toggleSidebar} on:navigate={handleNavigation} />
     </Route>
     <Route path="/dashboard">
-      <Dashboard 
-        {currentPrice} 
-        bind:connectionStatus 
-        {sidebarCollapsed} 
-        on:toggle={toggleSidebar}
-        on:navigate={handleNavigation}
-      />
-    </Route>
-    <Route path="/portfolio">
-      <Portfolio 
-        {currentPrice} 
-        bind:connectionStatus 
-        {sidebarCollapsed} 
-        on:toggle={toggleSidebar}
-        on:navigate={handleNavigation}
-      />
+      <Dashboard {currentPrice} bind:connectionStatus {sidebarCollapsed} on:toggle={toggleSidebar} on:navigate={handleNavigation} />
     </Route>
     <Route path="/paper-trading">
-      <PaperTrading 
-        {currentPrice} 
-        bind:connectionStatus 
-        {sidebarCollapsed} 
-        on:toggle={toggleSidebar}
-        on:navigate={handleNavigation}
-      />
+      <PaperTrading {currentPrice} bind:connectionStatus {sidebarCollapsed} on:toggle={toggleSidebar} on:navigate={handleNavigation} />
     </Route>
     <Route path="/backtesting">
-      <Backtesting 
-        {currentPrice} 
-        bind:connectionStatus 
-        {sidebarCollapsed} 
-        on:toggle={toggleSidebar}
-        on:navigate={handleNavigation}
-      />
+      <Backtesting {currentPrice} bind:connectionStatus {sidebarCollapsed} on:toggle={toggleSidebar} on:navigate={handleNavigation} />
     </Route>
     <Route path="/trading">
-      <Trading 
-        {currentPrice} 
-        bind:connectionStatus 
-        {sidebarCollapsed} 
-        on:toggle={toggleSidebar}
-        on:navigate={handleNavigation}
-      />
+      <Trading {currentPrice} bind:connectionStatus {sidebarCollapsed} on:toggle={toggleSidebar} on:navigate={handleNavigation} />
     </Route>
     <Route path="/vault">
-      <Vault 
-        {currentPrice} 
-        bind:connectionStatus 
-        {sidebarCollapsed} 
-        on:toggle={toggleSidebar}
-        on:navigate={handleNavigation}
-      />
+      <Vault {currentPrice} bind:connectionStatus {sidebarCollapsed} on:toggle={toggleSidebar} on:navigate={handleNavigation} />
     </Route>
     <Route path="/news">
-      <News 
-        {currentPrice} 
-        bind:connectionStatus 
-        {sidebarCollapsed} 
-        on:toggle={toggleSidebar}
-        on:navigate={handleNavigation}
-      />
+      <News {currentPrice} bind:connectionStatus {sidebarCollapsed} on:toggle={toggleSidebar} on:navigate={handleNavigation} />
     </Route>
   </main>
 </Router>

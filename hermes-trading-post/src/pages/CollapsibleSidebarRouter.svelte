@@ -1,7 +1,6 @@
 <script lang="ts">
+  import { navigate } from 'svelte-routing';
   import { createEventDispatcher } from 'svelte';
-  import { navigate as navigateTo } from 'svelte-routing';
-  import { onMount } from 'svelte';
   
   export let sidebarCollapsed = false;
   export let activeSection = 'dashboard';
@@ -12,9 +11,9 @@
     dispatch('toggle');
   }
   
-  function navigate(path: string, section: string) {
+  function handleNavigate(path: string, section: string) {
     activeSection = section;
-    navigateTo(path);
+    navigate(path);
     dispatch('navigate', { section });
   }
   
@@ -27,17 +26,6 @@
     { icon: '🏦', label: 'Vault', section: 'vault', path: '/vault' },
     { icon: '📰', label: 'News', section: 'news', path: '/news' },
   ];
-  
-  onMount(() => {
-    // Set active section based on current path
-    const path = window.location.pathname;
-    const item = menuItems.find(item => item.path === path);
-    if (item) {
-      activeSection = item.section;
-    } else if (path === '/') {
-      activeSection = 'dashboard';
-    }
-  });
 </script>
 
 <aside class="sidebar" class:collapsed={sidebarCollapsed}>
@@ -50,7 +38,7 @@
       <button 
         class="nav-item" 
         class:active={activeSection === item.section}
-        on:click={() => navigate(item.path, item.section)}
+        on:click={() => handleNavigate(item.path, item.section)}
       >
         <span class="nav-icon">{item.icon}</span>
         {#if !sidebarCollapsed}
@@ -166,69 +154,33 @@
     background: rgba(74, 0, 224, 0.3);
   }
   
+  .toggle-icon {
+    font-size: 16px;
+  }
+  
   .sidebar-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
     padding: 20px;
     border-top: 1px solid rgba(74, 0, 224, 0.2);
-    position: relative;
-    gap: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
   
   .settings-btn {
     width: 40px;
     height: 40px;
-    background: none;
-    border: none;
-    color: #9ca3af;
+    background: rgba(74, 0, 224, 0.2);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    color: #a78bfa;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
     transition: all 0.2s;
-    font-size: 20px;
   }
   
   .settings-btn:hover {
-    background: rgba(74, 0, 224, 0.1);
-    color: #d1d4dc;
-  }
-  
-  .sidebar.collapsed .sidebar-footer {
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-    gap: 15px;
-    padding: 15px;
-  }
-  
-  .sidebar.collapsed .settings-btn {
-    position: relative;
-    z-index: 1;
-  }
-  
-  .sidebar.collapsed .toggle-btn {
-    position: relative;
-  }
-  
-  .sidebar.collapsed .nav-item {
-    justify-content: center;
-    padding: 12px 0;
-  }
-  
-  .sidebar.collapsed .nav-icon {
-    margin: 0;
-  }
-  
-  .sidebar.collapsed .sidebar-header {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-  
-  .sidebar.collapsed .sidebar-title {
-    text-align: center;
+    background: rgba(74, 0, 224, 0.3);
   }
 </style>

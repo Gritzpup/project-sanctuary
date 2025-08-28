@@ -131,10 +131,11 @@
           </div>
           <div class="bot-list">
             {#each selectedAssetData.vaults as vault}
-              <div 
+              <button 
                 class="bot-item" 
                 class:selected={selectedBotId === vault.botId}
                 on:click={() => selectedBotId = vault.botId}
+                type="button"
               >
                 <div class="bot-header">
                   <span class="bot-icon">{getStrategyIcon(vault.strategy)}</span>
@@ -155,7 +156,7 @@
                     </span>
                   </div>
                 </div>
-              </div>
+              </button>
             {/each}
             
             {#if selectedAssetData.vaults.length === 0}
