@@ -49,10 +49,7 @@
   let autoGranularityActive = false;
   
   // Save preferences when they change
-  $: chartPreferencesStore.savePreferences('paper-trading', {
-    granularity: selectedGranularity,
-    period: selectedPeriod
-  });
+  $: chartPreferencesStore.setPreferences('paper-trading', selectedGranularity, selectedPeriod);
   
   // Paper trading state
   let isRunning = false;
