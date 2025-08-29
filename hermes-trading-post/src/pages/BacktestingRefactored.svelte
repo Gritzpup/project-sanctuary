@@ -102,7 +102,12 @@
       positionSizeMode: 'percentage',
       basePositionPercent: 8,
       basePositionAmount: 50,
-      maxPositionPercent: 96
+      maxPositionPercent: 96,
+      vaultConfig: {
+        btcVaultPercent: 40,
+        usdGrowthPercent: 30,
+        usdcVaultPercent: 30
+      }
     }
   };
   
