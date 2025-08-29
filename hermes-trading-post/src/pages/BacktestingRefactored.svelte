@@ -225,14 +225,15 @@
             {/if}
           </div>
         </StrategyPanel>
-        
-        {#if backtestResults}
-          <BacktestingResults
-            results={backtestResults}
-            {startBalance}
-          />
-        {/if}
       </div>
     </PanelsRow>
+    
+    <!-- Results Panel - Now outside PanelsRow, spans full width below -->
+    {#if backtestResults}
+      <BacktestingResults
+        results={backtestResults}
+        {startBalance}
+      />
+    {/if}
   </div>
 </BacktestingLayout>
