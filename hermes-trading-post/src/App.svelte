@@ -3,7 +3,7 @@
   import Dashboard from './pages/Dashboard.svelte';
   import Portfolio from './pages/Portfolio.svelte';
   import PaperTrading from './pages/PaperTrading.svelte';
-  import Backtesting from './pages/Backtesting.svelte';
+  import Backtesting from './pages/BacktestingRefactored.svelte';
   import Trading from './pages/Trading.svelte';
   import Vault from './pages/Vault.svelte';
   import News from './pages/News.svelte';

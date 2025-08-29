@@ -1,5 +1,6 @@
 import { mount } from 'svelte'
 import './app.css'
+import './styles/index.css'
 import App from './App.svelte'
 import { setupExtensionErrorHandler, identifyProblematicExtensions } from './utils/extensionErrorHandler'
 
