@@ -123,19 +123,6 @@
 </script>
 
 <div class="chart-wrapper">
-  <!-- Chart controls at the top -->
-  <ChartControls
-    bind:selectedGranularity
-    bind:selectedPeriod
-    {isLoadingChart}
-    {isPaperTestMode}
-    {lockedTimeframe}
-    on:granularityChange={handleGranularityChange}
-    on:periodChange={handlePeriodChange}
-    on:clearCache={handleClearCache}
-    on:resetZoom={handleResetZoom}
-  />
-  
   <!-- Bot tabs if enabled -->
   {#if showBotTabs && botTabs.length > 0}
     <div class="bot-tabs">
@@ -207,6 +194,19 @@
       </div>
     {/if}
   </div>
+  
+  <!-- Chart controls at the bottom -->
+  <ChartControls
+    bind:selectedGranularity
+    bind:selectedPeriod
+    {isLoadingChart}
+    {isPaperTestMode}
+    {lockedTimeframe}
+    on:granularityChange={handleGranularityChange}
+    on:periodChange={handlePeriodChange}
+    on:clearCache={handleClearCache}
+    on:resetZoom={handleResetZoom}
+  />
 </div>
 
 <style>
@@ -221,6 +221,8 @@
     flex: 1;
     position: relative;
     min-height: 400px;
+    height: 100%;
+    overflow: hidden;
   }
   
   .bot-tabs {

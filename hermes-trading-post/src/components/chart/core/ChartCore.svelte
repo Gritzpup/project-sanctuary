@@ -17,7 +17,11 @@
   let resizeObserver: ResizeObserver | null = null;
   
   function initChart() {
-    if (!chartContainer) return;
+    console.log('ChartCore: Initializing chart, container:', chartContainer);
+    if (!chartContainer) {
+      console.log('ChartCore: No container, cannot initialize');
+      return;
+    }
     
     // Create chart with dark theme
     chartInstance = createChart(chartContainer, {
@@ -93,7 +97,11 @@
   }
   
   export function updateData(newData: any[]) {
-    if (!candleSeriesInstance || !newData || newData.length === 0) return;
+    console.log('ChartCore updateData called with', newData?.length || 0, 'candles');
+    if (!candleSeriesInstance || !newData || newData.length === 0) {
+      console.log('ChartCore: No data or series not ready');
+      return;
+    }
     
     // Ensure data is properly formatted
     const formattedData = newData.map(candle => ({
@@ -104,6 +112,7 @@
       close: candle.close
     }));
     
+    console.log('ChartCore: Setting data on chart, first candle:', formattedData[0]);
     candleSeriesInstance.setData(formattedData);
     
     // Auto-scroll to latest candle if enabled

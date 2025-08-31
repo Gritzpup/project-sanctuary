@@ -14,6 +14,9 @@ setTimeout(() => {
 
 const app = mount(App, {
   target: document.getElementById('app')!,
+  props: {
+    url: window.location.pathname
+  }
 })
 
 export default app

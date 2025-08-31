@@ -15,6 +15,7 @@
   
   let dataFeed: ChartDataFeed | null = null;
   let updateInterval: number | null = null;
+  let unsubscribe: (() => void) | null = null;
   
   // Map periods to days
   const periodToDays: Record<string, number> = {
@@ -39,7 +40,11 @@
   };
   
   async function loadData() {
-    if (!dataFeed) return;
+    console.log('ChartDataManager: Loading data for', granularity, period);
+    if (!dataFeed) {
+      console.log('ChartDataManager: No data feed available');
+      return;
+    }
     
     isLoading = true;
     status = 'loading';
@@ -53,16 +58,25 @@
         const endDate = new Date(paperTestDate);
         const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
         
-        const data = await dataFeed.getHistoricalCandles(
-          startDate,
-          endDate,
-          granularitySeconds
+        // Use getDataForVisibleRange method which exists on ChartDataFeed
+        const data = await dataFeed.getDataForVisibleRange(
+          startDate.getTime() / 1000,
+          endDate.getTime() / 1000,
+          'paper-test'
         );
         
+        console.log('ChartDataManager: Loaded', data.length, 'paper test candles');
         candles = data;
       } else {
         // Load regular data
-        const data = await dataFeed.loadCachedData(days, granularitySeconds);
+        const endDate = new Date();
+        const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
+        
+        const data = await dataFeed.getDataForVisibleRange(
+          startDate.getTime() / 1000,
+          endDate.getTime() / 1000
+        );
+        console.log('ChartDataManager: Loaded', data.length, 'candles');
         candles = data;
       }
       
@@ -105,7 +119,7 @@
     if (!dataFeed || isPaperTestMode) return;
     
     // Subscribe to real-time candle updates
-    dataFeed.subscribeToCandles((candle: CandleData) => {
+    unsubscribe = dataFeed.subscribe((candle: CandleData) => {
       // Add or update the latest candle
       const existingIndex = candles.findIndex(c => c.time === candle.time);
       if (existingIndex >= 0) {
@@ -139,9 +153,8 @@
   }
   
   onMount(async () => {
-    // Initialize data feed
-    dataFeed = new ChartDataFeed();
-    await dataFeed.initialize();
+    // Get singleton instance of ChartDataFeed
+    dataFeed = ChartDataFeed.getInstance();
     
     // Load initial data
     await loadData();
@@ -160,14 +173,17 @@
   });
   
   onDestroy(() => {
-    if (dataFeed) {
-      dataFeed.cleanup();
-      dataFeed = null;
-    }
+    // ChartDataFeed is a singleton, don't call cleanup
+    dataFeed = null;
     
     if (updateInterval) {
       clearInterval(updateInterval);
       updateInterval = null;
+    }
+    
+    if (unsubscribe) {
+      unsubscribe();
+      unsubscribe = null;
     }
   });
 </script>

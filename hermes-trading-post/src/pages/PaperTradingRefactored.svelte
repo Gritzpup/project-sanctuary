@@ -15,7 +15,8 @@
   import { tradingBackendService } from '../services/tradingBackendService';
   import { paperTestService } from '../services/paperTestService';
   import { paperTradingManager } from '../services/paperTradingManager';
-  import type { ChartDataFeed } from '../services/chartDataFeed';
+  import { ChartDataFeed } from '../services/chartDataFeed';
+  import { coinbaseWebSocket } from '../services/coinbaseWebSocket';
   import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';
   import { GridTradingStrategy } from '../strategies/implementations/GridTradingStrategy';
   import { RSIMeanReversionStrategy } from '../strategies/implementations/RSIMeanReversionStrategy';
@@ -31,6 +32,9 @@
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   export let sidebarCollapsed = false;
+  
+  // Chart data feed instance
+  let chartDataFeedInstance: ChartDataFeed | null = null;
   
   const dispatch = createEventDispatcher();
   
@@ -58,9 +62,13 @@
   let currentStrategy: Strategy | null = null;
   
   // Bot manager state
-  const managerState = paperTradingManager.getState();
+  const managerStateStore = paperTradingManager.getState();
+  let managerState: any = {};
   let activeBotInstance: any = null;
   let botTabs: any[] = [];
+  
+  // Subscribe to manager state
+  $: managerState = $managerStateStore;
   
   // Tab state for strategy panel
   let activeTab: 'config' | 'code' = 'config';
@@ -132,6 +140,70 @@
     paperTradingManager.selectStrategy(select.value);
   }
   
+  // Trading control functions
+  function startTrading() {
+    const activeBot = paperTradingManager.getActiveBot();
+    if (activeBot && !isRunning) {
+      // Create strategy instance based on selected type
+      let strategy: Strategy | null = null;
+      
+      switch (selectedStrategyType) {
+        case 'reverse-ratio':
+          strategy = new ReverseRatioStrategy();
+          break;
+        case 'grid-trading':
+          strategy = new GridTradingStrategy();
+          break;
+        case 'rsi-mean-reversion':
+          strategy = new RSIMeanReversionStrategy();
+          break;
+        case 'dca':
+          strategy = new DCAStrategy();
+          break;
+        case 'vwap-bounce':
+          strategy = new VWAPBounceStrategy();
+          break;
+        case 'micro-scalping':
+          strategy = new MicroScalpingStrategy();
+          break;
+        case 'proper-scalping':
+          strategy = new ProperScalpingStrategy();
+          break;
+      }
+      
+      if (strategy) {
+        activeBot.service.start(strategy, 'BTC-USD', balance);
+        isRunning = true;
+        isPaused = false;
+      }
+    }
+  }
+  
+  function stopTrading() {
+    const activeBot = paperTradingManager.getActiveBot();
+    if (activeBot) {
+      activeBot.service.stop();
+      isRunning = false;
+      isPaused = false;
+    }
+  }
+  
+  function pauseTrading() {
+    const activeBot = paperTradingManager.getActiveBot();
+    if (activeBot) {
+      activeBot.service.setPaused(true);
+      isPaused = true;
+    }
+  }
+  
+  function resumeTrading() {
+    const activeBot = paperTradingManager.getActiveBot();
+    if (activeBot) {
+      activeBot.service.setPaused(false);
+      isPaused = false;
+    }
+  }
+  
   function clearBotData() {
     isRunning = false;
     isPaused = false;
@@ -182,21 +254,20 @@
   
   // Update bot tabs based on manager state (avoid cyclical dependency)
   function updateBotTabs() {
-    selectedStrategyType = managerState.selectedStrategy;
+    if (!managerState) return;
+    
+    selectedStrategyType = managerState.selectedStrategy || 'reverse-ratio';
     activeBotInstance = managerState.activeBot;
     
     // Get bots for current strategy
-    const managerBots = managerState.strategies[selectedStrategyType]?.bots || [];
+    const strategies = managerState.strategies || {};
+    const managerBots = strategies[selectedStrategyType]?.bots || [];
     botTabs = managerBots.map((bot: any) => {
-      // Check backend state for this bot
-      const backendBotState = tradingBackendService.getBotState(bot.id);
+      // Check if this is the active bot
       let status: 'idle' | 'running' | 'paused' = 'idle';
       
-      if (backendBotState) {
-        // Use backend status if available
-        status = backendBotState.status;
-      } else if (bot.id === activeBotInstance?.id) {
-        // Fall back to frontend state
+      if (bot.id === activeBotInstance?.id) {
+        // Use frontend state for active bot
         status = isRunning ? (isPaused ? 'paused' : 'running') : 'idle';
       }
       
@@ -235,7 +306,7 @@
   }
   
   // React to manager state changes
-  $: updateBotTabs();
+  $: if (managerState) updateBotTabs();
   
   // React to active bot changes
   $: subscribeToActiveBot(activeBotInstance);
@@ -243,46 +314,55 @@
   function syncWithBackendState() {
     if (!activeBotInstance) return;
     
-    const backendBotState = tradingBackendService.getBotState(activeBotInstance.id);
-    if (backendBotState) {
-      // Update local state with backend data
-      balance = backendBotState.balance || balance;
-      btcBalance = backendBotState.btcBalance || btcBalance;
-      vaultBalance = backendBotState.vaultBalance || vaultBalance;
-      btcVaultBalance = backendBotState.btcVaultBalance || btcVaultBalance;
-      positions = backendBotState.positions || positions;
-      trades = backendBotState.trades || trades;
-      isRunning = backendBotState.status === 'running';
-      isPaused = backendBotState.status === 'paused';
-      
-      // Update bot instance with backend state
-      if (activeBotInstance) {
-        activeBotInstance.update((state: any) => ({
-          ...state,
-          ...backendBotState,
-          isRunning: backendBotState.status === 'running',
-          isPaused: backendBotState.status === 'paused'
-        }));
-      }
-    }
+    // TODO: Sync with backend state once getBotState is implemented
+    // For now, rely on the frontend state management
   }
   
   // Periodically sync with backend
   let backendSyncInterval: NodeJS.Timer | null = null;
   
-  onMount(() => {
-    // Initial sync
-    syncWithBackendState();
-    
-    // Set up periodic sync
-    backendSyncInterval = setInterval(() => {
+  onMount(async () => {
+    // Initialize chart data feed
+    try {
+      chartDataFeedInstance = ChartDataFeed.getInstance();
+      // ChartDataFeed initializes in constructor, no need to call initialize()
+      
+      // Connect to WebSocket first
+      coinbaseWebSocket.connect();
+      
+      // Subscribe to BTC-USD ticker
+      coinbaseWebSocket.subscribeTicker('BTC-USD');
+      
+      // Subscribe to price updates
+      coinbaseWebSocket.onPrice((price: number) => {
+        currentPrice = price;
+      });
+      
+      // Subscribe to status updates
+      coinbaseWebSocket.onStatus((status: 'connected' | 'disconnected' | 'error' | 'loading') => {
+        connectionStatus = status;
+      });
+      
+      // Initial connection status
+      connectionStatus = coinbaseWebSocket.isConnected() ? 'connected' : 'loading';
+      
+      // Initial sync
       syncWithBackendState();
-    }, 2000); // Sync every 2 seconds
-    
-    // Subscribe to backend state changes
-    backendStateUnsubscribe = tradingBackendService.subscribe(() => {
-      syncWithBackendState();
-    });
+      
+      // Set up periodic sync
+      backendSyncInterval = setInterval(() => {
+        syncWithBackendState();
+      }, 2000); // Sync every 2 seconds
+      
+      // Subscribe to backend state changes
+      const backendStore = tradingBackendService.getState();
+      backendStateUnsubscribe = backendStore.subscribe(() => {
+        syncWithBackendState();
+      });
+    } catch (error) {
+      console.error('Failed to setup components:', error);
+      connectionStatus = 'error';
+    }
   });
   
   onDestroy(() => {
@@ -298,6 +378,8 @@
     if (dataFeedInterval) {
       clearInterval(dataFeedInterval);
     }
+    // Don't cleanup singleton instances
+    // coinbaseWebSocket.disconnect();
   });
 </script>
 
@@ -357,21 +439,21 @@
               <h2>Strategy Controls</h2>
               <div class="header-buttons">
                 {#if !isRunning}
-                  <button class="run-btn" on:click={() => paperTradingManager.startTrading()}>
+                  <button class="run-btn" on:click={startTrading}>
                     Start Trading
                   </button>
                 {:else if isPaused}
-                  <button class="run-btn" on:click={() => paperTradingManager.resumeTrading()}>
+                  <button class="run-btn" on:click={resumeTrading}>
                     Resume
                   </button>
-                  <button class="stop-btn" on:click={() => paperTradingManager.stopTrading()}>
+                  <button class="stop-btn" on:click={stopTrading}>
                     Stop
                   </button>
                 {:else}
-                  <button class="pause-btn" on:click={() => paperTradingManager.pauseTrading()}>
+                  <button class="pause-btn" on:click={pauseTrading}>
                     Pause
                   </button>
-                  <button class="stop-btn" on:click={() => paperTradingManager.stopTrading()}>
+                  <button class="stop-btn" on:click={stopTrading}>
                     Stop
                   </button>
                 {/if}
@@ -566,6 +648,9 @@
 
   :global(.chart-panel .panel-content) {
     padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   :global(.header-buttons) {
