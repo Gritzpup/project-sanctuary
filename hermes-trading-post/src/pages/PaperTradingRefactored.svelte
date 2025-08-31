@@ -432,27 +432,6 @@
           <div class="panel chart-panel">
             <div class="panel-header">
               <h2>BTC/USD Chart</h2>
-              <div class="header-buttons">
-                {#if !isRunning}
-                  <button class="run-btn" on:click={startTrading}>
-                    Start Trading
-                  </button>
-                {:else if isPaused}
-                  <button class="run-btn" on:click={resumeTrading}>
-                    Resume
-                  </button>
-                  <button class="stop-btn" on:click={stopTrading}>
-                    Stop
-                  </button>
-                {:else}
-                  <button class="pause-btn" on:click={pauseTrading}>
-                    Pause
-                  </button>
-                  <button class="stop-btn" on:click={stopTrading}>
-                    Stop
-                  </button>
-                {/if}
-              </div>
             </div>
             <div class="panel-content">
               <Chart
@@ -554,6 +533,34 @@
                     <span class="no-positions-text">No positions</span>
                   {/if}
                 </div>
+              </div>
+              
+              <!-- Trading Controls (at bottom) -->
+              <div class="trading-controls">
+                {#if !isRunning}
+                  <button class="control-btn start-btn" on:click={startTrading}>
+                    <span class="btn-icon">▶</span>
+                    Start Trading
+                  </button>
+                {:else if isPaused}
+                  <button class="control-btn resume-btn" on:click={resumeTrading}>
+                    <span class="btn-icon">▶</span>
+                    Resume
+                  </button>
+                  <button class="control-btn stop-btn" on:click={stopTrading}>
+                    <span class="btn-icon">■</span>
+                    Stop
+                  </button>
+                {:else}
+                  <button class="control-btn pause-btn" on:click={pauseTrading}>
+                    <span class="btn-icon">⏸</span>
+                    Pause
+                  </button>
+                  <button class="control-btn stop-btn" on:click={stopTrading}>
+                    <span class="btn-icon">■</span>
+                    Stop
+                  </button>
+                {/if}
               </div>
             </div>
           </div>
@@ -832,6 +839,8 @@
     flex: 1;
     padding: 20px;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
   }
 
   :global(.chart-panel) {
@@ -842,30 +851,9 @@
   :global(.chart-panel .panel-content) {
     padding: 0;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
+    display: block;
   }
 
-  :global(.header-buttons) {
-    display: flex;
-    gap: 10px;
-  }
-
-  :global(.run-btn), :global(.pause-btn), :global(.stop-btn) {
-    padding: 8px 16px;
-    background: rgba(74, 0, 224, 0.2);
-    border: 1px solid rgba(74, 0, 224, 0.4);
-    border-radius: 6px;
-    color: #a78bfa;
-    cursor: pointer;
-    font-size: 13px;
-    transition: all 0.2s;
-  }
-
-  :global(.run-btn:hover), :global(.pause-btn:hover), :global(.stop-btn:hover) {
-    background: rgba(74, 0, 224, 0.3);
-    border-color: rgba(74, 0, 224, 0.6);
-  }
 
   :global(.control-group) {
     margin-bottom: 20px;
@@ -1111,6 +1099,84 @@
 
   :global(.result-value.negative) {
     color: #ef5350;
+  }
+
+  /* Trading Controls styles */
+  :global(.trading-controls) {
+    display: flex;
+    gap: 10px;
+    margin-top: auto;
+    padding-top: 20px;
+    border-top: 1px solid rgba(74, 0, 224, 0.2);
+  }
+
+  :global(.control-btn) {
+    flex: 1;
+    padding: 12px 20px;
+    background: rgba(74, 0, 224, 0.1);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    color: #d1d4dc;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  :global(.control-btn:hover) {
+    background: rgba(74, 0, 224, 0.2);
+    border-color: rgba(74, 0, 224, 0.5);
+    transform: translateY(-1px);
+  }
+
+  :global(.control-btn:active) {
+    transform: translateY(0);
+  }
+
+  :global(.btn-icon) {
+    font-size: 16px;
+  }
+
+  :global(.start-btn), :global(.resume-btn) {
+    background: rgba(38, 166, 154, 0.1);
+    border-color: rgba(38, 166, 154, 0.3);
+    color: #26a69a;
+  }
+
+  :global(.start-btn:hover), :global(.resume-btn:hover) {
+    background: rgba(38, 166, 154, 0.2);
+    border-color: rgba(38, 166, 154, 0.5);
+  }
+
+  :global(.pause-btn) {
+    background: rgba(255, 167, 38, 0.1);
+    border-color: rgba(255, 167, 38, 0.3);
+    color: #ffa726;
+  }
+
+  :global(.pause-btn:hover) {
+    background: rgba(255, 167, 38, 0.2);
+    border-color: rgba(255, 167, 38, 0.5);
+  }
+
+  :global(.stop-btn) {
+    background: rgba(239, 83, 80, 0.1);
+    border-color: rgba(239, 83, 80, 0.3);
+    color: #ef5350;
+  }
+
+  :global(.stop-btn:hover) {
+    background: rgba(239, 83, 80, 0.2);
+    border-color: rgba(239, 83, 80, 0.5);
+  }
+
+  :global(.control-btn:disabled) {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* Open Positions Panel styles */
