@@ -538,26 +538,93 @@
                 </div>
               </div>
               
-              <!-- Positions -->
-              {#if positions.length > 0}
-                <div class="positions-list">
-                  <h3>Open Positions ({positions.length})</h3>
-                  {#each positions as position}
-                    <div class="position-item">
-                      <div class="position-header">
+              <!-- Quick Position Summary -->
+              <div class="control-group">
+                <label>Positions</label>
+                <div class="positions-summary-quick">
+                  {#if positions.length > 0}
+                    <span class="positions-count">{positions.length} open</span>
+                    {#if currentPrice > 0}
+                      {@const totalPnl = positions.reduce((sum, p) => sum + (currentPrice - p.entryPrice) * p.size, 0)}
+                      <span class="positions-pnl" class:profit={totalPnl > 0} class:loss={totalPnl < 0}>
+                        ${totalPnl > 0 ? '+' : ''}{totalPnl.toFixed(2)}
+                      </span>
+                    {/if}
+                  {:else}
+                    <span class="no-positions-text">No positions</span>
+                  {/if}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Open Positions Panel -->
+        <div class="panel positions-panel">
+          <div class="panel-header">
+            <h2>Open Positions</h2>
+            {#if positions.length > 0}
+              <span class="position-count">{positions.length} active</span>
+            {/if}
+          </div>
+          <div class="panel-content">
+            {#if positions.length > 0}
+              <div class="positions-grid">
+                {#each positions as position, i}
+                  <div class="position-card">
+                    <div class="position-index">#{i + 1}</div>
+                    <div class="position-details">
+                      <div class="position-info">
                         <span class="position-size">{position.size.toFixed(6)} BTC</span>
-                        <span class="position-price">@ ${position.entryPrice.toFixed(2)}</span>
+                        <span class="position-entry">Entry: ${position.entryPrice.toFixed(2)}</span>
                       </div>
                       {#if currentPrice > 0}
-                        <div class="position-pnl" class:profit={currentPrice > position.entryPrice} class:loss={currentPrice < position.entryPrice}>
-                          PnL: ${((currentPrice - position.entryPrice) * position.size).toFixed(2)}
+                        {@const pnl = (currentPrice - position.entryPrice) * position.size}
+                        {@const pnlPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100}
+                        <div class="position-metrics">
+                          <div class="pnl-amount" class:profit={pnl > 0} class:loss={pnl < 0}>
+                            ${pnl.toFixed(2)}
+                          </div>
+                          <div class="pnl-percent" class:profit={pnl > 0} class:loss={pnl < 0}>
+                            {pnl > 0 ? '+' : ''}{pnlPercent.toFixed(2)}%
+                          </div>
+                        </div>
+                        <div class="position-current">
+                          Current: ${currentPrice.toFixed(2)}
                         </div>
                       {/if}
                     </div>
-                  {/each}
+                  </div>
+                {/each}
+              </div>
+              <div class="positions-summary">
+                <div class="summary-item">
+                  <span class="summary-label">Total Size</span>
+                  <span class="summary-value">{positions.reduce((sum, p) => sum + p.size, 0).toFixed(6)} BTC</span>
                 </div>
-              {/if}
-            </div>
+                <div class="summary-item">
+                  <span class="summary-label">Avg Entry</span>
+                  <span class="summary-value">
+                    ${(positions.reduce((sum, p) => sum + p.entryPrice * p.size, 0) / positions.reduce((sum, p) => sum + p.size, 0)).toFixed(2)}
+                  </span>
+                </div>
+                {#if currentPrice > 0}
+                  {@const totalPnl = positions.reduce((sum, p) => sum + (currentPrice - p.entryPrice) * p.size, 0)}
+                  <div class="summary-item">
+                    <span class="summary-label">Total P&L</span>
+                    <span class="summary-value" class:profit={totalPnl > 0} class:loss={totalPnl < 0}>
+                      ${totalPnl.toFixed(2)}
+                    </span>
+                  </div>
+                {/if}
+              </div>
+            {:else}
+              <div class="no-positions">
+                <div class="no-positions-icon">📊</div>
+                <div class="no-positions-text">No open positions</div>
+                <div class="no-positions-hint">{isRunning ? 'Waiting for entry signal...' : 'Start trading to open positions'}</div>
+              </div>
+            {/if}
           </div>
         </div>
         
@@ -1044,5 +1111,203 @@
 
   :global(.result-value.negative) {
     color: #ef5350;
+  }
+
+  /* Open Positions Panel styles */
+  :global(.positions-panel) {
+    width: 100%;
+  }
+  
+  :global(.position-count) {
+    font-size: 12px;
+    color: #758696;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  
+  :global(.positions-grid) {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+  }
+  
+  :global(.position-card) {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    padding: 15px;
+    position: relative;
+  }
+  
+  :global(.position-index) {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 11px;
+    color: #758696;
+    background: rgba(74, 0, 224, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  
+  :global(.position-details) {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  :global(.position-info) {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  :global(.position-size) {
+    font-size: 16px;
+    font-weight: 600;
+    color: #a78bfa;
+  }
+  
+  :global(.position-entry) {
+    font-size: 12px;
+    color: #758696;
+  }
+  
+  :global(.position-metrics) {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  
+  :global(.pnl-amount) {
+    font-size: 18px;
+    font-weight: 600;
+  }
+  
+  :global(.pnl-amount.profit) {
+    color: #26a69a;
+  }
+  
+  :global(.pnl-amount.loss) {
+    color: #ef5350;
+  }
+  
+  :global(.pnl-percent) {
+    font-size: 14px;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  
+  :global(.pnl-percent.profit) {
+    color: #26a69a;
+    background: rgba(38, 166, 154, 0.1);
+  }
+  
+  :global(.pnl-percent.loss) {
+    color: #ef5350;
+    background: rgba(239, 83, 80, 0.1);
+  }
+  
+  :global(.position-current) {
+    font-size: 11px;
+    color: #758696;
+  }
+  
+  :global(.positions-summary) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(74, 0, 224, 0.2);
+  }
+  
+  :global(.summary-item) {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  :global(.summary-label) {
+    font-size: 11px;
+    color: #758696;
+    text-transform: uppercase;
+  }
+  
+  :global(.summary-value) {
+    font-size: 16px;
+    font-weight: 600;
+    color: #d1d4dc;
+  }
+  
+  :global(.summary-value.profit) {
+    color: #26a69a;
+  }
+  
+  :global(.summary-value.loss) {
+    color: #ef5350;
+  }
+  
+  :global(.no-positions) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+  }
+  
+  :global(.no-positions-icon) {
+    font-size: 48px;
+    margin-bottom: 15px;
+    opacity: 0.5;
+  }
+  
+  :global(.no-positions-text) {
+    font-size: 16px;
+    color: #758696;
+    margin-bottom: 8px;
+  }
+  
+  :global(.no-positions-hint) {
+    font-size: 13px;
+    color: #4a5568;
+    font-style: italic;
+  }
+  
+  /* Quick position summary in strategy controls */
+  :global(.positions-summary-quick) {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    font-size: 14px;
+  }
+  
+  :global(.positions-count) {
+    color: #a78bfa;
+    font-weight: 600;
+  }
+  
+  :global(.positions-pnl) {
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  
+  :global(.positions-pnl.profit) {
+    color: #26a69a;
+    background: rgba(38, 166, 154, 0.1);
+  }
+  
+  :global(.positions-pnl.loss) {
+    color: #ef5350;
+    background: rgba(239, 83, 80, 0.1);
+  }
+  
+  :global(.no-positions-text) {
+    color: #758696;
+    font-style: italic;
   }
 </style>
