@@ -8,6 +8,7 @@
   // Trading Components
   import Chart from './ChartRefactored.svelte';
   import BotTabs from './PaperTrading/BotTabs.svelte';
+  import MarketGauge from '../components/trading/MarketGauge.svelte';
   
   // Services & Stores
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
@@ -86,6 +87,8 @@
   let totalFees = 0;
   let totalRebates = 0;
   let startingBalanceGrowth = 0;
+  let recentHigh = 0;
+  let recentLow = 0;
   
   // Chart data feed for strategy
   let chartDataFeed: ChartDataFeed | null = null;
@@ -144,6 +147,10 @@
   function startTrading() {
     const activeBot = paperTradingManager.getActiveBot();
     if (activeBot && !isRunning) {
+      // Reset recent high/low when starting
+      recentHigh = currentPrice;
+      recentLow = currentPrice;
+      
       // Create strategy instance based on selected type
       let strategy: Strategy | null = null;
       
@@ -336,6 +343,16 @@
       // Subscribe to price updates
       coinbaseWebSocket.onPrice((price: number) => {
         currentPrice = price;
+        
+        // Track recent high and low when trading is running
+        if (isRunning) {
+          if (recentHigh === 0 || price > recentHigh) {
+            recentHigh = price;
+          }
+          if (recentLow === 0 || price < recentLow) {
+            recentLow = price;
+          }
+        }
       });
       
       // Subscribe to status updates
@@ -415,28 +432,6 @@
           <div class="panel chart-panel">
             <div class="panel-header">
               <h2>BTC/USD Chart</h2>
-            </div>
-            <div class="panel-content">
-              <Chart
-                bind:selectedGranularity
-                bind:selectedPeriod
-                bind:chartInstance
-                bind:candleSeriesInstance
-                {currentPrice}
-                isTradingPage={false}
-                isPaperTrading={true}
-                showBotTabs={true}
-                bind:botTabs
-                bind:activeBotId={activeBotInstance}
-                on:botTabSelect={handleBotTabSelect}
-              />
-            </div>
-          </div>
-          
-          <!-- Strategy Controls Panel -->
-          <div class="panel strategy-panel">
-            <div class="panel-header">
-              <h2>Strategy Controls</h2>
               <div class="header-buttons">
                 {#if !isRunning}
                   <button class="run-btn" on:click={startTrading}>
@@ -460,6 +455,28 @@
               </div>
             </div>
             <div class="panel-content">
+              <Chart
+                bind:selectedGranularity
+                bind:selectedPeriod
+                bind:chartInstance
+                bind:candleSeriesInstance
+                {currentPrice}
+                isTradingPage={false}
+                isPaperTrading={true}
+                showBotTabs={true}
+                bind:botTabs
+                bind:activeBotId={activeBotInstance}
+                on:botTabSelect={handleBotTabSelect}
+              />
+            </div>
+          </div>
+          
+          <!-- Strategy Controls Panel -->
+          <div class="panel strategy-panel">
+            <div class="panel-header">
+              <h2>Strategy Controls</h2>
+            </div>
+            <div class="panel-content">
               <!-- Strategy selection -->
               <div class="control-group">
                 <label for="strategy-select">Strategy</label>
@@ -475,11 +492,49 @@
                 </select>
               </div>
               
+              <!-- Strategy Status -->
+              <div class="control-group">
+                <label>Status</label>
+                <div class="status-indicator" class:running={isRunning} class:paused={isPaused}>
+                  {#if isRunning}
+                    {#if isPaused}
+                      <span class="status-dot paused"></span> Paused
+                    {:else}
+                      <span class="status-dot running"></span> Running
+                    {/if}
+                  {:else}
+                    <span class="status-dot idle"></span> Idle
+                  {/if}
+                </div>
+              </div>
+              
               <!-- Balance display -->
               <div class="control-group">
-                <label>Balance</label>
+                <label>USD Balance</label>
                 <div class="balance-display">
                   ${balance.toFixed(2)}
+                </div>
+              </div>
+              
+              <!-- BTC Balance -->
+              {#if btcBalance > 0}
+                <div class="control-group">
+                  <label>BTC Balance</label>
+                  <div class="btc-balance">
+                    {btcBalance.toFixed(8)} BTC
+                  </div>
+                </div>
+              {/if}
+              
+              <!-- Strategy Info -->
+              <div class="control-group">
+                <label>Strategy Details</label>
+                <div class="strategy-info">
+                  {#each strategies as strategy}
+                    {#if strategy.value === selectedStrategyType}
+                      <div class="strategy-description">{strategy.description}</div>
+                    {/if}
+                  {/each}
                 </div>
               </div>
               
@@ -489,7 +544,15 @@
                   <h3>Open Positions ({positions.length})</h3>
                   {#each positions as position}
                     <div class="position-item">
-                      <span>{position.size.toFixed(6)} BTC @ ${position.entryPrice.toFixed(2)}</span>
+                      <div class="position-header">
+                        <span class="position-size">{position.size.toFixed(6)} BTC</span>
+                        <span class="position-price">@ ${position.entryPrice.toFixed(2)}</span>
+                      </div>
+                      {#if currentPrice > 0}
+                        <div class="position-pnl" class:profit={currentPrice > position.entryPrice} class:loss={currentPrice < position.entryPrice}>
+                          PnL: ${((currentPrice - position.entryPrice) * position.size).toFixed(2)}
+                        </div>
+                      {/if}
                     </div>
                   {/each}
                 </div>
@@ -498,11 +561,49 @@
           </div>
         </div>
         
+        <!-- Market Gauge Panel -->
+        <div class="panel gauge-panel">
+          <MarketGauge 
+            {currentPrice}
+            {positions}
+            {recentHigh}
+            {recentLow}
+            {isRunning}
+          />
+        </div>
+        
+        <!-- Trading History Panel -->
+        <div class="panel history-panel">
+          <div class="panel-header">
+            <h2>Trading History</h2>
+            {#if trades.length > 0}
+              <span class="trade-count">{trades.length} trades</span>
+            {/if}
+          </div>
+          <div class="panel-content">
+            {#if trades.length > 0}
+              <div class="trades-list">
+                {#each trades.slice(-10).reverse() as trade}
+                  <div class="trade-item" class:buy={trade.type === 'buy'} class:sell={trade.type === 'sell'}>
+                    <div class="trade-type">{trade.type.toUpperCase()}</div>
+                    <div class="trade-details">
+                      <span class="trade-price">${trade.price.toFixed(2)}</span>
+                      <span class="trade-time">{new Date(trade.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <div class="no-trades">No trades yet</div>
+            {/if}
+          </div>
+        </div>
+        
         <!-- Results/Metrics Panel -->
         {#if trades.length > 0}
           <div class="panel results-panel">
             <div class="panel-header">
-              <h2>Trading Results</h2>
+              <h2>Performance Metrics</h2>
             </div>
             <div class="panel-content">
               <div class="results-grid">
@@ -512,15 +613,35 @@
                 </div>
                 <div class="result-item">
                   <span class="result-label">Win Rate</span>
-                  <span class="result-value">{winRate.toFixed(1)}%</span>
+                  <span class="result-value" class:positive={winRate > 50} class:negative={winRate <= 50}>{winRate.toFixed(1)}%</span>
                 </div>
                 <div class="result-item">
                   <span class="result-label">Total Return</span>
-                  <span class="result-value">${totalReturn.toFixed(2)}</span>
+                  <span class="result-value" class:positive={totalReturn > 0} class:negative={totalReturn < 0}>${totalReturn.toFixed(2)}</span>
                 </div>
                 <div class="result-item">
                   <span class="result-label">Total Fees</span>
-                  <span class="result-value">${totalFees.toFixed(2)}</span>
+                  <span class="result-value negative">-${Math.abs(totalFees).toFixed(2)}</span>
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Net P&L</span>
+                  <span class="result-value" class:positive={totalReturn - totalFees > 0} class:negative={totalReturn - totalFees < 0}>
+                    ${(totalReturn - totalFees).toFixed(2)}
+                  </span>
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Starting Balance</span>
+                  <span class="result-value">$10,000.00</span>
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Current Balance</span>
+                  <span class="result-value">${balance.toFixed(2)}</span>
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Growth</span>
+                  <span class="result-value" class:positive={balance > 10000} class:negative={balance < 10000}>
+                    {((balance / 10000 - 1) * 100).toFixed(2)}%
+                  </span>
                 </div>
               </div>
             </div>
@@ -611,6 +732,11 @@
     grid-template-columns: 2fr 1fr;
     gap: 20px;
     height: 600px;
+  }
+  
+  :global(.gauge-panel) {
+    width: 100%;
+    max-width: 400px;
   }
 
   :global(.panel) {
@@ -746,5 +872,177 @@
     font-size: 20px;
     font-weight: 600;
     color: #a78bfa;
+  }
+
+  /* New styles for enhanced strategy controls */
+  :global(.status-indicator) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #758696;
+  }
+
+  :global(.status-dot) {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #758696;
+  }
+
+  :global(.status-dot.idle) {
+    background: #758696;
+  }
+
+  :global(.status-dot.running) {
+    background: #26a69a;
+    animation: pulse 2s infinite;
+  }
+
+  :global(.status-dot.paused) {
+    background: #ffa726;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+  }
+
+  :global(.btc-balance) {
+    font-size: 18px;
+    font-weight: 600;
+    color: #ffa726;
+  }
+
+  :global(.strategy-info) {
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 4px;
+  }
+
+  :global(.strategy-description) {
+    font-size: 13px;
+    color: #758696;
+    line-height: 1.5;
+  }
+
+  :global(.position-item) {
+    padding: 10px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    border: 1px solid rgba(74, 0, 224, 0.2);
+  }
+
+  :global(.position-header) {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+  }
+
+  :global(.position-size) {
+    font-weight: 600;
+    color: #a78bfa;
+  }
+
+  :global(.position-price) {
+    color: #758696;
+  }
+
+  :global(.position-pnl) {
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  :global(.position-pnl.profit) {
+    color: #26a69a;
+  }
+
+  :global(.position-pnl.loss) {
+    color: #ef5350;
+  }
+
+  /* Trading History styles */
+  :global(.history-panel) {
+    width: 100%;
+    max-height: 400px;
+  }
+
+  :global(.trade-count) {
+    font-size: 12px;
+    color: #758696;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+
+  :global(.trades-list) {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  :global(.trade-item) {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    border-left: 3px solid transparent;
+  }
+
+  :global(.trade-item.buy) {
+    border-left-color: #26a69a;
+  }
+
+  :global(.trade-item.sell) {
+    border-left-color: #ef5350;
+  }
+
+  :global(.trade-type) {
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+  }
+
+  :global(.trade-item.buy .trade-type) {
+    color: #26a69a;
+  }
+
+  :global(.trade-item.sell .trade-type) {
+    color: #ef5350;
+  }
+
+  :global(.trade-details) {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+  }
+
+  :global(.trade-price) {
+    font-weight: 600;
+    color: #d1d4dc;
+  }
+
+  :global(.trade-time) {
+    font-size: 12px;
+    color: #758696;
+  }
+
+  :global(.no-trades) {
+    text-align: center;
+    color: #758696;
+    padding: 40px;
+    font-size: 14px;
+  }
+
+  /* Performance metrics enhancements */
+  :global(.result-value.positive) {
+    color: #26a69a;
+  }
+
+  :global(.result-value.negative) {
+    color: #ef5350;
   }
 </style>

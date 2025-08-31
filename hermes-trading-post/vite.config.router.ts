@@ -24,7 +24,8 @@ export default defineConfig({
             console.log('Proxy error:', err);
           });
           proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('Sending Request to the Target:', req.method, req.url);
+            // Disabled verbose logging
+            // console.log('Sending Request to the Target:', req.method, req.url);
           });
         }
       },
