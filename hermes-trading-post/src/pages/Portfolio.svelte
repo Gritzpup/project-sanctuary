@@ -1,5 +1,5 @@
 <script lang="ts">
-  import CollapsibleSidebar from './CollapsibleSidebar.svelte';
+  import CollapsibleSidebar from '../components/layout/CollapsibleSidebar.svelte';
   import { createEventDispatcher } from 'svelte';
   
   export let currentPrice: number = 0;

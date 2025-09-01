@@ -2,12 +2,12 @@
   import { Router, Route } from 'svelte-routing';
   import Dashboard from './pages/Dashboard.svelte';
   import Portfolio from './pages/Portfolio.svelte';
-  import PaperTrading from './pages/PaperTradingRefactored.svelte';
-  import Backtesting from './pages/BacktestingRefactored.svelte';
+  import PaperTrading from './pages/PaperTrading.svelte';
+  import Backtesting from './pages/Backtesting.svelte';
   import Trading from './pages/Trading.svelte';
-  import Vault from './pages/VaultRefactored.svelte';
-  import News from './pages/NewsRefactored.svelte';
-  import { CoinbaseAPI } from './services/coinbaseApi';
+  import Vault from './pages/Vault.svelte';
+  import News from './pages/News.svelte';
+  import { CoinbaseAPI } from './services/api/coinbaseApi';
   import { onMount } from 'svelte';
   import { sidebarStore } from './stores/sidebarStore';
 

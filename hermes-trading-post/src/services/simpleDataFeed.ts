@@ -5,7 +5,7 @@
 
 // Simplified data feed that bypasses caching for testing
 import type { CandleData } from '../types/coinbase';
-import { CoinbaseAPI } from './coinbaseApi';
+import { CoinbaseAPI } from './api/coinbaseApi';
 
 export class SimpleDataFeed {
   private api: CoinbaseAPI;

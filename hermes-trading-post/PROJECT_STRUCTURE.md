@@ -14,7 +14,15 @@ src/
 │   │   ├── layout/     # Layout components
 │   │   ├── testing/    # Test-related components
 │   │   ├── trading/    # Trading execution components
-│   │   └── visualization/ # Data visualization
+│   │   ├── visualization/ # Data visualization
+│   │   ├── BotManager.svelte         # Bot instance management
+│   │   ├── OpenPositions.svelte      # Position display
+│   │   ├── PaperTradingHeader.svelte # Header component
+│   │   ├── PerformanceMetrics.svelte # Performance stats
+│   │   ├── StrategyControls.svelte   # Strategy selection
+│   │   ├── TradingHistory.svelte     # Trade history
+│   │   ├── TradingStateManager.svelte # Trading state logic
+│   │   └── index.ts
 │   └── trading/        # General trading components
 │
 ├── lib/                # Utility libraries
@@ -31,9 +39,21 @@ src/
 │   └── old-monolithic-backup/  # Legacy code for reference
 │
 ├── services/           # Business logic and API services
+│   ├── cache/          # Cache management modules
+│   │   ├── ChunkManager.ts    # Data chunking logic
+│   │   ├── MetadataManager.ts # Cache metadata handling
+│   │   └── index.ts
+│   ├── chart/          # Chart data modules
+│   │   ├── ChartDataManager.ts      # Data state management
+│   │   ├── ChartWebSocketHandler.ts # WebSocket connections
+│   │   ├── GranularityManager.ts    # Granularity transitions
+│   │   ├── ChartDataLoader.ts       # Data loading logic
+│   │   ├── ChartCacheManager.ts     # Cache operations
+│   │   └── index.ts
 │   ├── coinbaseApi.ts         # Coinbase API integration
 │   ├── coinbaseWebSocket.ts   # Real-time price feeds
-│   ├── chartDataFeed.ts        # Chart data management
+│   ├── chartDataFeed.ts        # Chart data management (facade)
+│   ├── indexedDBCache.ts       # Browser storage
 │   ├── paperTradingService.ts # Paper trading logic
 │   ├── backtestingEngine.ts   # Backtesting engine
 │   └── [other services]
@@ -125,6 +145,11 @@ import OldComponent from '@/pages/old-monolithic-backup/...';
 - ✅ Added component index files for cleaner imports
 - ✅ Organized components into logical subdirectories
 - ✅ Preserved all legacy code in backup folder for reference
+- ✅ Broke down chartDataFeed.ts into 5 focused modules
+- ✅ Created chart service modules (ChartDataManager, ChartWebSocketHandler, etc.)
+- ✅ Extracted cache management into ChunkManager and MetadataManager
+- ✅ Added BotManager and TradingStateManager components
+- ✅ Created PaperTradingHeader component
 
 ## 📝 TODO: Future Improvements
 

@@ -3,7 +3,7 @@
  * @description Manages WebSocket connections for real-time data
  */
 
-import { CoinbaseWebSocket } from './coinbaseWebSocket';
+import { CoinbaseWebSocket } from './api/coinbaseWebSocket';
 import type { TickerData } from '../types/coinbase';
 
 type DataConsumer = {

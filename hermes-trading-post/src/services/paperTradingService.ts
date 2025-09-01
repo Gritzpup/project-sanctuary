@@ -7,7 +7,7 @@ import { Strategy } from '../strategies/base/Strategy';
 import type { CandleData, Trade, StrategyState, Signal } from '../strategies/base/StrategyTypes';
 import { writable, get } from 'svelte/store';
 import type { Writable } from 'svelte/store';
-import { vaultService } from './vaultService';
+import { vaultService } from './state/vaultService';
 import { paperTradingPersistence } from './paperTradingPersistence';
 import type { PersistentTradingState } from './paperTradingPersistence';
 

@@ -4,10 +4,10 @@
  */
 
 import type { CandleData } from '../types/coinbase';
-import { CoinbaseAPI } from './coinbaseApi';
+import { CoinbaseAPI } from './api/coinbaseApi';
 import { IndexedDBCache } from './indexedDBCache';
-import { HistoricalDataLoader } from './historicalDataLoader';
-import { realtimeCandleAggregator } from './realtimeCandleAggregator';
+import { HistoricalDataLoader } from './data/historicalDataLoader';
+import { realtimeCandleAggregator } from './data/realtimeCandleAggregator';
 
 interface DataRequest {
   symbol: string;

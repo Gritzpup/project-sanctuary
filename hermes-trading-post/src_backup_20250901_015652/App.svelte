@@ -1,0 +1,154 @@
+<script lang="ts">
+  import { Router, Route } from 'svelte-routing';
+  import Dashboard from './pages/Dashboard.svelte';
+  import Portfolio from './pages/Portfolio.svelte';
+  import PaperTrading from './pages/PaperTradingRefactored.svelte';
+  import Backtesting from './pages/BacktestingRefactored.svelte';
+  import Trading from './pages/Trading.svelte';
+  import Vault from './pages/VaultRefactored.svelte';
+  import News from './pages/NewsRefactored.svelte';
+  import { CoinbaseAPI } from './services/coinbaseApi';
+  import { onMount } from 'svelte';
+  import { sidebarStore } from './stores/sidebarStore';
+
+  export let url = "";
+
+  let currentPrice: number = 0;
+  let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
+  let api: CoinbaseAPI;
+  
+  // Subscribe to sidebar store
+  let sidebarCollapsed = false;
+  sidebarStore.subscribe(value => {
+    sidebarCollapsed = value;
+  });
+
+  let priceInterval: number;
+
+  onMount(() => {
+    api = new CoinbaseAPI();
+    
+    // Get initial price
+    api.getTicker().then(price => {
+      currentPrice = price;
+    }).catch(error => {
+      console.error('Error fetching initial price:', error);
+    });
+
+    // Update price periodically
+    priceInterval = setInterval(async () => {
+      if (connectionStatus === 'connected') {
+        try {
+          currentPrice = await api.getTicker();
+        } catch (error) {
+          console.error('Error updating price:', error);
+        }
+      }
+    }, 1000) as unknown as number;
+
+    return () => {
+      clearInterval(priceInterval);
+    };
+  });
+
+  function toggleSidebar() {
+    sidebarStore.toggle();
+  }
+
+  function handleNavigation(event: CustomEvent) {
+    // Navigation is handled by the router
+  }
+</script>
+
+<Router {url}>
+  <main>
+    <Route path="/">
+      <Dashboard 
+        {currentPrice} 
+        bind:connectionStatus 
+        {sidebarCollapsed} 
+        on:toggle={toggleSidebar}
+        on:navigate={handleNavigation}
+      />
+    </Route>
+    <Route path="/dashboard">
+      <Dashboard 
+        {currentPrice} 
+        bind:connectionStatus 
+        {sidebarCollapsed} 
+        on:toggle={toggleSidebar}
+        on:navigate={handleNavigation}
+      />
+    </Route>
+    <Route path="/portfolio">
+      <Portfolio 
+        {currentPrice} 
+        bind:connectionStatus 
+        {sidebarCollapsed} 
+        on:toggle={toggleSidebar}
+        on:navigate={handleNavigation}
+      />
+    </Route>
+    <Route path="/paper-trading">
+      <PaperTrading 
+        {currentPrice} 
+        bind:connectionStatus 
+        {sidebarCollapsed} 
+        on:toggle={toggleSidebar}
+        on:navigate={handleNavigation}
+      />
+    </Route>
+    <Route path="/backtesting">
+      <Backtesting 
+        {currentPrice} 
+        bind:connectionStatus 
+        {sidebarCollapsed} 
+        on:toggle={toggleSidebar}
+        on:navigate={handleNavigation}
+      />
+    </Route>
+    <Route path="/trading">
+      <Trading 
+        {currentPrice} 
+        bind:connectionStatus 
+        {sidebarCollapsed} 
+        on:toggle={toggleSidebar}
+        on:navigate={handleNavigation}
+      />
+    </Route>
+    <Route path="/vault">
+      <Vault 
+        {currentPrice} 
+        bind:connectionStatus 
+        {sidebarCollapsed} 
+        on:toggle={toggleSidebar}
+        on:navigate={handleNavigation}
+      />
+    </Route>
+    <Route path="/news">
+      <News 
+        {currentPrice} 
+        bind:connectionStatus 
+        {sidebarCollapsed} 
+        on:toggle={toggleSidebar}
+        on:navigate={handleNavigation}
+      />
+    </Route>
+  </main>
+</Router>
+
+<style>
+  :global(body) {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    background-color: #0d0d0d;
+    color: #d1d4dc;
+  }
+
+  main {
+    height: 100vh;
+    background-color: #0a0a0a;
+    overflow: auto;
+  }
+</style>

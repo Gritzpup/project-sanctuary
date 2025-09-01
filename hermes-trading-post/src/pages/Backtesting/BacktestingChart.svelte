@@ -1,5 +1,5 @@
 <script lang="ts">
-  import BacktestChart from '../../components/BacktestChart.svelte';
+  import BacktestChart from '../../components/backtesting/BacktestChart.svelte';
   import { createEventDispatcher } from 'svelte';
   import type { CandleData } from '../../types/coinbase';
   import type { Trade } from '../../strategies/base/StrategyTypes';

@@ -1,0 +1,100 @@
+/* Backtesting Page Layout Styles */
+/* Extracted from pages/Backtesting.svelte */
+
+.dashboard-layout {
+  display: flex;
+  min-height: 100vh;
+  background: #0a0a0a;
+  color: #d1d4dc;
+}
+
+.dashboard-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-left: 250px;
+  width: calc(100% - 250px);
+  transition: all 0.3s ease;
+}
+
+.dashboard-content.expanded {
+  margin-left: 80px;
+  width: calc(100% - 80px);
+}
+
+.header {
+  padding: 20px;
+  background: #0f0f0f;
+  border-bottom: 1px solid rgba(74, 0, 224, 0.3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 24px;
+  color: #a78bfa;
+}
+
+.header-stats {
+  display: flex;
+  gap: 30px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #758696;
+  text-transform: uppercase;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.stat-value.price {
+  color: #26a69a;
+}
+
+.stat-value.status {
+  font-size: 14px;
+}
+
+.stat-value.connected {
+  color: #26a69a;
+}
+
+.stat-value.disconnected,
+.stat-value.error {
+  color: #ef5350;
+}
+
+.stat-value.loading {
+  color: #ffa726;
+}
+
+.content-wrapper {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.backtest-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+}
+
+.panels-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  height: 600px;
+}

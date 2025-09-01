@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Chart from './ChartRefactored.svelte';
-  import CollapsibleSidebar from './CollapsibleSidebar.svelte';
+  import Chart from './Chart.svelte';
+  import CollapsibleSidebar from '../components/layout/CollapsibleSidebar.svelte';
   import { onMount, createEventDispatcher } from 'svelte';
   import { chartPreferencesStore } from '../stores/chartPreferencesStore';
   
