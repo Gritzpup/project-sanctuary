@@ -9,6 +9,10 @@
   import Chart from './ChartRefactored.svelte';
   import BotTabs from './PaperTrading/BotTabs.svelte';
   import MarketGauge from '../components/trading/MarketGauge.svelte';
+  import StrategyControls from '../components/papertrading/StrategyControls.svelte';
+  import OpenPositions from '../components/papertrading/OpenPositions.svelte';
+  import TradingHistory from '../components/papertrading/TradingHistory.svelte';
+  import PerformanceMetrics from '../components/papertrading/PerformanceMetrics.svelte';
   
   // Services & Stores
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
@@ -451,218 +455,34 @@
           </div>
           
           <!-- Strategy Controls Panel -->
-          <div class="panel strategy-panel">
-            <div class="panel-header">
-              <h2>Strategy Controls</h2>
-            </div>
-            <div class="panel-content">
-              <!-- Strategy selection -->
-              <div class="control-group">
-                <label for="strategy-select">Strategy</label>
-                <select 
-                  id="strategy-select"
-                  bind:value={selectedStrategyType}
-                  on:change={handleStrategyChange}
-                  disabled={isRunning}
-                >
-                  {#each strategies as strategy}
-                    <option value={strategy.value}>{strategy.label}</option>
-                  {/each}
-                </select>
-              </div>
-              
-              <!-- Strategy Status -->
-              <div class="control-group">
-                <label>Status</label>
-                <div class="status-indicator" class:running={isRunning} class:paused={isPaused}>
-                  {#if isRunning}
-                    {#if isPaused}
-                      <span class="status-dot paused"></span> Paused
-                    {:else}
-                      <span class="status-dot running"></span> Running
-                    {/if}
-                  {:else}
-                    <span class="status-dot idle"></span> Idle
-                  {/if}
-                </div>
-              </div>
-              
-              <!-- Balance display -->
-              <div class="control-group">
-                <label>USD Balance</label>
-                <div class="balance-display">
-                  ${balance.toFixed(2)}
-                </div>
-              </div>
-              
-              <!-- BTC Balance -->
-              {#if btcBalance > 0}
-                <div class="control-group">
-                  <label>BTC Balance</label>
-                  <div class="btc-balance">
-                    {btcBalance.toFixed(8)} BTC
-                  </div>
-                </div>
-              {/if}
-              
-              <!-- Strategy Info -->
-              <div class="control-group">
-                <label>Strategy Details</label>
-                <div class="strategy-info">
-                  {#each strategies as strategy}
-                    {#if strategy.value === selectedStrategyType}
-                      <div class="strategy-description">{strategy.description}</div>
-                    {/if}
-                  {/each}
-                </div>
-              </div>
-              
-              <!-- Quick Position Summary -->
-              <div class="control-group">
-                <label>Positions</label>
-                <div class="positions-summary-quick">
-                  {#if positions.length > 0}
-                    <span class="positions-count">{positions.length} open</span>
-                    {#if currentPrice > 0}
-                      {@const totalPnl = positions.reduce((sum, p) => sum + (currentPrice - p.entryPrice) * p.size, 0)}
-                      <span class="positions-pnl" class:profit={totalPnl > 0} class:loss={totalPnl < 0}>
-                        ${totalPnl > 0 ? '+' : ''}{totalPnl.toFixed(2)}
-                      </span>
-                    {/if}
-                  {:else}
-                    <span class="no-positions-text">No positions</span>
-                  {/if}
-                </div>
-              </div>
-              
-              <!-- Trading Controls (at bottom) -->
-              <div class="trading-controls">
-                {#if !isRunning}
-                  <button class="control-btn start-btn" on:click={startTrading}>
-                    <span class="btn-icon">▶</span>
-                    Start Trading
-                  </button>
-                {:else if isPaused}
-                  <button class="control-btn resume-btn" on:click={resumeTrading}>
-                    <span class="btn-icon">▶</span>
-                    Resume
-                  </button>
-                  <button class="control-btn stop-btn" on:click={stopTrading}>
-                    <span class="btn-icon">■</span>
-                    Stop
-                  </button>
-                {:else}
-                  <button class="control-btn pause-btn" on:click={pauseTrading}>
-                    <span class="btn-icon">⏸</span>
-                    Pause
-                  </button>
-                  <button class="control-btn stop-btn" on:click={stopTrading}>
-                    <span class="btn-icon">■</span>
-                    Stop
-                  </button>
-                {/if}
-              </div>
-            </div>
-          </div>
+          <StrategyControls
+            bind:selectedStrategyType
+            {strategies}
+            {isRunning}
+            {isPaused}
+            {balance}
+            {btcBalance}
+            {positions}
+            {currentPrice}
+            on:strategyChange={(e) => handleStrategyChange({ target: { value: e.detail.value } })}
+            on:start={startTrading}
+            on:stop={stopTrading}
+            on:pause={pauseTrading}
+            on:resume={resumeTrading}
+          />
         </div>
         
         <!-- Three-panel row: Positions, History, Gauge -->
         <div class="panels-row-three">
           <!-- Open Positions Panel -->
-          <div class="panel positions-panel">
-          <div class="panel-header">
-            <h2>Open Positions</h2>
-            {#if positions.length > 0}
-              <span class="position-count">{positions.length} active</span>
-            {/if}
-          </div>
-          <div class="panel-content">
-            {#if positions.length > 0}
-              <div class="positions-grid">
-                {#each positions as position, i}
-                  <div class="position-card">
-                    <div class="position-index">#{i + 1}</div>
-                    <div class="position-details">
-                      <div class="position-info">
-                        <span class="position-size">{position.size.toFixed(6)} BTC</span>
-                        <span class="position-entry">Entry: ${position.entryPrice.toFixed(2)}</span>
-                      </div>
-                      {#if currentPrice > 0}
-                        {@const pnl = (currentPrice - position.entryPrice) * position.size}
-                        {@const pnlPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100}
-                        <div class="position-metrics">
-                          <div class="pnl-amount" class:profit={pnl > 0} class:loss={pnl < 0}>
-                            ${pnl.toFixed(2)}
-                          </div>
-                          <div class="pnl-percent" class:profit={pnl > 0} class:loss={pnl < 0}>
-                            {pnl > 0 ? '+' : ''}{pnlPercent.toFixed(2)}%
-                          </div>
-                        </div>
-                        <div class="position-current">
-                          Current: ${currentPrice.toFixed(2)}
-                        </div>
-                      {/if}
-                    </div>
-                  </div>
-                {/each}
-              </div>
-              <div class="positions-summary">
-                <div class="summary-item">
-                  <span class="summary-label">Total Size</span>
-                  <span class="summary-value">{positions.reduce((sum, p) => sum + p.size, 0).toFixed(6)} BTC</span>
-                </div>
-                <div class="summary-item">
-                  <span class="summary-label">Avg Entry</span>
-                  <span class="summary-value">
-                    ${(positions.reduce((sum, p) => sum + p.entryPrice * p.size, 0) / positions.reduce((sum, p) => sum + p.size, 0)).toFixed(2)}
-                  </span>
-                </div>
-                {#if currentPrice > 0}
-                  {@const totalPnl = positions.reduce((sum, p) => sum + (currentPrice - p.entryPrice) * p.size, 0)}
-                  <div class="summary-item">
-                    <span class="summary-label">Total P&L</span>
-                    <span class="summary-value" class:profit={totalPnl > 0} class:loss={totalPnl < 0}>
-                      ${totalPnl.toFixed(2)}
-                    </span>
-                  </div>
-                {/if}
-              </div>
-            {:else}
-              <div class="no-positions">
-                <div class="no-positions-icon">📊</div>
-                <div class="no-positions-text">No open positions</div>
-                <div class="no-positions-hint">{isRunning ? 'Waiting for entry signal...' : 'Start trading to open positions'}</div>
-              </div>
-            {/if}
-          </div>
-          </div>
+          <OpenPositions
+            {positions}
+            {currentPrice}
+            {isRunning}
+          />
           
           <!-- Trading History Panel -->
-          <div class="panel history-panel">
-          <div class="panel-header">
-            <h2>Trading History</h2>
-            {#if trades.length > 0}
-              <span class="trade-count">{trades.length} trades</span>
-            {/if}
-          </div>
-          <div class="panel-content">
-            {#if trades.length > 0}
-              <div class="trades-list">
-                {#each trades.slice(-10).reverse() as trade}
-                  <div class="trade-item" class:buy={trade.type === 'buy'} class:sell={trade.type === 'sell'}>
-                    <div class="trade-type">{trade.type.toUpperCase()}</div>
-                    <div class="trade-details">
-                      <span class="trade-price">${trade.price.toFixed(2)}</span>
-                      <span class="trade-time">{new Date(trade.timestamp).toLocaleTimeString()}</span>
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            {:else}
-              <div class="no-trades">No trades yet</div>
-            {/if}
-          </div>
-          </div>
+          <TradingHistory {trades} />
           
           <!-- Market Gauge Panel -->
           <div class="panel gauge-panel">
@@ -677,53 +497,13 @@
         </div>
         
         <!-- Results/Metrics Panel -->
-        {#if trades.length > 0}
-          <div class="panel results-panel">
-            <div class="panel-header">
-              <h2>Performance Metrics</h2>
-            </div>
-            <div class="panel-content">
-              <div class="results-grid">
-                <div class="result-item">
-                  <span class="result-label">Total Trades</span>
-                  <span class="result-value">{trades.length}</span>
-                </div>
-                <div class="result-item">
-                  <span class="result-label">Win Rate</span>
-                  <span class="result-value" class:positive={winRate > 50} class:negative={winRate <= 50}>{winRate.toFixed(1)}%</span>
-                </div>
-                <div class="result-item">
-                  <span class="result-label">Total Return</span>
-                  <span class="result-value" class:positive={totalReturn > 0} class:negative={totalReturn < 0}>${totalReturn.toFixed(2)}</span>
-                </div>
-                <div class="result-item">
-                  <span class="result-label">Total Fees</span>
-                  <span class="result-value negative">-${Math.abs(totalFees).toFixed(2)}</span>
-                </div>
-                <div class="result-item">
-                  <span class="result-label">Net P&L</span>
-                  <span class="result-value" class:positive={totalReturn - totalFees > 0} class:negative={totalReturn - totalFees < 0}>
-                    ${(totalReturn - totalFees).toFixed(2)}
-                  </span>
-                </div>
-                <div class="result-item">
-                  <span class="result-label">Starting Balance</span>
-                  <span class="result-value">$10,000.00</span>
-                </div>
-                <div class="result-item">
-                  <span class="result-label">Current Balance</span>
-                  <span class="result-value">${balance.toFixed(2)}</span>
-                </div>
-                <div class="result-item">
-                  <span class="result-label">Growth</span>
-                  <span class="result-value" class:positive={balance > 10000} class:negative={balance < 10000}>
-                    {((balance / 10000 - 1) * 100).toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        {/if}
+        <PerformanceMetrics 
+          {trades}
+          {balance}
+          {winRate}
+          {totalReturn}
+          {totalFees}
+        />
       </div>
     </div>
   </main>
