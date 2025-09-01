@@ -566,8 +566,10 @@
           </div>
         </div>
         
-        <!-- Open Positions Panel -->
-        <div class="panel positions-panel">
+        <!-- Three-panel row: Positions, History, Gauge -->
+        <div class="panels-row-three">
+          <!-- Open Positions Panel -->
+          <div class="panel positions-panel">
           <div class="panel-header">
             <h2>Open Positions</h2>
             {#if positions.length > 0}
@@ -633,21 +635,10 @@
               </div>
             {/if}
           </div>
-        </div>
-        
-        <!-- Market Gauge Panel -->
-        <div class="panel gauge-panel">
-          <MarketGauge 
-            {currentPrice}
-            {positions}
-            {recentHigh}
-            {recentLow}
-            {isRunning}
-          />
-        </div>
-        
-        <!-- Trading History Panel -->
-        <div class="panel history-panel">
+          </div>
+          
+          <!-- Trading History Panel -->
+          <div class="panel history-panel">
           <div class="panel-header">
             <h2>Trading History</h2>
             {#if trades.length > 0}
@@ -670,6 +661,18 @@
             {:else}
               <div class="no-trades">No trades yet</div>
             {/if}
+          </div>
+          </div>
+          
+          <!-- Market Gauge Panel -->
+          <div class="panel gauge-panel">
+            <MarketGauge 
+              {currentPrice}
+              {positions}
+              {recentHigh}
+              {recentLow}
+              {isRunning}
+            />
           </div>
         </div>
         
@@ -808,9 +811,15 @@
     height: 600px;
   }
   
+  :global(.panels-row-three) {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    margin-top: 20px;
+  }
+  
   :global(.gauge-panel) {
     width: 100%;
-    max-width: 400px;
   }
 
   :global(.panel) {
@@ -1021,7 +1030,6 @@
   /* Trading History styles */
   :global(.history-panel) {
     width: 100%;
-    max-height: 400px;
   }
 
   :global(.trade-count) {
@@ -1036,6 +1044,8 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    max-height: 400px;
+    overflow-y: auto;
   }
 
   :global(.trade-item) {
@@ -1193,10 +1203,12 @@
   }
   
   :global(.positions-grid) {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 15px;
-    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 15px;
+    max-height: 300px;
+    overflow-y: auto;
   }
   
   :global(.position-card) {
