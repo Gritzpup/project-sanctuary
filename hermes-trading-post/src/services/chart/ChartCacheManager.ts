@@ -4,7 +4,7 @@
  */
 
 import type { CandleData } from '../../types/coinbase';
-import { IndexedDBCache } from '../indexedDBCache';
+import { IndexedDBCache } from '../cache/indexedDB';
 
 export class ChartCacheManager {
   private cache: IndexedDBCache;

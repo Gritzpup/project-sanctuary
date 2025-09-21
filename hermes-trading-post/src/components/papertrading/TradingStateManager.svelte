@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-  import { tradingBackendService } from '../../services/tradingBackendService';
-  import { paperTestService } from '../../services/paperTestService';
-  import { ChartDataFeed } from '../../services/chartDataFeed';
+  import { tradingBackendService } from '../../services/state/tradingBackendService';
+  import { paperTestService } from '../../services/state/paperTestService';
+  import { ChartDataFeed } from '../../services/chart/dataFeed';
   import type { Strategy } from '../../strategies/base/Strategy';
   
   export let activeBotInstance: any = null;

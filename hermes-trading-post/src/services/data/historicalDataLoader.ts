@@ -4,7 +4,7 @@
  */
 
 import pLimit from 'p-limit';
-import { IndexedDBCache } from '../indexedDBCache';
+import { IndexedDBCache } from '../cache/indexedDB';
 import { CoinbaseAPI } from '../api/coinbaseApi';
 import type { CandleData } from '../../types/coinbase';
 

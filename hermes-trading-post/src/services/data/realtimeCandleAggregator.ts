@@ -4,8 +4,8 @@
  */
 
 import type { CandlestickData, Time } from 'lightweight-charts';
-import { webSocketManager } from '../webSocketManager';
-import { indexedDBCache } from '../indexedDBCache';
+import { webSocketManager } from '../api/webSocketManager';
+import { indexedDBCache } from '../cache/indexedDB';
 import { CoinbaseAPI } from '../api/coinbaseApi';
 import type { TickerData } from '../../types/coinbase';
 

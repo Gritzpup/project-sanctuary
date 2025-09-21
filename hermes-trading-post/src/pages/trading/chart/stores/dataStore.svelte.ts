@@ -141,6 +141,10 @@ class DataStore {
       this._latestPrice = lastCandle.close;
       console.log('Latest price set to:', this._latestPrice);
     }
+    
+    // Update stats to trigger UI updates
+    this.updateStats();
+    console.log('Stats updated - totalCount:', this._dataStats.totalCount);
   }
 
   updateVisibleRange(from: number, to: number) {

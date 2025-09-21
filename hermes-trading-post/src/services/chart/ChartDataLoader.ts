@@ -5,7 +5,7 @@
 
 import type { CandleData } from '../../types/coinbase';
 import { CoinbaseAPI } from '../api/coinbaseApi';
-import { IndexedDBCache } from '../indexedDBCache';
+import { IndexedDBCache } from '../cache/indexedDB';
 import { HistoricalDataLoader } from '../data/historicalDataLoader';
 
 export class ChartDataLoader {

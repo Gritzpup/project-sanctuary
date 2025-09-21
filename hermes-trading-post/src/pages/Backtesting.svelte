@@ -25,7 +25,7 @@
   
   // Services & Stores
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-  import { BacktestingEngine } from '../services/backtestingEngine';
+  import { BacktestingEngine } from '../services/backtesting/engine';
   import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';
   import { GridTradingStrategy } from '../strategies/implementations/GridTradingStrategy';
   import { RSIMeanReversionStrategy } from '../strategies/implementations/RSIMeanReversionStrategy';
@@ -35,7 +35,7 @@
   import type { Strategy } from '../strategies/base/Strategy';
   import type { BacktestConfig, BacktestResult } from '../strategies/base/StrategyTypes';
   import type { CandleData } from '../types/coinbase';
-  import { historicalDataService, HistoricalDataService } from '../services/historicalDataService';
+  import { historicalDataService, HistoricalDataService } from '../services/data/historicalService';
   import { strategyStore, syncStatus } from '../stores/strategyStore';
   
   export let currentPrice: number = 50000; // Default BTC price

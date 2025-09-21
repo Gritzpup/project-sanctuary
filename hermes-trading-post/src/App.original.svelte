@@ -5,7 +5,7 @@
   import Trading from './pages/Trading.svelte';
   import Vault from './pages/Vault.svelte';
   import News from './pages/News.svelte';
-  import { CoinbaseAPI } from './services/coinbaseApi';
+  import { CoinbaseAPI } from './services/api/coinbaseApi';
   import { onMount } from 'svelte';
   import { sidebarStore } from './stores/sidebarStore';
   import { navigationStore } from './stores/navigationStore';

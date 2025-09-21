@@ -546,7 +546,7 @@
                 period={selectedPeriod}
                 showControls={false}
                 showStatus={true}
-                showInfo={false}
+                showInfo={true}
                 showDebug={false}
                 enablePlugins={true}
                 defaultPlugins={['volume']}

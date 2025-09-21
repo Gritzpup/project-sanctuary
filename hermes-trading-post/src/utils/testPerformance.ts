@@ -1,5 +1,5 @@
-import { ChartDataFeed } from '../services/chartDataFeed';
-import { IndexedDBCache } from '../services/indexedDBCache';
+import { ChartDataFeed } from '../services/chart/dataFeed';
+import { IndexedDBCache } from '../services/cache/indexedDB';
 
 async function testDailyCandles() {
   console.log('Testing daily candle performance...');

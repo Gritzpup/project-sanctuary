@@ -4,8 +4,8 @@
  */
 
 import type { PaperTradingState } from './TradingStateManager';
-import { paperTradingPersistence } from '../paperTradingPersistence';
-import type { PersistentTradingState } from '../paperTradingPersistence';
+import { paperTradingPersistence } from '../state/paperTradingPersistence';
+import type { PersistentTradingState } from '../state/paperTradingPersistence';
 
 export class TradingPersistence {
   private instanceId: string;

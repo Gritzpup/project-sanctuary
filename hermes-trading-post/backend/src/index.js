@@ -11,6 +11,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4827; // Fixed port for development
+const HOST = process.env.HOST || '0.0.0.0'; // Listen on all interfaces
 
 app.use(cors());
 app.use(express.json());
@@ -194,10 +195,11 @@ app.get('/health', (req, res) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`🚀 Trading backend server running on port ${PORT}`);
-  console.log(`📡 WebSocket server ready`);
+server.listen(PORT, HOST, () => {
+  console.log(`🚀 Trading backend server running on ${HOST}:${PORT}`);
+  console.log(`📡 WebSocket server ready on ws://${HOST}:${PORT}`);
   console.log(`💹 Trading service initialized`);
+  console.log(`❤️  Health Check: http://${HOST}:${PORT}/health`);
 });
 
 // Shutdown handling

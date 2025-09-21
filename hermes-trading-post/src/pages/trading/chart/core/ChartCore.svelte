@@ -47,21 +47,34 @@
     console.log('ChartCore onMount called');
     
     try {
-      // Simplified initialization
+      // Initialize with real data first
       statusStore.setInitializing('Initializing chart...');
       
       // Wait for canvas to be available
       await new Promise(resolve => setTimeout(resolve, 200));
       
-      console.log('Loading sample data immediately...');
-      statusStore.setInitializing('Loading sample data...');
+      console.log('Attempting to load real data...');
+      statusStore.setInitializing('Loading real data...');
       
-      // Skip all complex logic and just load sample data
-      await loadSampleData();
+      try {
+        // Try to load real data first
+        await loadData();
+        console.log('Real data loaded successfully');
+        
+        // Subscribe to real-time updates
+        subscribeToRealtime();
+        console.log('Real-time updates subscribed');
+        
+      } catch (realDataError) {
+        console.warn('Real data failed, falling back to sample data:', realDataError);
+        statusStore.setInitializing('Loading sample data...');
+        await loadSampleData();
+        console.log('Sample data loaded as fallback');
+      }
       
       isInitialized = true;
       statusStore.setReady();
-      console.log('Chart initialization complete with sample data');
+      console.log('Chart initialization complete');
       
       // Notify parent
       if (onReady && chartCanvas?.getChart()) {
@@ -330,6 +343,27 @@
   }
 
 
+  function subscribeToRealtime() {
+    console.log('Subscribing to real-time data...');
+    
+    try {
+      dataStore.subscribeToRealtime(
+        (candle) => {
+          console.log('Real-time candle update received:', candle);
+          // The dataStore handles updating the chart automatically
+        },
+        (error) => {
+          console.error('Real-time data error:', error);
+        },
+        () => {
+          console.log('Real-time connection reconnected');
+        }
+      );
+    } catch (error) {
+      console.error('Failed to subscribe to real-time data:', error);
+    }
+  }
+
   async function loadSampleData() {
     console.log('Loading sample data...');
     
@@ -383,6 +417,10 @@
             series.setData(sampleCandles);
             chart.timeScale().fitContent();
             console.log('Direct chart update successful - candles should be visible now!');
+            
+            // Update status to ready now that candles are visible
+            statusStore.setReady();
+            console.log('Chart status set to ready');
           } else {
             console.warn('Could not get chart or series for direct update');
           }

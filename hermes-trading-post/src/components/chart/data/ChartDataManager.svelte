@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { ChartDataFeed } from '../../../services/chartDataFeed';
+  import { ChartDataFeed } from '../../../services/chart/dataFeed';
   import type { CandleData } from '../../../types/coinbase';
   
   export let granularity: string = '1m';

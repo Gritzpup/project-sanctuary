@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-  import { paperTradingManager } from '../../services/paperTradingManager';
-  import { paperTestService } from '../../services/paperTestService';
+  import { paperTradingManager } from '../../services/state/paperTradingManager';
+  import { paperTestService } from '../../services/state/paperTestService';
   import type { Strategy } from '../../strategies/base/Strategy';
   
   export let selectedStrategyType: string;

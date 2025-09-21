@@ -8,7 +8,7 @@ import type { CandleData } from '../types/coinbase';
 import { RateLimiter } from './rateLimiter';
 
 export class CoinbaseAPI {
-  private baseUrl = 'https://api.exchange.coinbase.com'; // Direct API access for now
+  private baseUrl = 'https://api.exchange.coinbase.com'; // Direct API access
   private rateLimiter = new RateLimiter(10, 3); // 10 requests per second, max 3 concurrent
   
   constructor() {

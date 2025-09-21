@@ -1,5 +1,5 @@
 import type { WebSocketMessage, TickerMessage, SubscribeMessage } from '../types/coinbase';
-import { priceForwarder } from '../priceForwarder';
+import { priceForwarder } from './priceForwarder';
 
 export class CoinbaseWebSocket {
   private ws: WebSocket | null = null;

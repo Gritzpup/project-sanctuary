@@ -5,7 +5,7 @@
 
 import { writable, get } from 'svelte/store';
 import type { Writable } from 'svelte/store';
-import { PaperTradingService, type PaperTradingState } from '../paperTradingService';
+import { PaperTradingService, type PaperTradingState } from './paperTradingService';
 import { Strategy } from '../../strategies/base/Strategy';
 import { tradingBackendService } from './tradingBackendService';
 
