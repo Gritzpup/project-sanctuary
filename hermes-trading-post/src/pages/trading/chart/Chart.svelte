@@ -34,6 +34,7 @@
   export let multiPane: boolean = false;
   export let onReady: ((chart: IChartApi, pluginManager: PluginManager | null) => void) | undefined = undefined;
   export let onGranularityChange: ((granularity: string) => void) | undefined = undefined;
+  export let onPairChange: ((pair: string) => void) | undefined = undefined;
   
   let chartContainer: ChartContainer;
   
@@ -79,6 +80,7 @@
   {multiPane}
   {onReady}
   {onGranularityChange}
+  {onPairChange}
 />
 
 <style>

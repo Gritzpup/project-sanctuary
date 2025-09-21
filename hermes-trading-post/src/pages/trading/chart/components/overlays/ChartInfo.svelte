@@ -17,7 +17,7 @@
     showPerformance = false,
     showLatestPrice = true,
     showLatestCandleTime = true,
-    showCandleCountdown = true
+    showCandleCountdown = true,
   }: {
     position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
     showCandleCount?: boolean;

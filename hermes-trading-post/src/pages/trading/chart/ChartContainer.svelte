@@ -32,12 +32,14 @@
   export let multiPane: boolean = false;
   export let onReady: ((chart: IChartApi, pluginManager: PluginManager | null) => void) | undefined = undefined;
   export let onGranularityChange: ((granularity: string) => void) | undefined = undefined;
+  export let onPairChange: ((pair: string) => void) | undefined = undefined;
   
   let chartCore: ChartCore;
   let chartPanes: ChartPanes;
   let pluginManager: PluginManager | null = null;
   let chart: IChartApi | null = null;
   let isReady = false;
+  
   
   // Initialize plugins
   async function initializePlugins() {
@@ -155,6 +157,8 @@
         showGranularities={true}
         showRefresh={true}
         showClearCache={true}
+        {pair}
+        {onPairChange}
       />
     </div>
   {/if}

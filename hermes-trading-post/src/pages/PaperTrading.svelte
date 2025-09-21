@@ -57,6 +57,9 @@
   let selectedPeriod = savedPrefs.period;
   let autoGranularityActive = false;
   
+  // Trading pair selection
+  let selectedPair = 'BTC-USD';
+  
   // Save preferences when they change
   $: chartPreferencesStore.setPreferences('paper-trading', selectedGranularity, selectedPeriod);
   
@@ -169,6 +172,18 @@
   function selectPeriod(period: string) {
     selectedPeriod = period;
     chartPreferencesStore.setPreferences('paper-trading', selectedGranularity, period);
+  }
+  
+  function handlePairChange(newPair: string) {
+    selectedPair = newPair;
+    console.log('📊 Chart pair changed to:', newPair);
+    // The chart will automatically reload with the new pair
+  }
+  
+  function handleZoomCorrection() {
+    console.log('🔍 Zoom correction triggered');
+    // This will zoom the chart to fit all visible data
+    // You can implement chart.fitContent() or similar functionality here
   }
 
   function handleDateSelection(event: Event) {
@@ -515,12 +530,21 @@
           <!-- Chart Panel -->
           <div class="panel chart-panel">
             <div class="panel-header">
-              <h2>BTC/USD Chart
+              <h2>
+                <select class="pair-selector" bind:value={selectedPair} on:change={handlePairChange}>
+                  <option value="BTC-USD">BTC/USD Chart</option>
+                  <option value="ETH-USD">ETH/USD Chart</option>
+                  <option value="PAXG-USD">PAXG/USD Chart</option>
+                </select>
                 {#if isPaperTestRunning}
                   <span class="paper-test-indicator">📄 Paper Test Mode</span>
                 {/if}
               </h2>
               <div class="header-controls">
+                <button class="zoom-btn" on:click={handleZoomCorrection} title="Zoom to fit data">
+                  🔍
+                </button>
+                <div class="separator">|</div>
                 <div class="granularity-buttons">
                   <button class="granularity-btn" class:active={selectedGranularity === '1m'} on:click={() => selectGranularity('1m')}>1m</button>
                   <button class="granularity-btn" class:active={selectedGranularity === '5m'} on:click={() => selectGranularity('5m')}>5m</button>
@@ -541,7 +565,7 @@
             {/if}
             <div class="panel-content">
               <Chart
-                pair="BTC-USD"
+                pair={selectedPair}
                 granularity={selectedGranularity}
                 period={selectedPeriod}
                 showControls={false}
@@ -550,6 +574,7 @@
                 showDebug={false}
                 enablePlugins={true}
                 defaultPlugins={['volume']}
+                onPairChange={handlePairChange}
               />
               <div class="period-buttons">
                 <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
@@ -799,6 +824,57 @@
     margin: 0;
     font-size: 16px;
     color: #a78bfa;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  :global(.pair-selector) {
+    background: linear-gradient(135deg, rgba(167, 139, 250, 0.1) 0%, rgba(196, 181, 253, 0.1) 100%);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 8px;
+    color: #a78bfa;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    outline: none;
+    padding: 6px 32px 6px 12px;
+    text-align: center;
+    transition: all 0.3s ease;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a78bfa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 14px;
+  }
+  
+  :global(.pair-selector:hover) {
+    color: #c4b5fd;
+    border-color: rgba(196, 181, 253, 0.5);
+    background: linear-gradient(135deg, rgba(167, 139, 250, 0.15) 0%, rgba(196, 181, 253, 0.15) 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(167, 139, 250, 0.2);
+  }
+  
+  :global(.pair-selector:focus) {
+    border-color: #a78bfa;
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.3);
+  }
+  
+  :global(.pair-selector option) {
+    background: #2a2a2a;
+    color: white;
+    padding: 8px 12px;
+    border: none;
+  }
+  
+  :global(.pair-selector option:hover) {
+    background: #3a3a3a;
+  }
+  
+  :global(.pair-selector option:checked) {
+    background: linear-gradient(135deg, #a78bfa 0%, #c4b5fd 100%);
+    color: white;
   }
 
   :global(.chart-controls) {
@@ -809,7 +885,47 @@
   
   :global(.granularity-buttons) {
     display: flex;
+    align-items: center;
     gap: 5px;
+  }
+  
+  :global(.button-separator) {
+    color: #666;
+    font-size: 14px;
+    font-weight: 300;
+    margin: 0 4px;
+    opacity: 0.6;
+  }
+  
+  :global(.separator) {
+    color: #666;
+    font-size: 16px;
+    font-weight: 300;
+    margin: 0 8px;
+    opacity: 0.6;
+  }
+  
+  :global(.zoom-btn) {
+    background: rgba(167, 139, 250, 0.1);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 4px;
+    color: #a78bfa;
+    font-size: 12px;
+    padding: 4px 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+  }
+  
+  :global(.zoom-btn:hover) {
+    background: rgba(167, 139, 250, 0.15);
+    border-color: rgba(167, 139, 250, 0.5);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
   }
 
   :global(.header-controls) {

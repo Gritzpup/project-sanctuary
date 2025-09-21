@@ -15,6 +15,8 @@
   export let showClearCache: boolean = true;
   export let availableTimeframes: string[] = ['1H', '6H', '1D', '1W', '1M'];
   export let availableGranularities: string[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
+  export let pair: string = 'BTC-USD';
+  export let onPairChange: ((pair: string) => void) | undefined = undefined;
   
   let isRefreshing = false;
   let isClearingCache = false;
@@ -43,6 +45,16 @@
   
   function handleGranularityChange(granularity: string) {
     chartStore.setGranularity(granularity);
+  }
+  
+  function handlePairChange(event: Event) {
+    const select = event.target as HTMLSelectElement;
+    const newPair = select.value;
+    console.log('🔄 Pair changed to:', newPair);
+    
+    if (onPairChange) {
+      onPairChange(newPair);
+    }
   }
   
   async function handleRefresh() {
@@ -97,6 +109,15 @@
 </script>
 
 <div class="chart-controls">
+  <!-- Pair Selector -->
+  <div class="control-group">
+    <span class="control-label">Pair:</span>
+    <select class="pair-dropdown" bind:value={pair} on:change={handlePairChange}>
+      <option value="BTC-USD">BTC/USD</option>
+      <option value="PAXG-USD">PAXG/USD</option>
+    </select>
+  </div>
+  
   {#if showTimeframes}
     <div class="control-group">
       <span class="control-label">Period:</span>
@@ -252,6 +273,37 @@
   @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+  }
+  
+  /* Pair Dropdown */
+  .pair-dropdown {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color, #ddd);
+    background: var(--button-bg, white);
+    color: var(--text-primary, #333);
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 90px;
+  }
+  
+  .pair-dropdown:hover {
+    background: var(--button-hover-bg, #f5f5f5);
+    border-color: var(--border-hover-color, #bbb);
+  }
+  
+  .pair-dropdown:focus {
+    outline: none;
+    border-color: var(--primary-color, #2196f3);
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+  }
+  
+  .pair-dropdown option {
+    background: var(--button-bg, white);
+    color: var(--text-primary, #333);
+    padding: 6px;
   }
   
   /* Dark theme support */
