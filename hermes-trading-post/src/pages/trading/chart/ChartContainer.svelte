@@ -184,13 +184,7 @@
           </ChartPanes>
         {/if}
         
-        {#if showStatus}
-          <ChartStatus 
-            position="top-right"
-            showText={true}
-            size="medium"
-          />
-        {/if}
+        <!-- Status light moved to ChartInfo overlay -->
         
         {#if showInfo}
           <ChartInfo 
@@ -200,6 +194,8 @@
             showClock={true}
             showPerformance={false}
             showLatestPrice={true}
+            showLatestCandleTime={false}
+            showCandleCountdown={true}
           />
         {/if}
         

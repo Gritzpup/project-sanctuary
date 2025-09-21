@@ -54,20 +54,27 @@ class DataStore {
   ): Promise<void> {
     const loadStartTime = performance.now();
     
+    console.log(`[DataStore] loadData called for ${pair} ${granularity}`);
+    console.log(`[DataStore] Time range: ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
+    
     try {
       if (granularity === '1d' || granularity === '1D') {
         ChartDebug.critical(`[PERF] dataStore.loadData started`);
       }
       
+      console.log(`[DataStore] Initializing data service...`);
       await this.dataService.initialize(pair, granularity);
       
       if (granularity === '1d' || granularity === '1D') {
         ChartDebug.critical(`[PERF] About to fetch historical data`);
       }
       
+      console.log(`[DataStore] Fetching historical data...`);
       const fetchStart = performance.now();
       const data = await this.dataService.fetchHistoricalData(startTime, endTime);
       const fetchEnd = performance.now();
+      
+      console.log(`[DataStore] Received ${data.length} candles from data service`);
       
       if (granularity === '1d' || granularity === '1D') {
         ChartDebug.critical(`[PERF] fetchHistoricalData took ${fetchEnd - fetchStart}ms`);
@@ -90,6 +97,7 @@ class DataStore {
         ChartDebug.critical(`[PERF] dataStore.loadData completed in ${performance.now() - loadStartTime}ms`);
       }
     } catch (error) {
+      console.error('[DataStore] Error loading data:', error);
       ChartDebug.error('Error loading data:', error);
       throw error;
     }
@@ -126,25 +134,28 @@ class DataStore {
   }
 
   setCandles(candles: CandlestickData[]) {
-    console.log('dataStore.setCandles called with', candles.length, 'candles');
-    console.log('First candle:', candles[0]);
+    console.log('[DataStore] setCandles called with', candles.length, 'candles');
+    if (candles.length > 0) {
+      console.log('[DataStore] First candle:', candles[0]);
+      console.log('[DataStore] Last candle:', candles[candles.length - 1]);
+    }
     
     this._candles = candles;
     this._visibleCandles = candles; // Initially all candles are visible
     
-    console.log('After setting: _candles.length =', this._candles.length);
-    console.log('isEmpty =', this.isEmpty);
+    console.log('[DataStore] After setting: _candles.length =', this._candles.length);
+    console.log('[DataStore] isEmpty =', this.isEmpty);
     
     // Update latest price
     if (candles.length > 0) {
       const lastCandle = candles[candles.length - 1];
       this._latestPrice = lastCandle.close;
-      console.log('Latest price set to:', this._latestPrice);
+      console.log('[DataStore] Latest price set to:', this._latestPrice);
     }
     
     // Update stats to trigger UI updates
     this.updateStats();
-    console.log('Stats updated - totalCount:', this._dataStats.totalCount);
+    console.log('[DataStore] Final stats - totalCount:', this._dataStats.totalCount);
   }
 
   updateVisibleRange(from: number, to: number) {
@@ -189,6 +200,7 @@ class DataStore {
     onUpdate?: (candle: CandlestickData) => void,
     onReconnect?: () => void
   ) {
+    console.log('📡 dataStore.subscribeToRealtime called with:', pair, granularity);
     // Unsubscribe from previous
     this.unsubscribeFromRealtime();
 
@@ -265,6 +277,7 @@ class DataStore {
       lastUpdate: Date.now()
     };
     
+    console.log(`[DataStore] Stats updated: Total candles: ${count}, Visible: ${this._visibleCandles.length}`);
     ChartDebug.log(`Stats updated: Total: ${count}, Visible: ${this._visibleCandles.length}`);
   }
 

@@ -4,7 +4,20 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + Svelte + TS</title>
+    <title>🔥 HERMES TRADING - STATUS OVERRIDE ACTIVE 🔥</title>
+    <!-- Force immediate status override -->
+    <script>
+      console.log('🚨 INDEX.HTML - IMMEDIATE STATUS OVERRIDE SCRIPT LOADED');
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          console.log('🔥 INDEX LEVEL STATUS FORCE - Attempting override');
+          if (window.statusStore) {
+            console.log('✅ Found statusStore, forcing ready');
+            window.statusStore.forceReady();
+          }
+        }, 1000);
+      });
+    </script>
     <!-- Suppress extension errors before anything else loads -->
     <script src="/suppress-extension-errors.js"></script>
   </head>

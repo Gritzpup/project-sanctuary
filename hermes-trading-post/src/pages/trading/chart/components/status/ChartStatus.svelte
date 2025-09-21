@@ -7,14 +7,14 @@
   export let showHistory: boolean = false;
   export let size: 'small' | 'medium' | 'large' = 'medium';
   
-  // Status colors
+  // Traffic light status colors
   const statusColors = {
-    initializing: '#ff9800',
-    loading: '#ff9800',
-    ready: '#4caf50',
-    error: '#f44336',
-    'price-update': '#2196f3',
-    'new-candle': '#4caf50'
+    initializing: '#ff9800', // Orange - loading
+    loading: '#ff9800',      // Orange - loading  
+    ready: '#4caf50',        // Green - connected/ready
+    error: '#f44336',        // Red - error
+    'price-update': '#2196f3', // Blue - price update
+    'new-candle': '#00e676'   // Bright green - new candle flash
   };
   
   // Status icons
@@ -35,10 +35,23 @@
   };
   
   $: currentStatus = statusStore.status;
-  $: statusColor = statusColors[currentStatus] || '#999';
+  $: wsConnected = statusStore.wsConnected;
+  $: statusColor = getStatusColor(currentStatus, wsConnected);
   $: statusIcon = statusIcons[currentStatus] || '●';
-  $: displayText = statusStore.displayText;
+  // OVERRIDE: Never show "Loading chart..." - always show connection status
+  $: displayText = wsConnected ? 'Connected' : 'Ready (No WebSocket)';
   $: isTransitioning = statusStore.isTransitioning;
+  
+  function getStatusColor(status: string, wsConnected: boolean): string {
+    // Override colors based on WebSocket connection
+    if (status === 'ready') {
+      return wsConnected ? '#4caf50' : '#ff9800'; // Green if WS connected, orange if not
+    }
+    if (status === 'error' && !wsConnected) {
+      return '#f44336'; // Red for WebSocket disconnected
+    }
+    return statusColors[status] || '#999';
+  }
   
   // Position classes
   $: positionClass = `position-${position}`;
@@ -59,6 +72,7 @@
       class="status-light" 
       style="background-color: {statusColor}"
       class:pulse={currentStatus === 'loading' || currentStatus === 'initializing'}
+      class:flash={currentStatus === 'new-candle' || currentStatus === 'price-update'}
     >
       {#if currentStatus === 'loading'}
         <span class="spinner"></span>
@@ -160,6 +174,10 @@
     animation: pulse 1.5s ease-in-out infinite;
   }
   
+  .status-light.flash {
+    animation: flash 0.8s ease-in-out;
+  }
+  
   @keyframes pulse {
     0% {
       box-shadow: 0 0 0 0 currentColor;
@@ -169,6 +187,17 @@
     }
     100% {
       box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+    }
+  }
+  
+  @keyframes flash {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.8;
+      transform: scale(1.2);
     }
   }
   

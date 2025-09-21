@@ -5,7 +5,7 @@ import { CoinbaseAPI } from '../../../../services/api/coinbaseApi';
 
 export class ChartAPIService {
   private coinbaseApi: CoinbaseAPI;
-  private wsUrl: string = 'ws://localhost:8080';
+  private wsUrl: string = 'ws://localhost:4827'; // Backend WebSocket for status/data sync
   private ws: WebSocket | null = null;
   private wsReconnectTimeout: NodeJS.Timeout | null = null;
   private wsSubscriptions: Map<string, (data: WebSocketCandle) => void> = new Map();
@@ -24,6 +24,9 @@ export class ChartAPIService {
     const { pair, granularity, start, end, limit } = request;
     const fetchStartTime = performance.now();
     perfTest.mark('fetchCandles-start');
+    
+    console.log(`[ChartAPIService] fetchCandles called for ${pair} ${granularity}`);
+    console.log(`[ChartAPIService] Time range: ${new Date(start * 1000).toISOString()} to ${new Date(end * 1000).toISOString()}`);
     
     // Log performance start for 3M/1d
     if (granularity === '1d' || granularity === '1D') {
@@ -179,6 +182,7 @@ export class ChartAPIService {
       
       return transformedCandles;
     } catch (error) {
+      console.error('[ChartAPIService] Error fetching candles:', error);
       ChartDebug.error('Error fetching candles:', error);
       throw error;
     }
@@ -191,30 +195,39 @@ export class ChartAPIService {
     onError?: (error: Error) => void,
     onReconnect?: () => void
   ): { unsubscribe: () => void } {
-    const subscriptionKey = `${pair}:${granularity}`;
+    console.log(`🔌 Chart WebSocket connecting to ${this.wsUrl} for ${pair}:${granularity}`);
+    console.log('🔌 WebSocket URL:', this.wsUrl);
     
-    // Store the callback
+    // Store callbacks for reconnection
+    this.onReconnectCallback = onReconnect || null;
+    
+    // Connect to our backend WebSocket
+    this.connectWebSocket(onError);
+    
+    // Store the subscription
+    const subscriptionKey = `${pair}:${granularity}`;
     this.wsSubscriptions.set(subscriptionKey, onMessage);
     
-    // Store reconnect callback
-    if (onReconnect) {
-      this.onReconnectCallback = onReconnect;
-    }
-
-    // Connect WebSocket if not connected
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      this.connectWebSocket(onError);
-    } else {
-      // Subscribe to the pair/granularity
-      this.sendSubscription(pair, granularity);
-    }
-
+    // Import and update status store
+    import('../stores/statusStore.svelte').then(({ statusStore }) => {
+      statusStore.setWebSocketConnected(true);
+    }).catch(console.error);
+    
     // Return unsubscribe function
     return {
       unsubscribe: () => {
+        console.log(`🔌 Unsubscribed from chart WebSocket for ${pair}:${granularity}`);
         this.wsSubscriptions.delete(subscriptionKey);
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.sendUnsubscription(pair, granularity);
+        
+        // If no more subscriptions, close WebSocket
+        if (this.wsSubscriptions.size === 0 && this.ws) {
+          this.ws.close();
+          this.ws = null;
+          
+          // Update status store
+          import('../stores/statusStore.svelte').then(({ statusStore }) => {
+            statusStore.setWebSocketConnected(false);
+          }).catch(console.error);
         }
       }
     };
@@ -225,8 +238,16 @@ export class ChartAPIService {
       this.ws = new WebSocket(this.wsUrl);
 
       this.ws.onopen = () => {
+        console.log('🟢 WebSocket connected to backend');
         ChartDebug.log('WebSocket connected');
         this.clearReconnectTimeout();
+        
+        // Update status store - WebSocket is connected
+        import('../stores/statusStore.svelte').then(({ statusStore }) => {
+          console.log('🔧 Before setWebSocketConnected - wsConnected:', statusStore.wsConnected);
+          statusStore.setWebSocketConnected(true);
+          console.log('✅ After setWebSocketConnected - wsConnected:', statusStore.wsConnected);
+        }).catch(console.error);
         
         // Resubscribe to all active subscriptions
         for (const key of this.wsSubscriptions.keys()) {
@@ -256,14 +277,30 @@ export class ChartAPIService {
       };
 
       this.ws.onerror = (error) => {
+        console.log('🔴 WebSocket error');
         ChartDebug.error('WebSocket error:', error);
+        
+        // Update status store - WebSocket error
+        import('../stores/statusStore.svelte').then(({ statusStore }) => {
+          statusStore.setWebSocketConnected(false);
+          console.log('❌ StatusStore updated: WebSocket error');
+        }).catch(console.error);
+        
         if (onError) {
           onError(new Error('WebSocket connection error'));
         }
       };
 
       this.ws.onclose = () => {
+        console.log('🔴 WebSocket disconnected');
         ChartDebug.log('WebSocket disconnected');
+        
+        // Update status store - WebSocket disconnected
+        import('../stores/statusStore.svelte').then(({ statusStore }) => {
+          statusStore.setWebSocketConnected(false);
+          console.log('❌ StatusStore updated: WebSocket disconnected');
+        }).catch(console.error);
+        
         this.scheduleReconnect(onError);
       };
     } catch (error) {

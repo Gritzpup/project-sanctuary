@@ -246,8 +246,24 @@
   }
 
   export function setVisibleRange(from: number, to: number) {
-    if (chart) {
-      chart.timeScale().setVisibleRange({ from: from as Time, to: to as Time });
+    if (chart && candleSeries) {
+      try {
+        // Only set visible range if we have data
+        const seriesData = candleSeries.data();
+        if (seriesData && seriesData.length > 0) {
+          chart.timeScale().setVisibleRange({ from: from as Time, to: to as Time });
+        } else {
+          console.log('ChartCanvas: Skipping setVisibleRange - no series data available yet');
+        }
+      } catch (error) {
+        console.error('Error setting visible range:', error);
+        // Fall back to fitContent if setVisibleRange fails
+        try {
+          chart.timeScale().fitContent();
+        } catch (fitError) {
+          console.error('Error fitting content:', fitError);
+        }
+      }
     }
   }
 
@@ -257,15 +273,18 @@
     }
   }
 
-  // Data updates
+  // Data updates - watch for changes in candle data
   $: {
+    const candleCount = dataStore.candles?.length || 0;
     console.log('Reactive statement triggered:', {
       candleSeries: !!candleSeries,
-      candleCount: dataStore.candles?.length || 0,
-      hasCandles: !!dataStore.candles
+      candleCount: candleCount,
+      hasCandles: candleCount > 0,
+      isEmpty: dataStore.isEmpty
     });
     
-    if (candleSeries && dataStore.candles) {
+    if (candleSeries && candleCount > 0 && !dataStore.isEmpty) {
+      console.log('Triggering updateChartData due to reactive change');
       updateChartData();
     }
   }

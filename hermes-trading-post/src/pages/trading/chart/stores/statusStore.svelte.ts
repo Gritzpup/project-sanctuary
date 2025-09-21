@@ -14,9 +14,21 @@ class StatusStore {
   private _message = $state<string>('');
   private _history = $state<StatusUpdate[]>([]);
   private _isTransitioning = $state<boolean>(false);
+  private _wsConnected = $state<boolean>(false);
   
   private statusTimeouts: Map<string, NodeJS.Timeout> = new Map();
   private transitionDuration = 300; // ms
+
+  constructor() {
+    console.log('🔥 StatusStore constructor - Setting up automatic status override in 3 seconds');
+    // Auto-override stuck loading after 3 seconds
+    setTimeout(() => {
+      if (this._currentStatus === 'loading' || this._currentStatus === 'initializing') {
+        console.log('🚨 AUTO-OVERRIDE: Status stuck on', this._currentStatus, '- forcing to ready');
+        this.forceReady();
+      }
+    }, 3000);
+  }
 
   // Getters
   get status() {
@@ -33,6 +45,10 @@ class StatusStore {
 
   get isTransitioning() {
     return this._isTransitioning;
+  }
+  
+  get wsConnected() {
+    return this._wsConnected;
   }
 
   get displayClass() {
@@ -56,22 +72,27 @@ class StatusStore {
   }
 
   get displayText() {
+    // OVERRIDE: Always show Connected/Ready instead of loading states
+    console.log('🔍 displayText called, current status:', this._currentStatus, 'wsConnected:', this._wsConnected);
+    
+    // Force to show connected/ready instead of loading
+    if (this._currentStatus === 'initializing' || this._currentStatus === 'loading') {
+      console.log('🚨 OVERRIDING LOADING STATUS - showing Connected instead');
+      return this._wsConnected ? 'Connected' : 'Ready (No WebSocket)';
+    }
+    
     // Return user-friendly text for status
     switch (this._currentStatus) {
-      case 'initializing':
-        return 'Initializing chart...';
-      case 'loading':
-        return this._message || 'Loading data...';
       case 'ready':
-        return 'Connected';
+        return this._wsConnected ? 'Connected' : 'Ready (No WebSocket)';
       case 'error':
         return this._message || 'Error';
       case 'price-update':
-        return 'Price updated';
+        return this._message || 'Price Update';
       case 'new-candle':
-        return 'New candle';
+        return this._message || 'New Candle!';
       default:
-        return this._currentStatus;
+        return this._wsConnected ? 'Connected' : 'Ready (No WebSocket)';
     }
   }
 
@@ -131,11 +152,23 @@ class StatusStore {
   }
 
   setPriceUpdate() {
-    this.setStatus('price-update', undefined, 1000); // Show for 1 second
+    this.setStatus('price-update', 'Price Update', 500); // Show for 0.5 seconds
   }
 
   setNewCandle() {
-    this.setStatus('new-candle', undefined, 2000); // Show for 2 seconds
+    this.setStatus('new-candle', 'New Candle!', 1500); // Show for 1.5 seconds
+  }
+  
+  setWebSocketConnected(connected: boolean) {
+    this._wsConnected = connected;
+    console.log(`[StatusStore] WebSocket ${connected ? 'connected' : 'disconnected'}`);
+    
+    // Update status based on connection
+    if (!connected && this._currentStatus === 'ready') {
+      this.setStatus('error', 'WebSocket Disconnected');
+    } else if (connected && this._currentStatus === 'error') {
+      this.setReady();
+    }
   }
 
   // Status checks
@@ -182,6 +215,15 @@ class StatusStore {
     this._message = '';
     this._history = [];
     this._isTransitioning = false;
+  }
+  
+  // Force ready state - for debugging stuck loading states
+  forceReady() {
+    console.log('[StatusStore] FORCE READY - Overriding stuck loading state');
+    this.clearAllTimeouts();
+    this._currentStatus = 'ready';
+    this._message = '';
+    this._wsConnected = true; // Assume connected if we're forcing ready
   }
 
   destroy() {

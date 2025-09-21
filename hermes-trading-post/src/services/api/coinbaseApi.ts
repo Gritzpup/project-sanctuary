@@ -32,6 +32,9 @@ export class CoinbaseAPI {
     start?: string,
     end?: string
   ): Promise<CandleData[]> {
+    console.log(`[CoinbaseAPI] getCandles called for ${productId}, granularity: ${granularity}s`);
+    console.log(`[CoinbaseAPI] Time range: ${start ? new Date(parseInt(start) * 1000).toISOString() : 'not specified'} to ${end ? new Date(parseInt(end) * 1000).toISOString() : 'not specified'}`);
+    
     // Create a unique key for this request for rate limiting
     const key = `candles-${productId}-${granularity}-${start || 'latest'}-${end || 'now'}`;
     
@@ -79,8 +82,10 @@ export class CoinbaseAPI {
         volume: candle[5]
       }));
       
+      console.log(`[CoinbaseAPI] Successfully fetched ${candles.length} candles`);
       return candles;
     }).catch(error => {
+      console.error('[CoinbaseAPI] API request failed:', error.message);
       if (axios.isAxiosError(error) && error.response?.status !== 429) {
         console.error('Coinbase API error:', error.response?.status, error.response?.data);
       }

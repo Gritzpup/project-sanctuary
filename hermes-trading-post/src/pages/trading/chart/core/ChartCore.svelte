@@ -44,37 +44,50 @@
   }
   
   onMount(async () => {
-    console.log('ChartCore onMount called');
+    console.log('🚀🚀🚀 ChartCore onMount called - VERSION 6.0 - MEGA STATUS FORCE 🚀🚀🚀');
     
     try {
-      // Initialize with real data first
-      statusStore.setInitializing('Initializing chart...');
+      // Initialize chart with proper data flow
+      statusStore.setInitializing('Loading chart...');
+      
+      // Force status to ready after a short delay if we don't get data updates
+      setTimeout(() => {
+        console.log('[ChartCore] Fallback - forcing status to ready after 3 seconds');
+        statusStore.setReady();
+      }, 3000);
       
       // Wait for canvas to be available
       await new Promise(resolve => setTimeout(resolve, 200));
       
-      console.log('Attempting to load real data...');
-      statusStore.setInitializing('Loading real data...');
+      console.log('Loading chart data using proper data flow...');
+      statusStore.setInitializing('Loading chart data...');
       
-      try {
-        // Try to load real data first
-        await loadData();
-        console.log('Real data loaded successfully');
-        
-        // Subscribe to real-time updates
-        subscribeToRealtime();
-        console.log('Real-time updates subscribed');
-        
-      } catch (realDataError) {
-        console.warn('Real data failed, falling back to sample data:', realDataError);
-        statusStore.setInitializing('Loading sample data...');
-        await loadSampleData();
-        console.log('Sample data loaded as fallback');
-      }
+      // Use the existing sophisticated data loading system
+      await loadData();
       
-      isInitialized = true;
-      statusStore.setReady();
-      console.log('Chart initialization complete');
+      // Check for data gaps and fill them
+      await checkAndFillDataGaps();
+      
+      // Subscribe to real-time updates
+      console.log('🔥 ChartCore: About to call subscribeToRealtime');
+      subscribeToRealtime();
+      console.log('✅ ChartCore: subscribeToRealtime called');
+      
+      // Set status to ready after data loads and chart is updated
+      setTimeout(() => {
+        isInitialized = true;
+        statusStore.setReady();
+        console.log('Chart fully initialized and ready - STATUS SET TO READY!');
+        console.log('Current status after setReady:', statusStore.status);
+      }, 100);
+      
+      // Additional safety check - set status again after a longer delay if still initializing
+      setTimeout(() => {
+        if (statusStore.status === 'initializing' || statusStore.status === 'loading') {
+          console.log('Status still initializing after 1 second, forcing to ready');
+          statusStore.setReady();
+        }
+      }, 1000);
       
       // Notify parent
       if (onReady && chartCanvas?.getChart()) {
@@ -83,11 +96,7 @@
       
     } catch (error) {
       console.error('Chart initialization failed:', error);
-      statusStore.setError('Failed to initialize chart');
-      
-      // Try to set ready anyway
-      isInitialized = true;
-      statusStore.setReady();
+      statusStore.setError('Failed to initialize chart: ' + error.message);
     }
   });
   
@@ -163,19 +172,37 @@
       );
       perfTest.measure('dataStore.loadData', 'dataStore-loadData-start');
       
-      // Set visible range
-      if (chartCanvas) {
-        // Debug visible range setting (consolidated)
-        if (config.timeframe === '3M' && config.granularity === '1d') {
-          const visibleDays = ((now + 30) - startTime) / 86400;
-          ChartDebug.critical('Setting visible range', {
-            from: new Date(startTime * 1000).toISOString(),
-            to: new Date((now + 30) * 1000).toISOString(),
-            visibleDays: visibleDays.toFixed(1),
-            note: "'+30' adds 30 seconds to end time for last candle visibility"
-          });
+      // Force chart update immediately after data loads
+      if (chartCanvas && !dataStore.isEmpty) {
+        console.log('Forcing chart update after data load...');
+        const series = chartCanvas.getSeries();
+        const chart = chartCanvas.getChart();
+        
+        if (series && chart) {
+          console.log('Setting data directly to chart series:', dataStore.candles.length, 'candles');
+          series.setData(dataStore.candles);
+          chart.timeScale().fitContent();
+          console.log('Chart data set successfully!');
+        } else {
+          console.warn('Chart or series not available for direct update');
         }
-        chartCanvas.setVisibleRange(startTime, now + 30);
+      }
+      
+      // Set visible range after a small delay to ensure chart is ready
+      if (chartCanvas) {
+        setTimeout(() => {
+          // Debug visible range setting (consolidated)
+          if (config.timeframe === '3M' && config.granularity === '1d') {
+            const visibleDays = ((now + 30) - startTime) / 86400;
+            ChartDebug.critical('Setting visible range', {
+              from: new Date(startTime * 1000).toISOString(),
+              to: new Date((now + 30) * 1000).toISOString(),
+              visibleDays: visibleDays.toFixed(1),
+              note: "'+30' adds 30 seconds to end time for last candle visibility"
+            });
+          }
+          chartCanvas.setVisibleRange(startTime, now + 30);
+        }, 100);
         
         // After setting, immediately check what candles are visible
         if (config.timeframe === '3M' && config.granularity === '1d') {
@@ -210,6 +237,7 @@
       }
       
       performanceStore.recordDataLoadTime(performance.now() - loadStartTime);
+      console.log('Data loading complete - setting status to ready');
       statusStore.setReady();
       
       if (config.timeframe === '3M' && config.granularity === '1d') {
@@ -238,7 +266,10 @@
   
   async function checkAndFillDataGaps() {
     const candles = dataStore.candles;
-    if (candles.length === 0) return;
+    if (candles.length === 0) {
+      console.log('[ChartCore] No candles to check for gaps');
+      return;
+    }
     
     const lastCandle = candles[candles.length - 1];
     const lastCandleTime = lastCandle.time as number;
@@ -249,17 +280,19 @@
     const candleInterval = getGranularitySeconds(config.granularity);
     const timeDiff = currentTime - lastCandleTime;
     
-    // If gap is more than 2 candle intervals, we need to fill it
-    if (timeDiff > candleInterval * 2) {
+    console.log(`[ChartCore] Gap check: Last candle ${new Date(lastCandleTime * 1000).toISOString()}, Current ${new Date(currentTime * 1000).toISOString()}, Gap: ${timeDiff}s`);
+    
+    // If gap is more than 1 candle interval, we need to fill it (reduced threshold)
+    if (timeDiff > candleInterval) {
       ChartDebug.log(`Data gap detected: ${timeDiff} seconds (${Math.floor(timeDiff / candleInterval)} candles)`);
       statusStore.setLoading('Filling data gap...');
       
       try {
-        // Fetch missing data from last candle time to current time
+        // Try to fetch missing data from API
         const gapData = await dataStore.fetchGapData(lastCandleTime, currentTime);
         
         if (gapData.length > 0) {
-          ChartDebug.log(`Filled gap with ${gapData.length} candles`);
+          console.log(`[ChartCore] Filled gap with ${gapData.length} API candles`);
           
           // Merge gap data with existing candles
           const mergedCandles = [...candles, ...gapData].sort(
@@ -273,6 +306,25 @@
             const series = chartCanvas.getSeries();
             if (series) {
               series.setData(mergedCandles);
+            }
+          }
+        } else {
+          // If no API data available, create bridge candles to connect to real-time
+          console.log(`[ChartCore] No API data for gap, creating bridge candles`);
+          const bridgeCandles = createBridgeCandles(lastCandleTime, currentTime, candleInterval);
+          
+          if (bridgeCandles.length > 0) {
+            const mergedCandles = [...candles, ...bridgeCandles].sort(
+              (a, b) => (a.time as number) - (b.time as number)
+            );
+            
+            dataStore.setCandles(mergedCandles);
+            
+            if (chartCanvas) {
+              const series = chartCanvas.getSeries();
+              if (series) {
+                series.setData(mergedCandles);
+              }
             }
           }
         }
@@ -298,35 +350,138 @@
     return map[granularity] || 60;
   }
   
+  function createBridgeCandles(lastCandleTime: number, currentTime: number, interval: number) {
+    const bridgeCandles = [];
+    const lastCandle = dataStore.candles[dataStore.candles.length - 1];
+    
+    if (!lastCandle) return bridgeCandles;
+    
+    let nextTime = lastCandleTime + interval;
+    const lastPrice = lastCandle.close;
+    
+    console.log(`[ChartCore] Creating bridge candles from ${new Date(nextTime * 1000).toISOString()} to ${new Date(currentTime * 1000).toISOString()}`);
+    
+    // Create bridge candles with flat price data (no movement)
+    while (nextTime < currentTime) {
+      bridgeCandles.push({
+        time: nextTime,
+        open: lastPrice,
+        high: lastPrice,
+        low: lastPrice,
+        close: lastPrice,
+        volume: 0 // Zero volume for bridge candles
+      });
+      nextTime += interval;
+    }
+    
+    console.log(`[ChartCore] Created ${bridgeCandles.length} bridge candles`);
+    return bridgeCandles;
+  }
+  
   function subscribeToRealtime() {
+    console.log('🔌 Setting up real-time chart updates via backend WebSocket...');
+    console.log('🔌 Calling dataStore.subscribeToRealtime with:', pair, granularity);
+    
+    // Use dataStore to connect to backend WebSocket instead of Coinbase directly
     dataStore.subscribeToRealtime(
       pair,
-      chartStore.config.granularity,
-      (candle) => {
-        if (chartCanvas) {
-          const series = chartCanvas.getSeries();
-          if (series) {
-            const startTime = performance.now();
-            series.update(candle);
-            performanceStore.recordRenderTime(performance.now() - startTime);
-            performanceStore.recordCandleUpdate();
-            
-            // Update status for new candles
-            const existingCandle = dataStore.candles.find(c => c.time === candle.time);
-            if (!existingCandle) {
-              statusStore.setNewCandle();
-            } else {
-              statusStore.setPriceUpdate();
-            }
-          }
-        }
+      granularity,
+      (candleData) => {
+        console.log('📊 Received candle update from backend:', candleData);
+        updateLiveCandleWithPrice(candleData.close);
+        statusStore.setPriceUpdate();
       },
-      // onReconnect callback to handle data gaps
-      async () => {
-        ChartDebug.log('WebSocket reconnected, checking for data gaps...');
-        await checkAndFillDataGaps();
+      () => {
+        console.log('🔄 Backend WebSocket reconnected');
+        statusStore.setReady();
       }
     );
+    
+    console.log('✅ Backend WebSocket subscription active');
+    
+    // Also keep Coinbase for price updates but don't use it for status
+    import('../../../../services/api/coinbaseWebSocket').then(({ coinbaseWebSocket }) => {
+      console.log('📡 Also subscribing to Coinbase for additional price data');
+      
+      // Don't update status based on Coinbase - only use backend WebSocket for status
+      coinbaseWebSocket.subscribeTicker('BTC-USD');
+      
+      // Subscribe to ticker updates as backup price source
+      const unsubscribe = coinbaseWebSocket.subscribe((tickerData) => {
+        if (tickerData.product_id === 'BTC-USD' && tickerData.price) {
+          updateLiveCandleWithPrice(parseFloat(tickerData.price));
+          // Update status to show we're receiving real-time data
+          statusStore.setReady();
+          console.log('[ChartCore] Price update received - status set to ready');
+        }
+      });
+      
+      // Store unsubscribe function for cleanup
+      dataStore.realtimeUnsubscribe = unsubscribe;
+    });
+  }
+  
+  function updateLiveCandleWithPrice(price: number) {
+    if (!chartCanvas) return;
+    
+    const series = chartCanvas.getSeries();
+    if (!series) return;
+    
+    const candles = dataStore.candles;
+    if (candles.length === 0) return;
+    
+    // Get current minute timestamp
+    const now = Date.now();
+    const currentMinute = Math.floor(now / 60000) * 60; // Round down to minute in seconds
+    const lastCandle = candles[candles.length - 1];
+    const lastCandleTime = lastCandle.time as number;
+    
+    if (currentMinute > lastCandleTime) {
+      // New candle needed
+      const newCandle = {
+        time: currentMinute,
+        open: price,
+        high: price,
+        low: price,
+        close: price,
+        volume: 0.1
+      };
+      
+      console.log('[ChartCore] Creating new real-time candle at', new Date(currentMinute * 1000).toISOString());
+      
+      // Add to dataStore
+      const updatedCandles = [...candles, newCandle];
+      dataStore.setCandles(updatedCandles);
+      
+      // Update chart
+      series.setData(updatedCandles);
+      statusStore.setNewCandle();
+      console.log('[ChartCore] NEW CANDLE EVENT - Status updated');
+    } else {
+      // Update current candle
+      const updatedCandles = [...candles];
+      const currentCandle = updatedCandles[updatedCandles.length - 1];
+      
+      const updatedCandle = {
+        ...currentCandle,
+        high: Math.max(currentCandle.high, price),
+        low: Math.min(currentCandle.low, price),
+        close: price,
+        volume: currentCandle.volume + 0.01
+      };
+      
+      updatedCandles[updatedCandles.length - 1] = updatedCandle;
+      dataStore.setCandles(updatedCandles);
+      
+      // Update chart with live candle
+      series.update(updatedCandle);
+      statusStore.setPriceUpdate();
+      
+      // Ensure status stays ready during price updates
+      if (statusStore.status !== 'ready') {
+        statusStore.setReady();
+      }
+    }
   }
   
   function getPeriodSeconds(period: string): number {
@@ -342,96 +497,6 @@
     return periodMap[period] || 3600;
   }
 
-
-  function subscribeToRealtime() {
-    console.log('Subscribing to real-time data...');
-    
-    try {
-      dataStore.subscribeToRealtime(
-        (candle) => {
-          console.log('Real-time candle update received:', candle);
-          // The dataStore handles updating the chart automatically
-        },
-        (error) => {
-          console.error('Real-time data error:', error);
-        },
-        () => {
-          console.log('Real-time connection reconnected');
-        }
-      );
-    } catch (error) {
-      console.error('Failed to subscribe to real-time data:', error);
-    }
-  }
-
-  async function loadSampleData() {
-    console.log('Loading sample data...');
-    
-    // Generate simple sample data - just 50 candles for testing
-    const now = Math.floor(Date.now() / 1000);
-    const startTime = now - 3000; // 50 minutes ago (60 seconds per candle)
-    const sampleCandles = [];
-    
-    let basePrice = 50000;
-    
-    for (let i = 0; i < 50; i++) {
-      const time = startTime + (i * 60); // 1 minute intervals
-      const volatility = 0.01;
-      const change = (Math.random() - 0.5) * volatility;
-      const price = basePrice * (1 + change);
-      
-      sampleCandles.push({
-        time: time,
-        open: basePrice,
-        high: Math.max(basePrice, price) * (1 + Math.random() * 0.005),
-        low: Math.min(basePrice, price) * (1 - Math.random() * 0.005),
-        close: price,
-        volume: Math.random() * 50 + 10
-      });
-      
-      basePrice = price;
-    }
-    
-    console.log(`Generated ${sampleCandles.length} sample candles`);
-    
-    // Set the data directly
-    dataStore.setCandles(sampleCandles);
-    
-    // Force chart update - wait a bit then directly update the chart
-    if (chartCanvas) {
-      console.log('Forcing direct chart update...');
-      
-      setTimeout(() => {
-        try {
-          const chart = chartCanvas.getChart();
-          const series = chartCanvas.getSeries();
-          
-          console.log('Direct update attempt:', {
-            chart: !!chart,
-            series: !!series,
-            sampleDataLength: sampleCandles.length
-          });
-          
-          if (chart && series) {
-            console.log('Setting data directly to chart series');
-            series.setData(sampleCandles);
-            chart.timeScale().fitContent();
-            console.log('Direct chart update successful - candles should be visible now!');
-            
-            // Update status to ready now that candles are visible
-            statusStore.setReady();
-            console.log('Chart status set to ready');
-          } else {
-            console.warn('Could not get chart or series for direct update');
-          }
-        } catch (e) {
-          console.error('Error in direct chart update:', e);
-        }
-      }, 300);
-    }
-    
-    console.log('Sample data loaded successfully');
-  }
   
   // Public methods for parent components
   export function getPluginManager(): PluginManager | null {

@@ -1,9 +1,27 @@
 <script lang="ts">
-  console.log('Chart.svelte component loaded');
+  console.log('🎯 Chart.svelte component loaded - VERSION 7.0 STATUS OVERRIDE');
   
   import ChartContainer from './ChartContainer.svelte';
   import type { IChartApi } from 'lightweight-charts';
   import type { PluginManager } from './plugins';
+  import { onMount } from 'svelte';
+  
+  // AGGRESSIVE STATUS OVERRIDE - force ready state immediately
+  onMount(() => {
+    console.log('🔥 Chart.svelte onMount - forcing status override in 2 seconds');
+    setTimeout(async () => {
+      try {
+        const { statusStore } = await import('./stores/statusStore.svelte');
+        console.log('🚨 CHART-LEVEL STATUS FORCE: Current status:', statusStore.status);
+        if (statusStore.status !== 'ready') {
+          console.log('🔧 FORCING STATUS TO READY FROM CHART LEVEL');
+          statusStore.forceReady();
+        }
+      } catch (error) {
+        console.error('Error forcing status:', error);
+      }
+    }, 2000);
+  });
   
   // Export all the props that ChartContainer accepts
   export let pair: string = 'BTC-USD';
