@@ -6,7 +6,7 @@
   import CollapsibleSidebar from '../components/layout/CollapsibleSidebar.svelte';
   
   // Trading Components
-  import Chart from './Chart.svelte';
+  import Chart from './trading/chart/Chart.svelte';
   import BotTabs from './PaperTrading/BotTabs.svelte';
   import MarketGauge from '../components/trading/MarketGauge.svelte';
   import StrategyControls from '../components/papertrading/StrategyControls.svelte';
@@ -18,9 +18,9 @@
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { get } from 'svelte/store';
   import { tradingBackendService } from '../services/state/tradingBackendService';
-  import { paperTestService } from '../services/paperTestService';
+  import { paperTestService } from '../services/state/paperTestService';
   import { paperTradingManager } from '../services/state/paperTradingManager';
-  import { ChartDataFeed } from '../services/chartDataFeed';
+  import { ChartDataFeed } from '../services/chart/dataFeed';
   import { coinbaseWebSocket } from '../services/api/coinbaseWebSocket';
   import { ReverseRatioStrategy } from '../strategies/implementations/ReverseRatioStrategy';
   import { GridTradingStrategy } from '../strategies/implementations/GridTradingStrategy';
@@ -98,18 +98,21 @@
   let chartDataFeed: ChartDataFeed | null = null;
   let dataFeedInterval: NodeJS.Timer | null = null;
   
+  // Paper test state variables (moved to consolidated section below)
+  
   // UI state
   let isEditingBalance = false;
   let editingBalance = '10000';
   
-  // Paper Test state
+  // Paper Test state (consolidated)
   let selectedTestDate: Date | null = null;
   let selectedTestDateString: string = '';
   let isPaperTestRunning = false;
-  let isPaperTestMode = false;
   let paperTestProgress = 0;
   let paperTestSimTime: Date | null = null;
   let paperTestResults: any = null;
+  let paperTestTrades: any[] = [];
+  let paperTestInterval: NodeJS.Timer | null = null;
   let showPaperTestResults = false;
   
   // Paper Test playback controls
@@ -145,6 +148,37 @@
   function handleStrategyChange(event: Event) {
     const select = event.target as HTMLSelectElement;
     paperTradingManager.selectStrategy(select.value);
+  }
+
+  function handleBalanceChange(event: CustomEvent) {
+    const { balance: newBalance } = event.detail;
+    balance = newBalance;
+    // Update the balance for the active bot if needed
+    const activeBot = paperTradingManager.getActiveBot();
+    if (activeBot) {
+      // Update bot's initial balance
+      activeBot.setBalance(newBalance);
+    }
+  }
+
+  function selectGranularity(granularity: string) {
+    selectedGranularity = granularity;
+    chartPreferencesStore.setPreferences('paper-trading', granularity, selectedPeriod);
+  }
+
+  function selectPeriod(period: string) {
+    selectedPeriod = period;
+    chartPreferencesStore.setPreferences('paper-trading', selectedGranularity, period);
+  }
+
+  function handleDateSelection(event: Event) {
+    const input = event.target as HTMLInputElement;
+    selectedTestDateString = input.value;
+    if (selectedTestDateString) {
+      selectedTestDate = new Date(selectedTestDateString);
+    } else {
+      selectedTestDate = null;
+    }
   }
   
   // Trading control functions
@@ -214,6 +248,7 @@
       isPaused = false;
     }
   }
+  
   
   function clearBotData() {
     isRunning = false;
@@ -329,6 +364,48 @@
     // For now, rely on the frontend state management
   }
   
+  // Paper test functions
+  function runPaperTest() {
+    if (!selectedTestDateString) return;
+    
+    isPaperTestRunning = true;
+    paperTestProgress = 0;
+    paperTestTrades = [];
+    
+    // Simulate paper trading over time
+    paperTestInterval = setInterval(() => {
+      paperTestProgress = Math.min(paperTestProgress + 1, 100);
+      
+      // Simulate trades
+      if (Math.random() > 0.7) {
+        const mockTrade = {
+          timestamp: Date.now(),
+          type: Math.random() > 0.5 ? 'buy' : 'sell',
+          price: currentPrice + (Math.random() - 0.5) * 10,
+          size: Math.random() * 0.1
+        };
+        paperTestTrades = [...paperTestTrades, mockTrade];
+      }
+      
+      if (paperTestProgress >= 100) {
+        stopPaperTest();
+      }
+    }, 100);
+  }
+  
+  function stopPaperTest() {
+    if (paperTestInterval) {
+      clearInterval(paperTestInterval);
+      paperTestInterval = null;
+    }
+    isPaperTestRunning = false;
+  }
+  
+  function clearPaperTestTrades() {
+    paperTestTrades = [];
+    paperTestProgress = 0;
+  }
+
   // Periodically sync with backend
   let backendSyncInterval: NodeJS.Timer | null = null;
   
@@ -399,6 +476,9 @@
     if (dataFeedInterval) {
       clearInterval(dataFeedInterval);
     }
+    if (paperTestInterval) {
+      clearInterval(paperTestInterval);
+    }
     // Don't cleanup singleton instances
     // coinbaseWebSocket.disconnect();
   });
@@ -435,22 +515,112 @@
           <!-- Chart Panel -->
           <div class="panel chart-panel">
             <div class="panel-header">
-              <h2>BTC/USD Chart</h2>
+              <h2>BTC/USD Chart
+                {#if isPaperTestRunning}
+                  <span class="paper-test-indicator">📄 Paper Test Mode</span>
+                {/if}
+              </h2>
+              <div class="header-controls">
+                <div class="granularity-buttons">
+                  <button class="granularity-btn" class:active={selectedGranularity === '1m'} on:click={() => selectGranularity('1m')}>1m</button>
+                  <button class="granularity-btn" class:active={selectedGranularity === '5m'} on:click={() => selectGranularity('5m')}>5m</button>
+                  <button class="granularity-btn" class:active={selectedGranularity === '15m'} on:click={() => selectGranularity('15m')}>15m</button>
+                  <button class="granularity-btn" class:active={selectedGranularity === '1h'} on:click={() => selectGranularity('1h')}>1h</button>
+                  <button class="granularity-btn" class:active={selectedGranularity === '6h'} on:click={() => selectGranularity('6h')}>6h</button>
+                  <button class="granularity-btn" class:active={selectedGranularity === '1D'} on:click={() => selectGranularity('1D')}>1D</button>
+                </div>
+              </div>
             </div>
+            <!-- Bot Tabs -->
+            {#if botTabs.length > 0}
+              <BotTabs
+                bots={botTabs}
+                activeTabId={activeBotInstance?.id}
+                on:selectTab={handleBotTabSelect}
+              />
+            {/if}
             <div class="panel-content">
               <Chart
-                bind:selectedGranularity
-                bind:selectedPeriod
-                bind:chartInstance
-                bind:candleSeriesInstance
-                {currentPrice}
-                isTradingPage={false}
-                isPaperTrading={true}
-                showBotTabs={true}
-                bind:botTabs
-                bind:activeBotId={activeBotInstance}
-                on:botTabSelect={handleBotTabSelect}
+                pair="BTC-USD"
+                showControls={false}
+                showStatus={true}
+                showInfo={false}
+                showDebug={false}
+                enablePlugins={true}
+                defaultPlugins={['volume']}
               />
+              <div class="period-buttons">
+                <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
+                <button class="period-btn" class:active={selectedPeriod === '4H'} on:click={() => selectPeriod('4H')}>4H</button>
+                <button class="period-btn" class:active={selectedPeriod === '5D'} on:click={() => selectPeriod('5D')}>5D</button>
+                <button class="period-btn" class:active={selectedPeriod === '1M'} on:click={() => selectPeriod('1M')}>1M</button>
+                <button class="period-btn" class:active={selectedPeriod === '3M'} on:click={() => selectPeriod('3M')}>3M</button>
+                <button class="period-btn" class:active={selectedPeriod === '6M'} on:click={() => selectPeriod('6M')}>6M</button>
+                <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
+                <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
+
+                <div class="button-separator"></div>
+
+                <!-- Paper Test integrated controls -->
+                <div class="date-speed-container">
+                  <input 
+                    type="date" 
+                    id="paper-test-date-input"
+                    class="period-btn date-picker-btn compact"
+                    max={(() => {
+                      const yesterday = new Date();
+                      yesterday.setDate(yesterday.getDate() - 1);
+                      return yesterday.toISOString().split('T')[0];
+                    })()}
+                    min="2024-01-01"
+                    value={selectedTestDateString}
+                    on:change={handleDateSelection}
+                  />
+
+                  {#if selectedTestDateString}
+                    <!-- Play/Stop Button -->
+                    {#if !isPaperTestRunning}
+                      <button 
+                        class="paper-test-btn play" 
+                        on:click={runPaperTest}
+                        title="Start Paper Test"
+                      >
+                        ▶
+                      </button>
+                    {:else}
+                      <button 
+                        class="paper-test-btn stop" 
+                        on:click={stopPaperTest}
+                        title="Stop Paper Test"
+                      >
+                        ⏹
+                      </button>
+                    {/if}
+
+                    <!-- Clear Button -->
+                    <button 
+                      class="paper-test-btn clear"
+                      on:click={clearPaperTestTrades}
+                      title="Clear All Trades"
+                    >
+                      🗑️
+                    </button>
+                  {/if}
+                </div>
+
+                <!-- Inline progress -->
+                {#if isPaperTestRunning && paperTestProgress > 1}
+                  <div class="paper-progress">
+                    <div class="paper-progress-bar" style="width: {paperTestProgress}%"></div>
+                  </div>
+                  <span class="paper-progress-text">
+                    {#if paperTestSimTime}
+                      {paperTestSimTime.toLocaleTimeString()}
+                    {/if}
+                    {Math.round(paperTestProgress)}%
+                  </span>
+                {/if}
+              </div>
             </div>
           </div>
           
@@ -464,11 +634,16 @@
             {btcBalance}
             {positions}
             {currentPrice}
+            {botTabs}
+            {activeBotInstance}
             on:strategyChange={(e) => handleStrategyChange({ target: { value: e.detail.value } })}
+            on:balanceChange={handleBalanceChange}
             on:start={startTrading}
             on:stop={stopTrading}
             on:pause={pauseTrading}
             on:resume={resumeTrading}
+            on:selectBot={handleBotTabSelect}
+            on:reset={clearBotData}
           />
         </div>
         
@@ -622,6 +797,131 @@
     margin: 0;
     font-size: 16px;
     color: #a78bfa;
+  }
+
+  :global(.chart-controls) {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  :global(.granularity-buttons) {
+    display: flex;
+    gap: 5px;
+  }
+
+  :global(.header-controls) {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  :global(.header-buttons) {
+    display: flex;
+    gap: 10px;
+  }
+
+  :global(.run-btn), :global(.pause-btn), :global(.stop-btn) {
+    padding: 8px 16px;
+    background: rgba(74, 0, 224, 0.2);
+    border: 1px solid rgba(74, 0, 224, 0.4);
+    border-radius: 6px;
+    color: #a78bfa;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  :global(.run-btn) {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: rgba(34, 197, 94, 0.4);
+    color: #22c55e;
+  }
+
+  :global(.pause-btn) {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #f59e0b;
+  }
+
+  :global(.stop-btn) {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+  }
+
+  :global(.run-btn:hover) {
+    background: rgba(34, 197, 94, 0.3);
+    border-color: rgba(34, 197, 94, 0.6);
+  }
+
+  :global(.pause-btn:hover) {
+    background: rgba(245, 158, 11, 0.3);
+    border-color: rgba(245, 158, 11, 0.6);
+  }
+
+  :global(.stop-btn:hover) {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.6);
+  }
+  
+  :global(.granularity-btn) {
+    padding: 3px 6px;
+    background: rgba(74, 0, 224, 0.2);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    color: #9ca3af;
+    border-radius: 4px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  :global(.granularity-btn:hover:not(:disabled)) {
+    background: rgba(74, 0, 224, 0.3);
+    color: #d1d4dc;
+  }
+  
+  :global(.granularity-btn.active) {
+    background: rgba(74, 0, 224, 0.4);
+    color: #a78bfa;
+    border-color: #a78bfa;
+  }
+
+  :global(.period-buttons) {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid rgba(74, 0, 224, 0.3);
+  }
+
+  :global(.period-btn) {
+    padding: 4px 8px;
+    background: rgba(74, 0, 224, 0.1);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    color: #9ca3af;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  :global(.period-btn:hover:not(:disabled)) {
+    background: rgba(74, 0, 224, 0.2);
+    color: #d1d4dc;
+  }
+
+  :global(.period-btn.active) {
+    background: rgba(74, 0, 224, 0.3);
+    color: #a78bfa;
+    border-color: #a78bfa;
   }
 
   :global(.panel-content) {
@@ -1167,5 +1467,120 @@
   :global(.no-positions-text) {
     color: #758696;
     font-style: italic;
+  }
+
+  /* Paper Test Controls styles */
+  :global(.paper-test-indicator) {
+    font-size: 12px;
+    background: rgba(255, 167, 38, 0.2);
+    color: #ffa726;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 10px;
+  }
+
+  :global(.date-speed-container) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  :global(.date-picker-btn) {
+    background: rgba(74, 0, 224, 0.1);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    color: #9ca3af;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  :global(.date-picker-btn.compact) {
+    padding: 4px 6px;
+    min-width: 90px;
+  }
+
+  :global(.date-picker-btn:hover:not(:disabled)) {
+    background: rgba(74, 0, 224, 0.2);
+    color: #d1d4dc;
+  }
+
+  :global(.paper-test-btn) {
+    padding: 4px 8px;
+    background: rgba(74, 0, 224, 0.1);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    color: #9ca3af;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  :global(.paper-test-btn:hover:not(:disabled)) {
+    background: rgba(74, 0, 224, 0.2);
+    color: #d1d4dc;
+  }
+
+  :global(.paper-test-btn:disabled) {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  :global(.paper-test-btn.play) {
+    background: rgba(38, 166, 154, 0.1);
+    border-color: rgba(38, 166, 154, 0.3);
+    color: #26a69a;
+  }
+
+  :global(.paper-test-btn.play:hover:not(:disabled)) {
+    background: rgba(38, 166, 154, 0.2);
+    border-color: rgba(38, 166, 154, 0.5);
+  }
+
+  :global(.paper-test-btn.stop) {
+    background: rgba(239, 83, 80, 0.1);
+    border-color: rgba(239, 83, 80, 0.3);
+    color: #ef5350;
+  }
+
+  :global(.paper-test-btn.stop:hover:not(:disabled)) {
+    background: rgba(239, 83, 80, 0.2);
+    border-color: rgba(239, 83, 80, 0.5);
+  }
+
+  :global(.paper-test-btn.clear) {
+    background: rgba(255, 167, 38, 0.1);
+    border-color: rgba(255, 167, 38, 0.3);
+    color: #ffa726;
+  }
+
+  :global(.paper-test-btn.clear:hover:not(:disabled)) {
+    background: rgba(255, 167, 38, 0.2);
+    border-color: rgba(255, 167, 38, 0.5);
+  }
+
+  :global(.paper-progress) {
+    flex: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 0 8px;
+  }
+
+  :global(.paper-progress-bar) {
+    height: 100%;
+    background: linear-gradient(90deg, #26a69a, #a78bfa);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  :global(.paper-progress-text) {
+    font-size: 10px;
+    color: #758696;
+    white-space: nowrap;
   }
 </style>
