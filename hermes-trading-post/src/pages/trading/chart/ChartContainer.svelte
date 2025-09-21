@@ -21,6 +21,8 @@
   
   // Props
   export let pair: string = 'BTC-USD';
+  export let granularity: string = '1m';
+  export let period: string = '1H';
   export let showControls: boolean = true;
   export let showStatus: boolean = true;
   export let showInfo: boolean = true;
@@ -161,6 +163,8 @@
     <ChartCore
       bind:this={chartCore}
       {pair}
+      {granularity}
+      {period}
       {enablePlugins}
       onReady={handleChartReady}
     >

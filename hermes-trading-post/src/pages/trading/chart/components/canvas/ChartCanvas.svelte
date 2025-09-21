@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { createChart, type IChartApi, type ISeriesApi } from 'lightweight-charts';
+  import { createChart, type IChartApi, type ISeriesApi, type Time } from 'lightweight-charts';
   import { chartStore } from '../../stores/chartStore.svelte';
   import { dataStore } from '../../stores/dataStore.svelte';
   import { statusStore } from '../../stores/statusStore.svelte';
@@ -163,13 +163,29 @@
   }
   
   function updateChartData() {
-    if (!candleSeries || dataStore.isEmpty) return;
+    console.log('updateChartData called', {
+      candleSeries: !!candleSeries,
+      isEmpty: dataStore.isEmpty,
+      candleCount: dataStore.candles.length
+    });
+    
+    if (!candleSeries) {
+      console.warn('No candleSeries available');
+      return;
+    }
+    
+    if (dataStore.isEmpty) {
+      console.warn('DataStore is empty');
+      return;
+    }
     
     const startTime = performance.now();
     
     try {
+      console.log('Setting data to candleSeries:', dataStore.candles.length, 'candles');
       candleSeries.setData(dataStore.candles);
       performanceStore.recordRenderTime(performance.now() - startTime);
+      console.log('Chart data updated successfully');
     } catch (error) {
       console.error('ChartCanvas: Error updating data:', error);
       statusStore.setError('Failed to update chart data');
@@ -220,55 +236,82 @@
     });
   }
   
+  // Public API methods
+  export function getChart(): IChartApi | null {
+    return chart;
+  }
+
+  export function getSeries(): ISeriesApi<'Candlestick'> | null {
+    return candleSeries;
+  }
+
+  export function setVisibleRange(from: number, to: number) {
+    if (chart) {
+      chart.timeScale().setVisibleRange({ from: from as Time, to: to as Time });
+    }
+  }
+
+  export function fitContent() {
+    if (chart) {
+      chart.timeScale().fitContent();
+    }
+  }
+
   // Data updates
-  $: if (candleSeries && dataStore.candles) {
-    updateChartData();
+  $: {
+    console.log('Reactive statement triggered:', {
+      candleSeries: !!candleSeries,
+      candleCount: dataStore.candles?.length || 0,
+      hasCandles: !!dataStore.candles
+    });
+    
+    if (candleSeries && dataStore.candles) {
+      updateChartData();
+    }
   }
   
-  // Public methods exposed via binding
-  export function fitContent() {
-    chart?.timeScale().fitContent();
-  }
   
   export function showAllCandles() {
-    if (!chart || dataStore.candles.length === 0) return;
+    console.log('showAllCandles called', {
+      chart: !!chart,
+      candleSeries: !!candleSeries,
+      candleCount: dataStore.candles.length
+    });
+    
+    if (!chart || !candleSeries || dataStore.candles.length === 0) {
+      console.warn('Cannot show candles - missing chart, series, or data');
+      return;
+    }
     
     const firstCandle = dataStore.candles[0];
     const lastCandle = dataStore.candles[dataStore.candles.length - 1];
     
+    if (!firstCandle || !lastCandle || !firstCandle.time || !lastCandle.time) {
+      console.warn('Invalid candle data');
+      return;
+    }
+    
     // Add small buffer to ensure all candles are visible
     const buffer = (lastCandle.time as number - firstCandle.time as number) * 0.05;
     
-    chart.timeScale().setVisibleRange({
-      from: (firstCandle.time as number) - buffer,
-      to: (lastCandle.time as number) + buffer
-    });
-    
-    // Update visible range in dataStore
-    dataStore.updateVisibleRange(
-      (firstCandle.time as number) - buffer,
-      (lastCandle.time as number) + buffer
-    );
-  }
-  
-  export function setVisibleRange(from: number, to: number) {
-    if (chartStore.config.granularity === '1d') {
-      console.log('[ChartCanvas] Setting visible range for 1d:', {
-        from: new Date(from * 1000).toISOString(),
-        to: new Date(to * 1000).toISOString(),
-        rangeInDays: (to - from) / 86400
+    try {
+      chart.timeScale().setVisibleRange({
+        from: (firstCandle.time as number) - buffer,
+        to: (lastCandle.time as number) + buffer
       });
+      
+      // Update visible range in dataStore
+      dataStore.updateVisibleRange(
+        (firstCandle.time as number) - buffer,
+        (lastCandle.time as number) + buffer
+      );
+      
+      console.log('Visible range set successfully');
+    } catch (error) {
+      console.error('Error setting visible range:', error);
     }
-    chart?.timeScale().setVisibleRange({ from, to });
   }
   
-  export function getChart(): IChartApi | null {
-    return chart;
-  }
-  
-  export function getSeries(): ISeriesApi<'Candlestick'> | null {
-    return candleSeries;
-  }
 </script>
 
 <div 

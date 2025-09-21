@@ -542,6 +542,8 @@
             <div class="panel-content">
               <Chart
                 pair="BTC-USD"
+                granularity={selectedGranularity}
+                period={selectedPeriod}
                 showControls={false}
                 showStatus={true}
                 showInfo={false}

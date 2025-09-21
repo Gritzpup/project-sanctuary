@@ -126,13 +126,20 @@ class DataStore {
   }
 
   setCandles(candles: CandlestickData[]) {
+    console.log('dataStore.setCandles called with', candles.length, 'candles');
+    console.log('First candle:', candles[0]);
+    
     this._candles = candles;
     this._visibleCandles = candles; // Initially all candles are visible
+    
+    console.log('After setting: _candles.length =', this._candles.length);
+    console.log('isEmpty =', this.isEmpty);
     
     // Update latest price
     if (candles.length > 0) {
       const lastCandle = candles[candles.length - 1];
       this._latestPrice = lastCandle.close;
+      console.log('Latest price set to:', this._latestPrice);
     }
   }
 

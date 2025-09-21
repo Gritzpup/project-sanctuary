@@ -29,12 +29,12 @@ export interface DataFeedHookResult {
 }
 
 export function useDataFeed(): DataFeedHookResult {
-  // Reactive data
-  const candles = $state.frozen(() => dataStore.candles);
-  const visibleCandles = $state.frozen(() => dataStore.visibleCandles);
-  const latestPrice = $state.frozen(() => dataStore.latestPrice);
-  const isNewCandle = $state.frozen(() => dataStore.isNewCandle);
-  const stats = $state.frozen(() => dataStore.stats);
+  // Reactive data - direct access to store getters
+  const candles = dataStore.candles;
+  const visibleCandles = dataStore.visibleCandles;
+  const latestPrice = dataStore.latestPrice;
+  const isNewCandle = dataStore.isNewCandle;
+  const stats = dataStore.stats;
   
   // Actions
   const loadData = async (startTime: number, endTime: number) => {

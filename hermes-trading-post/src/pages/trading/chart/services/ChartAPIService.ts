@@ -1,7 +1,7 @@
 import type { Candle, DataRequest, WebSocketCandle } from '../types/data.types';
 import { ChartDebug } from '../utils/debug';
 import { perfTest } from '../utils/performanceTest';
-import { CoinbaseAPI } from '../../../../services/coinbaseApi';
+import { CoinbaseAPI } from '../../../../services/api/coinbaseApi';
 
 export class ChartAPIService {
   private coinbaseApi: CoinbaseAPI;

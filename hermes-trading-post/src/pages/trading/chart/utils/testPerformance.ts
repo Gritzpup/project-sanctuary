@@ -1,4 +1,4 @@
-import { CoinbaseAPI } from '../../../../services/coinbaseApi';
+import { CoinbaseAPI } from '../../../../services/api/coinbaseApi';
 
 export async function testCoinbaseAPIPerformance() {
   console.log('[TEST] Starting Coinbase API performance test for 3M/1d...');

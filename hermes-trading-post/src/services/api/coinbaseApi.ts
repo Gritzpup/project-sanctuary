@@ -5,10 +5,10 @@
 
 import axios from 'axios';
 import type { CandleData } from '../types/coinbase';
-import { RateLimiter } from '../rateLimiter';
+import { RateLimiter } from './rateLimiter';
 
 export class CoinbaseAPI {
-  private baseUrl = import.meta.env.DEV ? '/api/coinbase' : 'https://api.exchange.coinbase.com';
+  private baseUrl = 'https://api.exchange.coinbase.com'; // Direct API access for now
   private rateLimiter = new RateLimiter(10, 3); // 10 requests per second, max 3 concurrent
   
   constructor() {
@@ -59,7 +59,14 @@ export class CoinbaseAPI {
 
       const url = `${this.baseUrl}/products/${productId}/candles`;
       
-      const response = await axios.get(url, { params });
+      const response = await axios.get(url, { 
+        params,
+        timeout: 15000,
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
       
       // Coinbase returns candles in reverse chronological order
       // Format: [timestamp, price_low, price_high, price_open, price_close, volume]

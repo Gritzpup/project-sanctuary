@@ -1,4 +1,6 @@
 <script lang="ts">
+  console.log('Chart.svelte component loaded');
+  
   import ChartContainer from './ChartContainer.svelte';
   import type { IChartApi } from 'lightweight-charts';
   import type { PluginManager } from './plugins';

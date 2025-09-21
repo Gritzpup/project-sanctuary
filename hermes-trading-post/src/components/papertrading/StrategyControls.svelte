@@ -498,6 +498,7 @@
     padding: 12px 16px;
     min-width: 40px;
     flex-shrink: 0;
+    height: 100%;
   }
 
   .reset-btn:hover {
