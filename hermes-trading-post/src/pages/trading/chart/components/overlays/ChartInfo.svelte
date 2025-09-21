@@ -334,11 +334,11 @@
           
           console.log('🚦 Traffic light:', priceDirection === 'up' ? '🟢 GREEN (UP)' : '🔴 RED (DOWN)');
           
-          // Show direction color for 1.5 seconds, then go back to waiting (blue)
+          // Show direction color for 0.5 seconds, then go back to waiting (blue)
           priceFlashTimeout = setTimeout(() => {
             isWaitingForPrice = true;
             console.log('🔵 Back to BLUE (waiting)');
-          }, 1500);
+          }, 500);
         }
         
         // Update previous price only after processing

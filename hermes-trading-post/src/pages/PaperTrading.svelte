@@ -41,6 +41,9 @@
   // Chart data feed instance
   let chartDataFeedInstance: ChartDataFeed | null = null;
   
+  // Chart component reference for zoom control
+  let chartComponent: any;
+  
   const dispatch = createEventDispatcher();
   
   function toggleSidebar() {
@@ -182,8 +185,12 @@
   
   function handleZoomCorrection() {
     console.log('🔍 Zoom correction triggered');
-    // This will zoom the chart to fit all visible data
-    // You can implement chart.fitContent() or similar functionality here
+    if (chartComponent) {
+      chartComponent.fitContent();
+      console.log('✅ Chart zoom corrected to fit all data');
+    } else {
+      console.warn('⚠️ Chart component not available for zoom correction');
+    }
   }
 
   function handleDateSelection(event: Event) {
@@ -565,6 +572,7 @@
             {/if}
             <div class="panel-content">
               <Chart
+                bind:this={chartComponent}
                 pair={selectedPair}
                 granularity={selectedGranularity}
                 period={selectedPeriod}
