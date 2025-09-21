@@ -29,7 +29,7 @@
     showCandleCountdown?: boolean;
   } = $props();
   
-  let currentTime = new Date();
+  let currentTime = $state(new Date());
   let clockInterval: NodeJS.Timeout;
   let countdownInterval: NodeJS.Timeout;
   let candleCountInterval: NodeJS.Timeout;
