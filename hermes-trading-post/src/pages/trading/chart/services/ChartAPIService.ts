@@ -283,7 +283,6 @@ export class ChartAPIService {
         // Update status store - WebSocket error
         import('../stores/statusStore.svelte').then(({ statusStore }) => {
           statusStore.setWebSocketConnected(false);
-          console.log('❌ StatusStore updated: WebSocket error');
         }).catch(console.error);
         
         if (onError) {
@@ -298,7 +297,6 @@ export class ChartAPIService {
         // Update status store - WebSocket disconnected
         import('../stores/statusStore.svelte').then(({ statusStore }) => {
           statusStore.setWebSocketConnected(false);
-          console.log('❌ StatusStore updated: WebSocket disconnected');
         }).catch(console.error);
         
         this.scheduleReconnect(onError);

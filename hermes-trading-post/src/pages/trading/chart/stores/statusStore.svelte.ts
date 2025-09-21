@@ -73,11 +73,8 @@ class StatusStore {
 
   get displayText() {
     // OVERRIDE: Always show Connected/Ready instead of loading states
-    console.log('🔍 displayText called, current status:', this._currentStatus, 'wsConnected:', this._wsConnected);
-    
     // Force to show connected/ready instead of loading
     if (this._currentStatus === 'initializing' || this._currentStatus === 'loading') {
-      console.log('🚨 OVERRIDING LOADING STATUS - showing Connected instead');
       return this._wsConnected ? 'Connected' : 'Ready (No WebSocket)';
     }
     

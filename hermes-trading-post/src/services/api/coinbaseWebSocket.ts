@@ -83,7 +83,6 @@ export class CoinbaseWebSocket {
               
               // Forward price to backend
               if (tickerData.price && tickerData.product_id) {
-                console.log('Forwarding price to backend:', tickerData.price, tickerData.product_id);
                 priceForwarder.forwardPrice(parseFloat(tickerData.price), tickerData.product_id);
               }
               

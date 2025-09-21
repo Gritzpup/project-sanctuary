@@ -77,8 +77,6 @@
       setTimeout(() => {
         isInitialized = true;
         statusStore.setReady();
-        console.log('Chart fully initialized and ready - STATUS SET TO READY!');
-        console.log('Current status after setReady:', statusStore.status);
       }, 100);
       
       // Additional safety check - set status again after a longer delay if still initializing
@@ -237,7 +235,6 @@
       }
       
       performanceStore.recordDataLoadTime(performance.now() - loadStartTime);
-      console.log('Data loading complete - setting status to ready');
       statusStore.setReady();
       
       if (config.timeframe === '3M' && config.granularity === '1d') {
@@ -412,7 +409,6 @@
           updateLiveCandleWithPrice(parseFloat(tickerData.price));
           // Update status to show we're receiving real-time data
           statusStore.setReady();
-          console.log('[ChartCore] Price update received - status set to ready');
         }
       });
       
@@ -456,7 +452,6 @@
       // Update chart
       series.setData(updatedCandles);
       statusStore.setNewCandle();
-      console.log('[ChartCore] NEW CANDLE EVENT - Status updated');
     } else {
       // Update current candle
       const updatedCandles = [...candles];

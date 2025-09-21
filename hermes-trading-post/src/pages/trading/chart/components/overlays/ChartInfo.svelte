@@ -66,22 +66,18 @@
     
     // If no data at all, show blue (waiting)
     if (!(candleCount > 0 || hasDataStoreCandles || hasPrice || !dataStore.isEmpty)) {
-      console.log('🔵 BLUE - No data, waiting');
       return 'blue';
     }
     
     // If waiting for next price update, show blue
     if (isWaitingForPrice) {
-      console.log('🔵 BLUE - Waiting for next price update');
       return 'blue';
     }
     
     // Show color based on last price direction when we just got an update
     if (priceDirection === 'up') {
-      console.log('🟢 GREEN - Price went up');
       return 'green';
     } else {
-      console.log('🔴 RED - Price went down');
       return 'red';
     }
   }
@@ -97,8 +93,6 @@
   }
 
   onMount(() => {
-    console.log('🔥🔥🔥 [ChartInfo] Component mounted at', new Date().toISOString(), 'VERSION 7.0 - BLUE WAITING TRAFFIC LIGHT 🔥🔥🔥');
-    console.log('[ChartInfo] Initial candle count:', getActualCandleCount());
     
     // IMMEDIATE status force - don't wait
     import('../../stores/statusStore.svelte').then(({ statusStore }) => {
@@ -241,7 +235,6 @@
     
     // Debug timing (only for 1m to avoid spam)
     if (granularity === '1m' && timeToNextCandle <= 5) {
-      console.log(`[ChartInfo] Next candle in ${timeToNextCandle}s (current: ${new Date(nowMs).toISOString().substr(17, 5)})`);
     }
   }
   
@@ -276,7 +269,6 @@
       if (series) {
         const seriesData = series.data();
         if (seriesData && seriesData.length > 0) {
-          console.log('[ChartInfo] Got candle count from chart series:', seriesData.length);
           return seriesData.length;
         }
       }
@@ -301,7 +293,6 @@
   let lastCandleCount = $state(0);
   $effect(() => {
     if (actualCandleCount > lastCandleCount && lastCandleCount > 0) {
-      console.log('[ChartInfo] New candle detected! Resetting countdown.');
       // Reset countdown when new candle is created
       updateCandleCountdown();
     }
@@ -325,19 +316,14 @@
         // React to any price change, even tiny ones (penny changes)
         const priceDiff = currentPrice - previousPrice;
         
-        console.log('💰 Price change detected:', priceDiff, 'from', previousPrice, 'to', currentPrice);
-        
         if (priceDiff !== 0) {
           // Any price change triggers the traffic light
           isWaitingForPrice = false;
           priceDirection = priceDiff > 0 ? 'up' : 'down';
           
-          console.log('🚦 Traffic light:', priceDirection === 'up' ? '🟢 GREEN (UP)' : '🔴 RED (DOWN)');
-          
           // Show direction color for 0.5 seconds, then go back to waiting (blue)
           priceFlashTimeout = setTimeout(() => {
             isWaitingForPrice = true;
-            console.log('🔵 Back to BLUE (waiting)');
           }, 500);
         }
         
