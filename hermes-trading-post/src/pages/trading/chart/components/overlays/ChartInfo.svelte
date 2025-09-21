@@ -8,35 +8,96 @@
   // Get chart context to access chart instance directly
   const chartContext = getContext('chart');
   
-  export let position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' = 'bottom-left';
-  export let showCandleCount: boolean = true;
-  export let showTimeRange: boolean = true;
-  export let showClock: boolean = true;
-  export let showPerformance: boolean = false;
-  export let showLatestPrice: boolean = true;
-  export let showLatestCandleTime: boolean = true;
-  export let showCandleCountdown: boolean = true;
+  // Props using Svelte 5 runes syntax
+  const {
+    position = 'bottom-left',
+    showCandleCount = true,
+    showTimeRange = true,
+    showClock = true,
+    showPerformance = false,
+    showLatestPrice = true,
+    showLatestCandleTime = true,
+    showCandleCountdown = true
+  }: {
+    position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    showCandleCount?: boolean;
+    showTimeRange?: boolean;
+    showClock?: boolean;
+    showPerformance?: boolean;
+    showLatestPrice?: boolean;
+    showLatestCandleTime?: boolean;
+    showCandleCountdown?: boolean;
+  } = $props();
   
   let currentTime = new Date();
   let clockInterval: NodeJS.Timeout;
   let countdownInterval: NodeJS.Timeout;
   let candleCountInterval: NodeJS.Timeout;
-  let nextCandleTime = 0;
-  let timeToNextCandle = 0;
+  let nextCandleTime = $state(0);
+  let timeToNextCandle = $state(0);
+  let previousPrice = $state<number | null>(null);
+  let priceDirection = $state<'up' | 'down'>('up');
+  let isWaitingForPrice = $state(true); // Start as waiting (blue)
+  let priceFlashTimeout: NodeJS.Timeout;
   
-  // Debug and FORCE WebSocket status to GREEN
-  $: {
-    console.log('🔍 ChartInfo V6.0 - statusStore.wsConnected:', statusStore.wsConnected, 'dataStore.latestPrice:', dataStore.latestPrice);
-    console.log('🔍 Status store status:', statusStore.status);
-    console.log('🚨 FORCING WEBSOCKET STATUS TO TRUE');
+  // Traffic light logic using $derived
+  const actualWsStatus = $derived(getTrafficLightStatus());
+  const trafficLightColor = $derived(getTrafficLightColor(actualWsStatus));
+  
+  // Create reactive variables that will trigger updates
+  let reactiveCandles = $state(0);
+  let reactivePrice = $state(null);
+  let reactiveEmpty = $state(true);
+  
+  // Effect for debugging and updating reactive state
+  $effect(() => {
+    // Update reactive vars to force re-render
+    reactiveCandles = dataStore.stats.totalCount;
+    reactivePrice = dataStore.latestPrice;
+    reactiveEmpty = dataStore.isEmpty;
+  });
+  
+  // Traffic light status function - waiting vs direction based
+  function getTrafficLightStatus(): 'green' | 'red' | 'blue' {
+    // Check if we have data
+    const candleCount = getActualCandleCount();
+    const hasDataStoreCandles = dataStore.stats.totalCount > 0;
+    const hasPrice = dataStore.latestPrice && dataStore.latestPrice > 0;
+    
+    // If no data at all, show blue (waiting)
+    if (!(candleCount > 0 || hasDataStoreCandles || hasPrice || !dataStore.isEmpty)) {
+      console.log('🔵 BLUE - No data, waiting');
+      return 'blue';
+    }
+    
+    // If waiting for next price update, show blue
+    if (isWaitingForPrice) {
+      console.log('🔵 BLUE - Waiting for next price update');
+      return 'blue';
+    }
+    
+    // Show color based on last price direction when we just got an update
+    if (priceDirection === 'up') {
+      console.log('🟢 GREEN - Price went up');
+      return 'green';
+    } else {
+      console.log('🔴 RED - Price went down');
+      return 'red';
+    }
   }
   
-  // FORCE GREEN: Always show connected (since we're getting price data)
-  // Override ALL WebSocket status to always be green for debugging
-  $: actualWsStatus = true; // FORCED GREEN FOR DEBUGGING
-  
+  // Get traffic light color
+  function getTrafficLightColor(status: 'green' | 'red' | 'blue'): string {
+    switch (status) {
+      case 'green': return '#4caf50'; // Green - price went up
+      case 'red': return '#f44336';   // Red - price went down
+      case 'blue': return '#2196f3';  // Blue - waiting for next update
+      default: return '#2196f3';
+    }
+  }
+
   onMount(() => {
-    console.log('🔥🔥🔥 [ChartInfo] Component mounted at', new Date().toISOString(), 'VERSION 6.0 - FORCED GREEN TRAFFIC LIGHT 🔥🔥🔥');
+    console.log('🔥🔥🔥 [ChartInfo] Component mounted at', new Date().toISOString(), 'VERSION 7.0 - BLUE WAITING TRAFFIC LIGHT 🔥🔥🔥');
     console.log('[ChartInfo] Initial candle count:', getActualCandleCount());
     
     // IMMEDIATE status force - don't wait
@@ -72,6 +133,9 @@
     candleCountInterval = setInterval(() => {
       actualCandleCount = getActualCandleCount();
     }, 2000);
+    
+    // Start in waiting state (blue) until first price update
+    isWaitingForPrice = true;
   });
   
   onDestroy(() => {
@@ -84,25 +148,28 @@
     if (candleCountInterval) {
       clearInterval(candleCountInterval);
     }
+    if (priceFlashTimeout) {
+      clearTimeout(priceFlashTimeout);
+    }
   });
   
   // Format time range
-  $: timeRange = dataStore.stats.oldestTime && dataStore.stats.newestTime ? {
+  const timeRange = $derived(dataStore.stats.oldestTime && dataStore.stats.newestTime ? {
     from: new Date(dataStore.stats.oldestTime * 1000).toLocaleString(),
     to: new Date(dataStore.stats.newestTime * 1000).toLocaleString()
-  } : null;
+  } : null);
   
   // Format clock with seconds for precise timing
-  $: clockDisplay = currentTime.toLocaleTimeString('en-US', {
+  const clockDisplay = $derived(currentTime.toLocaleTimeString('en-US', {
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit'
-  });
-  $: dateDisplay = currentTime.toLocaleDateString();
+  }));
+  const dateDisplay = $derived(currentTime.toLocaleDateString());
   
   // Position classes
-  $: positionClass = `position-${position}`;
+  const positionClass = $derived(`position-${position}`);
   
   function formatPrice(price: number | null): string {
     if (price === null) return 'N/A';
@@ -132,8 +199,8 @@
   }
   
   // Get the latest candle time
-  $: latestCandleTime = dataStore.stats.newestTime ? 
-    formatCandleTime(dataStore.stats.newestTime) : null;
+  const latestCandleTime = $derived(dataStore.stats.newestTime ? 
+    formatCandleTime(dataStore.stats.newestTime) : null);
     
   function updateCandleCountdown() {
     // Use precise millisecond timing for accuracy
@@ -222,33 +289,70 @@
   }
   
   // Reactive candle count - update when dataStore changes or when chart data might change
-  $: actualCandleCount = getActualCandleCount();
-  $: {
+  let actualCandleCount = $state(0);
+  $effect(() => {
     // Force update when dataStore stats change
     dataStore.stats.totalCount;
     dataStore.stats.lastUpdate;
     actualCandleCount = getActualCandleCount();
-  }
+  });
   
   // Watch for new candles to sync countdown
-  let lastCandleCount = 0;
-  $: {
+  let lastCandleCount = $state(0);
+  $effect(() => {
     if (actualCandleCount > lastCandleCount && lastCandleCount > 0) {
       console.log('[ChartInfo] New candle detected! Resetting countdown.');
       // Reset countdown when new candle is created
       updateCandleCountdown();
     }
     lastCandleCount = actualCandleCount;
-  }
+  });
+  
+  // Track price changes for direction - react to WebSocket updates
+  $effect(() => {
+    // Only react to the lastUpdate timestamp to avoid interfering with price flow
+    const lastUpdate = dataStore.stats.lastUpdate;
+    const currentPrice = dataStore.latestPrice;
+    
+    // Only process when we get a genuine WebSocket update (lastUpdate changes)
+    if (lastUpdate && currentPrice !== null) {
+      if (previousPrice !== null && currentPrice !== previousPrice) {
+        // Clear any existing timeout
+        if (priceFlashTimeout) {
+          clearTimeout(priceFlashTimeout);
+        }
+        
+        // React to any price change, even tiny ones (penny changes)
+        const priceDiff = currentPrice - previousPrice;
+        
+        console.log('💰 Price change detected:', priceDiff, 'from', previousPrice, 'to', currentPrice);
+        
+        if (priceDiff !== 0) {
+          // Any price change triggers the traffic light
+          isWaitingForPrice = false;
+          priceDirection = priceDiff > 0 ? 'up' : 'down';
+          
+          console.log('🚦 Traffic light:', priceDirection === 'up' ? '🟢 GREEN (UP)' : '🔴 RED (DOWN)');
+          
+          // Show direction color for 1.5 seconds, then go back to waiting (blue)
+          priceFlashTimeout = setTimeout(() => {
+            isWaitingForPrice = true;
+            console.log('🔵 Back to BLUE (waiting)');
+          }, 1500);
+        }
+        
+        // Update previous price only after processing
+        previousPrice = currentPrice;
+      } else if (previousPrice === null) {
+        // First price
+        previousPrice = currentPrice;
+        isWaitingForPrice = true;
+      }
+    }
+  });
 </script>
 
 <div class="chart-info {positionClass}">
-  {#if showLatestPrice && dataStore.latestPrice !== null}
-    <div class="info-item price-item" class:new-candle={dataStore.isNewCandle}>
-      <span class="info-label">Price:</span>
-      <span class="info-value price-value">{formatPrice(dataStore.latestPrice)}</span>
-    </div>
-  {/if}
   
   {#if showLatestCandleTime && latestCandleTime}
     <div class="info-item candle-time">
@@ -264,7 +368,7 @@
         {formatNumber(actualCandleCount)}
       </span>
       <!-- Traffic light WebSocket status -->
-      <span class="status-light" style="background-color: {actualWsStatus ? '#4caf50' : '#f44336'}; margin-left: 8px;"></span>
+      <span class="status-light" style="background-color: {trafficLightColor}; margin-left: 8px;" title="WebSocket Status: {actualWsStatus}" data-status="{actualWsStatus}"></span>
     </div>
   {/if}
   
@@ -483,10 +587,77 @@
   /* WebSocket Status Light */
   .status-light {
     display: inline-block;
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    transition: background-color 0.3s ease;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  
+  /* Green price up animation */
+  .status-light[data-status="green"] {
+    animation: greenPulse 0.5s ease;
+    box-shadow: 0 0 6px 3px rgba(76, 175, 80, 0.8);
+  }
+  
+  /* Red price down animation */
+  .status-light[data-status="red"] {
+    animation: redPulse 0.5s ease;
+    box-shadow: 0 0 6px 3px rgba(244, 67, 54, 0.8);
+  }
+  
+  /* Blue waiting animation - continuous pulse */
+  .status-light[data-status="blue"] {
+    animation: bluePulse 1.5s ease-in-out infinite;
+    transform: scale(1);
+  }
+  
+  @keyframes greenPulse {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 3px 1px rgba(76, 175, 80, 0.6);
+    }
+    50% {
+      transform: scale(1.4);
+      box-shadow: 0 0 10px 5px rgba(76, 175, 80, 1);
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 6px 3px rgba(76, 175, 80, 0.8);
+    }
+  }
+  
+  @keyframes redPulse {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 3px 1px rgba(244, 67, 54, 0.6);
+    }
+    50% {
+      transform: scale(1.4);
+      box-shadow: 0 0 10px 5px rgba(244, 67, 54, 1);
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 6px 3px rgba(244, 67, 54, 0.8);
+    }
+  }
+  
+  @keyframes bluePulse {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.8);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.2);
+      box-shadow: 0 0 6px 3px rgba(33, 150, 243, 0.4);
+      opacity: 0.8;
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(33, 150, 243, 0);
+      opacity: 1;
+    }
   }
   
   /* Dark theme adjustments */
