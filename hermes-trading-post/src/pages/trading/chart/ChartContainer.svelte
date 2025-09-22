@@ -157,6 +157,7 @@
         showGranularities={true}
         showRefresh={true}
         showClearCache={true}
+        showSpeed={true}
         {pair}
         {onPairChange}
       />

@@ -313,6 +313,39 @@
   color: #666;
 }
 
+/* Date and Speed Controls */
+.date-speed-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.date-speed-container .period-btn {
+  width: 100% !important;
+  min-width: 120px;
+}
+
+select.speed-dropdown.period-btn.compact {
+  width: 100% !important;
+  min-width: 120px;
+  text-align: left;
+  padding: 6px 32px 6px 12px !important;
+  box-sizing: border-box;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e") !important;
+  background-position: right 10px center !important;
+  background-repeat: no-repeat !important;
+  background-size: 16px 16px !important;
+}
+
+.date-speed-container input[type="date"] {
+  text-align: left;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
 /* Responsive Layout */
 @media (max-width: 1400px) {
   .paper-trading-content {

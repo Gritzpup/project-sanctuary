@@ -63,6 +63,9 @@
   // Trading pair selection
   let selectedPair = 'BTC-USD';
   
+  // Chart speed control
+  let chartSpeed = '1x';
+  
   // Save preferences when they change
   $: chartPreferencesStore.setPreferences('paper-trading', selectedGranularity, selectedPeriod);
   
@@ -181,6 +184,12 @@
     selectedPair = newPair;
     console.log('📊 Chart pair changed to:', newPair);
     // The chart will automatically reload with the new pair
+  }
+  
+  function handleSpeedChange(event: Event) {
+    const select = event.target as HTMLSelectElement;
+    chartSpeed = select.value;
+    console.log('🚀 Chart speed changed to:', chartSpeed);
   }
   
   function handleZoomCorrection() {
@@ -611,6 +620,13 @@
                     value={selectedTestDateString}
                     on:change={handleDateSelection}
                   />
+                  <select class="period-btn speed-dropdown compact" bind:value={chartSpeed} on:change={handleSpeedChange}>
+                    <option value="1x">1x Speed</option>
+                    <option value="1.5x">1.5x Speed</option>
+                    <option value="2x">2x Speed</option>
+                    <option value="3x">3x Speed</option>
+                    <option value="10x">10x Speed</option>
+                  </select>
 
                   {#if selectedTestDateString}
                     <!-- Play/Stop Button -->

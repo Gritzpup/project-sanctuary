@@ -13,10 +13,15 @@
   export let showGranularities: boolean = true;
   export let showRefresh: boolean = true;
   export let showClearCache: boolean = true;
+  export let showSpeed: boolean = true;
   export let availableTimeframes: string[] = ['1H', '6H', '1D', '1W', '1M'];
   export let availableGranularities: string[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
   export let pair: string = 'BTC-USD';
   export let onPairChange: ((pair: string) => void) | undefined = undefined;
+  
+  // Speed control
+  let currentSpeed: string = '1x';
+  const availableSpeeds = ['1x', '1.5x', '2x', '3x', '10x'];
   
   let isRefreshing = false;
   let isClearingCache = false;
@@ -93,6 +98,12 @@
     }
   }
   
+  function handleSpeedChange(event: Event) {
+    const select = event.target as HTMLSelectElement;
+    currentSpeed = select.value;
+    console.log('🚀 Speed changed to:', currentSpeed);
+  }
+  
   function getButtonClass(isActive: boolean, isRecommended: boolean = false): string {
     let classes = ['control-button'];
     
@@ -152,6 +163,17 @@
           </button>
         {/each}
       </div>
+    </div>
+  {/if}
+  
+  {#if showSpeed}
+    <div class="control-group">
+      <span class="control-label">Speed:</span>
+      <select class="speed-dropdown" bind:value={currentSpeed} on:change={handleSpeedChange}>
+        {#each availableSpeeds as speed}
+          <option value={speed}>{speed}</option>
+        {/each}
+      </select>
     </div>
   {/if}
   
@@ -311,6 +333,40 @@
     -webkit-text-fill-color: #9966ff !important;
   }
   
+  /* Speed Dropdown */
+  .speed-dropdown {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color, #ddd);
+    background: var(--button-bg, white);
+    color: var(--text-primary, #333);
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 60px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+  }
+  
+  .speed-dropdown:hover {
+    background: var(--button-hover-bg, #f5f5f5);
+    border-color: var(--border-hover-color, #bbb);
+  }
+  
+  .speed-dropdown:focus {
+    outline: none;
+    border-color: var(--primary-color, #2196f3);
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+  }
+  
+  .speed-dropdown option {
+    background: var(--button-bg, white);
+    color: var(--text-primary, #333);
+    padding: 6px;
+  }
+  
   /* Dark theme support */
   :global(.dark) .chart-controls {
     --control-bg: rgba(255, 255, 255, 0.05);
@@ -322,6 +378,22 @@
     --border-hover-color: #666;
     --primary-color: #2196f3;
     --accent-color: #4caf50;
+  }
+  
+  :global(.dark) .speed-dropdown {
+    background: #2a2a2a;
+    color: #e0e0e0;
+    border-color: #444;
+  }
+  
+  :global(.dark) .speed-dropdown:hover {
+    background: #3a3a3a;
+    border-color: #666;
+  }
+  
+  :global(.dark) .speed-dropdown option {
+    background: #2a2a2a;
+    color: #e0e0e0;
   }
   
   
