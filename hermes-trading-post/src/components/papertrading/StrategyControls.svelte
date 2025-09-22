@@ -124,60 +124,18 @@
       <label>Trading Stats</label>
       <div class="stats-panel">
         <div class="stats-grid">
-          <div class="stat-item">
-            <span class="stat-label">BTC Position:</span>
-            <span class="stat-value">{btcBalance.toFixed(6)} BTC</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Starting Balance:</span>
-            <span class="stat-value">${startingBalance.toLocaleString()}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">USDC Vault:</span>
-            <span class="stat-value">${balance.toLocaleString()}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Growth:</span>
-            <span class="stat-value" class:profit={growth > 0} class:loss={growth < 0}>
-              {growth > 0 ? '+' : ''}${growth.toLocaleString()}
-            </span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">BTC Vault:</span>
-            <span class="stat-value">${btcVaultValue.toLocaleString()}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Total Fees:</span>
-            <span class="stat-value">${totalFees.toFixed(2)}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Total Trades:</span>
-            <span class="stat-value">{totalTrades}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Net Fees After Rebase:</span>
-            <span class="stat-value">${netFeesAfterRebase.toFixed(2)}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Total Return:</span>
-            <span class="stat-value" class:profit={growthPercent > 0} class:loss={growthPercent < 0}>
-              {growthPercent > 0 ? '+' : ''}{growthPercent.toFixed(1)}%
-            </span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Total Value:</span>
-            <span class="stat-value">${totalValue.toLocaleString()}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">BTC Open Position:</span>
-            <span class="stat-value">{currentOpenPosition.toFixed(6)}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Total P/L:</span>
-            <span class="stat-value" class:profit={totalPL > 0} class:loss={totalPL < 0}>
-              {totalPL > 0 ? '+' : ''}${totalPL.toLocaleString()}
-            </span>
-          </div>
+          <div class="stat-item">BTC: <span class="stat-value">{btcBalance.toFixed(6)}</span></div>
+          <div class="stat-item">Start: <span class="stat-value">${startingBalance.toLocaleString()}</span></div>
+          <div class="stat-item">USDC: <span class="stat-value">${balance.toLocaleString()}</span></div>
+          <div class="stat-item">Growth: <span class="stat-value" class:profit={growth > 0} class:loss={growth < 0}>{growth > 0 ? '+' : ''}${growth.toLocaleString()}</span></div>
+          <div class="stat-item">BTC Val: <span class="stat-value">${btcVaultValue.toLocaleString()}</span></div>
+          <div class="stat-item">Fees: <span class="stat-value">${totalFees.toFixed(2)}</span></div>
+          <div class="stat-item">Trades: <span class="stat-value">{totalTrades}</span></div>
+          <div class="stat-item">Net Fees: <span class="stat-value">${netFeesAfterRebase.toFixed(2)}</span></div>
+          <div class="stat-item">Return: <span class="stat-value" class:profit={growthPercent > 0} class:loss={growthPercent < 0}>{growthPercent > 0 ? '+' : ''}{growthPercent.toFixed(1)}%</span></div>
+          <div class="stat-item">Total: <span class="stat-value">${totalValue.toLocaleString()}</span></div>
+          <div class="stat-item">Open: <span class="stat-value">{currentOpenPosition.toFixed(6)}</span></div>
+          <div class="stat-item">P/L: <span class="stat-value" class:profit={totalPL > 0} class:loss={totalPL < 0}>{totalPL > 0 ? '+' : ''}${totalPL.toLocaleString()}</span></div>
         </div>
       </div>
     </div>
@@ -285,7 +243,8 @@
   .control-group {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
+    margin-bottom: 6px;
   }
 
   .control-group label {
@@ -669,40 +628,34 @@
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(74, 0, 224, 0.2);
     border-radius: 4px;
-    padding: 6px;
+    padding: 2px 3px;
   }
 
   .stats-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 4px 12px;
+    gap: 0px 2px;
+    margin: 0;
   }
 
   .stat-item {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 4px;
-    font-size: 9px;
-    line-height: 1.2;
-  }
-
-  .stat-label {
-    display: inline;
-    font-size: 9px;
+    font-size: 12px;
+    line-height: 1;
     color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.2px;
-    font-weight: 500;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    margin: 0;
+    padding: 0;
   }
 
   .stat-value {
-    display: inline;
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 600;
     color: #d1d4dc;
     font-family: 'Courier New', monospace;
-    white-space: nowrap;
+    display: inline;
   }
 
   .stat-value.profit {
