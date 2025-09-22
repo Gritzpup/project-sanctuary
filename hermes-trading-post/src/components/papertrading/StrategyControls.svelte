@@ -12,6 +12,22 @@
   export let botTabs: any[] = [];
   export let activeBotInstance: any = null;
   
+  // Additional stats tracking
+  export let totalTrades: number = 0;
+  export let totalReturn: number = 0;
+  export let startingBalance: number = 10000;
+  export let totalFees: number = 0;
+  export let totalRebates: number = 0;
+  
+  // Calculate derived stats
+  $: growth = balance - startingBalance;
+  $: growthPercent = ((balance - startingBalance) / startingBalance * 100);
+  $: totalValue = balance + (btcBalance * currentPrice);
+  $: totalPL = totalValue - startingBalance;
+  $: netFeesAfterRebase = totalFees - totalRebates;
+  $: btcVaultValue = btcBalance * currentPrice;
+  $: currentOpenPosition = positions.length > 0 ? positions[0].size || 0 : 0;
+  
   const dispatch = createEventDispatcher();
   
   function handleStrategyChange(event: Event) {
@@ -78,28 +94,91 @@
     
     <!-- Bot Status Buttons -->
     <div class="control-group">
-      <label>Status</label>
-      <div class="bot-status-grid">
+      <label>Bot Status</label>
+      <div class="bot-status-row">
         {#each Array(6) as _, i}
           {@const botIndex = i + 1}
           {@const bot = botTabs.find(b => b.name === `Bot ${botIndex}`) || { id: `bot-${botIndex}`, name: `Bot ${botIndex}`, status: 'empty' }}
           {@const status = getBotStatus(bot)}
           {@const isActive = activeBotInstance ? (bot.id === activeBotInstance.id) : (botIndex === 1)}
           <button 
-            class="bot-status-btn"
+            class="bot-status-btn-compact"
             class:active={isActive}
             class:running={status === 'running'}
             class:paused={status === 'paused'}
             on:click={() => selectBot(bot.id)}
             title="{bot.name} - {status}"
           >
-            <span class="bot-number">Bot {botIndex}</span>
+            <span class="bot-number-compact">{botIndex}</span>
             <div 
-              class="status-light" 
+              class="status-light-compact" 
               style="background-color: {getStatusColor(status)}"
             ></div>
           </button>
         {/each}
+      </div>
+    </div>
+    
+    <!-- Stats Panel -->
+    <div class="control-group">
+      <label>Trading Stats</label>
+      <div class="stats-panel">
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-label">BTC Position:</span>
+            <span class="stat-value">{btcBalance.toFixed(6)} BTC</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Starting Balance:</span>
+            <span class="stat-value">${startingBalance.toLocaleString()}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">USDC Vault:</span>
+            <span class="stat-value">${balance.toLocaleString()}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Growth:</span>
+            <span class="stat-value" class:profit={growth > 0} class:loss={growth < 0}>
+              {growth > 0 ? '+' : ''}${growth.toLocaleString()}
+            </span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">BTC Vault:</span>
+            <span class="stat-value">${btcVaultValue.toLocaleString()}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Total Fees:</span>
+            <span class="stat-value">${totalFees.toFixed(2)}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Total Trades:</span>
+            <span class="stat-value">{totalTrades}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Net Fees After Rebase:</span>
+            <span class="stat-value">${netFeesAfterRebase.toFixed(2)}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Total Return:</span>
+            <span class="stat-value" class:profit={growthPercent > 0} class:loss={growthPercent < 0}>
+              {growthPercent > 0 ? '+' : ''}{growthPercent.toFixed(1)}%
+            </span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Total Value:</span>
+            <span class="stat-value">${totalValue.toLocaleString()}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">BTC Open Position:</span>
+            <span class="stat-value">{currentOpenPosition.toFixed(6)}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Total P/L:</span>
+            <span class="stat-value" class:profit={totalPL > 0} class:loss={totalPL < 0}>
+              {totalPL > 0 ? '+' : ''}${totalPL.toLocaleString()}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
     
@@ -516,6 +595,123 @@
     line-height: 1;
   }
 
+  /* Compact Bot Status Row */
+  .bot-status-row {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+  }
+
+  .bot-status-btn-compact {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 4px 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(74, 0, 224, 0.2);
+    border-radius: 3px;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 9px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    min-height: 20px;
+    flex: 1;
+  }
+
+  .bot-status-btn-compact:hover {
+    background: rgba(74, 0, 224, 0.1);
+    border-color: rgba(74, 0, 224, 0.4);
+    color: #d1d4dc;
+  }
+
+  .bot-status-btn-compact.active {
+    background: rgba(74, 0, 224, 0.2);
+    border-color: rgba(74, 0, 224, 0.5);
+    color: #a78bfa;
+  }
+
+  .bot-status-btn-compact.running {
+    border-color: rgba(34, 197, 94, 0.4);
+  }
+
+  .bot-status-btn-compact.paused {
+    border-color: rgba(245, 158, 11, 0.4);
+  }
+
+  .bot-status-btn-compact.running.active {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.5);
+  }
+
+  .bot-status-btn-compact.paused.active {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.5);
+  }
+
+  .bot-number-compact {
+    flex: 1;
+    text-align: center;
+    font-size: 8px;
+  }
+
+  .status-light-compact {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Stats Panel */
+  .stats-panel {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.2);
+    border-radius: 4px;
+    padding: 6px;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+  }
+
+  .stat-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 9px;
+    line-height: 1.2;
+  }
+
+  .stat-label {
+    display: inline;
+    font-size: 9px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.2px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .stat-value {
+    display: inline;
+    font-size: 9px;
+    font-weight: 600;
+    color: #d1d4dc;
+    font-family: 'Courier New', monospace;
+    white-space: nowrap;
+  }
+
+  .stat-value.profit {
+    color: #26a69a;
+  }
+
+  .stat-value.loss {
+    color: #ef4444;
+  }
 
   /* Responsive adjustments */
   @media (max-width: 1400px) {

@@ -671,6 +671,11 @@
             {currentPrice}
             {botTabs}
             {activeBotInstance}
+            totalTrades={trades.length}
+            {totalReturn}
+            startingBalance={10000}
+            {totalFees}
+            {totalRebates}
             on:strategyChange={(e) => handleStrategyChange({ target: { value: e.detail.value } })}
             on:balanceChange={handleBalanceChange}
             on:start={startTrading}

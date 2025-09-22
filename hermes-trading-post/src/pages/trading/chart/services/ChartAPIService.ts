@@ -2,6 +2,7 @@ import type { Candle, DataRequest, WebSocketCandle } from '../types/data.types';
 import { ChartDebug } from '../utils/debug';
 import { perfTest } from '../utils/performanceTest';
 import { CoinbaseAPI } from '../../../../services/api/coinbaseApi';
+import { getGranularitySeconds } from '../utils/granularityHelpers';
 
 export class ChartAPIService {
   private coinbaseApi: CoinbaseAPI;
@@ -33,22 +34,7 @@ export class ChartAPIService {
       ChartDebug.critical(`[PERF START] fetchCandles for ${pair} ${granularity} at ${new Date().toISOString()}`);
     }
     
-    // Map granularity string to seconds for Coinbase API
-    const granularityMap: Record<string, number> = {
-      '1m': 60,
-      '5m': 300,
-      '15m': 900,
-      '30m': 1800,
-      '1h': 3600,
-      '2h': 7200,
-      '4h': 14400,
-      '6h': 21600,
-      '12h': 43200,
-      '1d': 86400,
-      '1D': 86400  // Handle uppercase
-    };
-    
-    const granularitySeconds = granularityMap[granularity] || 60;
+    const granularitySeconds = getGranularitySeconds(granularity);
     
     // Consolidated debug for 1d granularity
     if (granularity === '1d' || granularity === '1D') {

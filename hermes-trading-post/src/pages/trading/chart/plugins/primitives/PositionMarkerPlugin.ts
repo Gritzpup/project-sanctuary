@@ -1,5 +1,6 @@
 import { PrimitivePlugin } from './PrimitivePlugin';
 import type { SeriesMarker, Time } from 'lightweight-charts';
+import { formatPnL } from '../../utils/priceFormatters';
 
 export interface Position {
   id: string;
@@ -124,7 +125,7 @@ export class PositionMarkerPlugin extends PrimitivePlugin {
     
     let text = '✕';
     if (settings.showPnL && position.pnl !== undefined) {
-      const pnlText = position.pnl >= 0 ? `+${position.pnl.toFixed(2)}` : position.pnl.toFixed(2);
+      const pnlText = formatPnL(position.pnl);
       text = `✕ ${pnlText}`;
     }
     

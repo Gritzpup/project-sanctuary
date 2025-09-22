@@ -1,6 +1,7 @@
 <script lang="ts">
   import { statusStore } from '../../stores/statusStore.svelte';
   import { fade, scale } from 'svelte/transition';
+  import { formatTimeMs } from '../../utils/timeHelpers';
   
   export let position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' = 'top-right';
   export let showText: boolean = true;
@@ -60,10 +61,6 @@
     showHistory = !showHistory;
   }
   
-  function formatTime(timestamp: number): string {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString();
-  }
 </script>
 
 <div class="chart-status {positionClass} {sizeClasses[size]}" class:transitioning={isTransitioning}>
@@ -98,7 +95,7 @@
               style="background-color: {statusColors[item.status] || '#999'}"
             ></span>
             <span class="history-status">{item.status}</span>
-            <span class="history-time">{formatTime(item.timestamp)}</span>
+            <span class="history-time">{formatTimeMs(item.timestamp)}</span>
           </div>
         {/each}
       </div>

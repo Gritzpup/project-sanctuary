@@ -64,21 +64,8 @@ export function calculatePriceChange(oldPrice: number, newPrice: number): {
   return { amount, percentage, direction };
 }
 
-export function formatPrice(price: number, decimals: number = 2): string {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
-  }).format(price);
-}
-
-export function formatCurrency(price: number, currency: string = 'USD'): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(price);
-}
+// Price formatting functions moved to priceFormatters.ts
+// Import from there: import { formatPrice, formatPriceDecimal } from './priceFormatters';
 
 // Candle analysis
 export function getCandleType(candle: CandlestickData): 'bullish' | 'bearish' | 'doji' {
