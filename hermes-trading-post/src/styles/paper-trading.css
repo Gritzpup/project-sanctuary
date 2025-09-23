@@ -316,8 +316,21 @@
 /* Date and Speed Controls */
 .date-speed-container {
   display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.date-speed-column {
+  display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.play-button-column {
+  display: flex;
+  align-items: center;
+  height: 58px; /* Match height of two stacked controls */
 }
 
 .date-speed-container .period-btn {
@@ -344,6 +357,29 @@ select.speed-dropdown.period-btn.compact {
   text-align: left;
   padding-left: 12px;
   padding-right: 12px;
+}
+
+/* Chart Play Button */
+.chart-play-btn.period-btn {
+  background: rgba(74, 0, 224, 0.1) !important;
+  border-color: rgba(74, 0, 224, 0.3) !important;
+  color: #9ca3af !important;
+  min-width: 32px !important;
+  width: 32px !important;
+  height: 26px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0 !important;
+}
+
+.chart-play-btn.period-btn:hover {
+  background: rgba(74, 0, 224, 0.2) !important;
+  border-color: rgba(74, 0, 224, 0.5) !important;
+  color: #d1d4dc !important;
 }
 
 /* Responsive Layout */

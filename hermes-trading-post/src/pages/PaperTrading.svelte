@@ -607,26 +607,33 @@
 
                 <!-- Paper Test integrated controls -->
                 <div class="date-speed-container">
-                  <input 
-                    type="date" 
-                    id="paper-test-date-input"
-                    class="period-btn date-picker-btn compact"
-                    max={(() => {
-                      const yesterday = new Date();
-                      yesterday.setDate(yesterday.getDate() - 1);
-                      return yesterday.toISOString().split('T')[0];
-                    })()}
-                    min="2024-01-01"
-                    value={selectedTestDateString}
-                    on:change={handleDateSelection}
-                  />
-                  <select class="period-btn speed-dropdown compact" bind:value={chartSpeed} on:change={handleSpeedChange}>
-                    <option value="1x">1x Speed</option>
-                    <option value="1.5x">1.5x Speed</option>
-                    <option value="2x">2x Speed</option>
-                    <option value="3x">3x Speed</option>
-                    <option value="10x">10x Speed</option>
-                  </select>
+                  <div class="date-speed-column">
+                    <input 
+                      type="date" 
+                      id="paper-test-date-input"
+                      class="period-btn date-picker-btn compact"
+                      max={(() => {
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        return yesterday.toISOString().split('T')[0];
+                      })()}
+                      min="2024-01-01"
+                      value={selectedTestDateString}
+                      on:change={handleDateSelection}
+                    />
+                    <select class="period-btn speed-dropdown compact" bind:value={chartSpeed} on:change={handleSpeedChange}>
+                      <option value="1x">1x Speed</option>
+                      <option value="1.5x">1.5x Speed</option>
+                      <option value="2x">2x Speed</option>
+                      <option value="3x">3x Speed</option>
+                      <option value="10x">10x Speed</option>
+                    </select>
+                  </div>
+                  <div class="play-button-column">
+                    <button class="period-btn chart-play-btn compact" title="Start Chart Playback">
+                      ▶
+                    </button>
+                  </div>
 
                   {#if selectedTestDateString}
                     <!-- Play/Stop Button -->
