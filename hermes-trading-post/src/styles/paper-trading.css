@@ -329,7 +329,9 @@
 
 .play-button-column {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
   height: 58px; /* Match height of two stacked controls */
 }
 
@@ -380,6 +382,29 @@ select.speed-dropdown.period-btn.compact {
   background: rgba(74, 0, 224, 0.2) !important;
   border-color: rgba(74, 0, 224, 0.5) !important;
   color: #d1d4dc !important;
+}
+
+/* Chart Stop Button */
+.chart-stop-btn.period-btn {
+  background: rgba(74, 0, 224, 0.1) !important;
+  border-color: rgba(74, 0, 224, 0.3) !important;
+  color: #9ca3af !important;
+  min-width: 32px !important;
+  width: 32px !important;
+  height: 26px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0 !important;
+}
+
+.chart-stop-btn.period-btn:hover {
+  background: rgba(239, 68, 68, 0.2) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #ef4444 !important;
 }
 
 /* Responsive Layout */

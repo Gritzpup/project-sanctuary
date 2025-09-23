@@ -633,6 +633,9 @@
                     <button class="period-btn chart-play-btn compact" title="Start Chart Playback">
                       ▶
                     </button>
+                    <button class="period-btn chart-stop-btn compact" title="Stop Chart Playback">
+                      ⏹
+                    </button>
                   </div>
 
                   {#if selectedTestDateString}
