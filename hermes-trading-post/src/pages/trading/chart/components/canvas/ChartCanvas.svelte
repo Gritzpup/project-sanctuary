@@ -115,7 +115,30 @@
       resizeObserver = new ResizeObserver((entries) => {
         if (chart && entries.length > 0) {
           const { width: newWidth, height: newHeight } = entries[0].contentRect;
+          
+          // Store current visible range before resize
+          const currentRange = chart.timeScale().getVisibleRange();
+          
           chart.applyOptions({ width: newWidth, height: newHeight });
+          
+          // After resize, ensure the current candle stays visible
+          if (candleSeries && currentRange && dataStore.candles.length > 0) {
+            const lastCandle = dataStore.candles[dataStore.candles.length - 1];
+            const currentTime = lastCandle.time as number;
+            
+            // Check if current candle is still visible after resize
+            const newRange = chart.timeScale().getVisibleRange();
+            if (newRange && currentTime > Number(newRange.to)) {
+              // Current candle is no longer visible, adjust the range
+              const rangeSpan = Number(currentRange.to) - Number(currentRange.from);
+              const buffer = rangeSpan * 0.1; // 10% buffer on the right
+              
+              chart.timeScale().setVisibleRange({
+                from: (currentTime - rangeSpan + buffer) as Time,
+                to: (currentTime + buffer) as Time
+              });
+            }
+          }
         }
       });
       resizeObserver.observe(container);
@@ -328,6 +351,47 @@
       console.log('Visible range set successfully');
     } catch (error) {
       console.error('Error setting visible range:', error);
+    }
+  }
+
+  export function scrollToCurrentCandle() {
+    console.log('scrollToCurrentCandle called', {
+      chart: !!chart,
+      candleSeries: !!candleSeries,
+      candleCount: dataStore.candles.length
+    });
+    
+    if (!chart || !candleSeries || dataStore.candles.length === 0) {
+      console.warn('Cannot scroll to current candle - missing chart, series, or data');
+      return;
+    }
+    
+    const lastCandle = dataStore.candles[dataStore.candles.length - 1];
+    if (!lastCandle || !lastCandle.time) {
+      console.warn('Invalid current candle data');
+      return;
+    }
+    
+    try {
+      // Get current visible range to maintain zoom level
+      const currentRange = chart.timeScale().getVisibleRange();
+      if (currentRange) {
+        const rangeSpan = Number(currentRange.to) - Number(currentRange.from);
+        const buffer = rangeSpan * 0.1; // 10% buffer on the right
+        const currentTime = lastCandle.time as number;
+        
+        chart.timeScale().setVisibleRange({
+          from: (currentTime - rangeSpan + buffer) as Time,
+          to: (currentTime + buffer) as Time
+        });
+        
+        console.log('Scrolled to current candle successfully');
+      } else {
+        // Fallback to fit content if no current range
+        chart.timeScale().fitContent();
+      }
+    } catch (error) {
+      console.error('Error scrolling to current candle:', error);
     }
   }
   

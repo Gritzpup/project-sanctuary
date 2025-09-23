@@ -147,6 +147,10 @@
   export function fitContent(): void {
     chartCore?.fitContent();
   }
+
+  export function scrollToCurrentCandle(): void {
+    chartCore?.scrollToCurrentCandle();
+  }
 </script>
 
 <div class="chart-container">

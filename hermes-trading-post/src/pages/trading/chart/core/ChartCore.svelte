@@ -157,6 +157,10 @@
   export function fitContent() {
     chartCanvas?.fitContent();
   }
+
+  export function scrollToCurrentCandle() {
+    chartCanvas?.scrollToCurrentCandle();
+  }
   
   export function getChart(): IChartApi | null {
     return chartCanvas?.getChart() || null;

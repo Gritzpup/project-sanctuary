@@ -62,6 +62,10 @@
   export function fitContent(): void {
     return chartContainer?.fitContent();
   }
+
+  export function scrollToCurrentCandle(): void {
+    return chartContainer?.scrollToCurrentCandle();
+  }
 </script>
 
 <ChartContainer
