@@ -503,12 +503,31 @@
       return;
     }
     
-    console.log('ChartCanvas: Adding', markers.length, 'markers to candlestick series');
-    try {
-      candleSeries.setMarkers(markers);
-      console.log('✅ ChartCanvas: Successfully added markers to chart');
-    } catch (error) {
-      console.error('❌ ChartCanvas: Error setting markers:', error);
+    // Filter markers to only show those within the current 60-candle visible range
+    const maxCandles = 60;
+    const startIndex = Math.max(0, dataStore.candles.length - maxCandles);
+    const visibleCandles = dataStore.candles.slice(startIndex);
+    
+    if (visibleCandles.length > 0) {
+      const oldestVisibleTime = visibleCandles[0].time as number;
+      const newestVisibleTime = visibleCandles[visibleCandles.length - 1].time as number;
+      
+      const filteredMarkers = markers.filter(marker => {
+        const markerTime = marker.time as number;
+        return markerTime >= oldestVisibleTime && markerTime <= newestVisibleTime;
+      });
+      
+      console.log(`ChartCanvas: Filtered ${markers.length} markers to ${filteredMarkers.length} within visible range`);
+      
+      try {
+        candleSeries.setMarkers(filteredMarkers);
+        console.log('✅ ChartCanvas: Successfully added filtered markers to chart');
+      } catch (error) {
+        console.error('❌ ChartCanvas: Error setting markers:', error);
+      }
+    } else {
+      console.log('ChartCanvas: No visible candles, clearing all markers');
+      candleSeries.setMarkers([]);
     }
   }
   
