@@ -15,6 +15,8 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   private volumeData: HistogramData[] = [];
 
   constructor(settings?: VolumePluginSettings) {
+    console.log('🔊 VolumePlugin constructor called');
+    
     const defaultSettings: VolumePluginSettings = {
       upColor: '#26a69a80',
       downColor: '#ef535080',
@@ -58,16 +60,27 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
     const dataStore = this.getDataStore();
     const candles = dataStore.candles;
     
+    console.log('🔊 VolumePlugin getData() called with', candles.length, 'candles');
+    
     this.volumeData = candles.map(candle => {
       const isUp = candle.close >= candle.open;
       const settings = this.settings as VolumePluginSettings;
+      const volume = candle.volume || 0;
+      
+      if (volume > 0) {
+        console.log('🔊 Found volume data:', volume, 'for candle at', candle.time);
+      }
       
       return {
         time: candle.time,
-        value: candle.volume || 0,
+        value: volume,
         color: isUp ? settings.upColor : settings.downColor
       };
     });
+    
+    console.log('🔊 VolumePlugin returning', this.volumeData.length, 'volume bars');
+    const nonZeroVolume = this.volumeData.filter(v => v.value > 0);
+    console.log('🔊 Non-zero volume bars:', nonZeroVolume.length);
     
     return this.volumeData;
   }
