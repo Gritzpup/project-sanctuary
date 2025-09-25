@@ -67,8 +67,11 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       const settings = this.settings as VolumePluginSettings;
       const volume = candle.volume || 0;
       
+      // Log actual volume data from API
       if (volume > 0) {
-        console.log('🔊 Found volume data:', volume, 'for candle at', candle.time);
+        console.log('🔊 Found real volume data:', volume, 'for candle at', candle.time);
+      } else {
+        console.log('⚠️ No volume data for candle at', candle.time, '- raw value:', candle.volume);
       }
       
       return {

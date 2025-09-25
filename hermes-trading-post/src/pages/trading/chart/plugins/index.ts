@@ -19,8 +19,10 @@ export { PositionMarkerPlugin, type Position, type PositionMarkerSettings } from
 
 // Plugin factory helper
 export function createPlugin(type: string, settings?: Record<string, any>): Plugin | null {
+  console.log('🔧 createPlugin called with type:', type);
   switch (type) {
     case 'volume':
+      console.log('🔊 Creating VolumePlugin instance');
       return new VolumePlugin(settings);
     case 'sma':
       return new SMAPlugin(settings);
