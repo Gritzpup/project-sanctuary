@@ -14,6 +14,7 @@
   let container: HTMLDivElement;
   let chart: IChartApi | null = null;
   let candleSeries: ISeriesApi<'Candlestick'> | null = null;
+  let volumeSeries: ISeriesApi<'Histogram'> | null = null;
   let resizeObserver: ResizeObserver | null = null;
   
   // Reactive chart options based on store
@@ -104,6 +105,27 @@
       borderVisible: false,
       wickUpColor: CHART_COLORS[chartStore.config.theme.toUpperCase()].upColor,
       wickDownColor: CHART_COLORS[chartStore.config.theme.toUpperCase()].downColor,
+    });
+    
+    // Create volume histogram series below the main chart
+    volumeSeries = chart.addHistogramSeries({
+      color: '#26a69a',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: 'volume',
+      scaleMargins: {
+        top: 0.7, // Start volume at 70% down from top
+        bottom: 0,
+      },
+    });
+    
+    // Configure volume price scale
+    chart.priceScale('volume').applyOptions({
+      scaleMargins: {
+        top: 0.7,
+        bottom: 0,
+      },
     });
     
     // Store chart instance
@@ -222,6 +244,18 @@
     try {
       console.log('Setting data to candleSeries:', dataStore.candles.length, 'candles');
       candleSeries.setData(dataStore.candles);
+      
+      // Also set volume data if volume series exists
+      if (volumeSeries) {
+        const volumeData = dataStore.candles.map(candle => ({
+          time: candle.time,
+          value: candle.volume || 0,
+          color: (candle.close >= candle.open) ? '#26a69a' : '#ef5350' // Green for up, red for down
+        }));
+        volumeSeries.setData(volumeData);
+        console.log('Volume data updated:', volumeData.length, 'volume bars');
+      }
+      
       performanceStore.recordRenderTime(performance.now() - startTime);
       console.log('Chart data updated successfully');
       
