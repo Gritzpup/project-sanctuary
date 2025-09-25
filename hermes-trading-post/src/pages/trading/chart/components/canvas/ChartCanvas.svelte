@@ -188,6 +188,12 @@
     setTimeout(() => styleTimescaleButtons(), 500); // Try after 500ms
     setTimeout(() => styleTimescaleButtons(), 1000); // Try after 1s
     
+    // Ensure current candle is visible after chart initialization
+    setTimeout(() => {
+      console.log('🔧 Auto-scrolling to current candle after init');
+      scrollToCurrentCandle();
+    }, 2000);
+    
     // Notify that chart is ready
     if (onChartReady) {
       onChartReady(chart);
@@ -456,21 +462,27 @@
     }
     
     try {
-      // Get current visible range to maintain zoom level
-      const currentRange = chart.timeScale().getVisibleRange();
-      if (currentRange) {
-        const rangeSpan = Number(currentRange.to) - Number(currentRange.from);
-        const buffer = rangeSpan * 0.1; // 10% buffer on the right
-        const currentTime = lastCandle.time as number;
+      // Always maintain exactly 60 candles visible
+      const maxCandles = 60;
+      const currentTime = lastCandle.time as number;
+      
+      // Get the last 60 candles to calculate proper time range
+      const startIndex = Math.max(0, dataStore.candles.length - maxCandles);
+      const visibleCandles = dataStore.candles.slice(startIndex);
+      
+      if (visibleCandles.length > 1) {
+        const firstVisibleTime = visibleCandles[0].time as number;
+        const timeSpan = currentTime - firstVisibleTime;
+        const buffer = timeSpan * 0.05; // 5% buffer
         
         chart.timeScale().setVisibleRange({
-          from: (currentTime - rangeSpan + buffer) as Time,
+          from: (firstVisibleTime - buffer) as Time,
           to: (currentTime + buffer) as Time
         });
         
-        console.log('Scrolled to current candle successfully');
+        console.log(`Scrolled to show ${visibleCandles.length} candles (max ${maxCandles})`);
       } else {
-        // Fallback to fit content if no current range
+        // Fallback to fit content if insufficient data
         chart.timeScale().fitContent();
       }
     } catch (error) {
