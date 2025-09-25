@@ -705,7 +705,7 @@ select:focus {
   margin-top: auto;
 }
 
-.period-btn {
+.backtesting-container .period-btn {
   padding: 8px 16px;
   background: rgba(74, 0, 224, 0.2);
   border: 1px solid rgba(74, 0, 224, 0.3);
@@ -716,12 +716,12 @@ select:focus {
   transition: all 0.2s;
 }
 
-.period-btn:hover {
+.backtesting-container .period-btn:hover {
   background: rgba(74, 0, 224, 0.3);
   color: #d1d4dc;
 }
 
-.period-btn.active {
+.backtesting-container .period-btn.active {
   background: rgba(74, 0, 224, 0.4);
   color: #a78bfa;
   border-color: #a78bfa;

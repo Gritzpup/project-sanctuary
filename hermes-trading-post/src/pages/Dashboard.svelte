@@ -482,7 +482,7 @@
     border-top: 1px solid rgba(74, 0, 224, 0.2);
   }
   
-  .period-btn {
+  .dashboard-container .period-btn {
     background: rgba(74, 0, 224, 0.1);
     border: 1px solid rgba(74, 0, 224, 0.3);
     color: #9ca3af;
@@ -493,12 +493,12 @@
     transition: all 0.2s;
   }
   
-  .period-btn:hover {
+  .dashboard-container .period-btn:hover {
     background: rgba(74, 0, 224, 0.2);
     color: #a78bfa;
   }
   
-  .period-btn.active {
+  .dashboard-container .period-btn.active {
     background: rgba(74, 0, 224, 0.4);
     color: #e9d5ff;
     border-color: #a78bfa;

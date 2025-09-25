@@ -191,6 +191,7 @@
   color: #d1d4dc;
 }
 
+
 /* Chart Container */
 .chart-panel {
   flex: 1;
@@ -496,4 +497,11 @@ select.speed-dropdown.period-btn.compact {
   .right-column {
     width: 100%;
   }
+}
+
+/* TradingView timescale buttons - apply purple theme */
+button[style*="padding: 3px 5px"] {
+  background: rgba(74, 0, 224, 0.2) !important;
+  border: 1px solid rgba(74, 0, 224, 0.3) !important;
+  color: #9966ff !important;
 }

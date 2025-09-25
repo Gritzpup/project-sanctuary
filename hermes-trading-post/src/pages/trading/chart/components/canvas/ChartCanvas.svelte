@@ -53,6 +53,9 @@
       borderColor: CHART_COLORS[chartStore.config.theme.toUpperCase()].border,
       fixLeftEdge: true,
       fixRightEdge: true,
+      visible: true,
+      // Try to hide the built-in timescale buttons
+      borderVisible: true,
     },
     rightPriceScale: {
       borderColor: CHART_COLORS[chartStore.config.theme.toUpperCase()].border,
@@ -179,6 +182,12 @@
     // Record initialization time
     performanceStore.recordRenderTime(performance.now() - startTime);
     
+    // Style the timescale buttons to match top controls - multiple attempts to catch them early
+    styleTimescaleButtons(); // Try immediately
+    setTimeout(() => styleTimescaleButtons(), 100); // Try after 100ms
+    setTimeout(() => styleTimescaleButtons(), 500); // Try after 500ms
+    setTimeout(() => styleTimescaleButtons(), 1000); // Try after 1s
+    
     // Notify that chart is ready
     if (onChartReady) {
       onChartReady(chart);
@@ -220,6 +229,75 @@
     }
   }
   
+  function styleTimescaleButtons() {
+    console.log('🔧 styleTimescaleButtons called, container:', !!container);
+    if (!container) {
+      console.warn('⚠️ No container found, cannot style buttons');
+      return;
+    }
+    
+    try {
+      // Search more broadly - TradingView might create buttons outside our container
+      const allButtons = document.querySelectorAll('button');
+      const containerButtons = container.querySelectorAll('button');
+      
+      console.log('🔍 Found', containerButtons.length, 'buttons in chart container');
+      console.log('🔍 Found', allButtons.length, 'buttons total on page');
+      
+      // Check all buttons on the page for timescale buttons
+      const buttons = allButtons;
+      
+      buttons.forEach((button, index) => {
+        const buttonText = button.textContent?.trim();
+        const currentStyles = button.getAttribute('style');
+        console.log(`Button ${index}: text="${buttonText}", styles="${currentStyles}"`);
+        
+        // Check if this looks like a timescale button (has text like "1H", "4H", etc.)
+        if (buttonText && /^(1H|4H|5D|1M|3M|6M|1Y|5Y|1W)$/.test(buttonText)) {
+          console.log('🎯 Found timescale button:', buttonText, 'Current style:', currentStyles);
+          
+          // Apply half-size styling to match top control buttons - use !important to override conflicting CSS
+          button.style.setProperty('padding', '3px 5px', 'important');
+          button.style.setProperty('fontSize', '10px', 'important');
+          button.style.setProperty('fontWeight', '500', 'important');
+          button.style.setProperty('borderRadius', '4px', 'important');
+          button.style.setProperty('border', '1px solid rgba(74, 0, 224, 0.3)', 'important');
+          button.style.setProperty('background', 'rgba(74, 0, 224, 0.2)', 'important');
+          button.style.setProperty('color', '#9966ff', 'important');
+          button.style.setProperty('minWidth', 'auto', 'important');
+          button.style.setProperty('minHeight', 'auto', 'important');
+          button.style.setProperty('height', 'auto', 'important');
+          button.style.setProperty('lineHeight', '1', 'important');
+          button.style.setProperty('transition', 'all 0.2s ease', 'important');
+          button.style.setProperty('cursor', 'pointer', 'important');
+          button.style.setProperty('boxSizing', 'border-box', 'important');
+          button.style.setProperty('margin', '1px', 'important');
+          
+          // Dark theme support
+          const isDark = chartStore.config.theme.toLowerCase() === 'dark';
+          if (isDark) {
+            button.style.background = '#2a2a2a';
+            button.style.color = '#e0e0e0';
+            button.style.borderColor = '#444';
+          }
+          
+          // Add hover effect
+          button.addEventListener('mouseenter', () => {
+            button.style.background = isDark ? '#3a3a3a' : '#f5f5f5';
+            button.style.borderColor = isDark ? '#666' : '#bbb';
+          });
+          
+          button.addEventListener('mouseleave', () => {
+            button.style.background = isDark ? '#2a2a2a' : 'white';
+            button.style.borderColor = isDark ? '#444' : '#ddd';
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Error styling timescale buttons:', error);
+    }
+  }
+
   function cleanup() {
     if (resizeObserver) {
       resizeObserver.disconnect();

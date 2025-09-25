@@ -276,8 +276,8 @@
     flex-wrap: wrap;
   }
   
-  .period-btn,
-  .granularity-btn {
+  .trading-container .period-btn,
+  .trading-container .granularity-btn {
     padding: 8px 16px;
     background: rgba(74, 0, 224, 0.1);
     border: 1px solid rgba(74, 0, 224, 0.3);
@@ -288,18 +288,18 @@
     transition: all 0.2s;
   }
   
-  .period-btn:hover,
-  .granularity-btn:hover:not(.disabled) {
+  .trading-container .period-btn:hover,
+  .trading-container .granularity-btn:hover:not(.disabled) {
     background: rgba(74, 0, 224, 0.2);
   }
   
-  .period-btn.active,
-  .granularity-btn.active {
+  .trading-container .period-btn.active,
+  .trading-container .granularity-btn.active {
     background: rgba(74, 0, 224, 0.3);
     border-color: #a78bfa;
   }
   
-  .granularity-btn.disabled {
+  .trading-container .granularity-btn.disabled {
     opacity: 0.3;
     cursor: not-allowed;
   }
