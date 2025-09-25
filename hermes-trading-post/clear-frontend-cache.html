@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Frontend Cache</title>
+</head>
+<body>
+    <h1>Clearing Frontend Cache...</h1>
+    <script>
+        // Clear all localStorage
+        localStorage.clear();
+        
+        // Clear specific paper trading state
+        localStorage.removeItem('hermes_paper_trading_state');
+        localStorage.removeItem('hermes_active_strategy');
+        localStorage.removeItem('hermes_bot_manager_state');
+        
+        // Set correct strategy
+        localStorage.setItem('hermes_active_strategy', JSON.stringify({
+            selectedType: 'reverse-ratio',
+            parameters: {
+                initialDropPercent: 0.1,
+                levelDropPercent: 0.1,
+                profitTarget: 0.85,
+                maxLevels: 12,
+                basePositionPercent: 6
+            }
+        }));
+        
+        document.body.innerHTML = '<h1 style="color: green;">✅ Cache Cleared!</h1><p>Now refresh the paper trading page: <a href="http://localhost:5173/paper-trading">http://localhost:5173/paper-trading</a></p>';
+    </script>
+</body>
+</html>

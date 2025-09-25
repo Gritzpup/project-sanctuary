@@ -66,6 +66,14 @@
   export function scrollToCurrentCandle(): void {
     return chartContainer?.scrollToCurrentCandle();
   }
+  
+  export function addMarkers(markers: any[]): void {
+    return chartContainer?.addMarkers(markers);
+  }
+  
+  export function clearMarkers(): void {
+    return chartContainer?.clearMarkers();
+  }
 </script>
 
 <ChartContainer

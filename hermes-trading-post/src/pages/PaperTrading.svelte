@@ -29,6 +29,7 @@
   import { VWAPBounceStrategy } from '../strategies/implementations/VWAPBounceStrategy';
   import { MicroScalpingStrategy } from '../strategies/implementations/MicroScalpingStrategy';
   import { ProperScalpingStrategy } from '../strategies/implementations/ProperScalpingStrategy';
+  import { UltraMicroScalpingStrategy } from '../strategies/implementations/UltraMicroScalpingStrategy';
   import type { Strategy } from '../strategies/base/Strategy';
   import type { Position } from '../strategies/base/StrategyTypes';
   import { strategyStore } from '../stores/strategyStore';
@@ -74,6 +75,203 @@
   let isPaused = false;
   let selectedStrategyType = 'reverse-ratio';
   let currentStrategy: Strategy | null = null;
+  
+  // Backend WebSocket connection
+  let backendWs: WebSocket | null = null;
+  let backendConnected = false;
+  let statusPollingInterval: any = null;
+  
+  // Connect to backend WebSocket to get real bot data
+  function connectToBackend() {
+    try {
+      backendWs = new WebSocket('ws://localhost:4827');
+      
+      backendWs.onopen = () => {
+        console.log('🟢 Connected to backend WebSocket');
+        backendConnected = true;
+        // Request bot status immediately
+        backendWs?.send(JSON.stringify({ type: 'selectBot', botId: 'reverse-ratio-bot-1' }));
+        backendWs?.send(JSON.stringify({ type: 'getStatus' }));
+        
+        // Poll status every 2 seconds to keep UI updated
+        statusPollingInterval = setInterval(() => {
+          if (backendWs && backendConnected) {
+            backendWs.send(JSON.stringify({ type: 'getStatus' }));
+          }
+        }, 2000);
+      };
+      
+      backendWs.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'status' && data.data) {
+            console.log('📊 Backend status update:', data.data);
+            // Update frontend with backend data
+            isRunning = data.data.isRunning || false;
+            isPaused = data.data.isPaused || false;
+            trades = data.data.trades || [];
+            positions = data.data.positions || [];
+            balance = data.data.balance?.usd || 10000;
+            btcBalance = data.data.balance?.btc || 0;
+            console.log(`✅ Updated: Running=${isRunning}, Trades=${trades.length}, Positions=${positions.length}`);
+          }
+          
+          // Handle stop response
+          if (data.type === 'tradingStopped') {
+            console.log('📊 Backend bot stopped');
+            isRunning = false;
+            isPaused = false;
+            console.log('✅ Bot stopped: UI state updated');
+          }
+          
+          // Handle reset response
+          if (data.type === 'resetComplete') {
+            console.log('📊 Backend reset confirmed');
+            isRunning = false;
+            isPaused = false;
+            trades = [];
+            positions = [];
+            balance = 10000;
+            btcBalance = 0;
+            console.log('✅ Reset confirmed: UI state updated');
+          }
+        } catch (error) {
+          console.error('Backend WebSocket message error:', error);
+        }
+      };
+      
+      backendWs.onclose = () => {
+        console.log('🔴 Backend WebSocket disconnected');
+        backendConnected = false;
+        
+        // Clear status polling
+        if (statusPollingInterval) {
+          clearInterval(statusPollingInterval);
+          statusPollingInterval = null;
+        }
+        
+        // Reconnect after 2 seconds
+        setTimeout(connectToBackend, 2000);
+      };
+      
+    } catch (error) {
+      console.error('Backend WebSocket connection error:', error);
+      setTimeout(connectToBackend, 2000);
+    }
+  }
+  
+  // Connect on component mount
+  onMount(() => {
+    connectToBackend();
+    
+    return () => {
+      backendWs?.close();
+    };
+  });
+  
+  // Add trade markers to chart when trades update
+  $: if (trades.length > 0 && chartComponent) {
+    // Wait a bit for chart to be fully loaded
+    setTimeout(() => addTradeMarkersToChart(), 500);
+  }
+  
+  function addTradeMarkersToChart() {
+    if (!chartComponent || !trades || trades.length === 0) return;
+    
+    try {
+      console.log(`Attempting to add ${trades.length} trade markers to chart...`);
+      
+      // Debug: Print actual trade data first
+      console.log('🔍 RAW TRADE DATA:', JSON.stringify(trades[0], null, 2));
+      
+      // Get current time for comparison
+      const now = Date.now();
+      const nowSeconds = Math.floor(now / 1000);
+      console.log('🕐 Current time:', new Date().toISOString());
+      console.log('🕐 Current timestamp (ms):', now);
+      console.log('🕐 Current timestamp (s):', nowSeconds);
+      
+      // Convert trades to markers with proper timestamps
+      const markers = trades.map((trade, index) => {
+        // Convert timestamp to proper format (seconds since epoch)
+        let time = trade.timestamp;
+        const originalTime = time;
+        
+        if (time > 10000000000) {
+          time = Math.floor(time / 1000); // Convert milliseconds to seconds
+        }
+        
+        // Log timestamp conversion details
+        console.log(`📊 Trade ${index + 1} timestamp conversion:`);
+        console.log(`  - Original: ${originalTime} (${new Date(originalTime).toISOString()})`);
+        console.log(`  - Converted: ${time} (${new Date(time * 1000).toISOString()})`);
+        console.log(`  - Time difference from now: ${(nowSeconds - time) / 3600} hours`);
+        
+        // Use the actual trade timestamp - chart should show this time period
+        let markerTime = time;
+        
+        const marker = {
+          time: markerTime,
+          position: trade.side === 'buy' ? 'belowBar' : 'aboveBar',
+          color: trade.side === 'buy' ? '#26a69a' : '#ef5350', // Match candle colors
+          shape: trade.side === 'buy' ? 'arrowUp' : 'arrowDown',
+          text: `${trade.side.toUpperCase()}: $${trade.price?.toFixed(2) || trade.entryPrice?.toFixed(2)} (${new Date(originalTime * 1000).toLocaleTimeString()})`,
+          size: 1
+        };
+        
+        console.log(`  - Final marker:`, marker);
+        return marker;
+      });
+      
+      console.log('📊 FINAL MARKERS:', markers);
+      console.log('Chart time range - current candles visible from recent data');
+      
+      // Use the new addMarkers method
+      if (chartComponent && typeof chartComponent.addMarkers === 'function') {
+        try {
+          chartComponent.addMarkers(markers);
+          console.log(`✅ Added ${markers.length} trade markers to chart`);
+          
+          // Auto-scroll chart to show the trade timeframe
+          if (markers.length > 0) {
+            const oldestTradeTime = Math.min(...markers.map(m => m.time));
+            const newestTradeTime = Math.max(...markers.map(m => m.time));
+            console.log(`🎯 Scrolling chart to show trades from ${new Date(oldestTradeTime * 1000).toISOString()} to ${new Date(newestTradeTime * 1000).toISOString()}`);
+            
+            // Try to set the chart to show the trade time period
+            if (typeof chartComponent.getChart === 'function') {
+              const chart = chartComponent.getChart();
+              if (chart && chart.timeScale) {
+                // Set visible range to show trades with some padding
+                const padding = 3600; // 1 hour padding on each side
+                chart.timeScale().setVisibleRange({
+                  from: oldestTradeTime - padding,
+                  to: newestTradeTime + padding
+                });
+                console.log('📊 Chart time range updated to show trades');
+              }
+            }
+          }
+        } catch (markerError) {
+          console.error('Error calling addMarkers:', markerError);
+        }
+      } else {
+        console.error('Chart component does not have addMarkers method or chart not ready');
+        console.log('Available methods:', Object.keys(chartComponent || {}));
+      }
+    } catch (error) {
+      console.error('Error adding trade markers:', error);
+      console.error('Chart component:', chartComponent);
+      console.error('Trades:', trades);
+    }
+  }
+  
+  // Keep strategy type synced with store
+  $: if ($strategyStore.selectedType && $strategyStore.selectedType !== selectedStrategyType) {
+    selectedStrategyType = $strategyStore.selectedType;
+    console.log('Paper trading synced strategy from backtesting:', selectedStrategyType);
+  }
   
   // Bot manager state
   const managerStateStore = paperTradingManager.getState();
@@ -145,7 +343,8 @@
     { value: 'dca', label: 'Dollar Cost Averaging', description: 'Regular periodic purchases', isCustom: false },
     { value: 'vwap-bounce', label: 'VWAP Bounce', description: 'Trade VWAP support/resistance', isCustom: false },
     { value: 'micro-scalping', label: 'Micro Scalping', description: 'High-frequency trading', isCustom: false },
-    { value: 'proper-scalping', label: 'Proper Scalping', description: 'Professional scalping', isCustom: false }
+    { value: 'proper-scalping', label: 'Proper Scalping', description: 'Professional scalping', isCustom: false },
+    { value: 'ultra-micro-scalping', label: 'Ultra Micro Scalping', description: 'Hyper-aggressive 1-minute scalping', isCustom: false }
   ];
   
   let customStrategies: any[] = [];
@@ -156,6 +355,9 @@
   // Helper functions
   function handleStrategyChange(event: Event) {
     const select = event.target as HTMLSelectElement;
+    selectedStrategyType = select.value;
+    // Update the store so other pages stay in sync
+    strategyStore.setStrategy(select.value, {});
     paperTradingManager.selectStrategy(select.value);
   }
 
@@ -214,7 +416,33 @@
   
   // Trading control functions
   function startTrading() {
-    const activeBot = paperTradingManager.getActiveBot();
+    console.log('🚀 START TRADING BUTTON CLICKED!');
+    
+    // Send start command to backend via WebSocket
+    if (backendWs && backendConnected) {
+      console.log('Sending START command to backend...');
+      backendWs.send(JSON.stringify({
+        type: 'start',
+        config: {
+          strategyType: selectedStrategyType,
+          strategyConfig: {
+            initialDropPercent: 0.1,
+            levelDropPercent: 0.1,
+            profitTarget: 0.85,
+            maxLevels: 12,
+            basePositionPercent: 6
+          }
+        }
+      }));
+      return;
+    }
+    
+    // Fallback to old local logic if backend not connected
+    console.log('Backend not connected, trying local logic...');
+    try {
+      paperTradingManager.selectStrategy(selectedStrategyType);
+      const activeBot = paperTradingManager.getActiveBot();
+    
     if (activeBot && !isRunning) {
       // Reset recent high/low when starting
       recentHigh = currentPrice;
@@ -225,7 +453,13 @@
       
       switch (selectedStrategyType) {
         case 'reverse-ratio':
-          strategy = new ReverseRatioStrategy();
+          strategy = new ReverseRatioStrategy({
+            initialDropPercent: 0.1,
+            levelDropPercent: 0.1,
+            profitTarget: 0.85,
+            maxLevels: 12,
+            basePositionPercent: 6
+          });
           break;
         case 'grid-trading':
           strategy = new GridTradingStrategy();
@@ -245,43 +479,184 @@
         case 'proper-scalping':
           strategy = new ProperScalpingStrategy();
           break;
+        case 'ultra-micro-scalping':
+          strategy = new UltraMicroScalpingStrategy();
+          break;
       }
       
       if (strategy) {
+        console.log('Starting bot with strategy:', strategy.getName());
         activeBot.service.start(strategy, 'BTC-USD', balance);
-        isRunning = true;
-        isPaused = false;
+        
+        // Subscribe to bot state to update UI
+        const botState = activeBot.service.getState();
+        const currentBotState = get(botState);
+        isRunning = currentBotState.isRunning;
+        isPaused = currentBotState.isPaused || false;
+        
+        console.log('Trading started successfully', { isRunning, isPaused });
+      } else {
+        console.error('Failed to create strategy instance');
       }
+    } else {
+      console.warn('Cannot start trading:', { activeBot: !!activeBot, isRunning });
+    }
+    } catch (error) {
+      console.error('Error in startTrading:', error);
+      alert('Error: ' + error.message);
     }
   }
   
-  function stopTrading() {
+  
+  function pauseTrading() {
+    console.log('pauseTrading called');
+    
+    // Send pause command to backend via WebSocket
+    if (backendWs && backendConnected) {
+      console.log('Sending PAUSE command to backend...');
+      backendWs.send(JSON.stringify({ type: 'pause' }));
+      return;
+    }
+    
+    // Fallback to local logic
     const activeBot = paperTradingManager.getActiveBot();
     if (activeBot) {
-      activeBot.service.stop();
+      activeBot.service.setPaused(true);
+      const botState = activeBot.service.getState();
+      const currentBotState = get(botState);
+      isPaused = currentBotState.isPaused || false;
+    } else {
       isRunning = false;
       isPaused = false;
     }
   }
   
-  function pauseTrading() {
-    const activeBot = paperTradingManager.getActiveBot();
-    if (activeBot) {
-      activeBot.service.setPaused(true);
-      isPaused = true;
-    }
-  }
-  
   function resumeTrading() {
+    console.log('resumeTrading called');
+    
+    // Send resume command to backend via WebSocket
+    if (backendWs && backendConnected) {
+      console.log('Sending RESUME command to backend...');
+      backendWs.send(JSON.stringify({ type: 'resume' }));
+      return;
+    }
+    
+    // Fallback to local logic
     const activeBot = paperTradingManager.getActiveBot();
     if (activeBot) {
       activeBot.service.setPaused(false);
-      isPaused = false;
+      const botState = activeBot.service.getState();
+      const currentBotState = get(botState);
+      isPaused = currentBotState.isPaused || false;
     }
   }
   
   
+  function feedPriceToStrategy(activeBot: any, price: number) {
+    try {
+      const botState = activeBot.service.getState();
+      const currentBotState = get(botState);
+      
+      if (currentBotState.strategy && currentBotState.isRunning) {
+        // Create a candle data object for the strategy
+        const candleData = {
+          time: Math.floor(Date.now() / 1000),
+          open: price,
+          high: price,
+          low: price,
+          close: price,
+          volume: 0
+        };
+        
+        // Process the price through the strategy
+        const signal = currentBotState.strategy.onCandle(candleData, currentBotState.strategy.getState());
+        
+        if (signal && (signal.action === 'buy' || signal.action === 'sell')) {
+          console.log('Strategy generated signal:', signal);
+          
+          // Execute the trade through the paper trading service
+          executeTradeFromSignal(activeBot, signal, price);
+        }
+      }
+    } catch (error) {
+      console.error('Error feeding price to strategy:', error);
+    }
+  }
+  
+  function executeTradeFromSignal(activeBot: any, signal: any, price: number) {
+    try {
+      const botService = activeBot.service;
+      const currentState = get(botService.getState());
+      
+      if (signal.action === 'buy') {
+        // Calculate buy amount based on available balance
+        const buyAmount = Math.min(signal.amount || 100, currentState.balance.usd);
+        if (buyAmount > 0) {
+          const btcAmount = buyAmount / price;
+          console.log(`Executing BUY: $${buyAmount.toFixed(2)} at $${price.toFixed(2)} = ${btcAmount.toFixed(6)} BTC`);
+          
+          // Update bot state with trade
+          botService.getState().update(state => ({
+            ...state,
+            balance: {
+              ...state.balance,
+              usd: state.balance.usd - buyAmount,
+              btcPositions: state.balance.btcPositions + btcAmount
+            },
+            trades: [...state.trades, {
+              id: Date.now(),
+              timestamp: Date.now(),
+              type: 'buy',
+              price: price,
+              amount: btcAmount,
+              value: buyAmount,
+              fees: buyAmount * 0.001 // 0.1% fee
+            }]
+          }));
+        }
+      } else if (signal.action === 'sell') {
+        // Calculate sell amount based on available BTC
+        const sellAmount = Math.min(signal.amount || currentState.balance.btcPositions, currentState.balance.btcPositions);
+        if (sellAmount > 0) {
+          const usdAmount = sellAmount * price;
+          console.log(`Executing SELL: ${sellAmount.toFixed(6)} BTC at $${price.toFixed(2)} = $${usdAmount.toFixed(2)}`);
+          
+          // Update bot state with trade
+          botService.getState().update(state => ({
+            ...state,
+            balance: {
+              ...state.balance,
+              usd: state.balance.usd + usdAmount,
+              btcPositions: state.balance.btcPositions - sellAmount
+            },
+            trades: [...state.trades, {
+              id: Date.now(),
+              timestamp: Date.now(),
+              type: 'sell',
+              price: price,
+              amount: sellAmount,
+              value: usdAmount,
+              fees: usdAmount * 0.001 // 0.1% fee
+            }]
+          }));
+        }
+      }
+      
+      // Update UI with latest bot state
+      const updatedState = get(botService.getState());
+      balance = updatedState.balance.usd;
+      btcBalance = updatedState.balance.btcPositions;
+      trades = updatedState.trades;
+      
+    } catch (error) {
+      console.error('Error executing trade from signal:', error);
+    }
+  }
+
   function clearBotData() {
+    console.log('clearBotData/reset called');
+    
+    // ALWAYS reset UI state immediately when reset is clicked
     isRunning = false;
     isPaused = false;
     balance = 10000;
@@ -292,11 +667,46 @@
     trades = [];
     totalReturn = 0;
     winRate = 0;
-    totalFees = 0;
-    totalRebates = 0;
-    startingBalanceGrowth = 0;
-    currentStrategy = null;
-    strategyParameters = {};
+    console.log('✅ UI state reset to initial values');
+    
+    // Clear chart markers
+    if (chartComponent && typeof chartComponent.clearMarkers === 'function') {
+      console.log('🧹 Clearing chart markers...');
+      chartComponent.clearMarkers();
+      console.log('✅ Chart markers cleared');
+    } else if (chartComponent && typeof chartComponent.addMarkers === 'function') {
+      console.log('🧹 Clearing chart markers via addMarkers([])...');
+      chartComponent.addMarkers([]);
+      console.log('✅ Chart markers cleared');
+    }
+    
+    // Send stop and reset commands to backend via WebSocket
+    if (backendWs && backendConnected) {
+      console.log('Sending STOP command to backend...');
+      backendWs.send(JSON.stringify({ 
+        type: 'stop', 
+        botId: 'reverse-ratio-bot-1' 
+      }));
+      
+      // Then reset the bot state
+      setTimeout(() => {
+        console.log('Sending RESET command to backend...');
+        backendWs.send(JSON.stringify({ 
+          type: 'reset', 
+          botId: 'reverse-ratio-bot-1' 
+        }));
+      }, 200);
+      return;
+    }
+    
+    // Fallback to local logic
+    const activeBot = paperTradingManager.getActiveBot();
+    if (activeBot) {
+      console.log('Stopping active bot:', activeBot.id);
+      activeBot.service.resetStrategy();
+    }
+    
+    console.log('Bot data cleared, UI reset to initial state');
   }
   
   function handleBotTabSelect(event: CustomEvent) {
@@ -463,6 +873,12 @@
           }
           if (recentLow === 0 || price < recentLow) {
             recentLow = price;
+          }
+          
+          // Feed price to active bot strategy
+          const activeBot = paperTradingManager.getActiveBot();
+          if (activeBot && activeBot.service) {
+            feedPriceToStrategy(activeBot, price);
           }
         }
       });
@@ -705,7 +1121,6 @@
             on:strategyChange={(e) => handleStrategyChange({ target: { value: e.detail.value } })}
             on:balanceChange={handleBalanceChange}
             on:start={startTrading}
-            on:stop={stopTrading}
             on:pause={pauseTrading}
             on:resume={resumeTrading}
             on:selectBot={handleBotTabSelect}

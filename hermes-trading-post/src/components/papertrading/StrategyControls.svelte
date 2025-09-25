@@ -36,12 +36,12 @@
   }
   
   function startTrading() {
+    console.log('StrategyControls startTrading clicked!');
+    console.log('Dispatching start event...');
     dispatch('start');
+    console.log('Start event dispatched');
   }
   
-  function stopTrading() {
-    dispatch('stop');
-  }
   
   function pauseTrading() {
     dispatch('pause');
@@ -57,7 +57,8 @@
   
   function getBotStatus(bot: any): 'idle' | 'running' | 'paused' | 'empty' {
     if (!bot) return 'empty';
-    if (bot.id === activeBotInstance?.id) {
+    // For Bot 1 (reverse-ratio bot), use the backend status
+    if (bot.name === 'Bot 1' || bot.id === 'reverse-ratio-bot-1') {
       return isRunning ? (isPaused ? 'paused' : 'running') : 'idle';
     }
     return bot.status || 'idle';
@@ -181,18 +182,18 @@
             <span class="btn-icon">▶</span>
             Resume
           </button>
-          <button class="control-btn stop-btn" on:click={stopTrading}>
-            <span class="btn-icon">■</span>
-            Stop
+          <button class="control-btn reset-btn" on:click={() => dispatch('reset')}>
+            <span class="btn-icon">↻</span>
+            Reset
           </button>
         {:else}
           <button class="control-btn pause-btn" on:click={pauseTrading}>
             <span class="btn-icon">⏸</span>
             Pause
           </button>
-          <button class="control-btn stop-btn" on:click={stopTrading}>
-            <span class="btn-icon">■</span>
-            Stop
+          <button class="control-btn reset-btn" on:click={() => dispatch('reset')}>
+            <span class="btn-icon">↻</span>
+            Reset
           </button>
         {/if}
       </div>

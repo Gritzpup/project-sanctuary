@@ -160,7 +160,8 @@ export class BotManager {
       'dca',
       'vwap-bounce',
       'micro-scalping',
-      'proper-scalping'
+      'proper-scalping',
+      'ultra-micro-scalping'
     ];
 
     // First, check which bots already exist by looking for state files

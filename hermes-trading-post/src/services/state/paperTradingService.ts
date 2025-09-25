@@ -204,9 +204,7 @@ class PaperTradingService {
           strategy = new strategies.MicroScalpingStrategy(savedState.strategyConfig);
           break;
         case 'Ultra Micro-Scalping':
-          // This is a custom strategy, can't create it here
-          console.log('PaperTradingService: Ultra Micro-Scalping is a custom strategy, deferring creation');
-          strategy = null;
+          strategy = new strategies.UltraMicroScalpingStrategy(savedState.strategyConfig);
           break;
         case 'Proper Scalping':
           strategy = new strategies.ProperScalpingStrategy(savedState.strategyConfig);

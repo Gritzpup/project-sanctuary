@@ -58,11 +58,14 @@ tail -f ~/.terminal-logs/all.log
 - Always wait for user approval before committing
 - Ask "Should I commit these changes?" when work is complete
 
-## 📊 Tilt Integration
+## 📊 Tilt Integration (CRITICAL)
+- **ALWAYS** use Tilt for starting/stopping services
+- **NEVER** run manual bash commands for backend servers
 - Browser-monitor runs silently (no console spam to Tilt)
 - Access Tilt UI at http://localhost:10350 for service status
 - Paper trading backend is in the "sanctuary" section
 - Use browser-monitor logs instead of Tilt logs for frontend debugging
+- Use `tilt trigger [resource-name]` to restart services
 
 ## 🎯 Important Reminders
 1. Browser logs are the primary source for frontend debugging

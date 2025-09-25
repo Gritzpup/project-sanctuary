@@ -147,6 +147,24 @@ wss.on('connection', (ws) => {
             }));
           }
           break;
+        case 'subscribe':
+          // Chart subscription - acknowledge but don't do anything special for now
+          console.log('Chart subscription received:', data.pair, data.granularity);
+          ws.send(JSON.stringify({
+            type: 'subscribed',
+            pair: data.pair,
+            granularity: data.granularity
+          }));
+          break;
+        case 'unsubscribe':
+          // Chart unsubscription - acknowledge but don't do anything special for now
+          console.log('Chart unsubscription received:', data.pair, data.granularity);
+          ws.send(JSON.stringify({
+            type: 'unsubscribed',
+            pair: data.pair,
+            granularity: data.granularity
+          }));
+          break;
         default:
           console.log('Unknown message type:', data.type);
       }

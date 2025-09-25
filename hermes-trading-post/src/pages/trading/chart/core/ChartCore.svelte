@@ -165,6 +165,28 @@
   export function getChart(): IChartApi | null {
     return chartCanvas?.getChart() || null;
   }
+  
+  export function addMarkers(markers: any[]) {
+    if (!chartCanvas) {
+      console.error('ChartCore: ChartCanvas not available for adding markers');
+      return;
+    }
+    console.log('ChartCore: Forwarding addMarkers to ChartCanvas with', markers.length, 'markers');
+    chartCanvas.addMarkers(markers);
+  }
+  
+  export function addMarker(marker: any) {
+    addMarkers([marker]);
+  }
+  
+  export function clearMarkers() {
+    if (!chartCanvas) {
+      console.error('ChartCore: ChartCanvas not available for clearing markers');
+      return;
+    }
+    console.log('ChartCore: Forwarding clearMarkers to ChartCanvas');
+    chartCanvas.clearMarkers();
+  }
 </script>
 
 <div class="chart-core">

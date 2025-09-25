@@ -147,9 +147,42 @@
   export function fitContent(): void {
     chartCore?.fitContent();
   }
+  
+  export function addMarkers(markers: any[]): void {
+    if (!chartCore) {
+      console.error('ChartCore not available for adding markers');
+      return;
+    }
+    
+    // Try the bulk method first
+    if (typeof chartCore.addMarkers === 'function') {
+      chartCore.addMarkers(markers);
+    } else {
+      // Fallback: add markers one by one
+      console.log('Using fallback: adding markers one by one');
+      markers.forEach(marker => {
+        if (typeof chartCore.addMarker === 'function') {
+          chartCore.addMarker(marker);
+        }
+      });
+    }
+  }
 
   export function scrollToCurrentCandle(): void {
     chartCore?.scrollToCurrentCandle();
+  }
+  
+  export function clearMarkers(): void {
+    if (!chartCore) {
+      console.error('ChartCore not available for clearing markers');
+      return;
+    }
+    
+    if (typeof chartCore.clearMarkers === 'function') {
+      chartCore.clearMarkers();
+    } else {
+      console.error('ChartCore does not have clearMarkers method');
+    }
   }
 </script>
 

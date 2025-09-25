@@ -209,6 +209,11 @@
       candleSeries.setData(dataStore.candles);
       performanceStore.recordRenderTime(performance.now() - startTime);
       console.log('Chart data updated successfully');
+      
+      // Auto-scroll to current candle after data update
+      setTimeout(() => {
+        scrollToCurrentCandle();
+      }, 100);
     } catch (error) {
       console.error('ChartCanvas: Error updating data:', error);
       statusStore.setError('Failed to update chart data');
@@ -393,6 +398,42 @@
     } catch (error) {
       console.error('Error scrolling to current candle:', error);
     }
+  }
+  
+  export function addMarkers(markers: any[]) {
+    if (!candleSeries) {
+      console.error('ChartCanvas: Cannot add markers - series not ready');
+      return;
+    }
+    
+    if (!markers || markers.length === 0) {
+      console.log('ChartCanvas: Clearing all markers from chart');
+      candleSeries.setMarkers([]);
+      console.log('✅ ChartCanvas: All markers cleared from chart');
+      return;
+    }
+    
+    console.log('ChartCanvas: Adding', markers.length, 'markers to candlestick series');
+    try {
+      candleSeries.setMarkers(markers);
+      console.log('✅ ChartCanvas: Successfully added markers to chart');
+    } catch (error) {
+      console.error('❌ ChartCanvas: Error setting markers:', error);
+    }
+  }
+  
+  export function clearMarkers() {
+    if (!candleSeries) {
+      console.error('ChartCanvas: Cannot clear markers - series not ready');
+      return;
+    }
+    console.log('ChartCanvas: Clearing all markers from chart');
+    candleSeries.setMarkers([]);
+    console.log('✅ ChartCanvas: All markers cleared from chart');
+  }
+  
+  export function addMarker(marker: any) {
+    addMarkers([marker]);
   }
   
 </script>

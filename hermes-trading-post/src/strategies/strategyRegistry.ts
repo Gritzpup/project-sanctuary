@@ -4,6 +4,7 @@ import { RSIMeanReversionStrategy } from './implementations/RSIMeanReversionStra
 import { DCAStrategy } from './implementations/DCAStrategy';
 import { VWAPBounceStrategy } from './implementations/VWAPBounceStrategy';
 import { MicroScalpingStrategy } from './implementations/MicroScalpingStrategy';
+import { UltraMicroScalpingStrategy } from './implementations/UltraMicroScalpingStrategy';
 import { ProperScalpingStrategy } from './implementations/ProperScalpingStrategy';
 import type { Strategy } from './base/Strategy';
 
@@ -64,6 +65,14 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
     category: 'Scalping',
     riskLevel: 'High',
     StrategyClass: MicroScalpingStrategy
+  },
+  'ultra-micro-scalping': {
+    id: 'ultra-micro-scalping',
+    name: 'Ultra Micro-Scalping',
+    description: 'Hyper-aggressive 1-minute scalping with 0.15% drops and 0.4% profit targets.',
+    category: 'Scalping',
+    riskLevel: 'High',
+    StrategyClass: UltraMicroScalpingStrategy
   },
   properScalping: {
     id: 'properScalping',
