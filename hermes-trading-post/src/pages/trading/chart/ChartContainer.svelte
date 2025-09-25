@@ -43,28 +43,37 @@
   
   // Initialize plugins
   async function initializePlugins() {
+    console.log('🔧 initializePlugins called, enablePlugins:', enablePlugins, 'chartCore:', !!chartCore);
     if (!enablePlugins || !chartCore) return;
     
     pluginManager = chartCore.getPluginManager();
     if (!pluginManager) return;
     
     // Register default plugins
+    console.log('🔧 Registering default plugins:', defaultPlugins);
     for (const pluginName of defaultPlugins) {
+      console.log('🔧 Processing plugin:', pluginName);
       const plugin = createDefaultPlugin(pluginName);
       if (plugin) {
+        console.log('🔧 Plugin created, registering with PluginManager');
         try {
           await pluginManager.register(plugin);
+          console.log('✅ Successfully registered plugin:', pluginName);
         } catch (error) {
-          console.error(`Failed to register ${pluginName} plugin:`, error);
+          console.error(`❌ Failed to register ${pluginName} plugin:`, error);
         }
+      } else {
+        console.warn('⚠️ Failed to create plugin:', pluginName);
       }
     }
   }
   
   // Create default plugin instances
   function createDefaultPlugin(name: string): Plugin | null {
+    console.log('🔧 createDefaultPlugin called with name:', name);
     switch (name) {
       case 'volume':
+        console.log('🔊 Creating VolumePlugin in createDefaultPlugin');
         return new VolumePlugin();
       case 'sma20':
         return new SMAPlugin({ period: 20, color: '#2196F3' });
