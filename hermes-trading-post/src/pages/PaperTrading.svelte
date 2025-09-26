@@ -233,26 +233,8 @@
           chartComponent.addMarkers(markers);
           console.log(`✅ Added ${markers.length} trade markers to chart`);
           
-          // Auto-scroll chart to show the trade timeframe
-          if (markers.length > 0) {
-            const oldestTradeTime = Math.min(...markers.map(m => m.time));
-            const newestTradeTime = Math.max(...markers.map(m => m.time));
-            console.log(`🎯 Scrolling chart to show trades from ${new Date(oldestTradeTime * 1000).toISOString()} to ${new Date(newestTradeTime * 1000).toISOString()}`);
-            
-            // Try to set the chart to show the trade time period
-            if (typeof chartComponent.getChart === 'function') {
-              const chart = chartComponent.getChart();
-              if (chart && chart.timeScale) {
-                // Set visible range to show trades with some padding
-                const padding = 3600; // 1 hour padding on each side
-                chart.timeScale().setVisibleRange({
-                  from: oldestTradeTime - padding,
-                  to: newestTradeTime + padding
-                });
-                console.log('📊 Chart time range updated to show trades');
-              }
-            }
-          }
+          // Auto-scroll disabled to prevent chart zoom instability
+          // The chart will maintain its current zoom level and show markers when they fall within the visible range
         } catch (markerError) {
           console.error('Error calling addMarkers:', markerError);
         }

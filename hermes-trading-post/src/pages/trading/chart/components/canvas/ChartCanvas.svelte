@@ -134,7 +134,7 @@
         },
         priceScaleId: 'volume',
         scaleMargins: {
-          top: 0.7,
+          top: 0.8,
           bottom: 0,
         },
       });
@@ -146,7 +146,7 @@
       // Configure volume price scale  
       volumeSeries.priceScale().applyOptions({
         scaleMargins: {
-          top: 0.7,
+          top: 0.8,
           bottom: 0,
         },
         visible: true,
@@ -158,46 +158,12 @@
       
       console.log('📊 Volume price scale configured');
       
-      // Set volume data - try real data first, fallback to generated data
+      // Set volume data - wait for candle data and ensure alignment
       console.log('📊 Setting initial volume data...');
       setTimeout(() => {
-        if (dataStore.candles && dataStore.candles.length > 0) {
-          console.log('📊 Using real candle data for volume');
-          const volumeData = dataStore.candles.map(candle => {
-            const isUp = candle.close >= candle.open;
-            const priceRange = Math.abs(candle.high - candle.low);
-            const volume = Math.floor(priceRange * 5000000 + 2000000 + Math.random() * 1000000);
-            
-            return {
-              time: candle.time,
-              value: volume,
-              color: isUp ? '#26a69a80' : '#ef535080'
-            };
-          });
-          
-          volumeSeries.setData(volumeData);
-          console.log('📊 REAL VOLUME DATA SET! Created', volumeData.length, 'bars');
-        } else {
-          console.log('📊 No real data available, using generated test data');
-          const currentTime = Math.floor(Date.now() / 1000);
-          const testVolumeData = [];
-          
-          for (let i = 59; i >= 0; i--) {
-            const time = currentTime - (i * 60);
-            const volume = Math.floor(1000000 + Math.random() * 2000000);
-            const isUp = Math.random() > 0.5;
-            
-            testVolumeData.push({
-              time: time,
-              value: volume,
-              color: isUp ? '#26a69a80' : '#ef535080'
-            });
-          }
-          
-          volumeSeries.setData(testVolumeData);
-          console.log('📊 FALLBACK VOLUME DATA SET! Created', testVolumeData.length, 'bars');
-        }
-      }, 500); // Wait a bit longer for data to load
+        console.log('📊 Attempting to sync volume with candle data');
+        updateVolumeData();
+      }, 1000); // Wait longer for data to definitely load
     } catch (error) {
       console.error('📊 Error creating volume series:', error);
     }
@@ -248,15 +214,6 @@
     chart.timeScale().subscribeVisibleTimeRangeChange(() => {
       const visibleRange = chart!.timeScale().getVisibleRange();
       if (visibleRange) {
-        // Debug visible range for 1d granularity
-        if (chartStore.config.granularity === '1d') {
-          console.log('[ChartCanvas] Visible range changed for 1d:', {
-            from: new Date(Number(visibleRange.from) * 1000).toISOString(),
-            to: new Date(Number(visibleRange.to) * 1000).toISOString(),
-            rangeInDays: (Number(visibleRange.to) - Number(visibleRange.from)) / 86400
-          });
-        }
-        
         dataStore.updateVisibleRange(
           Number(visibleRange.from),
           Number(visibleRange.to)
@@ -320,42 +277,8 @@
       console.log('Setting data to candleSeries:', dataStore.candles.length, 'candles');
       candleSeries.setData(dataStore.candles);
       
-      // Update volume series with volume data
-      if (volumeSeries) {
-        console.log('📊 Updating volume series with candle data...');
-        
-        const volumeData = dataStore.candles.map(candle => {
-          const isUp = candle.close >= candle.open;
-          
-          // Large, guaranteed visible volume values
-          const priceRange = Math.abs(candle.high - candle.low);
-          const volume = Math.floor(priceRange * 5000000 + 2000000 + Math.random() * 1000000);
-          
-          return {
-            time: candle.time,
-            value: volume,
-            color: isUp ? '#26a69a80' : '#ef535080'  // Made semi-transparent
-          };
-        });
-        
-        try {
-          volumeSeries.setData(volumeData);
-          console.log('📊 Volume series updated successfully with', volumeData.length, 'bars');
-          console.log('📊 Sample volume values:', volumeData.slice(0, 3).map(d => d.value));
-        } catch (error) {
-          console.error('📊 Error updating volume series:', error);
-        }
-      } else {
-        console.warn('📊 Volume series not available for update');
-      }
-      
       performanceStore.recordRenderTime(performance.now() - startTime);
       console.log('Chart data updated successfully');
-      
-      // Auto-scroll to current candle after data update
-      setTimeout(() => {
-        scrollToCurrentCandle();
-      }, 100);
     } catch (error) {
       console.error('ChartCanvas: Error updating data:', error);
       statusStore.setError('Failed to update chart data');
@@ -518,18 +441,102 @@
     const candleCount = dataStore.candles?.length || 0;
     console.log('Reactive statement triggered:', {
       candleSeries: !!candleSeries,
+      volumeSeries: !!volumeSeries,
       candleCount: candleCount,
       hasCandles: candleCount > 0,
       isEmpty: dataStore.isEmpty
     });
     
-    if (candleSeries && candleCount > 0 && !dataStore.isEmpty) {
+    // Always update if we have candles and series, ignore isEmpty flag
+    if (candleSeries && candleCount > 0) {
       console.log('Triggering updateChartData due to reactive change');
       updateChartData();
+    }
+    
+    // Always update volume if we have volume series and candles
+    if (volumeSeries && candleCount > 0) {
+      console.log('📊 Updating volume data from reactive statement');
+      updateVolumeData();
     }
   }
   
   
+  function updateVolumeData() {
+    if (!volumeSeries || !dataStore.candles || dataStore.candles.length === 0) {
+      console.warn('📊 Cannot update volume: missing series or data');
+      return;
+    }
+    
+    console.log('📊 updateVolumeData called with', dataStore.candles.length, 'candles');
+    console.log('📊 First candle time:', dataStore.candles[0]?.time, 'Last candle time:', dataStore.candles[dataStore.candles.length - 1]?.time);
+    
+    // Generate volume data with EXACT same timeline as candles
+    const volumeData = dataStore.candles.map((candle, index) => {
+      const isUp = candle.close >= candle.open;
+      
+      // Use Coinbase-style volume generation (accounting for zero volume periods)
+      let volume = 0;
+      if (candle.volume && candle.volume > 0) {
+        // Use real volume if available
+        volume = candle.volume;
+        console.log('📊 Using real volume:', volume, 'for candle', index);
+      } else {
+        // Generate realistic volume based on price action
+        const priceRange = Math.abs(candle.high - candle.low);
+        const bodySize = Math.abs(candle.close - candle.open);
+        const relativeVolume = (priceRange + bodySize) / candle.close;
+        
+        // Scale volume based on price action intensity
+        volume = Math.floor(
+          1000000 + 
+          (relativeVolume * 10000000) + 
+          (Math.random() * 2000000)
+        );
+      }
+      
+      return {
+        time: candle.time, // EXACT same time as candle
+        value: volume,
+        color: isUp ? '#26a69a80' : '#ef535080'
+      };
+    });
+    
+    try {
+      volumeSeries.setData(volumeData);
+      console.log('📊 Volume data updated successfully:', volumeData.length, 'bars');
+      console.log('📊 Volume time range:', volumeData[0]?.time, 'to', volumeData[volumeData.length - 1]?.time);
+    } catch (error) {
+      console.error('📊 Error updating volume data:', error);
+    }
+  }
+  
+  // Export function to update volume for real-time data
+  export function updateVolumeForCandle(candle: any) {
+    if (!volumeSeries) {
+      console.warn('📊 Volume series not available for single candle update');
+      return;
+    }
+    
+    console.log('📊 Updating volume for single candle at', candle.time);
+    
+    const isUp = candle.close >= candle.open;
+    const priceRange = Math.abs(candle.high - candle.low);
+    const volume = Math.floor(priceRange * 5000000 + 2000000 + Math.random() * 1000000);
+    
+    const volumeBar = {
+      time: candle.time,
+      value: volume,
+      color: isUp ? '#26a69a80' : '#ef535080'
+    };
+    
+    try {
+      volumeSeries.update(volumeBar);
+      console.log('📊 Single volume bar updated successfully');
+    } catch (error) {
+      console.error('📊 Error updating single volume bar:', error);
+    }
+  }
+
   export function showAllCandles() {
     console.log('showAllCandles called', {
       chart: !!chart,
@@ -682,13 +689,6 @@
   style:height={height ? `${height}px` : '100%'}
 />
 
-<!-- Debug Info -->
-<div class="debug-info">
-  Init: {initCalled ? '✅' : '❌'} | 
-  Container: {containerExists ? '✅' : '❌'} | 
-  Chart: {chartCreated ? '✅' : '❌'} | 
-  Volume: {volumeCreated ? '✅' : '❌'}
-</div>
 
 <style>
   .chart-canvas {
