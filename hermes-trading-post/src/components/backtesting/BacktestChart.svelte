@@ -154,7 +154,7 @@
           color: trade.type === 'buy' ? '#26a69a' : '#ef5350',  // Match candle colors
           shape: trade.type === 'buy' ? 'arrowUp' : 'arrowDown',
           size: 2,  // Standard size
-          text: `${trade.type.toUpperCase()} @ $${trade.price.toLocaleString()}`
+          text: ''
         };
       });
       

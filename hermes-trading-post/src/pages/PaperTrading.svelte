@@ -216,7 +216,7 @@
           position: trade.side === 'buy' ? 'belowBar' : 'aboveBar',
           color: trade.side === 'buy' ? '#26a69a' : '#ef5350', // Match candle colors
           shape: trade.side === 'buy' ? 'arrowUp' : 'arrowDown',
-          text: `${trade.side.toUpperCase()}: $${trade.price?.toFixed(2) || trade.entryPrice?.toFixed(2)} (${new Date(originalTime * 1000).toLocaleTimeString()})`,
+          text: '',
           size: 1
         };
         

@@ -470,12 +470,30 @@ export class TradingService extends EventEmitter {
     // Wait for price if we don't have one yet
     if (!this.currentPrice || this.currentPrice === 0) {
       console.log('WARNING: No price available yet, waiting for WebSocket price...');
-      // Set up a listener to start trading once we get a price
-      const waitForPrice = setInterval(() => {
+      
+      // Clear any existing price wait interval to prevent leaks
+      if (this.waitForPriceInterval) {
+        clearInterval(this.waitForPriceInterval);
+        this.waitForPriceInterval = null;
+      }
+      
+      // Set up a listener to start trading once we get a price with timeout
+      let attempts = 0;
+      const maxAttempts = 300; // 30 seconds timeout (300 * 100ms)
+      
+      this.waitForPriceInterval = setInterval(() => {
+        attempts++;
+        
         if (this.currentPrice > 0) {
-          clearInterval(waitForPrice);
+          clearInterval(this.waitForPriceInterval);
+          this.waitForPriceInterval = null;
           console.log('Price received, starting trading logic:', this.currentPrice);
           this.startTradingInterval();
+        } else if (attempts >= maxAttempts) {
+          clearInterval(this.waitForPriceInterval);
+          this.waitForPriceInterval = null;
+          console.error('Timeout waiting for price after 30 seconds, stopping trading attempt');
+          this.stopTrading();
         }
       }, 100);
       return;
@@ -565,6 +583,11 @@ export class TradingService extends EventEmitter {
     if (this.stateSaveInterval) {
       clearInterval(this.stateSaveInterval);
       this.stateSaveInterval = null;
+    }
+    
+    if (this.waitForPriceInterval) {
+      clearInterval(this.waitForPriceInterval);
+      this.waitForPriceInterval = null;
     }
     
     // Clear strategy to prevent any lingering analysis
