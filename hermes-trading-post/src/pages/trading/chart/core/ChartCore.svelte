@@ -193,7 +193,8 @@
   <ChartCanvas 
     bind:this={chartCanvas}
     onChartReady={(chart) => {
-      console.log('ChartCore: Canvas ready');
+      console.log('🎯 ChartCore: Canvas ready, chart instance:', !!chart);
+      console.log('🎯 ChartCore: Canvas ready fired');
     }}
   />
   

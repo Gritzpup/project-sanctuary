@@ -25,7 +25,7 @@
   export let showStatus: boolean = true;
   export let showInfo: boolean = true;
   export let showDebug: boolean = false;
-  export let enablePlugins: boolean = true;
+  export let enablePlugins: boolean = false;
   export let defaultPlugins: string[] = ['volume'];
   export let multiPane: boolean = false;
   export let onReady: ((chart: IChartApi, pluginManager: PluginManager | null) => void) | undefined = undefined;
