@@ -161,6 +161,27 @@ export class ChartAPIService {
         volume: candle.volume || 0
       }));
       
+      // Debug volume data for all granularities
+      console.log(`[ChartAPIService] 📊 API returned ${transformedCandles.length} candles for ${granularity}`);
+      if (transformedCandles.length > 0) {
+        const sampleCandle = transformedCandles[0];
+        const lastCandle = transformedCandles[transformedCandles.length - 1];
+        console.log('📊 Sample first candle:', {
+          time: new Date(sampleCandle.time * 1000).toISOString(),
+          volume: sampleCandle.volume,
+          price: sampleCandle.close
+        });
+        console.log('📊 Sample last candle:', {
+          time: new Date(lastCandle.time * 1000).toISOString(), 
+          volume: lastCandle.volume,
+          price: lastCandle.close
+        });
+        
+        // Count candles with volume > 0
+        const candlesWithVolume = transformedCandles.filter(c => c.volume > 0).length;
+        console.log(`📊 Candles with volume > 0: ${candlesWithVolume}/${transformedCandles.length}`);
+      }
+      
       if (granularity === '1d' || granularity === '1D') {
         ChartDebug.critical(`[PERF END] fetchCandles completed in ${performance.now() - fetchStartTime}ms`);
         ChartDebug.critical(`[PERF] Returned ${transformedCandles.length} candles`);

@@ -62,9 +62,9 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   }
 
   /**
-   * Update live candle with new price data
+   * Update live candle with new price data and corresponding volume
    */
-  function updateLiveCandleWithPrice(price: number, chartSeries?: ISeriesApi<'Candlestick'>) {
+  function updateLiveCandleWithPrice(price: number, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any) {
     if (!chartSeries) return;
     
     const candles = dataStore.candles;
@@ -94,6 +94,28 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       chartSeries.setData(updatedCandles);
       statusStore.setNewCandle();
       
+      // Update volume series if available
+      if (volumeSeries) {
+        console.log('📊 Creating new volume bar for new candle');
+        const isUp = newCandle.close >= newCandle.open;
+        
+        // Use real volume from candle data (will be 0 for new candles, but gets updated)
+        const volume = (newCandle as any).volume || 0;
+        
+        const volumeBar = {
+          time: newCandle.time,
+          value: volume,
+          color: isUp ? '#26a69a80' : '#ef535080'
+        };
+        
+        try {
+          volumeSeries.update(volumeBar);
+          console.log('📊 NEW volume bar added successfully with volume:', volume);
+        } catch (error) {
+          console.error('📊 Error adding new volume bar:', error);
+        }
+      }
+      
       // Maintain 60 candle zoom level after new candle creation
       maintainCandleZoom(chartSeries, updatedCandles);
       
@@ -120,6 +142,27 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       chartSeries.update(updatedCandle);
       statusStore.setPriceUpdate();
       
+      // Update volume series for current candle if available
+      if (volumeSeries) {
+        const isUp = updatedCandle.close >= updatedCandle.open;
+        
+        // Use real volume from candle data
+        const volume = (updatedCandle as any).volume || 0;
+        
+        const volumeBar = {
+          time: updatedCandle.time,
+          value: volume,
+          color: isUp ? '#26a69a80' : '#ef535080'
+        };
+        
+        try {
+          volumeSeries.update(volumeBar);
+          console.log('📊 Volume bar updated for current candle with real volume:', volume);
+        } catch (error) {
+          console.error('📊 Error updating volume bar:', error);
+        }
+      }
+      
       // Ensure status stays ready during price updates
       if (statusStore.status !== 'ready') {
         statusStore.setReady();
@@ -135,7 +178,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   /**
    * Subscribe to real-time data streams
    */
-  function subscribeToRealtime(config: RealtimeSubscriptionConfig, chartSeries?: ISeriesApi<'Candlestick'>) {
+  function subscribeToRealtime(config: RealtimeSubscriptionConfig, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any) {
     const { pair, granularity } = config;
     
     // Use dataStore to connect to backend WebSocket instead of Coinbase directly
@@ -143,7 +186,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       pair,
       granularity,
       (candleData) => {
-        updateLiveCandleWithPrice(candleData.close, chartSeries);
+        updateLiveCandleWithPrice(candleData.close, chartSeries, volumeSeries);
         statusStore.setPriceUpdate();
       },
       () => {
@@ -168,7 +211,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // Subscribe to ticker updates as backup price source
       const unsubscribe = coinbaseWebSocket.subscribe((tickerData) => {
         if (tickerData.product_id === 'BTC-USD' && tickerData.price) {
-          updateLiveCandleWithPrice(parseFloat(tickerData.price), chartSeries);
+          updateLiveCandleWithPrice(parseFloat(tickerData.price), chartSeries, volumeSeries);
           // Update status to show we're receiving real-time data
           statusStore.setReady();
         }

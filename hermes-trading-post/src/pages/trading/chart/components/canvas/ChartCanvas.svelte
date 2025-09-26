@@ -162,8 +162,15 @@
       console.log('📊 Setting initial volume data...');
       setTimeout(() => {
         console.log('📊 Attempting to sync volume with candle data');
-        updateVolumeData();
-      }, 1000); // Wait longer for data to definitely load
+        console.log('📊 Current dataStore.candles length:', dataStore.candles?.length || 0);
+        if (dataStore.candles && dataStore.candles.length > 0) {
+          console.log('📊 Historical data available, loading volume bars');
+          updateVolumeData();
+        } else {
+          console.log('📊 No historical data yet, will wait for reactive statement');
+          // The reactive statement will handle it when data loads
+        }
+      }, 1500); // Wait even longer for data to load
     } catch (error) {
       console.error('📊 Error creating volume series:', error);
     }
@@ -276,6 +283,14 @@
     try {
       console.log('Setting data to candleSeries:', dataStore.candles.length, 'candles');
       candleSeries.setData(dataStore.candles);
+      
+      // Also update volume data when chart data is updated
+      if (volumeSeries) {
+        console.log('📊 Also updating volume data with historical candles');
+        updateVolumeData();
+      } else {
+        console.warn('📊 Volume series not available during updateChartData');
+      }
       
       performanceStore.recordRenderTime(performance.now() - startTime);
       console.log('Chart data updated successfully');
@@ -408,6 +423,17 @@
     return candleSeries;
   }
 
+  export function getVolumeSeries(): ISeriesApi<'Histogram'> | null {
+    return volumeSeries;
+  }
+
+  export function getAllSeries() {
+    return {
+      candleSeries,
+      volumeSeries
+    };
+  }
+
   export function setVisibleRange(from: number, to: number) {
     if (chart && candleSeries) {
       try {
@@ -436,15 +462,17 @@
     }
   }
 
-  // Data updates - watch for changes in candle data
+  // Data updates - watch for changes in candle data and last update time
   $: {
     const candleCount = dataStore.candles?.length || 0;
+    const lastUpdate = dataStore.stats?.lastUpdate; // This changes on real-time updates
     console.log('Reactive statement triggered:', {
       candleSeries: !!candleSeries,
       volumeSeries: !!volumeSeries,
       candleCount: candleCount,
       hasCandles: candleCount > 0,
-      isEmpty: dataStore.isEmpty
+      isEmpty: dataStore.isEmpty,
+      lastUpdate: lastUpdate
     });
     
     // Always update if we have candles and series, ignore isEmpty flag
@@ -462,41 +490,33 @@
   
   
   function updateVolumeData() {
-    if (!volumeSeries || !dataStore.candles || dataStore.candles.length === 0) {
-      console.warn('📊 Cannot update volume: missing series or data');
+    if (!volumeSeries) {
+      console.warn('📊 Cannot update volume: volume series not available');
       return;
     }
     
-    console.log('📊 updateVolumeData called with', dataStore.candles.length, 'candles');
+    if (!dataStore.candles || dataStore.candles.length === 0) {
+      console.warn('📊 Cannot update volume: no candle data available');
+      return;
+    }
+    
+    console.log('📊 ✅ updateVolumeData called with', dataStore.candles.length, 'candles');
     console.log('📊 First candle time:', dataStore.candles[0]?.time, 'Last candle time:', dataStore.candles[dataStore.candles.length - 1]?.time);
     
-    // Generate volume data with EXACT same timeline as candles
+    // Use REAL volume data from Coinbase API
     const volumeData = dataStore.candles.map((candle, index) => {
       const isUp = candle.close >= candle.open;
       
-      // Use Coinbase-style volume generation (accounting for zero volume periods)
-      let volume = 0;
-      if (candle.volume && candle.volume > 0) {
-        // Use real volume if available
-        volume = candle.volume;
-        console.log('📊 Using real volume:', volume, 'for candle', index);
-      } else {
-        // Generate realistic volume based on price action
-        const priceRange = Math.abs(candle.high - candle.low);
-        const bodySize = Math.abs(candle.close - candle.open);
-        const relativeVolume = (priceRange + bodySize) / candle.close;
-        
-        // Scale volume based on price action intensity
-        volume = Math.floor(
-          1000000 + 
-          (relativeVolume * 10000000) + 
-          (Math.random() * 2000000)
-        );
+      // Use the actual volume from the API
+      const volume = candle.volume || 0;
+      
+      if (index < 5) {
+        console.log(`📊 Candle ${index}: time=${candle.time}, volume=${volume} (real data from API)`);
       }
       
       return {
         time: candle.time, // EXACT same time as candle
-        value: volume,
+        value: volume,     // Use REAL volume from Coinbase API
         color: isUp ? '#26a69a80' : '#ef535080'
       };
     });

@@ -108,8 +108,8 @@
       realtimeSubscription.subscribeToRealtime({
         pair,
         granularity
-      }, chartCanvas?.getSeries());
-      console.log('✅ ChartCore: subscribeToRealtime called');
+      }, chartCanvas?.getSeries(), chartCanvas?.getVolumeSeries());
+      console.log('✅ ChartCore: subscribeToRealtime called with volume series');
       
       // Set status to ready after data loads and chart is updated
       setTimeout(() => {
