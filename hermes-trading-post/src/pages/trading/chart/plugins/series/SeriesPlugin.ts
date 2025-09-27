@@ -18,6 +18,7 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
   protected seriesType: T;
   protected seriesOptions: DeepPartial<SeriesOptionsMap[T]>;
   protected paneIndex: number;
+  protected dataUnsubscribe: (() => void) | null = null;
 
   constructor(config: SeriesPluginConfig) {
     super(config);
@@ -105,12 +106,19 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
     // Initial data load
     this.refreshData();
     
-    // Subscribe to updates
-    // This would be implemented based on your specific store subscription method
+    // Subscribe to real-time updates
+    this.dataUnsubscribe = dataStore.onDataUpdate(() => {
+      console.log(`🔧 [SeriesPlugin] ${this.id} received data update notification - refreshing data`);
+      this.refreshData();
+    });
   }
 
   protected unsubscribeFromData(): void {
     // Unsubscribe from data updates
+    if (this.dataUnsubscribe) {
+      this.dataUnsubscribe();
+      this.dataUnsubscribe = null;
+    }
   }
 
   protected refreshData(): void {

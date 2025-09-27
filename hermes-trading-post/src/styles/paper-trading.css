@@ -314,26 +314,34 @@
   color: #666;
 }
 
-/* Date and Speed Controls */
+/* Date and Speed Controls - OVERRIDE to force row layout */
 .date-speed-container {
   display: flex;
-  flex-direction: row;
+  flex-direction: row !important;
   gap: 8px;
-  align-items: flex-start;
+  align-items: center !important;
 }
 
 .date-speed-column {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row !important;
+  gap: 8px;
+  align-items: center !important;
 }
 
 .play-button-column {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  justify-content: center;
-  height: 58px; /* Match height of two stacked controls */
+  flex-direction: row !important;
+  gap: 8px;
+  align-items: center !important;
+}
+
+/* Override any controls-group that might be forcing column layout */
+.period-buttons .controls-group {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
 }
 
 .date-speed-container .period-btn {
@@ -498,6 +506,192 @@ select.speed-dropdown.period-btn.compact {
     width: 100%;
   }
 }
+
+/* Base period button styles */
+.period-btn {
+  padding: 4px 8px;
+  background: rgba(74, 0, 224, 0.2);
+  border: 1px solid rgba(74, 0, 224, 0.3);
+  color: #9ca3af;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.period-btn:hover {
+  background: rgba(74, 0, 224, 0.3);
+  border-color: rgba(74, 0, 224, 0.5);
+  color: #d1d4dc;
+}
+
+.period-btn.active {
+  background: rgba(74, 0, 224, 0.4);
+  border-color: rgba(74, 0, 224, 0.6);
+  color: #a78bfa;
+}
+
+/* Granularity buttons */
+.granularity-btn {
+  padding: 4px 8px;
+  background: rgba(74, 0, 224, 0.2);
+  border: 1px solid rgba(74, 0, 224, 0.3);
+  color: #9ca3af;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.granularity-btn:hover {
+  background: rgba(74, 0, 224, 0.3);
+  border-color: rgba(74, 0, 224, 0.5);
+  color: #d1d4dc;
+}
+
+.granularity-btn.active {
+  background: rgba(74, 0, 224, 0.4);
+  border-color: rgba(74, 0, 224, 0.6);
+  color: #a78bfa;
+}
+
+/* Position layout fixes */
+.positions-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.position-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(74, 0, 224, 0.2);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 15px;
+}
+
+.position-index {
+  background: rgba(74, 0, 224, 0.3);
+  color: #a78bfa;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 40px;
+  text-align: center;
+}
+
+.position-details {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+}
+
+.position-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.position-size {
+  font-weight: 500;
+  color: #d1d4dc;
+  font-size: 14px;
+}
+
+.position-entry {
+  font-size: 12px;
+  color: #888;
+}
+
+.position-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: right;
+}
+
+.pnl-amount {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.pnl-percent {
+  font-size: 12px;
+}
+
+.position-current {
+  font-size: 12px;
+  color: #888;
+  text-align: right;
+}
+
+.positions-summary {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+
+.summary-label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.summary-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: #d1d4dc;
+}
+
+.profit {
+  color: #26a69a !important;
+}
+
+.loss {
+  color: #ef4444 !important;
+}
+
+.no-positions {
+  text-align: center;
+  padding: 40px 20px;
+  color: #888;
+}
+
+.no-positions-icon {
+  font-size: 32px;
+  margin-bottom: 15px;
+}
+
+.no-positions-text {
+  font-size: 16px;
+  margin-bottom: 8px;
+  color: #d1d4dc;
+}
+
+.no-positions-hint {
+  font-size: 14px;
+}
+
+/* Let chart use natural sizing */
 
 /* TradingView timescale buttons - apply purple theme */
 button[style*="padding: 3px 5px"] {

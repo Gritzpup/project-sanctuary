@@ -235,8 +235,6 @@
           </ChartPanes>
         {/if}
         
-        <!-- Status light moved to ChartInfo overlay -->
-        
         {#if showInfo}
           <ChartInfo 
             position="bottom-left"

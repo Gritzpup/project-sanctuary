@@ -131,11 +131,13 @@ export class ChartDataService {
       this.currentPair,
       this.currentGranularity,
       (candle: WebSocketCandle) => {
-        // Aggregate updates
-        const aggregated = this.realtimeAggregator.addUpdate(candle);
-        if (aggregated) {
-          onUpdate(aggregated);
-        }
+        // 🔥 FIX: Pass WebSocket data directly, bypass faulty aggregator
+        console.log('🔥 [ChartDataService] Passing WebSocket data directly:', {
+          time: new Date(candle.time * 1000).toISOString(),
+          volume: candle.volume,
+          type: candle.type
+        });
+        onUpdate(candle);
       },
       onError,
       onReconnect
@@ -180,7 +182,7 @@ export class ChartDataService {
   }
 
   private transformToChartData(candles: Candle[]): CandlestickData[] {
-    return candles
+    const transformed = candles
       .filter(candle => this.isValidCandle(candle))
       .map(candle => ({
         time: candle.time as Time,
@@ -188,9 +190,24 @@ export class ChartDataService {
         high: candle.high,
         low: candle.low,
         close: candle.close,
-        volume: candle.volume
-      }))
+        volume: candle.volume  // Include volume data
+      } as any)) // Cast to any to include volume
       .sort((a, b) => (a.time as number) - (b.time as number));
+      
+    // Debug: Log first few transformed candles
+    if (transformed.length > 0) {
+      console.log('📊 [ChartDataService] First 3 transformed candles:');
+      transformed.slice(0, 3).forEach((candle, i) => {
+        console.log(`📊 Transformed candle ${i}:`, {
+          time: candle.time,
+          close: candle.close,
+          volume: (candle as any).volume,
+          hasVolume: typeof (candle as any).volume !== 'undefined'
+        });
+      });
+    }
+    
+    return transformed;
   }
 
   private isValidCandle(candle: Candle): boolean {

@@ -83,6 +83,19 @@ export class CoinbaseAPI {
       }));
       
       console.log(`[CoinbaseAPI] Successfully fetched ${candles.length} candles`);
+      
+      // Debug: Log first few candles to verify volume data
+      if (candles.length > 0) {
+        console.log('📊 [CoinbaseAPI] First 3 raw candles with volume:');
+        candles.slice(0, 3).forEach((candle, i) => {
+          console.log(`📊 Raw candle ${i}:`, {
+            time: new Date(candle.time * 1000).toISOString(),
+            close: candle.close,
+            volume: candle.volume,
+            volumeType: typeof candle.volume
+          });
+        });
+      }
       return candles;
     }).catch(error => {
       console.error('[CoinbaseAPI] API request failed:', error.message);

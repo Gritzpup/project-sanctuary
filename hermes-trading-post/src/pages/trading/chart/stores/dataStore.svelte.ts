@@ -1,12 +1,17 @@
 import type { CandlestickData } from 'lightweight-charts';
+
+// Extend CandlestickData to include volume
+interface CandlestickDataWithVolume extends CandlestickData {
+  volume?: number;
+}
 import type { WebSocketCandle } from '../types/data.types';
 import { ChartDataService } from '../services/ChartDataService';
 import { ChartDebug } from '../utils/debug';
 
 class DataStore {
   private dataService = new ChartDataService();
-  private _candles = $state<CandlestickData[]>([]);
-  private _visibleCandles = $state<CandlestickData[]>([]);
+  private _candles = $state<CandlestickDataWithVolume[]>([]);
+  private _visibleCandles = $state<CandlestickDataWithVolume[]>([]);
   private _latestPrice = $state<number | null>(null);
   private _isNewCandle = $state<boolean>(false);
   private _dataStats = $state({
@@ -19,6 +24,9 @@ class DataStore {
   
   private realtimeUnsubscribe: (() => void) | null = null;
   private newCandleTimeout: NodeJS.Timeout | null = null;
+  
+  // Subscription mechanism for plugins
+  private dataUpdateCallbacks: Set<() => void> = new Set();
 
   // Getters
   get candles() {
@@ -126,7 +134,21 @@ class DataStore {
     }
   }
 
-  setCandles(candles: CandlestickData[]) {
+  setCandles(candles: CandlestickDataWithVolume[]) {
+    // Debug volume data in setCandles
+    console.log('📊 [dataStore] setCandles called with', candles.length, 'candles');
+    if (candles.length > 0) {
+      console.log('📊 [dataStore] First 3 candles in setCandles:');
+      candles.slice(0, 3).forEach((candle, i) => {
+        console.log(`📊 setCandles candle ${i}:`, {
+          time: candle.time,
+          close: candle.close,
+          volume: candle.volume,
+          hasVolume: typeof candle.volume !== 'undefined'
+        });
+      });
+    }
+    
     this._candles = candles;
     this._visibleCandles = candles; // Initially all candles are visible
     
@@ -138,6 +160,9 @@ class DataStore {
     
     // Update stats to trigger UI updates
     this.updateStats();
+    
+    // Notify plugins of data update
+    this.notifyDataUpdate();
   }
 
   updateVisibleRange(from: number, to: number) {
@@ -193,20 +218,31 @@ class DataStore {
           high: update.high,
           low: update.low,
           close: update.close,
-          volume: update.volume
+          volume: update.volume || 0
         };
+
+        // Debug real-time volume updates
+        console.log(`🔥 [dataStore] Real-time update received:`, {
+          time: new Date(update.time * 1000).toISOString(),
+          volume: update.volume,
+          type: (update as any).type || 'unknown',
+          candleType: (update as any).candleType || 'unknown'
+        });
 
         // Update or add candle
         const existingIndex = this._candles.findIndex(c => c.time === update.time);
         
         if (existingIndex >= 0) {
           // Update existing candle
+          const oldVolume = this._candles[existingIndex].volume;
           this._candles[existingIndex] = candleData;
+          console.log(`🔥 [dataStore] Updated existing candle - Volume: ${oldVolume} → ${candleData.volume}`);
         } else {
           // New candle
           this._candles = [...this._candles, candleData].sort(
             (a, b) => (a.time as number) - (b.time as number)
           );
+          console.log(`🔥 [dataStore] NEW candle created with volume: ${candleData.volume}`);
           this.triggerNewCandle();
         }
 
@@ -215,6 +251,13 @@ class DataStore {
         
         // Update stats
         this._dataStats.lastUpdate = Date.now();
+
+        // Force refresh of any plugins/visualizations that depend on candle data
+        // This ensures volume plugin updates when new real-time data arrives
+        this.updateStats();
+        
+        // Notify plugins of real-time data update
+        this.notifyDataUpdate();
 
         // Notify callback if provided
         if (onUpdate) {
@@ -292,6 +335,29 @@ class DataStore {
       newestTime: null,
       lastUpdate: null
     };
+  }
+
+  // Plugin subscription methods
+  onDataUpdate(callback: () => void): () => void {
+    this.dataUpdateCallbacks.add(callback);
+    console.log(`📊 [dataStore] Plugin subscribed to data updates. Total subscribers: ${this.dataUpdateCallbacks.size}`);
+    
+    // Return unsubscribe function
+    return () => {
+      this.dataUpdateCallbacks.delete(callback);
+      console.log(`📊 [dataStore] Plugin unsubscribed from data updates. Total subscribers: ${this.dataUpdateCallbacks.size}`);
+    };
+  }
+
+  private notifyDataUpdate() {
+    console.log(`📊 [dataStore] Notifying ${this.dataUpdateCallbacks.size} subscribers of data update`);
+    this.dataUpdateCallbacks.forEach(callback => {
+      try {
+        callback();
+      } catch (error) {
+        console.error('📊 [dataStore] Error in data update callback:', error);
+      }
+    });
   }
 }
 

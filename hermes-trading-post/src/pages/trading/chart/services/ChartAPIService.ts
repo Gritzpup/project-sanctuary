@@ -272,10 +272,24 @@ export class ChartAPIService {
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'candle') {
+            // DEBUG: Log incoming WebSocket volume data
+            console.log(`🔥 [Frontend] WebSocket received candle:`, {
+              time: new Date(data.time * 1000).toISOString(),
+              volume: data.volume,
+              candleType: data.candleType,
+              close: data.close
+            });
+            
             const key = `${data.pair}:${data.granularity}`;
             const callback = this.wsSubscriptions.get(key);
             if (callback) {
-              callback(this.transformWebSocketCandle(data));
+              const transformedData = this.transformWebSocketCandle(data);
+              console.log(`🔥 [Frontend] Transformed data:`, {
+                time: new Date(transformedData.time * 1000).toISOString(),
+                volume: transformedData.volume,
+                type: transformedData.type
+              });
+              callback(transformedData);
             }
           }
         } catch (error) {
