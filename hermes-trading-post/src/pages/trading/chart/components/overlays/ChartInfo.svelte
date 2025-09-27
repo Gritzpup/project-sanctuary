@@ -198,9 +198,9 @@
     width: 100%;
     padding: 0;
     background: transparent;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
-    gap: 20px;
+    gap: 8px;
   }
   
   /* Footer specific styling for info items */

@@ -993,111 +993,72 @@
                 onPairChange={handlePairChange}
               />
               <div class="period-buttons">
-                <div class="timeframe-buttons-group">
-                  <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
-                  <button class="period-btn" class:active={selectedPeriod === '4H'} on:click={() => selectPeriod('4H')}>4H</button>
-                  <button class="period-btn" class:active={selectedPeriod === '5D'} on:click={() => selectPeriod('5D')}>5D</button>
-                  <button class="period-btn" class:active={selectedPeriod === '1M'} on:click={() => selectPeriod('1M')}>1M</button>
-                  <button class="period-btn" class:active={selectedPeriod === '3M'} on:click={() => selectPeriod('3M')}>3M</button>
-                  <button class="period-btn" class:active={selectedPeriod === '6M'} on:click={() => selectPeriod('6M')}>6M</button>
-                  <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
-                  <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
+                <!-- Left column: timeframe buttons + candle status -->
+                <div class="left-column">
+                  <div class="timeframe-buttons-group">
+                    <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
+                    <button class="period-btn" class:active={selectedPeriod === '4H'} on:click={() => selectPeriod('4H')}>4H</button>
+                    <button class="period-btn" class:active={selectedPeriod === '5D'} on:click={() => selectPeriod('5D')}>5D</button>
+                    <button class="period-btn" class:active={selectedPeriod === '1M'} on:click={() => selectPeriod('1M')}>1M</button>
+                    <button class="period-btn" class:active={selectedPeriod === '3M'} on:click={() => selectPeriod('3M')}>3M</button>
+                    <button class="period-btn" class:active={selectedPeriod === '6M'} on:click={() => selectPeriod('6M')}>6M</button>
+                    <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
+                    <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
+                  </div>
+                  
+                  <!-- Candle Info - below timeframe buttons -->
+                  <div class="candle-info-inline">
+                    <ChartInfo 
+                      position="footer"
+                      showCandleCount={true}
+                      showTimeRange={false}
+                      showClock={true}
+                      showPerformance={false}
+                      showLatestPrice={true}
+                      showLatestCandleTime={false}
+                      showCandleCountdown={true}
+                    />
+                  </div>
                 </div>
                 
-                <!-- Candle Info - INSIDE THE SAME DIV AS BUTTONS -->
-                <div class="candle-info-inline">
-                  <ChartInfo 
-                    position="footer"
-                    showCandleCount={true}
-                    showTimeRange={false}
-                    showClock={true}
-                    showPerformance={false}
-                    showLatestPrice={true}
-                    showLatestCandleTime={false}
-                    showCandleCountdown={true}
-                  />
-                </div>
-              </div>
-              
-              <div class="period-buttons">
-                <div class="button-separator"></div>
-
-                <!-- Paper Test integrated controls -->
-                <div class="date-speed-container">
-                  <div class="date-speed-column">
-                    <input 
-                      type="date" 
-                      id="paper-test-date-input"
-                      class="period-btn date-picker-btn compact"
-                      max={(() => {
-                        const yesterday = new Date();
-                        yesterday.setDate(yesterday.getDate() - 1);
-                        return yesterday.toISOString().split('T')[0];
-                      })()}
-                      min="2024-01-01"
-                      value={selectedTestDateString}
-                      on:change={handleDateSelection}
-                    />
-                    <select class="period-btn speed-dropdown compact" bind:value={chartSpeed} on:change={handleSpeedChange}>
-                      <option value="1x">1x Speed</option>
-                      <option value="1.5x">1.5x Speed</option>
-                      <option value="2x">2x Speed</option>
-                      <option value="3x">3x Speed</option>
-                      <option value="10x">10x Speed</option>
-                    </select>
-                  </div>
-                  <div class="play-button-column">
-                    <button class="period-btn chart-play-btn compact" title="Start Chart Playback">
-                      ▶
-                    </button>
-                    <button class="period-btn chart-stop-btn compact" title="Stop Chart Playback">
-                      ⏹
-                    </button>
-                  </div>
-
-                  {#if selectedTestDateString}
-                    <!-- Play/Stop Button -->
-                    {#if !isPaperTestRunning}
-                      <button 
-                        class="paper-test-btn play" 
-                        on:click={runPaperTest}
-                        title="Start Paper Test"
-                      >
+                <!-- Right column: separator + controls -->
+                <div class="right-column">
+                  <div class="controls-group">
+                    <!-- Calendar and speed controls stacked -->
+                    <div class="date-speed-column">
+                      <input 
+                        type="date" 
+                        id="paper-test-date-input"
+                        class="period-btn date-picker-btn compact"
+                        max={(() => {
+                          const yesterday = new Date();
+                          yesterday.setDate(yesterday.getDate() - 1);
+                          return yesterday.toISOString().split('T')[0];
+                        })()}
+                        min="2024-01-01"
+                        value={selectedTestDateString}
+                        on:change={handleDateSelection}
+                      />
+                      <select class="period-btn speed-dropdown compact" bind:value={chartSpeed} on:change={handleSpeedChange}>
+                        <option value="1x">1x Speed</option>
+                        <option value="1.5x">1.5x Speed</option>
+                        <option value="2x">2x Speed</option>
+                        <option value="3x">3x Speed</option>
+                        <option value="10x">10x Speed</option>
+                      </select>
+                    </div>
+                    
+                    <!-- Play/pause buttons stacked -->
+                    <div class="play-stop-column">
+                      <button class="period-btn chart-play-btn compact" title="Start Chart Playback">
                         ▶
                       </button>
-                    {:else}
-                      <button 
-                        class="paper-test-btn stop" 
-                        on:click={stopPaperTest}
-                        title="Stop Paper Test"
-                      >
+                      <button class="period-btn chart-stop-btn compact" title="Stop Chart Playback">
                         ⏹
                       </button>
-                    {/if}
-
-                    <!-- Clear Button -->
-                    <button 
-                      class="paper-test-btn clear"
-                      on:click={clearPaperTestTrades}
-                      title="Clear All Trades"
-                    >
-                      🗑️
-                    </button>
-                  {/if}
-                </div>
-
-                <!-- Inline progress -->
-                {#if isPaperTestRunning && paperTestProgress > 1}
-                  <div class="paper-progress">
-                    <div class="paper-progress-bar" style="width: {paperTestProgress}%"></div>
+                    </div>
                   </div>
-                  <span class="paper-progress-text">
-                    {#if paperTestSimTime}
-                      {paperTestSimTime.toLocaleTimeString()}
-                    {/if}
-                    {Math.round(paperTestProgress)}%
-                  </span>
-                {/if}
+                </div>
               </div>
             </div>
           </div>
@@ -1468,25 +1429,75 @@
 
   :global(.period-buttons) {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
     padding: 10px 15px;
     background: rgba(0, 0, 0, 0.2);
     border-top: 1px solid rgba(74, 0, 224, 0.3);
   }
   
+  .left-column {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+    flex-shrink: 0;
+    flex: 1;
+    border-right: 1px solid rgba(74, 0, 224, 0.3);
+    padding-right: 8px;
+  }
+  
+  .right-column {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-direction: row;
+    padding-left: 8px;
+    flex-shrink: 0;
+  }
+  
+  .controls-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .date-speed-column {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 6px;
+  }
+  
+  .play-stop-column {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 6px;
+  }
+  
   .timeframe-buttons-group {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 5px;
+    margin-right: 10px;
   }
   
   .candle-info-inline {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     font-size: 11px;
     padding-top: 5px;
-    border-top: 1px solid rgba(74, 0, 224, 0.1);
+    margin-right: 4px;
+  }
+  
+  .candle-info-inline :global(.chart-info) {
+    width: auto !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    margin-right: 20px !important;
   }
 
   :global(.period-btn) {
