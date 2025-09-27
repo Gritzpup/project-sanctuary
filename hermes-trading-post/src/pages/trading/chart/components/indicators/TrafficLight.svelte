@@ -6,11 +6,13 @@
   const {
     size = 'medium',
     showTooltip = true,
-    flashDuration = 500
+    flashDuration = 500,
+    tradingStatus = null
   }: {
     size?: 'small' | 'medium' | 'large';
     showTooltip?: boolean;
     flashDuration?: number;
+    tradingStatus?: { isRunning: boolean; isPaused: boolean } | null;
   } = $props();
 
   // Internal state for traffic light logic
@@ -23,8 +25,18 @@
   const actualWsStatus = $derived(getTrafficLightStatus());
   const trafficLightColor = $derived(getTrafficLightColor(actualWsStatus));
 
-  // Traffic light status function - waiting vs direction based
-  function getTrafficLightStatus(): 'green' | 'red' | 'blue' {
+  // Traffic light status function - trading status takes priority
+  function getTrafficLightStatus(): 'green' | 'red' | 'blue' | 'orange' {
+    // Priority 1: Trading status (if provided)
+    if (tradingStatus) {
+      if (tradingStatus.isRunning) {
+        return tradingStatus.isPaused ? 'orange' : 'green'; // Green when running, orange when paused
+      } else {
+        return 'red'; // Red when stopped
+      }
+    }
+    
+    // Priority 2: Data status (fallback to original logic)
     // Check if we have data
     const hasDataStoreCandles = dataStore.stats.totalCount > 0;
     const hasPrice = dataStore.latestPrice && dataStore.latestPrice > 0;
@@ -48,10 +60,11 @@
   }
 
   // Get traffic light color
-  function getTrafficLightColor(status: 'green' | 'red' | 'blue'): string {
+  function getTrafficLightColor(status: 'green' | 'red' | 'blue' | 'orange'): string {
     switch (status) {
-      case 'green': return '#4caf50'; // Green - price went up
-      case 'red': return '#f44336';   // Red - price went down
+      case 'green': return '#4caf50'; // Green - bot running / price went up
+      case 'red': return '#f44336';   // Red - bot stopped / price went down
+      case 'orange': return '#ff9800'; // Orange - bot paused
       case 'blue': return '#2196f3';  // Blue - waiting for next update
       default: return '#2196f3';
     }

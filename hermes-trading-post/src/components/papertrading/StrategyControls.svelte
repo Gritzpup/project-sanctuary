@@ -54,22 +54,34 @@
   function selectBot(botId: string) {
     dispatch('selectBot', { botId });
   }
+
+  // Force component re-render when props change
+  $: reactiveKey = `${isRunning}-${isPaused}-${Date.now()}`;
+  $: {
+    console.log('🔥 StrategyControls REACTIVE UPDATE:', { isRunning, isPaused, reactiveKey });
+  }
   
   function getBotStatus(bot: any): 'idle' | 'running' | 'paused' | 'empty' {
     if (!bot) return 'empty';
     // For Bot 1 (reverse-ratio bot), use the backend status
-    if (bot.name === 'Bot 1' || bot.id === 'reverse-ratio-bot-1') {
-      return isRunning ? (isPaused ? 'paused' : 'running') : 'idle';
+    if (bot.name === 'Bot 1' || bot.id === 'reverse-ratio-bot-1' || bot.id === 'bot-1') {
+      const status = isRunning ? (isPaused ? 'paused' : 'running') : 'idle';
+      console.log(`🎯 getBotStatus - Bot: ${bot.name} (${bot.id}), isRunning: ${isRunning}, isPaused: ${isPaused} → status: "${status}"`);
+      return status;
     }
     return bot.status || 'idle';
   }
   
   function getStatusColor(status: string): string {
-    switch (status) {
-      case 'running': return '#22c55e';
-      case 'paused': return '#f59e0b';
-      default: return '#6b7280'; // Gray for idle/empty/default
-    }
+    const color = (() => {
+      switch (status) {
+        case 'running': return '#22c55e';
+        case 'paused': return '#f59e0b';
+        default: return '#6b7280'; // Gray for idle/empty/default
+      }
+    })();
+    console.log(`🎨 getStatusColor("${status}") → ${color}`);
+    return color;
   }
 </script>
 
@@ -97,10 +109,11 @@
     <div class="control-group">
       <label>Bot Status</label>
       <div class="bot-status-row">
-        {#each Array(6) as _, i}
+        {#each Array(6) as _, i (reactiveKey + i)}
           {@const botIndex = i + 1}
           {@const bot = botTabs.find(b => b.name === `Bot ${botIndex}`) || { id: `bot-${botIndex}`, name: `Bot ${botIndex}`, status: 'empty' }}
           {@const status = getBotStatus(bot)}
+          {@const statusColor = getStatusColor(status)}
           {@const isActive = activeBotInstance ? (bot.id === activeBotInstance.id) : (botIndex === 1)}
           <button 
             class="bot-status-btn-compact"
@@ -113,7 +126,7 @@
             <span class="bot-number-compact">{botIndex}</span>
             <div 
               class="status-light-compact" 
-              style="background-color: {getStatusColor(status)}"
+              style="background-color: {statusColor};"
             ></div>
           </button>
         {/each}

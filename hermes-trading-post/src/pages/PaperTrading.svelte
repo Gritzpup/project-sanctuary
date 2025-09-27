@@ -114,9 +114,11 @@
           
           if (data.type === 'status' && data.data) {
             console.log('📊 Backend status update:', data.data);
+            console.log('🔧 Before update - isRunning:', isRunning, 'isPaused:', isPaused);
             // Update frontend with backend data
             isRunning = data.data.isRunning || false;
             isPaused = data.data.isPaused || false;
+            console.log('🔧 After update - isRunning:', isRunning, 'isPaused:', isPaused);
             trades = data.data.trades || [];
             positions = data.data.positions || [];
             balance = data.data.balance?.usd || 10000;
@@ -1023,6 +1025,7 @@
                       showLatestPrice={true}
                       showLatestCandleTime={false}
                       showCandleCountdown={true}
+                      tradingStatus={{ isRunning, isPaused }}
                     />
                   </div>
                 </div>
@@ -1474,14 +1477,12 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
-    margin-top: 6px;
   }
   
   .play-stop-column {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    margin-top: 6px;
   }
   
   .timeframe-buttons-group {
@@ -2100,8 +2101,90 @@
   }
 
   :global(.date-picker-btn.compact) {
-    padding: 4px 6px;
+    padding: 8px 0px 8px 8px !important;
     min-width: 90px;
+    height: 30px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    text-indent: 0 !important;
+    transform: translateX(0px) !important;
+  }
+
+  :global(.date-picker-btn.compact::-webkit-datetime-edit) {
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  :global(.date-picker-btn.compact::-webkit-calendar-picker-indicator) {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  :global(.speed-dropdown.compact) {
+    padding: 8px 0px 8px 6px !important;
+    height: 30px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background-position: right 2px center !important;
+    padding-right: 15px !important;
+  }
+
+  :global(.chart-play-btn.compact) {
+    padding: 8px 6px;
+    height: 30px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  :global(.chart-stop-btn.compact) {
+    padding: 8px 6px;
+    height: 30px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* Dropdown option styling */
+  :global(.speed-dropdown.compact option) {
+    background: #1a1625 !important;
+    color: #d1d4dc !important;
+    padding: 8px !important;
+    border: none !important;
+  }
+
+  :global(.speed-dropdown.compact option:hover) {
+    background: rgba(74, 0, 224, 0.2) !important;
+    color: #a78bfa !important;
+  }
+
+  :global(.speed-dropdown.compact option:checked) {
+    background: rgba(74, 0, 224, 0.3) !important;
+    color: #a78bfa !important;
+  }
+
+  /* Strategy dropdown styling */
+  :global(select option) {
+    background: #1a1625 !important;
+    color: #d1d4dc !important;
+    padding: 8px !important;
+    border: none !important;
+  }
+
+  :global(select option:hover) {
+    background: rgba(74, 0, 224, 0.2) !important;
+    color: #a78bfa !important;
+  }
+
+  :global(select option:checked) {
+    background: rgba(74, 0, 224, 0.3) !important;
+    color: #a78bfa !important;
   }
 
   :global(.date-picker-btn:hover:not(:disabled)) {

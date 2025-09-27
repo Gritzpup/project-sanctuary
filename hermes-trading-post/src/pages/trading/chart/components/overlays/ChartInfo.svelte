@@ -24,6 +24,7 @@
     showLatestPrice = true,
     showLatestCandleTime = true,
     showCandleCountdown = true,
+    tradingStatus = null,
   }: {
     position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'footer';
     showCandleCount?: boolean;
@@ -33,6 +34,7 @@
     showLatestPrice?: boolean;
     showLatestCandleTime?: boolean;
     showCandleCountdown?: boolean;
+    tradingStatus?: { isRunning: boolean; isPaused: boolean } | null;
   } = $props();
   
   let currentTime = $state(new Date());
@@ -131,7 +133,7 @@
       </span>
       <!-- Traffic light WebSocket status -->
       <span style="margin-left: 8px;">
-        <TrafficLight size="medium" flashDuration={500} />
+        <TrafficLight size="medium" flashDuration={500} tradingStatus={tradingStatus} />
       </span>
     </div>
   {/if}
