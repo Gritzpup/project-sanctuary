@@ -62,6 +62,12 @@
   let selectedPeriod = savedPrefs.period;
   let autoGranularityActive = false;
   
+  // Force fix for 1m granularity to always use 1H period
+  if (selectedGranularity === '1m' && selectedPeriod !== '1H') {
+    selectedPeriod = '1H';
+    chartPreferencesStore.setPreferences('paper-trading', selectedGranularity, '1H');
+  }
+  
   // Trading pair selection
   let selectedPair = 'BTC-USD';
   
@@ -1517,9 +1523,9 @@
   }
 
   :global(.period-btn.active) {
-    background: rgba(74, 0, 224, 0.3);
-    color: #a78bfa;
-    border-color: #a78bfa;
+    background: rgba(74, 0, 224, 0.3) !important;
+    color: #a78bfa !important;
+    border-color: #a78bfa !important;
   }
 
   :global(.panel-content) {
