@@ -69,34 +69,36 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
     
     console.log('🔊 VolumePlugin getData() called with', candles.length, 'candles');
     
-    this.volumeData = candles.map(candle => {
-      const isUp = candle.close >= candle.open;
+    // Log the latest few candles for debugging
+    if (candles.length > 0) {
+      const latestCandles = candles.slice(-3);
+      console.log('🔊 Latest 3 candles in VolumePlugin:');
+      latestCandles.forEach((candle, i) => {
+        console.log(`🔊 Candle ${candles.length - 3 + i}: time=${new Date(candle.time * 1000).toISOString()}, volume=${candle.volume}`);
+      });
+    }
+    
+    this.volumeData = candles.map((candle, index) => {
       const settings = this.settings as VolumePluginSettings;
       let volume = candle.volume || 0;
       
-      // If no real volume data, generate realistic-looking volume based on price movement
+      // Always use real volume data from Coinbase - no fake generation
       if (volume === 0) {
-        const priceRange = Math.abs(candle.high - candle.low);
-        const bodySize = Math.abs(candle.close - candle.open);
-        const priceLevel = candle.close;
-        
-        // Generate volume based on price movement and randomness
-        volume = Math.floor(
-          (priceRange * 1000000) + 
-          (bodySize * 2000000) + 
-          (priceLevel * 0.01) + 
-          (Math.random() * 500000)
-        );
-        
-        console.log('📊 Generated simulated volume:', volume, 'for candle at', candle.time);
-      } else {
-        console.log('🔊 Using real volume data:', volume, 'for candle at', candle.time);
+        console.warn('🔊 ⚠️  Volume is 0 for candle at', new Date(candle.time * 1000).toISOString());
+      }
+      
+      // 🔥 FIX: Use volume-based coloring instead of price-based
+      // Compare current volume to previous volume to determine color
+      let isVolumeUp = true; // Default for first candle
+      if (index > 0) {
+        const prevVolume = candles[index - 1].volume || 0;
+        isVolumeUp = volume >= prevVolume;
       }
       
       return {
         time: candle.time,
         value: volume,
-        color: isUp ? settings.upColor : settings.downColor
+        color: isVolumeUp ? settings.upColor : settings.downColor
       };
     });
     

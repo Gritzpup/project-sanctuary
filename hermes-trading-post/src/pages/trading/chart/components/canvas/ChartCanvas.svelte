@@ -503,21 +503,39 @@
     console.log('📊 ✅ updateVolumeData called with', dataStore.candles.length, 'candles');
     console.log('📊 First candle time:', dataStore.candles[0]?.time, 'Last candle time:', dataStore.candles[dataStore.candles.length - 1]?.time);
     
+    // Debug first few candles to see if volume data is present
+    console.log('📊 DEBUG: First 3 candles from dataStore:');
+    dataStore.candles.slice(0, 3).forEach((candle, i) => {
+      console.log(`📊 Candle ${i}:`, {
+        time: candle.time,
+        close: candle.close,
+        volume: candle.volume,
+        hasVolume: typeof candle.volume !== 'undefined',
+        volumeType: typeof candle.volume
+      });
+    });
+    
     // Use REAL volume data from Coinbase API
     const volumeData = dataStore.candles.map((candle, index) => {
-      const isUp = candle.close >= candle.open;
-      
       // Use the actual volume from the API
       const volume = candle.volume || 0;
       
+      // 🔥 FIX: Use volume-based coloring instead of price-based
+      // Compare current volume to previous volume to determine color
+      let isVolumeUp = true; // Default for first candle
+      if (index > 0) {
+        const prevVolume = dataStore.candles[index - 1].volume || 0;
+        isVolumeUp = volume >= prevVolume;
+      }
+      
       if (index < 5) {
-        console.log(`📊 Candle ${index}: time=${candle.time}, volume=${volume} (real data from API)`);
+        console.log(`📊 Candle ${index}: time=${candle.time}, volume=${volume} (real data from API), isVolumeUp=${isVolumeUp}`);
       }
       
       return {
         time: candle.time, // EXACT same time as candle
         value: volume,     // Use REAL volume from Coinbase API
-        color: isUp ? '#26a69a80' : '#ef535080'
+        color: isVolumeUp ? '#26a69a80' : '#ef535080'
       };
     });
     
@@ -539,14 +557,22 @@
     
     console.log('📊 Updating volume for single candle at', candle.time);
     
-    const isUp = candle.close >= candle.open;
-    const priceRange = Math.abs(candle.high - candle.low);
-    const volume = Math.floor(priceRange * 5000000 + 2000000 + Math.random() * 1000000);
+    // 🔥 FIX: Use real volume data instead of fake generated volume
+    const volume = candle.volume || 0;
+    
+    // 🔥 FIX: Use volume-based coloring instead of price-based
+    // For single candle updates, we can compare to the last known volume in dataStore
+    let isVolumeUp = true; // Default
+    const allCandles = dataStore.candles;
+    if (allCandles.length > 0) {
+      const lastVolume = allCandles[allCandles.length - 1].volume || 0;
+      isVolumeUp = volume >= lastVolume;
+    }
     
     const volumeBar = {
       time: candle.time,
       value: volume,
-      color: isUp ? '#26a69a80' : '#ef535080'
+      color: isVolumeUp ? '#26a69a80' : '#ef535080'
     };
     
     try {

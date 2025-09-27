@@ -64,7 +64,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   /**
    * Update live candle with new price data and corresponding volume
    */
-  function updateLiveCandleWithPrice(price: number, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any) {
+  function updateLiveCandleWithPrice(price: number, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any, fullCandleData?: any) {
     if (!chartSeries) return;
     
     const candles = dataStore.candles;
@@ -97,15 +97,23 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // Update volume series if available
       if (volumeSeries) {
         console.log('📊 Creating new volume bar for new candle');
-        const isUp = newCandle.close >= newCandle.open;
         
-        // Use real volume from candle data (will be 0 for new candles, but gets updated)
-        const volume = (newCandle as any).volume || 0;
+        // 🔥 FIX: Use real volume from WebSocket data
+        const volume = fullCandleData?.volume || (newCandle as any).volume || 0;
+        console.log('🔥 [useRealtimeSubscription] NEW candle volume:', volume, 'from fullCandleData:', !!fullCandleData);
+        
+        // 🔥 FIX: Use volume-based coloring instead of price-based
+        // Compare to previous candle volume to determine color
+        let isVolumeUp = true; // Default for new candles
+        if (candles.length > 0) {
+          const prevVolume = candles[candles.length - 1].volume || 0;
+          isVolumeUp = volume >= prevVolume;
+        }
         
         const volumeBar = {
           time: newCandle.time,
           value: volume,
-          color: isUp ? '#26a69a80' : '#ef535080'
+          color: isVolumeUp ? '#26a69a80' : '#ef535080'
         };
         
         try {
@@ -132,7 +140,9 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         ...currentCandle,
         high: Math.max(currentCandle.high, price),
         low: Math.min(currentCandle.low, price),
-        close: price
+        close: price,
+        // 🔥 FIX: Include volume from WebSocket data
+        ...(fullCandleData?.volume !== undefined && { volume: fullCandleData.volume } as any)
       };
       
       updatedCandles[updatedCandles.length - 1] = updatedCandle;
@@ -144,15 +154,23 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       
       // Update volume series for current candle if available
       if (volumeSeries) {
-        const isUp = updatedCandle.close >= updatedCandle.open;
+        // 🔥 FIX: Use real volume from WebSocket data
+        const volume = fullCandleData?.volume || (updatedCandle as any).volume || 0;
+        console.log('🔥 [useRealtimeSubscription] UPDATE candle volume:', volume, 'from fullCandleData:', !!fullCandleData);
         
-        // Use real volume from candle data
-        const volume = (updatedCandle as any).volume || 0;
+        // 🔥 FIX: Use volume-based coloring instead of price-based
+        // Compare to previous candle volume to determine color
+        let isVolumeUp = true; // Default
+        if (updatedCandles.length > 1) {
+          const prevIndex = updatedCandles.length - 2;
+          const prevVolume = updatedCandles[prevIndex].volume || 0;
+          isVolumeUp = volume >= prevVolume;
+        }
         
         const volumeBar = {
           time: updatedCandle.time,
           value: volume,
-          color: isUp ? '#26a69a80' : '#ef535080'
+          color: isVolumeUp ? '#26a69a80' : '#ef535080'
         };
         
         try {
@@ -186,7 +204,13 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       pair,
       granularity,
       (candleData) => {
-        updateLiveCandleWithPrice(candleData.close, chartSeries, volumeSeries);
+        // 🔥 FIX: Pass full candleData with volume, not just price
+        console.log('🔥 [useRealtimeSubscription] Received candleData:', {
+          close: candleData.close,
+          volume: candleData.volume,
+          time: new Date(candleData.time * 1000).toISOString()
+        });
+        updateLiveCandleWithPrice(candleData.close, chartSeries, volumeSeries, candleData);
         statusStore.setPriceUpdate();
       },
       () => {

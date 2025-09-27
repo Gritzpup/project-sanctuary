@@ -5,6 +5,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { TradingService } from './services/tradingService.js';
 import { BotManager } from './services/botManager.js';
+import { coinbaseWebSocket } from './services/coinbaseWebSocket.js';
 import tradingRoutes from './routes/trading.js';
 
 dotenv.config();
@@ -21,14 +22,105 @@ const wss = new WebSocketServer({ server });
 
 const botManager = new BotManager();
 
+// Track chart subscriptions
+const chartSubscriptions = new Map(); // key: clientId, value: Set of "pair:granularity" strings
+// Track active subscriptions to include granularity in candle data
+const activeSubscriptions = new Map(); // key: "pair", value: Set of granularities
+
+// Track granularity mappings for proper subscription key matching
+const granularityMappings = new Map(); // key: "pair:granularitySeconds", value: "granularityString"
+
+// Helper function to convert granularity strings to seconds
+function getGranularitySeconds(granularity) {
+  const GRANULARITY_TO_SECONDS = {
+    '1m': 60,
+    '5m': 300,
+    '15m': 900,
+    '30m': 1800,
+    '1h': 3600,
+    '4h': 14400,
+    '1d': 86400
+  };
+  return GRANULARITY_TO_SECONDS[granularity] || 60; // Default to 1 minute
+}
+
 // Initialize default bots on startup
 // Use async IIFE to handle async initialization
 (async () => {
   await botManager.initializeDefaultBots();
+  
+  // Initialize Coinbase WebSocket
+  await coinbaseWebSocket.connect();
+  
+  // Set up Coinbase WebSocket event handlers
+  coinbaseWebSocket.on('candle', (candleData) => {
+    // DEBUG: Log all candle data being sent
+    console.log(`🔥 [Backend] Candle data from Coinbase:`, {
+      product_id: candleData.product_id,
+      time: new Date(candleData.time * 1000).toISOString(),
+      volume: candleData.volume,
+      type: candleData.type,
+      close: candleData.close,
+      granularitySeconds: candleData.granularity
+    });
+    
+    // Convert granularity seconds back to string using mapping
+    const mappingKey = `${candleData.product_id}:${candleData.granularity}`;
+    const granularityString = granularityMappings.get(mappingKey) || '1m'; // Default fallback
+    
+    // Create proper subscription key with string granularity
+    const subscriptionKey = `${candleData.product_id}:${granularityString}`;
+    
+    console.log(`🔥 [Backend] Looking for subscriptions to: ${subscriptionKey}`);
+    
+    wss.clients.forEach(client => {
+      if (client.readyState === client.OPEN) {
+        // Check if this client is subscribed to this data
+        const clientId = client._clientId || 'unknown';
+        const clientSubs = chartSubscriptions.get(clientId);
+        
+        if (clientSubs && clientSubs.has(subscriptionKey)) {
+          const messageToSend = {
+            type: 'candle',
+            pair: candleData.product_id,
+            granularity: granularityString,
+            time: candleData.time,
+            open: candleData.open,
+            high: candleData.high,
+            low: candleData.low,
+            close: candleData.close,
+            volume: candleData.volume,
+            candleType: candleData.type
+          };
+          
+          console.log(`🔥 [Backend] Sending to client ${clientId}:`, {
+            granularity: messageToSend.granularity,
+            volume: messageToSend.volume,
+            type: messageToSend.candleType,
+            time: new Date(messageToSend.time * 1000).toISOString()
+          });
+          
+          client.send(JSON.stringify(messageToSend));
+        }
+      }
+    });
+  });
+  
+  coinbaseWebSocket.on('error', (error) => {
+    console.error('Coinbase WebSocket error:', error);
+  });
+  
+  coinbaseWebSocket.on('disconnected', () => {
+    console.log('Coinbase WebSocket disconnected');
+  });
 })();
 
 wss.on('connection', (ws) => {
   // console.log('New WebSocket connection established');
+  
+  // Generate unique client ID for tracking subscriptions
+  ws._clientId = Math.random().toString(36).substring(7);
+  chartSubscriptions.set(ws._clientId, new Set());
 
   botManager.addClient(ws);
 
@@ -148,17 +240,68 @@ wss.on('connection', (ws) => {
           }
           break;
         case 'subscribe':
-          // Chart subscription - acknowledge but don't do anything special for now
+          // Chart subscription - subscribe to Coinbase real-time data
           console.log('Chart subscription received:', data.pair, data.granularity);
+          
+          const subscriptionKey = `${data.pair}:${data.granularity}`;
+          const clientSubs = chartSubscriptions.get(ws._clientId);
+          
+          if (clientSubs && !clientSubs.has(subscriptionKey)) {
+            clientSubs.add(subscriptionKey);
+            
+            // Track active granularities for this pair
+            if (!activeSubscriptions.has(data.pair)) {
+              activeSubscriptions.set(data.pair, new Set());
+            }
+            activeSubscriptions.get(data.pair).add(data.granularity);
+            
+            // Convert granularity string to seconds for Coinbase
+            const granularitySeconds = getGranularitySeconds(data.granularity);
+            
+            // Track the mapping between seconds and string for this pair
+            const mappingKey = `${data.pair}:${granularitySeconds}`;
+            granularityMappings.set(mappingKey, data.granularity);
+            
+            // Subscribe to Coinbase WebSocket for this pair
+            coinbaseWebSocket.subscribeMatches(data.pair, granularitySeconds);
+            
+            console.log(`📡 Subscribed client ${ws._clientId} to ${subscriptionKey} (${granularitySeconds}s)`);
+          }
+          
           ws.send(JSON.stringify({
             type: 'subscribed',
             pair: data.pair,
             granularity: data.granularity
           }));
           break;
+          
         case 'unsubscribe':
-          // Chart unsubscription - acknowledge but don't do anything special for now
+          // Chart unsubscription
           console.log('Chart unsubscription received:', data.pair, data.granularity);
+          
+          const unsubKey = `${data.pair}:${data.granularity}`;
+          const clientSubsUnsub = chartSubscriptions.get(ws._clientId);
+          
+          if (clientSubsUnsub && clientSubsUnsub.has(unsubKey)) {
+            clientSubsUnsub.delete(unsubKey);
+            
+            // Check if any other clients are still subscribed to this pair
+            let stillSubscribed = false;
+            chartSubscriptions.forEach((subs) => {
+              if (subs.has(unsubKey)) {
+                stillSubscribed = true;
+              }
+            });
+            
+            // If no clients are subscribed, unsubscribe from Coinbase
+            if (!stillSubscribed) {
+              coinbaseWebSocket.unsubscribe(data.pair, 'matches');
+              console.log(`📡 Unsubscribed from Coinbase for ${unsubKey} - no more clients`);
+            }
+            
+            console.log(`📡 Unsubscribed client ${ws._clientId} from ${unsubKey}`);
+          }
+          
           ws.send(JSON.stringify({
             type: 'unsubscribed',
             pair: data.pair,
@@ -179,6 +322,30 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     console.log('WebSocket connection closed');
+    
+    // Clean up chart subscriptions for this client
+    const clientSubs = chartSubscriptions.get(ws._clientId);
+    if (clientSubs) {
+      clientSubs.forEach(subscriptionKey => {
+        // Check if any other clients are still subscribed to this data
+        let stillSubscribed = false;
+        chartSubscriptions.forEach((subs, clientId) => {
+          if (clientId !== ws._clientId && subs.has(subscriptionKey)) {
+            stillSubscribed = true;
+          }
+        });
+        
+        // If no other clients are subscribed, unsubscribe from Coinbase
+        if (!stillSubscribed) {
+          const [pair] = subscriptionKey.split(':');
+          coinbaseWebSocket.unsubscribe(pair, 'matches');
+          console.log(`📡 Unsubscribed from Coinbase for ${subscriptionKey} - client disconnected`);
+        }
+      });
+      
+      chartSubscriptions.delete(ws._clientId);
+    }
+    
     botManager.removeClient(ws);
     
     // Remove from all bot instances
