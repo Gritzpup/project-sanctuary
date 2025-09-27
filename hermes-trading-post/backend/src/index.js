@@ -297,6 +297,12 @@ wss.on('connection', (ws) => {
             if (!stillSubscribed) {
               coinbaseWebSocket.unsubscribe(data.pair, 'matches');
               console.log(`📡 Unsubscribed from Coinbase for ${unsubKey} - no more clients`);
+              
+              // 🔥 MEMORY LEAK FIX: Clean up granularity mappings
+              const granularitySeconds = getGranularitySeconds(data.granularity);
+              const mappingKey = `${data.pair}:${granularitySeconds}`;
+              granularityMappings.delete(mappingKey);
+              console.log(`🧹 Cleaned up granularity mapping: ${mappingKey}`);
             }
             
             console.log(`📡 Unsubscribed client ${ws._clientId} from ${unsubKey}`);
@@ -337,9 +343,15 @@ wss.on('connection', (ws) => {
         
         // If no other clients are subscribed, unsubscribe from Coinbase
         if (!stillSubscribed) {
-          const [pair] = subscriptionKey.split(':');
+          const [pair, granularityStr] = subscriptionKey.split(':');
           coinbaseWebSocket.unsubscribe(pair, 'matches');
           console.log(`📡 Unsubscribed from Coinbase for ${subscriptionKey} - client disconnected`);
+          
+          // 🔥 MEMORY LEAK FIX: Clean up granularity mappings
+          const granularitySeconds = getGranularitySeconds(granularityStr);
+          const mappingKey = `${pair}:${granularitySeconds}`;
+          granularityMappings.delete(mappingKey);
+          console.log(`🧹 Cleaned up granularity mapping: ${mappingKey}`);
         }
       });
       
@@ -369,9 +381,21 @@ wss.on('connection', (ws) => {
 app.use('/api/trading', tradingRoutes(botManager));
 
 app.get('/health', (req, res) => {
+  const memUsage = process.memoryUsage();
   res.json({ 
     status: 'healthy',
     uptime: process.uptime(),
+    memory: {
+      rss: Math.round(memUsage.rss / 1024 / 1024) + ' MB',
+      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + ' MB',
+      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + ' MB',
+      external: Math.round(memUsage.external / 1024 / 1024) + ' MB'
+    },
+    subscriptions: {
+      chartSubscriptions: chartSubscriptions.size,
+      activeSubscriptions: activeSubscriptions.size,
+      granularityMappings: granularityMappings.size
+    },
     botManager: {
       totalBots: botManager.bots.size,
       activeBotId: botManager.activeBotId,
@@ -405,6 +429,15 @@ const gracefulShutdown = (signal) => {
   // Stop bot manager
   botManager.cleanup();
   
+  // 🔥 MEMORY LEAK FIX: Clean up all Maps and subscriptions
+  console.log('🧹 Cleaning up memory...');
+  chartSubscriptions.clear();
+  activeSubscriptions.clear();
+  granularityMappings.clear();
+  
+  // Disconnect Coinbase WebSocket
+  coinbaseWebSocket.disconnect();
+  
   // Close all WebSocket connections
   wss.clients.forEach(client => {
     client.close();
@@ -412,7 +445,7 @@ const gracefulShutdown = (signal) => {
   
   // Close HTTP server
   server.close(() => {
-    console.log('Server closed');
+    console.log('Server closed and memory cleaned');
     process.exit(0);
   });
   

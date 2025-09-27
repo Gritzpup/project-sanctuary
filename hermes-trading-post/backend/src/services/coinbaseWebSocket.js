@@ -268,14 +268,24 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   disconnect() {
     if (this.ws) {
+      // 🔥 MEMORY LEAK FIX: Remove all event listeners before closing
+      this.ws.removeAllListeners();
       this.ws.close();
       this.ws = null;
     }
+    
+    // 🔥 MEMORY LEAK FIX: Clear all data structures
     this.subscriptions.clear();
     this.candleAggregators.clear();
+    
+    // 🔥 MEMORY LEAK FIX: Remove all EventEmitter listeners
+    this.removeAllListeners();
+    
     this.isConnected = false;
     this.isConnecting = false;
     this.reconnectAttempts = 0;
+    
+    console.log('🧹 Coinbase WebSocket fully disconnected and cleaned up');
   }
 
   /**

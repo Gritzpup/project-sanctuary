@@ -11,8 +11,8 @@
   import CandleCounter from '../indicators/CandleCounter.svelte';
   import CandleCountdown from '../indicators/CandleCountdown.svelte';
   
-  // Get chart context to access chart instance directly
-  const chartContext = getContext('chart');
+  // Get chart context to access chart instance directly (optional when used outside chart)
+  const chartContext = getContext('chart') || null;
   
   // Props using Svelte 5 runes syntax
   const {
@@ -25,7 +25,7 @@
     showLatestCandleTime = true,
     showCandleCountdown = true,
   }: {
-    position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'footer';
     showCandleCount?: boolean;
     showTimeRange?: boolean;
     showClock?: boolean;
@@ -174,18 +174,43 @@
 
 <style>
   .chart-info {
-    position: absolute;
     display: flex;
     flex-wrap: wrap;
     gap: 16px;
+    font-size: 12px;
+    color: white;
+    z-index: 5;
+  }
+  
+  /* Absolute positioning for overlay positions */
+  .chart-info:not(.position-footer) {
+    position: absolute;
     padding: 10px 15px;
     background: rgba(0, 0, 0, 0.75);
     backdrop-filter: blur(10px);
     border-radius: 8px;
-    font-size: 12px;
-    color: white;
     max-width: 90%;
-    z-index: 5;
+  }
+  
+  /* Footer position uses flow layout */
+  .position-footer {
+    position: relative;
+    width: 100%;
+    padding: 0;
+    background: transparent;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+  }
+  
+  /* Footer specific styling for info items */
+  .position-footer .info-item {
+    margin: 0;
+  }
+  
+  /* Clock positioning in footer */
+  .position-footer .clock {
+    margin-left: auto;
   }
   
   .position-top-left {

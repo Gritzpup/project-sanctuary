@@ -7,6 +7,7 @@
   
   // Trading Components
   import Chart from './trading/chart/Chart.svelte';
+  import ChartInfo from './trading/chart/components/overlays/ChartInfo.svelte';
   import BotTabs from './PaperTrading/BotTabs.svelte';
   import MarketGauge from '../components/trading/MarketGauge.svelte';
   import StrategyControls from '../components/papertrading/StrategyControls.svelte';
@@ -992,15 +993,33 @@
                 onPairChange={handlePairChange}
               />
               <div class="period-buttons">
-                <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
-                <button class="period-btn" class:active={selectedPeriod === '4H'} on:click={() => selectPeriod('4H')}>4H</button>
-                <button class="period-btn" class:active={selectedPeriod === '5D'} on:click={() => selectPeriod('5D')}>5D</button>
-                <button class="period-btn" class:active={selectedPeriod === '1M'} on:click={() => selectPeriod('1M')}>1M</button>
-                <button class="period-btn" class:active={selectedPeriod === '3M'} on:click={() => selectPeriod('3M')}>3M</button>
-                <button class="period-btn" class:active={selectedPeriod === '6M'} on:click={() => selectPeriod('6M')}>6M</button>
-                <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
-                <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
-
+                <div class="timeframe-buttons-group">
+                  <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
+                  <button class="period-btn" class:active={selectedPeriod === '4H'} on:click={() => selectPeriod('4H')}>4H</button>
+                  <button class="period-btn" class:active={selectedPeriod === '5D'} on:click={() => selectPeriod('5D')}>5D</button>
+                  <button class="period-btn" class:active={selectedPeriod === '1M'} on:click={() => selectPeriod('1M')}>1M</button>
+                  <button class="period-btn" class:active={selectedPeriod === '3M'} on:click={() => selectPeriod('3M')}>3M</button>
+                  <button class="period-btn" class:active={selectedPeriod === '6M'} on:click={() => selectPeriod('6M')}>6M</button>
+                  <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
+                  <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
+                </div>
+                
+                <!-- Candle Info - INSIDE THE SAME DIV AS BUTTONS -->
+                <div class="candle-info-inline">
+                  <ChartInfo 
+                    position="footer"
+                    showCandleCount={true}
+                    showTimeRange={false}
+                    showClock={true}
+                    showPerformance={false}
+                    showLatestPrice={true}
+                    showLatestCandleTime={false}
+                    showCandleCountdown={true}
+                  />
+                </div>
+              </div>
+              
+              <div class="period-buttons">
                 <div class="button-separator"></div>
 
                 <!-- Paper Test integrated controls -->
@@ -1449,11 +1468,25 @@
 
   :global(.period-buttons) {
     display: flex;
-    justify-content: center;
-    gap: 5px;
-    padding: 10px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 15px;
     background: rgba(0, 0, 0, 0.2);
     border-top: 1px solid rgba(74, 0, 224, 0.3);
+  }
+  
+  .timeframe-buttons-group {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+  }
+  
+  .candle-info-inline {
+    display: flex;
+    justify-content: center;
+    font-size: 11px;
+    padding-top: 5px;
+    border-top: 1px solid rgba(74, 0, 224, 0.1);
   }
 
   :global(.period-btn) {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Chart from './Chart.svelte';
+  import ChartInfo from './trading/chart/components/overlays/ChartInfo.svelte';
   import CollapsibleSidebar from '../components/layout/CollapsibleSidebar.svelte';
   import { onMount, createEventDispatcher } from 'svelte';
   
@@ -149,12 +150,21 @@
         </div>
       </div>
       
+      <!-- Candle Info Footer - RIGHT AFTER TIMEFRAME BUTTONS -->
+      <div class="candle-info-section">
+        <div class="candle-info-content">
+          <p style="color: white; margin: 0 0 10px 0; font-size: 18px; font-weight: bold;">🔥 TEST: Candle Info Footer Section 🔥</p>
+          <p style="color: lime; margin: 0;">This should appear below the timeframe buttons!</p>
+        </div>
+      </div>
+      
       <div class="chart-section">
         <Chart 
           bind:status={connectionStatus}
           granularity={selectedGranularity} 
           period={selectedPeriod} 
-          onGranularityChange={handleChartGranularityChange} 
+          onGranularityChange={handleChartGranularityChange}
+          showInfo={false}
         />
       </div>
       
@@ -329,6 +339,19 @@
   .chart-section :global(.chart-container) {
     flex: 1;
     min-height: 350px;
+  }
+  
+  .candle-info-section {
+    background: rgba(255, 0, 0, 0.3); /* Red background for debugging */
+    border: 2px solid #ff0000; /* Red border for debugging */
+    border-radius: 8px;
+    padding: 12px 20px;
+    margin-top: 10px;
+    min-height: 60px; /* Ensure it has height */
+  }
+  
+  .candle-info-content {
+    width: 100%;
   }
   
   .live-trading-section {
