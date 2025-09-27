@@ -120,14 +120,40 @@
       </div>
     </div>
     
+    <!-- Balance Controls (moved above stats) -->
+    <div class="control-group">
+      <label>Account Balances</label>
+      <div class="balance-controls-simple">
+        <div class="balance-pair">
+          <span class="balance-label-inline">USD</span>
+          <input 
+            type="number" 
+            class="balance-input-inline"
+            bind:value={balance}
+            min="0"
+            step="100"
+            placeholder="10000"
+            on:change={() => dispatch('balanceChange', { balance })}
+          />
+        </div>
+        
+        {#if btcBalance > 0}
+          <div class="balance-pair">
+            <span class="balance-label-inline">BTC</span>
+            <span class="btc-balance-inline">
+              {btcBalance.toFixed(8)}
+            </span>
+          </div>
+        {/if}
+      </div>
+    </div>
+
     <!-- Stats Panel -->
     <div class="control-group">
       <label>Trading Stats</label>
       <div class="stats-panel">
         <div class="stats-grid">
-          <div class="stat-item">BTC: <span class="stat-value">{btcBalance.toFixed(6)}</span></div>
           <div class="stat-item">Start: <span class="stat-value">${startingBalance.toLocaleString()}</span></div>
-          <div class="stat-item">USDC: <span class="stat-value">${balance.toLocaleString()}</span></div>
           <div class="stat-item">Growth: <span class="stat-value" class:profit={growth > 0} class:loss={growth < 0}>{growth > 0 ? '+' : ''}${growth.toLocaleString()}</span></div>
           <div class="stat-item">BTC Val: <span class="stat-value">${btcVaultValue.toLocaleString()}</span></div>
           <div class="stat-item">Fees: <span class="stat-value">${totalFees.toFixed(2)}</span></div>
@@ -140,30 +166,6 @@
         </div>
       </div>
     </div>
-    
-    <!-- Editable Balance -->
-    <div class="control-group">
-      <label>USD Balance</label>
-      <input 
-        type="number" 
-        class="balance-input"
-        bind:value={balance}
-        min="0"
-        step="100"
-        placeholder="Enter starting balance..."
-        on:change={() => dispatch('balanceChange', { balance })}
-      />
-    </div>
-    
-    <!-- BTC Balance -->
-    {#if btcBalance > 0}
-      <div class="control-group">
-        <label>BTC Balance</label>
-        <div class="btc-balance">
-          {btcBalance.toFixed(8)} BTC
-        </div>
-      </div>
-    {/if}
     
     <!-- Trading Controls (at bottom) -->
     <div class="trading-controls">
@@ -387,6 +389,47 @@
     color: #26a69a;
     font-family: 'Courier New', monospace;
     width: 100%;
+  }
+
+  /* Simpler balance controls */
+  .balance-controls-simple {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 16px;
+  }
+
+  .balance-pair {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .balance-label-inline {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 500;
+  }
+
+  .balance-input-inline {
+    width: 90px;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(74, 0, 224, 0.2);
+    border-radius: 4px;
+    color: #26a69a;
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+    font-weight: 500;
+  }
+
+  .btc-balance-inline {
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(74, 0, 224, 0.2);
+    border-radius: 4px;
+    color: #26a69a;
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
   }
 
   .balance-input:focus {
