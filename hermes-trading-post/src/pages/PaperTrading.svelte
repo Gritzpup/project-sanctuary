@@ -13,7 +13,6 @@
   import StrategyControls from '../components/papertrading/StrategyControls.svelte';
   import OpenPositions from '../components/papertrading/OpenPositions.svelte';
   import TradingHistory from '../components/papertrading/TradingHistory.svelte';
-  import PerformanceMetrics from '../components/papertrading/PerformanceMetrics.svelte';
   
   // Services & Stores
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
@@ -931,22 +930,6 @@
   />
   
   <main class="dashboard-content" class:expanded={sidebarCollapsed}>
-    <div class="header">
-      <h1>Paper Trading</h1>
-      <div class="header-stats">
-        <div class="stat-item">
-          <span class="stat-label">BTC Price</span>
-          <span class="stat-value price">${currentPrice ? currentPrice.toFixed(2) : '0.00'}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Connection</span>
-          <span class="stat-value status" class:connected={connectionStatus === 'connected'} class:disconnected={connectionStatus === 'disconnected'} class:error={connectionStatus === 'error'} class:loading={connectionStatus === 'loading'}>
-            {connectionStatus}
-          </span>
-        </div>
-      </div>
-    </div>
-    
     <div class="content-wrapper">
       <div class="paper-trading-grid">
         <div class="panels-row">
@@ -1122,15 +1105,6 @@
             />
           </div>
         </div>
-        
-        <!-- Results/Metrics Panel -->
-        <PerformanceMetrics 
-          {trades}
-          {balance}
-          {winRate}
-          {totalReturn}
-          {totalFees}
-        />
       </div>
     </div>
   </main>
@@ -1236,6 +1210,7 @@
     display: flex;
     flex-direction: column;
   }
+
 
   :global(.panel-header) {
     padding: 15px 20px;
@@ -1540,12 +1515,21 @@
   :global(.chart-panel) {
     height: 100%;
     min-height: 0;
+    border-radius: 0 !important;
   }
 
   :global(.chart-panel .panel-content) {
     padding: 0;
     overflow: hidden;
     display: block;
+  }
+
+  /* Remove rounded edges from the actual chart */
+  :global(.chart-panel canvas),
+  :global(.chart-panel .tv-lightweight-charts),
+  :global(.chart-panel .chart-container),
+  :global(.chart-panel .chart-canvas) {
+    border-radius: 0 !important;
   }
 
 

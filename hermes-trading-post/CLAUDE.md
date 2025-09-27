@@ -1,12 +1,11 @@
 # Claude Code Working Practices
 
-## 🔍 Browser Monitoring + Screenshots (MANDATORY)
-**IMMEDIATELY** check browser logs AND take screenshots after ANY frontend change:
+## 🔍 Browser Monitoring (MANDATORY)
+**IMMEDIATELY** check browser logs after ANY frontend change:
 - **MANDATORY**: Check `~/.browser-logs/errors.log` after every change
 - **MANDATORY**: Check `~/.browser-logs/console.log` for issues  
 - **MANDATORY**: Use `tail -f ~/.browser-logs/all.log` to monitor live
-- **MANDATORY**: Take screenshot after UI changes to verify visually
-- **NEVER** assume changes work without checking logs AND screenshots
+- **NEVER** assume changes work without checking logs
 - **PROACTIVELY** fix ALL errors found before moving on
 
 ### Frontend Quick Commands:
