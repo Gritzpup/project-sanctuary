@@ -25,15 +25,11 @@
   const actualWsStatus = $derived(getTrafficLightStatus());
   const trafficLightColor = $derived(getTrafficLightColor(actualWsStatus));
 
-  // Traffic light status function - trading status takes priority
+  // Traffic light status function - trading status takes priority only when running
   function getTrafficLightStatus(): 'green' | 'red' | 'blue' | 'orange' {
-    // Priority 1: Trading status (if provided)
-    if (tradingStatus) {
-      if (tradingStatus.isRunning) {
-        return tradingStatus.isPaused ? 'orange' : 'green'; // Green when running, orange when paused
-      } else {
-        return 'red'; // Red when stopped
-      }
+    // Priority 1: Trading status (only when bot is actively running)
+    if (tradingStatus && tradingStatus.isRunning) {
+      return tradingStatus.isPaused ? 'orange' : 'green'; // Green when running, orange when paused
     }
     
     // Priority 2: Data status (fallback to original logic)

@@ -156,7 +156,6 @@
   {#if showClock}
     <div class="info-item clock">
       <span class="info-value time">{clockDisplay}</span>
-      <span class="info-value date">{dateDisplay}</span>
     </div>
   {/if}
   
@@ -308,7 +307,7 @@
   }
   
   .time {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 700;
   }
   

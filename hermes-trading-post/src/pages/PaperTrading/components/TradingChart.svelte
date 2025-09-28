@@ -286,7 +286,7 @@
   
   .granularity-buttons {
     display: flex;
-    gap: 4px;
+    gap: 5px;
   }
   
   .zoom-btn {
@@ -382,37 +382,44 @@
     gap: 4px;
     align-items: flex-start;
     flex-shrink: 0;
-    min-width: 200px;
+    min-width: 210px;
   }
   
   .top-row {
     display: flex;
-    gap: 8px;
+    gap: 4px;
     align-items: center;
   }
   
   .bottom-row {
     display: flex;
-    gap: 8px;
+    gap: 4px;
     align-items: center;
   }
   
   .speed-dropdown {
-    min-width: 80px;
+    min-width: 100px;
+    width: 100px;
+    height: 20px;
+    padding: 1px 4px;
+    font-size: 9px;
   }
   
   .date-picker-btn {
     min-width: 100px;
+    height: 20px;
+    padding: 1px 6px;
+    font-size: 9px;
   }
   
   .chart-play-btn,
   .chart-stop-btn {
-    width: 32px;
-    height: 28px;
+    width: 100px;
+    height: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: 8px;
   }
   
   /* Responsive layout for smaller screens */
@@ -423,7 +430,7 @@
     }
     
     .right-column {
-      min-width: 180px;
+      min-width: 190px;
     }
     
     .timeframe-buttons-group {

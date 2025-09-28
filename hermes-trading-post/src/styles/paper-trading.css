@@ -487,13 +487,13 @@ select.speed-dropdown.period-btn.compact {
   background: rgba(74, 0, 224, 0.1) !important;
   border-color: rgba(74, 0, 224, 0.3) !important;
   color: #9ca3af !important;
-  min-width: 32px !important;
-  width: 32px !important;
-  height: 26px !important;
+  min-width: 24px !important;
+  width: 24px !important;
+  height: 20px !important;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
   padding: 0 !important;
@@ -510,13 +510,13 @@ select.speed-dropdown.period-btn.compact {
   background: rgba(74, 0, 224, 0.1) !important;
   border-color: rgba(74, 0, 224, 0.3) !important;
   color: #9ca3af !important;
-  min-width: 32px !important;
-  width: 32px !important;
-  height: 26px !important;
+  min-width: 24px !important;
+  width: 24px !important;
+  height: 20px !important;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
   padding: 0 !important;
@@ -621,14 +621,19 @@ select.speed-dropdown.period-btn.compact {
 
 /* Base period button styles */
 .period-btn {
-  padding: 4px 8px;
+  padding: 6px 12px;
+  min-width: 40px;
+  height: 36px;
   background: rgba(74, 0, 224, 0.2);
   border: 1px solid rgba(74, 0, 224, 0.3);
   color: #9ca3af;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .period-btn:hover {
@@ -645,12 +650,12 @@ select.speed-dropdown.period-btn.compact {
 
 /* Granularity buttons */
 .granularity-btn {
-  padding: 4px 8px;
+  padding: 5px 10px;
   background: rgba(74, 0, 224, 0.2);
   border: 1px solid rgba(74, 0, 224, 0.3);
   color: #9ca3af;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.2s;
 }
