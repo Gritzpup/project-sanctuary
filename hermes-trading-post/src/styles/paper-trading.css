@@ -643,9 +643,10 @@ select.speed-dropdown.period-btn.compact {
 }
 
 .period-btn.active {
-  background: rgba(74, 0, 224, 0.4);
-  border-color: rgba(74, 0, 224, 0.6);
-  color: #a78bfa;
+  background: rgba(74, 0, 224, 0.4) !important;
+  border-color: rgba(74, 0, 224, 0.6) !important;
+  color: #a78bfa !important;
+  font-weight: 600 !important;
 }
 
 /* Granularity buttons */
@@ -809,6 +810,69 @@ select.speed-dropdown.period-btn.compact {
 }
 
 /* Let chart use natural sizing */
+
+/* Bottom Three Panels - Match Chart/Controls Whitespace */
+.panels-row-three .panel-content {
+  padding: 15px 10px 5px 10px !important;
+  gap: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panels-row-three .panel-header {
+  padding: 15px 15px;
+  flex-shrink: 0;
+}
+
+.panels-row-three .panel {
+  margin: 0 8px;
+}
+
+/* Position Panel Specific Adjustments */
+.positions-panel .panel-content {
+  padding: 15px 10px 10px 10px !important;
+}
+
+.positions-panel .positions-grid {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.positions-panel .position-card {
+  padding: 10px 12px;
+  margin-bottom: 0;
+}
+
+.positions-panel .positions-summary {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+/* History Panel Specific Adjustments */
+.history-panel .panel-content {
+  padding: 15px 10px 10px 10px !important;
+}
+
+.history-panel .trades-list {
+  gap: 6px;
+}
+
+.history-panel .trade-item {
+  padding: 8px 10px;
+  margin-bottom: 0;
+}
+
+/* Market Gauge Panel Adjustments */
+.gauge-panel .panel-content {
+  padding: 15px 10px 10px 10px !important;
+}
+
+/* Ensure compact styling throughout bottom panels */
+.panels-row-three .no-positions,
+.panels-row-three .no-trades {
+  padding: 15px 10px;
+  text-align: center;
+}
 
 /* TradingView timescale buttons - apply purple theme */
 button[style*="padding: 3px 5px"] {

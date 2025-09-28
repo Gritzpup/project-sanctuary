@@ -344,7 +344,7 @@
   :global(.paper-trading-grid) {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
   }
 
   :global(.panels-row) {
@@ -368,7 +368,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 20px;
-    margin-top: 20px;
+    margin-top: 8px;
   }
   
   :global(.gauge-panel) {

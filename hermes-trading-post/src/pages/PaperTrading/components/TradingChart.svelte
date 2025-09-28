@@ -29,14 +29,22 @@
   selectedGranularity = savedPrefs.granularity;
   selectedPeriod = savedPrefs.period;
   
-  // Force fix for 1m granularity to always use 1H period
-  if (selectedGranularity === '1m' && selectedPeriod !== '1H') {
+  // Force 1H period for 1m granularity immediately
+  if (selectedGranularity === '1m') {
     selectedPeriod = '1H';
-    chartPreferencesStore.setPreferences('paper-trading', selectedGranularity, '1H');
   }
   
-  // Save preferences when they change
-  $: chartPreferencesStore.setPreferences('paper-trading', selectedGranularity, selectedPeriod);
+  console.log('🔧 INITIAL load:', { savedPrefs, selectedGranularity, selectedPeriod });
+  
+  // Save preferences when they change, but enforce 1H period for 1m granularity
+  $: {
+    if (selectedGranularity === '1m' && selectedPeriod !== '1H') {
+      console.log('🔧 FORCING period from', selectedPeriod, 'to 1H for 1m granularity');
+      selectedPeriod = '1H';
+    }
+    console.log('🔧 Current state:', { selectedGranularity, selectedPeriod, isActive: selectedPeriod === '1H' });
+    chartPreferencesStore.setPreferences('paper-trading', selectedGranularity, selectedPeriod);
+  }
   
   // Add trade markers to chart when trades update
   $: if (trades.length > 0 && chartComponent) {
@@ -397,7 +405,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 20px;
+    padding: 16px 20px;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(74, 0, 224, 0.3);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -571,7 +579,7 @@
   @media (max-width: 1200px) {
     .period-buttons {
       gap: 15px;
-      padding: 10px 15px;
+      padding: 16px 15px;
     }
     
     .right-column {
