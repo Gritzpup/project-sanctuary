@@ -144,6 +144,40 @@ export class BackendAPIService {
     );
   }
 
+  // Strategy Adapter Support
+  public async analyzeStrategy(params: {
+    strategyType: string;
+    candles: any[];
+    currentPrice: number;
+    config: Record<string, any>;
+  }): Promise<{ signal?: any }> {
+    return this.apiClient.retryRequest(
+      () => this.apiClient.post(`${this.baseURL}/api/strategies/analyze`, params),
+      { maxRetries: 2, baseDelay: 500 }
+    );
+  }
+
+  public async getStrategyState(strategyType: string): Promise<any> {
+    return this.apiClient.retryRequest(
+      () => this.apiClient.get(`${this.baseURL}/api/strategies/${strategyType}/state`),
+      { maxRetries: 2, baseDelay: 500 }
+    );
+  }
+
+  public async updateStrategyConfig(strategyType: string, config: Record<string, any>): Promise<void> {
+    return this.apiClient.retryRequest(
+      () => this.apiClient.put(`${this.baseURL}/api/strategies/${strategyType}/config`, config),
+      { maxRetries: 2, baseDelay: 500 }
+    );
+  }
+
+  public async resetStrategy(strategyType: string): Promise<void> {
+    return this.apiClient.retryRequest(
+      () => this.apiClient.post(`${this.baseURL}/api/strategies/${strategyType}/reset`),
+      { maxRetries: 2, baseDelay: 500 }
+    );
+  }
+
   // Price Updates
   public async updateRealtimePrice(price: number, productId: string): Promise<void> {
     return this.apiClient.post(`${this.baseURL}/api/trading/price`, {
@@ -173,6 +207,25 @@ export class BackendAPIService {
   }
 
   // Historical Data
+  public async getHistoricalData(params: {
+    symbol: string;
+    granularity: string;
+    start: number;
+    end: number;
+  }): Promise<{ candles: any[] }> {
+    return this.apiClient.retryRequest(
+      () => this.apiClient.get<{ candles: any[] }>(`${this.baseURL}/api/data/historical`, {
+        params: {
+          symbol: params.symbol,
+          granularity: params.granularity,
+          start: params.start,
+          end: params.end
+        }
+      }),
+      { maxRetries: 3, baseDelay: 1000 }
+    );
+  }
+
   public async getTradeHistory(botId?: string): Promise<any[]> {
     const url = botId 
       ? `${this.baseURL}/api/trading/bots/${botId}/trades`

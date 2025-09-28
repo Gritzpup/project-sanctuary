@@ -2,7 +2,11 @@
 export * from './base/StrategyTypes';
 export { Strategy } from './base/Strategy';
 
-// Export strategy implementations
+// New backend-first strategy adapter (recommended)
+export { BackendStrategyAdapter, BackendStrategyFactory } from './adapters/BackendStrategyAdapter';
+export type { BackendStrategyConfig } from './adapters/BackendStrategyAdapter';
+
+// Legacy frontend strategy implementations (for migration)
 export { ReverseRatioStrategy } from './implementations/ReverseRatioStrategy';
 export { GridTradingStrategy } from './implementations/GridTradingStrategy';
 export { RSIMeanReversionStrategy } from './implementations/RSIMeanReversionStrategy';

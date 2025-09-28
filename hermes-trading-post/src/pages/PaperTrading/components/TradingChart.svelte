@@ -20,6 +20,10 @@
   
   const dispatch = createEventDispatcher();
   
+  // Paper forward test progress state
+  let forwardTestProgress = 0; // 0-100
+  let isForwardTestRunning = false;
+  
   // Load saved chart preferences
   const savedPrefs = chartPreferencesStore.getPreferences('paper-trading');
   selectedGranularity = savedPrefs.granularity;
@@ -121,6 +125,54 @@
   function handleBotTabSelect(event: CustomEvent) {
     dispatch('botTabSelect', event.detail);
   }
+  
+  function handlePlayButtonClick() {
+    if (!selectedTestDateString) {
+      alert('Please select a test date first');
+      return;
+    }
+    
+    isForwardTestRunning = true;
+    forwardTestProgress = 0;
+    
+    // Start the forward test simulation
+    simulateForwardTest();
+    
+    dispatch('forwardTestStart', { 
+      date: selectedTestDateString, 
+      speed: chartSpeed 
+    });
+  }
+  
+  function handleStopButtonClick() {
+    isForwardTestRunning = false;
+    forwardTestProgress = 0;
+    
+    dispatch('forwardTestStop');
+  }
+  
+  // Simulate forward test progress for demo
+  function simulateForwardTest() {
+    if (!isForwardTestRunning) return;
+    
+    const interval = setInterval(() => {
+      if (!isForwardTestRunning || forwardTestProgress >= 100) {
+        clearInterval(interval);
+        if (forwardTestProgress >= 100) {
+          isForwardTestRunning = false;
+        }
+        return;
+      }
+      
+      // Simulate progress based on speed
+      const speedMultiplier = parseFloat(chartSpeed.replace('x', ''));
+      forwardTestProgress += (0.5 * speedMultiplier);
+      
+      if (forwardTestProgress > 100) {
+        forwardTestProgress = 100;
+      }
+    }, 100);
+  }
 </script>
 
 <div class="panel chart-panel">
@@ -218,22 +270,28 @@
             value={selectedTestDateString}
             on:change={handleDateSelection}
           />
-          <button class="period-btn chart-play-btn" title="Start Chart Playback">
+          <button class="period-btn chart-play-btn" title="Start Chart Playback" on:click={handlePlayButtonClick} disabled={isForwardTestRunning}>
             ▶
           </button>
         </div>
         
         <div class="bottom-row">
-          <select class="period-btn speed-dropdown" bind:value={chartSpeed} on:change={handleSpeedChange}>
+          <select class="period-btn speed-dropdown" bind:value={chartSpeed} on:change={handleSpeedChange} disabled={isForwardTestRunning}>
             <option value="1x">1x Speed</option>
             <option value="1.5x">1.5x Speed</option>
             <option value="2x">2x Speed</option>
             <option value="3x">3x Speed</option>
             <option value="10x">10x Speed</option>
           </select>
-          <button class="period-btn chart-stop-btn" title="Stop Chart Playback">
+          <button class="period-btn chart-stop-btn" title="Stop Chart Playback" on:click={handleStopButtonClick} disabled={!isForwardTestRunning}>
             ⏹
           </button>
+          <div class="progress-bar-container" class:active={isForwardTestRunning}>
+            <div class="progress-bar" class:active={isForwardTestRunning}>
+              <div class="progress-fill" class:active={isForwardTestRunning} style="width: {forwardTestProgress}%"></div>
+            </div>
+            <span class="progress-text" class:active={isForwardTestRunning}>{Math.round(forwardTestProgress)}%</span>
+          </div>
         </div>
       </div>
     </div>
@@ -401,15 +459,39 @@
     min-width: 100px;
     width: 100px;
     height: 20px;
-    padding: 1px 4px;
+    padding: 1px 20px 1px 4px; /* More space for dropdown arrow */
     font-size: 9px;
+    text-align: center; /* Center the selected text */
+    box-sizing: border-box;
   }
   
   .date-picker-btn {
     min-width: 100px;
     height: 20px;
-    padding: 1px 6px;
+    padding: 0 !important;
     font-size: 9px;
+    text-align: center;
+    box-sizing: border-box;
+    /* Override browser date input defaults */
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+    appearance: none;
+    text-indent: 0;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  /* Remove date picker icon spacing */
+  .date-picker-btn::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 2px;
+    width: 12px;
+    height: 12px;
+    opacity: 0.7;
+  }
+  
+  .date-picker-btn::-webkit-inner-spin-button {
+    display: none;
   }
   
   .chart-play-btn,
@@ -420,6 +502,69 @@
     align-items: center;
     justify-content: center;
     font-size: 8px;
+  }
+  
+  .progress-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 8px;
+    opacity: 0.6;
+    transition: opacity 0.3s ease;
+  }
+  
+  .progress-bar-container.active {
+    opacity: 1;
+  }
+  
+  .progress-bar {
+    width: 120px;
+    height: 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    transition: border-color 0.3s ease;
+  }
+  
+  .progress-bar.active {
+    border-color: rgba(124, 58, 237, 0.6);
+    box-shadow: 0 0 4px rgba(124, 58, 237, 0.3);
+  }
+  
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4c1d95, #7c3aed, #a855f7);
+    border-radius: 7px;
+    transition: width 0.3s ease;
+  }
+  
+  .progress-fill.active {
+    box-shadow: 0 0 8px rgba(124, 58, 237, 0.4);
+    animation: pulse-progress 2s ease-in-out infinite;
+  }
+  
+  .progress-text {
+    font-size: 10px;
+    color: #a78bfa;
+    font-weight: 600;
+    min-width: 30px;
+    text-align: center;
+    transition: color 0.3s ease;
+  }
+  
+  .progress-text.active {
+    color: #c4b5fd;
+  }
+  
+  @keyframes pulse-progress {
+    0%, 100% { 
+      box-shadow: 0 0 8px rgba(124, 58, 237, 0.4);
+    }
+    50% { 
+      box-shadow: 0 0 12px rgba(124, 58, 237, 0.7);
+    }
   }
   
   /* Responsive layout for smaller screens */
