@@ -344,6 +344,88 @@
   color: #758696;
 }
 
+/* Strategy Controls Panel Compacting */
+.strategy-panel {
+  height: calc(100% - 30px) !important;
+  max-height: calc(100% - 30px) !important;
+  margin-top: 15px;
+  overflow: hidden;
+}
+
+.strategy-panel .panel-content {
+  padding: 15px 15px 5px 15px;
+  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+}
+
+.strategy-panel .control-group {
+  margin-bottom: 15px;
+}
+
+.strategy-panel .control-group:last-of-type {
+  margin-bottom: 0;
+}
+
+.strategy-panel .control-group label {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.strategy-panel .stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  font-size: 11px;
+  margin-bottom: 0;
+}
+
+.strategy-panel .stat-item {
+  padding: 3px 5px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 3px;
+  border: 1px solid rgba(74, 0, 224, 0.2);
+}
+
+.strategy-panel .trading-controls {
+  margin-top: auto;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.strategy-panel .main-controls {
+  gap: 8px;
+  margin-bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.strategy-panel .control-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.strategy-panel .bot-status-row {
+  gap: 3px;
+}
+
+.strategy-panel .stats-panel {
+  margin-top: -5px;
+  margin-bottom: -5px;
+  padding: 0;
+}
+
+.strategy-panel .panel-header {
+  padding: 15px 20px;
+  flex-shrink: 0;
+}
+
+.strategy-panel .balance-controls-simple {
+  gap: 6px;
+}
+
 /* Date and Speed Controls - OVERRIDE to force row layout */
 .date-speed-container {
   display: flex;

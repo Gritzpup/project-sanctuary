@@ -245,12 +245,21 @@
   @import '../../../styles/paper-trading.css';
   
   /* Chart-specific styles */
+  .panel.chart-panel {
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+  
   .panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 15px 20px;
+    border: 1px solid rgba(74, 0, 224, 0.3);
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px 8px 0 0;
+    background: rgba(255, 255, 255, 0.02);
   }
   
   .panel-header h2 {
@@ -305,6 +314,9 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+    border-left: 1px solid rgba(74, 0, 224, 0.3);
+    border-right: 1px solid rgba(74, 0, 224, 0.3);
+    background: rgba(255, 255, 255, 0.02);
   }
   
   /* Remove rounded edges from chart */
@@ -328,8 +340,10 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 20px;
-    background: rgba(10, 10, 10, 0.95);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.3);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0 0 8px 8px;
     flex-shrink: 0;
     gap: 20px;
     flex-wrap: nowrap;

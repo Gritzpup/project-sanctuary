@@ -351,7 +351,17 @@
     display: grid;
     grid-template-columns: 2fr 1fr;
     gap: 20px;
-    height: 600px;
+    height: auto;
+  }
+  
+  :global(.chart-panel) {
+    height: auto;
+  }
+  
+  :global(.strategy-panel) {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
   
   :global(.panels-row-three) {
