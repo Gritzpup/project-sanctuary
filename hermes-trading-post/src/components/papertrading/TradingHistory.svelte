@@ -13,8 +13,8 @@
     {#if trades.length > 0}
       <div class="trades-list">
         {#each trades.slice(-10).reverse() as trade}
-          <div class="trade-item" class:buy={trade.type === 'buy'} class:sell={trade.type === 'sell'}>
-            <div class="trade-type">{trade.type.toUpperCase()}</div>
+          <div class="trade-item" class:buy={(trade.type || trade.side) === 'buy'} class:sell={(trade.type || trade.side) === 'sell'}>
+            <div class="trade-type">{(trade.type || trade.side).toUpperCase()}</div>
             <div class="trade-details">
               <span class="trade-price">${trade.price.toFixed(2)}</span>
               <span class="trade-time">{new Date(trade.timestamp).toLocaleTimeString()}</span>

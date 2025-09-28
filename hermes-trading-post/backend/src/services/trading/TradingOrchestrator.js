@@ -240,15 +240,36 @@ export class TradingOrchestrator extends EventEmitter {
   }
 
   getStatus() {
+    let positions = this.positionManager.getPositions();
+    
+    // HOTFIX: If we have BTC balance but no positions, reconstruct from trades
+    if (positions.length === 0 && this.balance.btc > 0 && this.trades.length > 0) {
+      // Find the most recent buy trade to reconstruct the position
+      const buyTrades = this.trades.filter(t => t.side === 'buy' || t.type === 'buy');
+      if (buyTrades.length > 0) {
+        const lastBuyTrade = buyTrades[buyTrades.length - 1];
+        const reconstructedPosition = {
+          id: lastBuyTrade.id || lastBuyTrade.timestamp,
+          entryPrice: lastBuyTrade.price,
+          size: this.balance.btc, // Use current BTC balance as position size
+          timestamp: lastBuyTrade.timestamp,
+          type: 'buy',
+          reason: lastBuyTrade.reason || 'Reconstructed from trade history'
+        };
+        positions = [reconstructedPosition];
+        console.log('🔧 HOTFIX: Reconstructed position from BTC balance and trade history');
+      }
+    }
+    
     return {
       isRunning: this.isRunning,
       isPaused: this.isPaused,
       balance: this.balance,
       currentPrice: this.currentPrice,
-      positions: this.positionManager.getPositions(),
+      positions: positions,
       trades: this.trades,
       strategyType: this.strategy ? this.strategyConfig?.strategyType : null,
-      positionCount: this.positionManager.getPositions().length,
+      positionCount: positions.length,
       totalValue: this.calculateTotalValue()
     };
   }

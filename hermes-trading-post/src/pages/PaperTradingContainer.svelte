@@ -69,6 +69,17 @@
   // Subscribe to manager state
   $: managerState = $managerStateStore;
   
+  // Debug logging
+  $: if (tradingState) {
+    console.log('📊 Current trading state:', {
+      isRunning: tradingState.isRunning,
+      positions: tradingState.positions,
+      trades: tradingState.trades,
+      positionsLength: tradingState.positions?.length,
+      tradesLength: tradingState.trades?.length
+    });
+  }
+  
   // Update bot tabs based on manager state
   function updateBotTabs() {
     if (!managerState) return;
@@ -113,6 +124,23 @@
   }
   
   function handleStartTrading() {
+    console.log('🎯 Container handleStartTrading called', {
+      selectedStrategyType: tradingState.selectedStrategyType,
+      currentPrice: backendState.currentPrice,
+      tradingState,
+      backendState
+    });
+    
+    if (!tradingState.selectedStrategyType) {
+      console.error('No strategy type selected!');
+      return;
+    }
+    
+    if (!backendState.currentPrice || backendState.currentPrice <= 0) {
+      console.error('No current price available!');
+      return;
+    }
+    
     orchestrator.startTrading(tradingState.selectedStrategyType, backendState.currentPrice);
   }
   
@@ -138,9 +166,14 @@
   function handleBotTabSelect(event: CustomEvent) {
     const { botId } = event.detail;
     
-    // Clear current data and select new bot
-    orchestrator.resetState();
+    // Select new bot without resetting (to preserve existing data)
     paperTradingManager.selectBot(botId);
+    
+    // Tell orchestrator to switch to this bot without resetting
+    if (orchestrator.webSocket && orchestrator.isConnected) {
+      orchestrator.webSocket.send(JSON.stringify({ type: 'selectBot', botId }));
+      orchestrator.webSocket.send(JSON.stringify({ type: 'getStatus' }));
+    }
     
     // Force immediate sync
     setTimeout(() => {
@@ -163,6 +196,7 @@
     
     // Subscribe to state changes
     const unsubscribeTrading = orchestrator.getState().subscribe(state => {
+      console.log('🔄 Trading state updated:', state);
       tradingState = state;
     });
     
@@ -252,13 +286,13 @@
         <div class="panels-row-three">
           <!-- Open Positions Panel -->
           <OpenPositions
-            positions={tradingState.positions}
-            currentPrice={backendState.currentPrice}
-            isRunning={tradingState.isRunning}
+            positions={tradingState.positions || []}
+            currentPrice={backendState.currentPrice || 0}
+            isRunning={tradingState.isRunning || false}
           />
           
           <!-- Trading History Panel -->
-          <TradingHistory trades={tradingState.trades} />
+          <TradingHistory trades={tradingState.trades || []} />
           
           <!-- Market Gauge Panel -->
           <div class="panel gauge-panel">

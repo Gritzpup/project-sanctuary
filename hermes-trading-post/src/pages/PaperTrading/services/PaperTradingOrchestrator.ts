@@ -63,6 +63,14 @@ export class PaperTradingOrchestrator {
     return this.state;
   }
 
+  get webSocket() {
+    return this.backendWs;
+  }
+
+  get isConnected() {
+    return this.backendConnected;
+  }
+
   updateState(updates: Partial<TradingState>) {
     this.state.update(current => ({ ...current, ...updates }));
   }
@@ -134,7 +142,17 @@ export class PaperTradingOrchestrator {
     
     if (data.type === 'resetComplete') {
       console.log('📊 Backend reset confirmed');
-      this.resetState();
+      // Don't call resetState() again - just sync with the backend status
+      if (data.status) {
+        this.updateState({
+          isRunning: data.status.isRunning || false,
+          isPaused: data.status.isPaused || false,
+          trades: data.status.trades || [],
+          positions: data.status.positions || [],
+          balance: data.status.balance?.usd || 10000,
+          btcBalance: data.status.balance?.btc || 0
+        });
+      }
     }
   }
 
@@ -168,7 +186,12 @@ export class PaperTradingOrchestrator {
   }
 
   startTrading(strategyType: string, currentPrice: number) {
-    console.log('🚀 START TRADING - Orchestrator');
+    console.log('🚀 START TRADING - Orchestrator', { 
+      strategyType, 
+      currentPrice,
+      backendConnected: this.backendConnected,
+      currentState: get(this.state)
+    });
     
     if (this.backendWs && this.backendConnected) {
       console.log('Sending START command to backend...');
@@ -259,6 +282,7 @@ export class PaperTradingOrchestrator {
     this.updateState({
       isRunning: false,
       isPaused: false,
+      selectedStrategyType: 'reverse-ratio', // Reset to default strategy
       balance: 10000,
       btcBalance: 0,
       vaultBalance: 0,

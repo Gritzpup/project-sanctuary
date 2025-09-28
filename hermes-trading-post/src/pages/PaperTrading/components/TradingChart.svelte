@@ -201,8 +201,10 @@
         </div>
       </div>
       
+      <div class="separator-border"></div>
+      
       <div class="right-column">
-        <div class="controls-group">
+        <div class="top-row">
           <input 
             type="date" 
             id="paper-test-date-input"
@@ -216,6 +218,12 @@
             value={selectedTestDateString}
             on:change={handleDateSelection}
           />
+          <button class="period-btn chart-play-btn" title="Start Chart Playback">
+            ▶
+          </button>
+        </div>
+        
+        <div class="bottom-row">
           <select class="period-btn speed-dropdown" bind:value={chartSpeed} on:change={handleSpeedChange}>
             <option value="1x">1x Speed</option>
             <option value="1.5x">1.5x Speed</option>
@@ -223,9 +231,6 @@
             <option value="3x">3x Speed</option>
             <option value="10x">10x Speed</option>
           </select>
-          <button class="period-btn chart-play-btn" title="Start Chart Playback">
-            ▶
-          </button>
           <button class="period-btn chart-stop-btn" title="Stop Chart Playback">
             ⏹
           </button>
@@ -322,21 +327,27 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 15px;
+    padding: 10px 20px;
     background: rgba(10, 10, 10, 0.95);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     flex-shrink: 0;
+    gap: 20px;
+    flex-wrap: nowrap;
   }
   
   .left-column {
     display: flex;
-    align-items: center;
-    gap: 20px;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+    flex-shrink: 1;
+    min-width: 0;
   }
   
   .timeframe-buttons-group {
     display: flex;
     gap: 4px;
+    flex-wrap: nowrap;
   }
   
   .candle-info-inline {
@@ -344,16 +355,32 @@
     font-size: 12px;
   }
   
+  .separator-border {
+    width: 1px;
+    height: 35px;
+    background: rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
+  }
+  
   .right-column {
     display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+    flex-shrink: 0;
+    min-width: 200px;
+  }
+  
+  .top-row {
+    display: flex;
+    gap: 8px;
     align-items: center;
   }
   
-  .controls-group {
+  .bottom-row {
     display: flex;
-    flex-direction: row;
-    align-items: center;
     gap: 8px;
+    align-items: center;
   }
   
   .speed-dropdown {
@@ -372,5 +399,43 @@
     align-items: center;
     justify-content: center;
     font-size: 12px;
+  }
+  
+  /* Responsive layout for smaller screens */
+  @media (max-width: 1200px) {
+    .period-buttons {
+      gap: 15px;
+      padding: 10px 15px;
+    }
+    
+    .right-column {
+      min-width: 180px;
+    }
+    
+    .timeframe-buttons-group {
+      gap: 3px;
+    }
+    
+    .timeframe-buttons-group .period-btn {
+      padding: 3px 6px;
+      font-size: 10px;
+    }
+  }
+  
+  @media (max-width: 1000px) {
+    .period-buttons {
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+    
+    .separator-border {
+      display: none;
+    }
+    
+    .left-column,
+    .right-column {
+      align-items: center;
+    }
   }
 </style>
