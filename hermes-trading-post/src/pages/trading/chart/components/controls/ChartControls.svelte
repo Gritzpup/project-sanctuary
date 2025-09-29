@@ -169,7 +169,11 @@
   {#if showSpeed}
     <div class="control-group">
       <span class="control-label">Speed:</span>
-      <select class="speed-dropdown" bind:value={currentSpeed} on:change={handleSpeedChange}>
+      <select 
+        class="speed-dropdown" 
+        bind:value={currentSpeed} 
+        on:change={handleSpeedChange}
+      >
         {#each availableSpeeds as speed}
           <option value={speed}>{speed}</option>
         {/each}
@@ -333,38 +337,46 @@
     -webkit-text-fill-color: #9966ff !important;
   }
   
-  /* Speed Dropdown */
-  .speed-dropdown {
+  /* Speed Dropdown - Same styling as pair dropdown with high specificity */
+  select.speed-dropdown,
+  .control-group select.speed-dropdown,
+  .chart-controls .control-group select.speed-dropdown {
     padding: 6px 12px;
-    border: 1px solid var(--border-color, #ddd);
-    background: var(--button-bg, white);
-    color: var(--text-primary, #333);
+    border: 1px solid #555;
+    background: #333;
+    color: #9966ff;
     font-size: 13px;
     font-weight: 500;
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.2s ease;
     min-width: 60px;
+    -webkit-text-fill-color: #9966ff;
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
   }
   
-  .speed-dropdown:hover {
-    background: var(--button-hover-bg, #f5f5f5);
-    border-color: var(--border-hover-color, #bbb);
+  select.speed-dropdown:hover,
+  .control-group select.speed-dropdown:hover,
+  .chart-controls .control-group select.speed-dropdown:hover {
+    background: #444;
+    border-color: #666;
   }
   
-  .speed-dropdown:focus {
+  select.speed-dropdown:focus,
+  .control-group select.speed-dropdown:focus,
+  .chart-controls .control-group select.speed-dropdown:focus {
     outline: none;
-    border-color: var(--primary-color, #2196f3);
+    border-color: #2196f3;
     box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
   }
   
   .speed-dropdown option {
-    background: var(--button-bg, white);
-    color: var(--text-primary, #333);
+    background: #333;
+    color: #9966ff;
     padding: 6px;
+    -webkit-text-fill-color: #9966ff;
   }
   
   /* Dark theme support */
@@ -380,21 +392,6 @@
     --accent-color: #4caf50;
   }
   
-  :global(.dark) .speed-dropdown {
-    background: #2a2a2a;
-    color: #e0e0e0;
-    border-color: #444;
-  }
-  
-  :global(.dark) .speed-dropdown:hover {
-    background: #3a3a3a;
-    border-color: #666;
-  }
-  
-  :global(.dark) .speed-dropdown option {
-    background: #2a2a2a;
-    color: #e0e0e0;
-  }
   
   
   /* Responsive */

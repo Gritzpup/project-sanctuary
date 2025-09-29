@@ -878,37 +878,15 @@
     color: #d1d4dc;
   }
   
-  .strategy-section select {
-    padding: 8px 12px;
-    background: rgba(74, 0, 224, 0.1);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 4px;
-    color: #d1d4dc;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
+  /* Removed global select styling */
   
-  .strategy-section select:hover {
-    background: rgba(74, 0, 224, 0.2);
-    border-color: rgba(74, 0, 224, 0.5);
-  }
+  /* Removed global select hover styling */
   
-  .strategy-section select:focus {
-    outline: none;
-    border-color: #a78bfa;
-    background: rgba(74, 0, 224, 0.2);
-  }
+  /* Removed global select focus styling */
   
-  .strategy-section select:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+  /* Removed global select disabled styling */
   
-  .strategy-section select option {
-    background: #1a1a1a;
-    color: #d1d4dc;
-  }
+  /* Removed global select option styling */
   
   .control-buttons {
     margin-top: 20px;

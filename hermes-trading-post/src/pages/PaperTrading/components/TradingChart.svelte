@@ -4,6 +4,8 @@
   import BotTabs from '../BotTabs.svelte';
   import { chartPreferencesStore } from '../../../stores/chartPreferencesStore';
   import { createEventDispatcher } from 'svelte';
+  import { fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   
   export let selectedPair = 'BTC-USD';
   export let selectedGranularity = '1m';
@@ -17,12 +19,63 @@
   export let trades: any[] = [];
   export let isPaperTestRunning = false;
   export let chartComponent: any = null;
+  export let currentPrice: number = 0;
+  export let priceChange24h: number = 0;
+  export let priceChangePercent24h: number = 0;
   
   const dispatch = createEventDispatcher();
   
   // Paper forward test progress state
   let forwardTestProgress = 0; // 0-100
   let isForwardTestRunning = false;
+  
+  // Price animation state
+  let previousPrice = 0;
+  let priceDirection = 'neutral'; // 'up', 'down', 'neutral'
+  let displayPrice = 0;
+  let priceDigits: string[] = [];
+  let targetDigits: string[] = [];
+  
+  // Initialize price direction based on 24h change to avoid white text on startup
+  $: if (priceDirection === 'neutral' && priceChange24h !== 0) {
+    priceDirection = priceChange24h >= 0 ? 'up' : 'down';
+  }
+  
+  // Convert price to padded digit array with cents
+  function priceToDigits(price: number): string[] {
+    const priceStr = price.toFixed(2).replace(/,/g, '').replace('.', '');
+    return priceStr.padStart(8, '0').split(''); // Pad to 8 digits for consistency (6 dollars + 2 cents)
+  }
+  
+  // Initialize digits with default or current price
+  $: if (priceDigits.length === 0) {
+    const initPrice = currentPrice > 0 ? currentPrice : 0;
+    displayPrice = initPrice;
+    priceDigits = priceToDigits(initPrice);
+    targetDigits = [...priceDigits];
+  }
+  
+  // Update when price becomes available
+  $: if (currentPrice > 0 && displayPrice === 0) {
+    displayPrice = currentPrice;
+    priceDigits = priceToDigits(currentPrice);
+    targetDigits = [...priceDigits];
+  }
+  
+  // Watch for price changes and update digits
+  $: if (currentPrice !== previousPrice && currentPrice > 0) {
+    if (previousPrice > 0) {
+      priceDirection = currentPrice > previousPrice ? 'up' : 'down';
+      priceDigits = priceToDigits(currentPrice);
+    } else {
+      displayPrice = currentPrice;
+      priceDigits = priceToDigits(currentPrice);
+    }
+    previousPrice = currentPrice;
+  }
+  
+  // 24h change direction
+  $: changeDirection = priceChange24h >= 0 ? 'up' : 'down';
   
   // Load saved chart preferences
   const savedPrefs = chartPreferencesStore.getPreferences('paper-trading');
@@ -119,8 +172,16 @@
   }
   
   function handleZoomCorrection() {
+    console.log('🔍 Zoom correction clicked, chartComponent:', chartComponent);
     if (chartComponent) {
-      chartComponent.fitContent();
+      try {
+        chartComponent.fitContent();
+        console.log('✅ fitContent called successfully');
+      } catch (error) {
+        console.error('❌ Error calling fitContent:', error);
+      }
+    } else {
+      console.warn('⚠️ chartComponent not available');
     }
   }
 
@@ -191,6 +252,31 @@
         <option value="ETH-USD">ETH/USD Chart</option>
         <option value="PAXG-USD">PAXG/USD Chart</option>
       </select>
+      <div class="bitcoin-price">
+        <span class="price-container" class:price-up={priceDirection === 'up'} class:price-down={priceDirection === 'down'}>
+          <span class="price-symbol" class:price-up={priceDirection === 'up'} class:price-down={priceDirection === 'down'}>$</span>
+          <div class="digits-container">
+            {#each priceDigits as digit, index (index)}
+              <div class="digit-wrapper">
+                {#key digit}
+                  <span class="digit" class:price-up={priceDirection === 'up'} class:price-down={priceDirection === 'down'} in:fly="{{ y: priceDirection === 'up' ? -25 : 25, duration: 350, easing: cubicOut }}" out:fly="{{ y: priceDirection === 'up' ? 25 : -25, duration: 250, easing: cubicOut }}">{digit}</span>
+                {/key}
+              </div>
+              <!-- Add comma after thousands and hundred thousands digits -->
+              {#if priceDigits.length >= 6 && (index === priceDigits.length - 6 || index === priceDigits.length - 9)}
+                <span class="comma" class:price-up={priceDirection === 'up'} class:price-down={priceDirection === 'down'}>,</span>
+              {/if}
+              <!-- Add decimal point before last 2 digits -->
+              {#if index === priceDigits.length - 3}
+                <span class="decimal-point" class:price-up={priceDirection === 'up'} class:price-down={priceDirection === 'down'}>.</span>
+              {/if}
+            {/each}
+          </div>
+        </span>
+        <span class="price-change" class:change-up={changeDirection === 'up'} class:change-down={changeDirection === 'down'}>
+          24h: ${Math.abs(priceChange24h).toFixed(2)} ({priceChangePercent24h >= 0 ? '+' : ''}{priceChangePercent24h.toFixed(2)}%) <span class="direction-arrow">{changeDirection === 'up' ? '↗' : '↘'}</span>
+        </span>
+      </div>
       {#if isPaperTestRunning}
         <span class="paper-test-indicator">📄 Paper Test Mode</span>
       {/if}
@@ -234,34 +320,35 @@
       onPairChange={handlePairChange}
     />
     <div class="period-buttons">
-      <div class="left-column">
-        <div class="timeframe-buttons-group">
-          <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
-          <button class="period-btn" class:active={selectedPeriod === '4H'} on:click={() => selectPeriod('4H')}>4H</button>
-          <button class="period-btn" class:active={selectedPeriod === '5D'} on:click={() => selectPeriod('5D')}>5D</button>
-          <button class="period-btn" class:active={selectedPeriod === '1M'} on:click={() => selectPeriod('1M')}>1M</button>
-          <button class="period-btn" class:active={selectedPeriod === '3M'} on:click={() => selectPeriod('3M')}>3M</button>
-          <button class="period-btn" class:active={selectedPeriod === '6M'} on:click={() => selectPeriod('6M')}>6M</button>
-          <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
-          <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
+      <div class="footer-content-container">
+        <div class="left-column">
+          <div class="timeframe-buttons-group">
+            <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
+            <button class="period-btn" class:active={selectedPeriod === '4H'} on:click={() => selectPeriod('4H')}>4H</button>
+            <button class="period-btn" class:active={selectedPeriod === '5D'} on:click={() => selectPeriod('5D')}>5D</button>
+            <button class="period-btn" class:active={selectedPeriod === '1M'} on:click={() => selectPeriod('1M')}>1M</button>
+            <button class="period-btn" class:active={selectedPeriod === '3M'} on:click={() => selectPeriod('3M')}>3M</button>
+            <button class="period-btn" class:active={selectedPeriod === '6M'} on:click={() => selectPeriod('6M')}>6M</button>
+            <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
+            <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
+          </div>
+          
+          <div class="candle-info-inline">
+            <ChartInfo 
+              position="footer"
+              showCandleCount={true}
+              showTimeRange={false}
+              showClock={true}
+              showPerformance={false}
+              showLatestPrice={true}
+              showLatestCandleTime={false}
+              showCandleCountdown={true}
+              tradingStatus={{ isRunning, isPaused }}
+            />
+          </div>
         </div>
         
-        <div class="candle-info-inline">
-          <ChartInfo 
-            position="footer"
-            showCandleCount={true}
-            showTimeRange={false}
-            showClock={true}
-            showPerformance={false}
-            showLatestPrice={true}
-            showLatestCandleTime={false}
-            showCandleCountdown={true}
-            tradingStatus={{ isRunning, isPaused }}
-          />
-        </div>
-      </div>
-      
-      <div class="separator-border"></div>
+        <div class="separator-border"></div>
       
       <div class="right-column">
         <div class="top-row">
@@ -284,7 +371,7 @@
         </div>
         
         <div class="bottom-row">
-          <select class="period-btn speed-dropdown" bind:value={chartSpeed} on:change={handleSpeedChange} disabled={isForwardTestRunning}>
+          <select class="speed-dropdown" bind:value={chartSpeed} on:change={handleSpeedChange} disabled={isForwardTestRunning}>
             <option value="1x">1x Speed</option>
             <option value="1.5x">1.5x Speed</option>
             <option value="2x">2x Speed</option>
@@ -301,6 +388,7 @@
             <span class="progress-text" class:active={isForwardTestRunning}>{Math.round(forwardTestProgress)}%</span>
           </div>
         </div>
+      </div>
       </div>
     </div>
   </div>
@@ -327,6 +415,136 @@
     border-radius: 8px 8px 0 0;
     background: rgba(255, 255, 255, 0.02);
   }
+
+  .panel-header h2 {
+    margin: 0;
+    font-size: 16px;
+    color: #a78bfa;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .bitcoin-price {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .price-container {
+    display: flex;
+    align-items: center;
+    font-family: 'Courier New', monospace;
+    font-size: 24px;
+    font-weight: 400;
+  }
+
+  .price-symbol {
+    margin-right: 2px;
+    transition: color 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+  }
+
+  .price-symbol.price-up {
+    color: #26a69a;
+  }
+
+  .price-symbol.price-down {
+    color: #ef5350;
+  }
+
+  .digits-container {
+    display: flex;
+    align-items: center;
+  }
+
+  .digit-wrapper {
+    height: 30px;
+    overflow: hidden;
+    position: relative;
+    width: 17px;
+  }
+
+  .digit-roller {
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
+    position: absolute;
+    top: 0;
+  }
+
+  .digit {
+    height: 30px;
+    line-height: 30px;
+    text-align: center;
+    transition: color 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+    width: 17px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 400;
+    transform: translateZ(0); /* Hardware acceleration */
+    will-change: transform, color;
+  }
+
+  .digit.price-up {
+    color: #26a69a;
+  }
+
+  .digit.price-down {
+    color: #ef5350;
+  }
+
+  .decimal-point {
+    font-size: 24px;
+    font-weight: 400;
+    transition: color 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+    margin: 0 1px;
+  }
+
+  .decimal-point.price-up {
+    color: #26a69a;
+  }
+
+  .decimal-point.price-down {
+    color: #ef5350;
+  }
+
+  .comma {
+    font-size: 24px;
+    font-weight: 400;
+    transition: color 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+    margin: 0 1px;
+  }
+
+  .comma.price-up {
+    color: #26a69a;
+  }
+
+  .comma.price-down {
+    color: #ef5350;
+  }
+
+  .price-change {
+    font-size: 14px;
+    font-weight: 400;
+    transition: color 0.3s ease;
+    font-family: 'Courier New', monospace;
+  }
+
+  .price-change.change-up {
+    color: #26a69a;
+  }
+
+  .price-change.change-down {
+    color: #ef5350;
+  }
+
+  .direction-arrow {
+    font-size: 18px;
+    margin-left: 2px;
+  }
+
   
   .panel-header h2 {
     margin: 0;
@@ -356,19 +574,27 @@
   }
   
   .zoom-btn {
-    background: rgba(74, 0, 224, 0.2);
-    border: 1px solid rgba(74, 0, 224, 0.3);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(74, 0, 224, 0.2);
     color: #9ca3af;
     border-radius: 4px;
-    padding: 4px 8px;
+    padding: 6px 10px;
     cursor: pointer;
     font-size: 12px;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
+    font-weight: 500;
   }
   
   .zoom-btn:hover {
-    background: rgba(74, 0, 224, 0.3);
+    background: rgba(74, 0, 224, 0.1);
+    border-color: rgba(74, 0, 224, 0.4);
     color: #d1d4dc;
+    transform: translateY(-1px);
+  }
+  
+  .zoom-btn:active {
+    transform: translateY(0);
+    background: rgba(74, 0, 224, 0.2);
   }
   
   .separator {
@@ -404,7 +630,7 @@
   .period-buttons {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     padding: 16px 20px;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(74, 0, 224, 0.3);
@@ -415,6 +641,13 @@
     flex-wrap: nowrap;
   }
   
+  .footer-content-container {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    margin: 0 auto;
+  }
+
   .left-column {
     display: flex;
     flex-direction: column;
@@ -467,10 +700,40 @@
     min-width: 100px;
     width: 100px;
     height: 20px;
-    padding: 1px 20px 1px 4px; /* More space for dropdown arrow */
+    padding: 1px 20px 1px 4px;
     font-size: 9px;
-    text-align: center; /* Center the selected text */
+    text-align: center;
     box-sizing: border-box;
+    background: rgba(74, 0, 224, 0.2);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 4px;
+    color: #9ca3af;
+    transition: all 0.2s ease;
+  }
+  
+  .speed-dropdown:focus {
+    outline: none;
+    border-color: #2196f3;
+    background: #444;
+  }
+  
+  .speed-dropdown:hover {
+    border-color: #666;
+    background: #444;
+  }
+
+  .speed-dropdown option {
+    background: #333;
+    color: #9966ff;
+    padding: 4px 8px;
+  }
+
+  .speed-dropdown option:hover {
+    background: #444;
+  }
+
+  .speed-dropdown option:checked {
+    background: #555;
   }
   
   .date-picker-btn {

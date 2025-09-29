@@ -474,6 +474,7 @@ select.speed-dropdown.period-btn.compact {
   background-position: right 10px center !important;
   background-repeat: no-repeat !important;
   background-size: 16px 16px !important;
+  /* Removed color and background overrides to let component styling work */
 }
 
 .date-speed-container input[type="date"] {
@@ -507,25 +508,25 @@ select.speed-dropdown.period-btn.compact {
 
 /* Chart Stop Button */
 .chart-stop-btn.period-btn {
-  background: rgba(74, 0, 224, 0.1) !important;
-  border-color: rgba(74, 0, 224, 0.3) !important;
-  color: #9ca3af !important;
-  min-width: 24px !important;
-  width: 24px !important;
-  height: 20px !important;
+  background: rgba(74, 0, 224, 0.2);
+  border-color: rgba(74, 0, 224, 0.3);
+  color: #9ca3af;
+  min-width: 24px;
+  width: 24px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  padding: 0 !important;
+  padding: 0;
 }
 
 .chart-stop-btn.period-btn:hover {
-  background: rgba(239, 68, 68, 0.2) !important;
-  border-color: rgba(239, 68, 68, 0.4) !important;
-  color: #ef4444 !important;
+  background: rgba(74, 0, 224, 0.3);
+  border-color: rgba(74, 0, 224, 0.5);
+  color: #d1d4dc;
 }
 
 /* Trading Control Buttons */
@@ -811,26 +812,32 @@ select.speed-dropdown.period-btn.compact {
 
 /* Let chart use natural sizing */
 
-/* Bottom Three Panels - Match Chart/Controls Whitespace */
-.panels-row-three .panel-content {
-  padding: 15px 10px 5px 10px !important;
+/* Bottom Panels - Match Chart/Controls Whitespace */
+.panels-row-bottom .panel {
+  background: rgba(255, 255, 255, 0.02) !important;
+  margin: 0 15px;
+}
+
+/* Market position panel specific width adjustment */
+.gauge-panel {
+  margin: 0 !important;
+}
+
+.panels-row-bottom .panel-content {
+  padding: 15px 5px 5px 5px !important;
   gap: 12px;
   display: flex;
   flex-direction: column;
 }
 
-.panels-row-three .panel-header {
+.panels-row-bottom .panel-header {
   padding: 15px 15px;
   flex-shrink: 0;
 }
 
-.panels-row-three .panel {
-  margin: 0 8px;
-}
-
 /* Position Panel Specific Adjustments */
 .positions-panel .panel-content {
-  padding: 15px 10px 10px 10px !important;
+  padding: 15px 5px 10px 5px !important;
 }
 
 .positions-panel .positions-grid {

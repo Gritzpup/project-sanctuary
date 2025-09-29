@@ -121,8 +121,7 @@
   color: #d1d4dc;
 }
 
-.form-input,
-.form-select {
+.form-input {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(74, 0, 224, 0.3);
   border-radius: 6px;
@@ -132,8 +131,7 @@
   transition: all 0.2s;
 }
 
-.form-input:focus,
-.form-select:focus {
+.form-input:focus {
   outline: none;
   border-color: rgba(74, 0, 224, 0.6);
   background: rgba(255, 255, 255, 0.08);
