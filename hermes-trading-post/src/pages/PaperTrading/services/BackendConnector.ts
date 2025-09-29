@@ -4,6 +4,8 @@ import { coinbaseWebSocket } from '../../../services/api/coinbaseWebSocket';
 export interface BackendState {
   connected: boolean;
   currentPrice: number;
+  priceChange24h: number;
+  priceChangePercent24h: number;
   connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading';
 }
 
@@ -11,6 +13,8 @@ export class BackendConnector {
   private state = writable<BackendState>({
     connected: false,
     currentPrice: 0,
+    priceChange24h: 0,
+    priceChangePercent24h: 0,
     connectionStatus: 'loading'
   });
 
@@ -36,7 +40,29 @@ export class BackendConnector {
       // Subscribe to BTC-USD ticker
       coinbaseWebSocket.subscribeTicker('BTC-USD');
       
-      // Subscribe to price updates
+      // Subscribe to ticker data for 24h changes
+      coinbaseWebSocket.subscribe((tickerData: any) => {
+        if (tickerData.type === 'ticker' && tickerData.product_id === 'BTC-USD') {
+          const currentPrice = parseFloat(tickerData.price);
+          const open24h = parseFloat(tickerData.open_24h);
+          
+          if (currentPrice && open24h) {
+            const priceChange24h = currentPrice - open24h;
+            const priceChangePercent24h = (priceChange24h / open24h) * 100;
+            
+            this.state.update(current => ({ 
+              ...current, 
+              currentPrice,
+              priceChange24h,
+              priceChangePercent24h
+            }));
+            
+            this.priceUpdateCallback?.(currentPrice);
+          }
+        }
+      });
+      
+      // Subscribe to price updates (fallback)
       coinbaseWebSocket.onPrice((price: number) => {
         this.state.update(current => ({ ...current, currentPrice: price }));
         this.priceUpdateCallback?.(price);

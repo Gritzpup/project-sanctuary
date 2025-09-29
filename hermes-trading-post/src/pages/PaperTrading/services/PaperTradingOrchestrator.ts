@@ -27,6 +27,7 @@ export interface TradingState {
   winRate: number;
   totalFees: number;
   totalRebates: number;
+  totalRebalance: number;
   recentHigh: number;
   recentLow: number;
 }
@@ -47,6 +48,7 @@ export class PaperTradingOrchestrator {
     winRate: 0,
     totalFees: 0,
     totalRebates: 0,
+    totalRebalance: 0,
     recentHigh: 0,
     recentLow: 0
   });
@@ -95,6 +97,8 @@ export class PaperTradingOrchestrator {
       this.backendWs.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('🔴 RAW WebSocket message received:', event.data);
+          console.log('🔴 Parsed WebSocket data:', data);
           this.handleBackendMessage(data);
         } catch (error) {
           console.error('Backend WebSocket message error:', error);
@@ -122,13 +126,25 @@ export class PaperTradingOrchestrator {
   private handleBackendMessage(data: any) {
     if (data.type === 'status' && data.data) {
       console.log('📊 Backend status update:', data.data);
+      console.log('📊 Available data keys:', Object.keys(data.data));
+      console.log('📊 Balance structure:', data.data.balance);
+      console.log('📊 Stats check - totalFees:', data.data.totalFees, 'totalReturn:', data.data.totalReturn, 'winRate:', data.data.winRate);
       this.updateState({
         isRunning: data.data.isRunning || false,
         isPaused: data.data.isPaused || false,
         trades: data.data.trades || [],
         positions: data.data.positions || [],
         balance: data.data.balance?.usd || 10000,
-        btcBalance: data.data.balance?.btc || 0
+        btcBalance: data.data.balance?.btc || 0,
+        vaultBalance: data.data.balance?.vault || 0,
+        btcVaultBalance: data.data.balance?.btcVault || 0,
+        totalReturn: data.data.totalReturn || 0,
+        winRate: data.data.winRate || 0,
+        totalFees: data.data.totalFees || 0,
+        totalRebates: data.data.totalRebates || 0,
+        totalRebalance: data.data.totalRebalance || 0,
+        recentHigh: data.data.recentHigh || 0,
+        recentLow: data.data.recentLow || 0
       });
     }
     
@@ -150,7 +166,16 @@ export class PaperTradingOrchestrator {
           trades: data.status.trades || [],
           positions: data.status.positions || [],
           balance: data.status.balance?.usd || 10000,
-          btcBalance: data.status.balance?.btc || 0
+          btcBalance: data.status.balance?.btc || 0,
+          vaultBalance: data.status.balance?.vault || 0,
+          btcVaultBalance: data.status.balance?.btcVault || 0,
+          totalReturn: data.status.totalReturn || 0,
+          winRate: data.status.winRate || 0,
+          totalFees: data.status.totalFees || 0,
+          totalRebates: data.status.totalRebates || 0,
+          totalRebalance: data.status.totalRebalance || 0,
+          recentHigh: data.status.recentHigh || 0,
+          recentLow: data.status.recentLow || 0
         });
       }
     }
@@ -419,6 +444,8 @@ export class PaperTradingOrchestrator {
       this.updateState({
         balance: updatedState.balance.usd,
         btcBalance: updatedState.balance.btcPositions,
+        vaultBalance: updatedState.balance.vault,
+        btcVaultBalance: updatedState.balance.btcVault,
         trades: updatedState.trades
       });
       
@@ -426,6 +453,7 @@ export class PaperTradingOrchestrator {
       console.error('Error executing trade from signal:', error);
     }
   }
+
 
   destroy() {
     if (this.statusPollingInterval) {

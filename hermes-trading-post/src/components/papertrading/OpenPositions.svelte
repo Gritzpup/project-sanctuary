@@ -41,27 +41,6 @@
           </div>
         {/each}
       </div>
-      <div class="positions-summary">
-        <div class="summary-item">
-          <span class="summary-label">Total Size</span>
-          <span class="summary-value">{positions.reduce((sum, p) => sum + p.size, 0).toFixed(6)} BTC</span>
-        </div>
-        <div class="summary-item">
-          <span class="summary-label">Avg Entry</span>
-          <span class="summary-value">
-            ${(positions.reduce((sum, p) => sum + p.entryPrice * p.size, 0) / positions.reduce((sum, p) => sum + p.size, 0)).toFixed(2)}
-          </span>
-        </div>
-        {#if currentPrice > 0}
-          {@const totalPnl = positions.reduce((sum, p) => sum + (currentPrice - p.entryPrice) * p.size, 0)}
-          <div class="summary-item">
-            <span class="summary-label">Total P&L</span>
-            <span class="summary-value" class:profit={totalPnl > 0} class:loss={totalPnl < 0}>
-              ${totalPnl.toFixed(2)}
-            </span>
-          </div>
-        {/if}
-      </div>
     {:else}
       <div class="no-positions">
         <div class="no-positions-icon">📊</div>

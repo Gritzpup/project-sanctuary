@@ -55,6 +55,32 @@
 </div>
 
 <style>
+  :global(.bot-tabs .bot-tab) {
+    flex: 1 !important;
+    min-width: 60px !important;
+    padding: 4px 8px !important;
+    background: rgba(255, 255, 255, 0.02) !important;
+    border: 1px solid rgba(74, 0, 224, 0.3) !important;
+    border-radius: 0 !important;
+    color: #9ca3af !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    font-size: 11px !important;
+    position: relative !important;
+    border-right: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+  }
+
+  :global(.bot-tabs .status-dot) {
+    width: 6px !important;
+    height: 6px !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+    animation: none !important;
+  }
   .bot-tabs {
     display: flex;
     gap: 0;
@@ -62,22 +88,23 @@
     overflow-x: auto;
   }
   
-  .bot-tab {
-    flex: 1;
-    min-width: 60px;
-    padding: 4px 8px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 0;
-    color: #9ca3af;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    position: relative;
-    border-right: none;
+  .bot-tabs .bot-tab {
+    flex: 1 !important;
+    min-width: 60px !important;
+    padding: 4px 8px !important;
+    background: rgba(255, 255, 255, 0.02) !important;
+    border: 1px solid rgba(74, 0, 224, 0.3) !important;
+    border-radius: 0 !important;
+    color: #9ca3af !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    font-size: 11px !important;
+    position: relative !important;
+    border-right: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
   }
   
   .bot-tab:last-child {
@@ -107,11 +134,11 @@
     font-weight: 500;
   }
   
-  .status-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    margin-left: auto;
+  .bot-tabs .status-dot {
+    width: 6px !important;
+    height: 6px !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+    animation: none !important;
   }
 </style>

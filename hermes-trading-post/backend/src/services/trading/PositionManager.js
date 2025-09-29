@@ -30,6 +30,10 @@ export class PositionManager {
     return this.positions.reduce((total, position) => total + position.size, 0);
   }
 
+  getTotalCostBasis() {
+    return this.positions.reduce((total, position) => total + (position.size * position.entryPrice), 0);
+  }
+
   getAverageEntryPrice() {
     if (this.positions.length === 0) return 0;
     

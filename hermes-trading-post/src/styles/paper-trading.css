@@ -848,6 +848,8 @@ select.speed-dropdown.period-btn.compact {
 .positions-panel .position-card {
   padding: 10px 12px;
   margin-bottom: 0;
+  height: 60px;
+  border-radius: 0;
 }
 
 .positions-panel .positions-summary {
@@ -865,8 +867,10 @@ select.speed-dropdown.period-btn.compact {
 }
 
 .history-panel .trade-item {
-  padding: 8px 10px;
+  padding: 10px 12px;
   margin-bottom: 0;
+  height: 60px;
+  border-radius: 0;
 }
 
 /* Market Gauge Panel Adjustments */

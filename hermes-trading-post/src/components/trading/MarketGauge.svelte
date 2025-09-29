@@ -149,9 +149,6 @@
 <style>
   .market-gauge {
     width: 100%;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 8px;
     padding: 15px;
   }
   

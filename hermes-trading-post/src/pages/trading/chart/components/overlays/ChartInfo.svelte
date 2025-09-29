@@ -118,6 +118,13 @@
 
 <div class="chart-info {positionClass}">
   
+  <!-- Traffic light WebSocket status - moved to very left -->
+  <div class="info-item">
+    <span style="margin-right: 4px;">
+      <TrafficLight size="medium" flashDuration={500} tradingStatus={tradingStatus} />
+    </span>
+  </div>
+  
   {#if showLatestCandleTime && latestCandleTime}
     <div class="info-item candle-time">
       <span class="info-label">Latest Candle:</span>
@@ -130,10 +137,6 @@
       <span class="info-label">Candles:</span>
       <span class="info-value">
         <CandleCounter updateInterval={2000} showAnimation={true} />
-      </span>
-      <!-- Traffic light WebSocket status -->
-      <span style="margin-left: 8px;">
-        <TrafficLight size="medium" flashDuration={500} tradingStatus={tradingStatus} />
       </span>
     </div>
   {/if}

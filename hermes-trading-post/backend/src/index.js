@@ -239,6 +239,64 @@ wss.on('connection', (ws) => {
             }));
           }
           break;
+        case 'forceSell':
+          console.log('🧪 FORCE SELL request received for testing vault allocation');
+          const botToSell = botManager.getActiveBot();
+          if (botToSell) {
+            // Force trigger a sell signal to test vault allocation
+            const currentPrice = botToSell.currentPrice || 112000; // Use current price or fallback
+            console.log(`🧪 Forcing sell at price: $${currentPrice}`);
+            
+            // Call the orchestrator's executeSellSignal directly for testing
+            if (botToSell.orchestrator) {
+              // Check current BTC balance before forcing sell
+              const currentBtc = botToSell.orchestrator.positionManager.getTotalBtc();
+              console.log(`🧪 Current BTC balance: ${currentBtc} BTC`);
+              
+              if (currentBtc === 0) {
+                // No BTC to sell - simulate a profitable trade for testing
+                console.log('🧪 No BTC to sell, simulating a profitable trade for testing...');
+                const simulatedBtc = 0.1; // Simulate 0.1 BTC
+                const simulatedCostBasis = currentPrice * 0.95 * simulatedBtc; // 5% profit
+                
+                // Temporarily add position for testing
+                botToSell.orchestrator.balance.btc = simulatedBtc;
+                botToSell.orchestrator.positionManager.addPosition({
+                  size: simulatedBtc,
+                  entryPrice: currentPrice * 0.95,
+                  timestamp: Date.now()
+                });
+                
+                console.log(`🧪 Simulated position: ${simulatedBtc} BTC at cost basis $${simulatedCostBasis.toFixed(2)}`);
+              }
+              
+              const mockSignal = { reason: data.reason || 'Force sell for vault allocation test' };
+              botToSell.orchestrator.executeSellSignal(mockSignal, currentPrice).then(() => {
+                console.log('🧪 Force sell completed, vault allocation should be applied');
+                ws.send(JSON.stringify({
+                  type: 'forceSellComplete',
+                  status: botToSell.getStatus()
+                }));
+              }).catch(error => {
+                console.error('🧪 Force sell failed:', error);
+                ws.send(JSON.stringify({
+                  type: 'error',
+                  message: 'Force sell failed: ' + error.message
+                }));
+              });
+            } else {
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'Bot orchestrator not available'
+              }));
+            }
+          } else {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'No active bot found for force sell'
+            }));
+          }
+          break;
         case 'subscribe':
           // Chart subscription - subscribe to Coinbase real-time data
           console.log('Chart subscription received:', data.pair, data.granularity);

@@ -87,15 +87,12 @@
     selectedPeriod = '1H';
   }
   
-  console.log('🔧 INITIAL load:', { savedPrefs, selectedGranularity, selectedPeriod });
   
   // Save preferences when they change, but enforce 1H period for 1m granularity
   $: {
     if (selectedGranularity === '1m' && selectedPeriod !== '1H') {
-      console.log('🔧 FORCING period from', selectedPeriod, 'to 1H for 1m granularity');
       selectedPeriod = '1H';
     }
-    console.log('🔧 Current state:', { selectedGranularity, selectedPeriod, isActive: selectedPeriod === '1H' });
     chartPreferencesStore.setPreferences('paper-trading', selectedGranularity, selectedPeriod);
   }
   
@@ -108,22 +105,12 @@
     if (!chartComponent || !trades || trades.length === 0) return;
     
     try {
-      console.log(`Attempting to add ${trades.length} trade markers to chart...`);
-      
-      const now = Date.now();
-      const nowSeconds = Math.floor(now / 1000);
-      
       const markers = trades.map((trade, index) => {
         let time = trade.timestamp;
-        const originalTime = time;
         
         if (time > 10000000000) {
           time = Math.floor(time / 1000);
         }
-        
-        console.log(`📊 Trade ${index + 1} timestamp conversion:`);
-        console.log(`  - Original: ${originalTime} (${new Date(originalTime).toISOString()})`);
-        console.log(`  - Converted: ${time} (${new Date(time * 1000).toISOString()})`);
         
         const marker = {
           time: time,
@@ -140,7 +127,6 @@
       if (chartComponent && typeof chartComponent.addMarkers === 'function') {
         try {
           chartComponent.addMarkers(markers);
-          console.log(`✅ Added ${markers.length} trade markers to chart`);
         } catch (markerError) {
           console.error('Error calling addMarkers:', markerError);
         }
@@ -172,16 +158,12 @@
   }
   
   function handleZoomCorrection() {
-    console.log('🔍 Zoom correction clicked, chartComponent:', chartComponent);
     if (chartComponent) {
       try {
         chartComponent.fitContent();
-        console.log('✅ fitContent called successfully');
       } catch (error) {
-        console.error('❌ Error calling fitContent:', error);
+        console.error('Error calling fitContent:', error);
       }
-    } else {
-      console.warn('⚠️ chartComponent not available');
     }
   }
 
@@ -598,7 +580,7 @@
   }
   
   .separator {
-    color: rgba(255, 255, 255, 0.3);
+    color: rgba(153, 102, 255, 0.5);
     font-size: 14px;
   }
   
@@ -671,7 +653,7 @@
   .separator-border {
     width: 1px;
     height: 35px;
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(153, 102, 255, 0.5);
     flex-shrink: 0;
   }
   

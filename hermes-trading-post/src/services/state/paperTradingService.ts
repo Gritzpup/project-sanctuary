@@ -29,6 +29,7 @@ export interface PaperTradingState {
     pnlPercent: number;
     winRate: number;
     totalTrades: number;
+    totalRebalance: number;
   };
   lastUpdate: number;
   chartData?: {
@@ -71,7 +72,8 @@ class PaperTradingService {
         pnl: 0,
         pnlPercent: 0,
         winRate: 0,
-        totalTrades: 0
+        totalTrades: 0,
+        totalRebalance: 0
       },
       lastUpdate: Date.now(),
       chartData: undefined
@@ -116,7 +118,8 @@ class PaperTradingService {
         pnl: 0,
         pnlPercent: 0,
         winRate: 0,
-        totalTrades: 0
+        totalTrades: 0,
+        totalRebalance: 0
       },
       lastUpdate: Date.now(),
       chartData: undefined
@@ -452,7 +455,8 @@ class PaperTradingService {
         pnl: 0,
         pnlPercent: 0,
         winRate: 0,
-        totalTrades: 0
+        totalTrades: 0,
+        totalRebalance: 0
       },
       lastUpdate: Date.now()
     }));
@@ -618,9 +622,27 @@ class PaperTradingService {
 
       // Allocate profits using strategy's vault allocation rules
       if (profit > 0) {
+        // Play success sound for profitable position closure
+        this.playProfitSound();
+        
+        console.log('💰 PROFIT DETECTED:', {
+          profit: profit.toFixed(2),
+          netProceeds: netProceeds.toFixed(2),
+          totalCost: totalCost.toFixed(2),
+          currentVaultBalance: strategyState.balance.vault,
+          currentBtcVaultBalance: strategyState.balance.btcVault
+        });
+        
         // Get profit allocation from strategy (default: 85.7% vault, 14.3% BTC)
         // This maintains the 6:1 ratio (6 parts vault, 1 part BTC)
         const allocation = state.strategy.allocateProfits(profit);
+        
+        console.log('📊 PROFIT ALLOCATION:', {
+          totalProfit: profit.toFixed(2),
+          vaultAllocation: allocation.vault.toFixed(2),
+          btcAllocation: allocation.btc.toFixed(2),
+          percentage: `${((allocation.vault / profit) * 100).toFixed(1)}% vault, ${((allocation.btc / profit) * 100).toFixed(1)}% BTC`
+        });
         
         // Update vault balances with allocated profits
         // Vault (USDC): Stable profit storage (typically 85.7%)
@@ -632,7 +654,21 @@ class PaperTradingService {
         
         // Return principal + remaining profit to USD trading balance
         // This keeps the principal available for future trades
-        strategyState.balance.usd += netProceeds - allocation.vault;
+        const rebalanceAmount = netProceeds - allocation.vault;
+        strategyState.balance.usd += rebalanceAmount;
+        
+        // Track total rebalance amount
+        newState.performance = {
+          ...newState.performance,
+          totalRebalance: (newState.performance?.totalRebalance || 0) + rebalanceAmount
+        };
+        
+        console.log('💎 VAULT BALANCES UPDATED:', {
+          newVaultBalance: strategyState.balance.vault.toFixed(2),
+          newBtcVaultBalance: strategyState.balance.btcVault.toFixed(8),
+          newUsdBalance: strategyState.balance.usd.toFixed(2),
+          btcPrice: currentPrice.toFixed(2)
+        });
         
         // Sync with vault service for UI display
         // This updates the bot's performance metrics in real-time
@@ -686,6 +722,7 @@ class PaperTradingService {
     const winRate = sellTrades.length > 0 ? (winningTrades / sellTrades.length) * 100 : 0;
 
     newState.performance = {
+      ...newState.performance,
       totalValue,
       pnl,
       pnlPercent,
@@ -852,6 +889,21 @@ class PaperTradingService {
       }
     }));
     this.saveState();
+  }
+
+  private playProfitSound(): void {
+    try {
+      // Only play sound in browser environment
+      if (typeof window !== 'undefined' && typeof Audio !== 'undefined') {
+        const audio = new Audio('/sounds/coins_cave01.wav');
+        audio.volume = 0.3; // Set moderate volume
+        audio.play().catch(error => {
+          console.log('Could not play profit sound:', error);
+        });
+      }
+    } catch (error) {
+      console.log('Error playing profit sound:', error);
+    }
   }
 }
 

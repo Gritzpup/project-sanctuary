@@ -43,7 +43,6 @@
   
   // Initialize plugins
   async function initializePlugins() {
-    console.log('🔧 initializePlugins called, enablePlugins:', enablePlugins, 'chartCore:', !!chartCore);
     if (!enablePlugins || !chartCore) return;
     
     pluginManager = chartCore.getPluginManager();

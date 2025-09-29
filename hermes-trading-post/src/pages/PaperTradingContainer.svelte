@@ -76,10 +76,40 @@
       positions: tradingState.positions,
       trades: tradingState.trades,
       positionsLength: tradingState.positions?.length,
-      tradesLength: tradingState.trades?.length
+      tradesLength: tradingState.trades?.length,
+      totalFees: tradingState.totalFees,
+      totalReturn: tradingState.totalReturn,
+      vaultBalance: tradingState.vaultBalance,
+      btcVaultBalance: tradingState.btcVaultBalance,
+      totalRebalance: tradingState.totalRebalance
     });
   }
   
+  // Debug backend state
+  $: if (backendState) {
+    console.log('💰 Backend price state:', {
+      currentPrice: backendState.currentPrice,
+      connected: backendState.connected,
+      connectionStatus: backendState.connectionStatus
+    });
+  }
+  
+  // Force grid layout aggressively
+  $: {
+    if (typeof window !== 'undefined') {
+      // Force it multiple times
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+          const panelsRow = document.querySelector('.main-panels-row');
+          if (panelsRow) {
+            (panelsRow as HTMLElement).style.cssText = 'display: grid !important; grid-template-columns: 2fr 1fr !important; gap: 20px !important;';
+          }
+        }, i * 100);
+      }
+    }
+    tradingState.isRunning; // Make reactive to trading state
+  }
+
   // Update bot tabs based on manager state
   function updateBotTabs() {
     if (!managerState) return;
@@ -88,7 +118,7 @@
     
     const strategies = managerState.strategies || {};
     const managerBots = strategies[tradingState.selectedStrategyType]?.bots || [];
-    botTabs = managerBots.map((bot: any) => {
+    botTabs = managerBots.map((bot: any, index: number) => {
       let status: 'idle' | 'running' | 'paused' = 'idle';
       
       if (bot.id === activeBotInstance?.id) {
@@ -97,7 +127,7 @@
       
       return {
         id: bot.id,
-        label: bot.name,
+        name: `Bot ${index + 1}`,
         balance: bot.balance || 10000,
         status
       };
@@ -162,6 +192,7 @@
       chartComponent.addMarkers([]);
     }
   }
+
   
   function handleBotTabSelect(event: CustomEvent) {
     const { botId } = event.detail;
@@ -233,8 +264,8 @@
   
   <main class="dashboard-content" class:expanded={sidebarCollapsed}>
     <div class="content-wrapper">
-      <div class="paper-trading-grid">
-        <div class="panels-row">
+      <div class="paper-trading-grid" class:trading-active={tradingState.isRunning}>
+        <div class="panels-row main-panels-row" style="display: grid !important; grid-template-columns: 2fr 1fr !important; gap: 20px !important;">
           <!-- Chart Panel -->
           <TradingChart
             bind:chartComponent
@@ -247,6 +278,9 @@
             isPaused={tradingState.isPaused}
             trades={tradingState.trades}
             isPaperTestRunning={false}
+            currentPrice={backendState.currentPrice || 0}
+            priceChange24h={backendState.priceChange24h || 0}
+            priceChangePercent24h={backendState.priceChangePercent24h || 0}
             on:pairChange={handleChartEvents}
             on:granularityChange={handleChartEvents}
             on:periodChange={handleChartEvents}
@@ -263,6 +297,8 @@
             isPaused={tradingState.isPaused}
             balance={tradingState.balance}
             btcBalance={tradingState.btcBalance}
+            vaultBalance={tradingState.vaultBalance}
+            btcVaultBalance={tradingState.btcVaultBalance}
             positions={tradingState.positions}
             currentPrice={backendState.currentPrice}
             {botTabs}
@@ -272,6 +308,7 @@
             startingBalance={10000}
             totalFees={tradingState.totalFees}
             totalRebates={tradingState.totalRebates}
+            totalRebalance={tradingState.totalRebalance}
             on:strategyChange={handleStrategyChange}
             on:balanceChange={handleBalanceChange}
             on:start={handleStartTrading}
@@ -282,27 +319,29 @@
           />
         </div>
         
-        <!-- Three-panel row: Positions, History, Gauge -->
-        <div class="panels-row-three">
-          <!-- Open Positions Panel -->
-          <OpenPositions
-            positions={tradingState.positions || []}
-            currentPrice={backendState.currentPrice || 0}
-            isRunning={tradingState.isRunning || false}
-          />
-          
-          <!-- Trading History Panel -->
-          <TradingHistory trades={tradingState.trades || []} />
-          
-          <!-- Market Gauge Panel -->
-          <div class="panel gauge-panel">
-            <MarketGauge 
-              currentPrice={backendState.currentPrice}
-              positions={tradingState.positions}
-              recentHigh={tradingState.recentHigh}
-              recentLow={tradingState.recentLow}
-              isRunning={tradingState.isRunning}
+        <!-- Two-panel row matching chart/strategy layout -->
+        <div class="panels-row-bottom">
+          <!-- Left section: Open Positions and Trading History under chart -->
+          <div class="left-panels">
+            <OpenPositions
+              positions={tradingState.positions || []}
+              currentPrice={backendState.currentPrice || 0}
+              isRunning={tradingState.isRunning || false}
             />
+            <TradingHistory trades={tradingState.trades || []} />
+          </div>
+          
+          <!-- Right section: Market Gauge under strategy controls -->
+          <div class="right-panel">
+            <div class="panel gauge-panel">
+              <MarketGauge 
+                currentPrice={backendState.currentPrice}
+                positions={tradingState.positions}
+                recentHigh={tradingState.recentHigh}
+                recentLow={tradingState.recentLow}
+                isRunning={tradingState.isRunning}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -313,6 +352,57 @@
 <style>
   /* Import all existing styles from PaperTrading.svelte */
   @import '../styles/paper-trading.css';
+  
+  /* Force correct grid layout - must come after import */
+  .paper-trading-grid .main-panels-row {
+    display: grid !important;
+    grid-template-columns: 2fr 1fr !important;
+    gap: 20px !important;
+  }
+  
+  /* Specifically override when trading is active */
+  div.paper-trading-grid.trading-active div.panels-row.main-panels-row {
+    display: grid !important;
+    grid-template-columns: 2fr 1fr !important;
+    gap: 20px !important;
+  }
+  
+  /* Nuclear option - override everything including paper-trading-complete.css */
+  div.content-wrapper div.paper-trading-grid div.main-panels-row,
+  div.content-wrapper div.paper-trading-grid div.panels-row.main-panels-row,
+  .paper-trading-grid .panels-row.main-panels-row,
+  .main-panels-row.panels-row {
+    display: grid !important;
+    grid-template-columns: 2fr 1fr !important;
+    gap: 20px !important;
+  }
+  
+  /* Override the global paper-trading-complete.css rules specifically */
+  .dashboard-content .paper-trading-grid .main-panels-row {
+    grid-template-columns: 2fr 1fr !important;
+  }
+  
+  /* Prevent trading-grid class from interfering */
+  .paper-trading-grid:not(.trading-grid) .main-panels-row {
+    grid-template-columns: 2fr 1fr !important;
+  }
+  
+  /* Nuclear override for any trading-grid interference */
+  .paper-trading-grid .main-panels-row:not(.trading-grid) {
+    grid-template-columns: 2fr 1fr !important;
+    display: grid !important;
+  }
+  
+  /* Override when trading-active class is applied */
+  .paper-trading-grid.trading-active .main-panels-row {
+    grid-template-columns: 2fr 1fr !important;
+    display: grid !important;
+  }
+  
+  /* Prevent any trading-grid styles from applying to our container */
+  .paper-trading-grid.trading-active:not(.trading-grid) .main-panels-row {
+    grid-template-columns: 2fr 1fr !important;
+  }
   
   :global(.dashboard-layout) {
     display: flex;
@@ -344,12 +434,12 @@
   :global(.paper-trading-grid) {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 20px;
   }
 
-  :global(.panels-row) {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
+  :global(.main-panels-row) {
+    display: grid !important;
+    grid-template-columns: 2fr 1fr !important;
     gap: 20px;
     height: auto;
   }
@@ -364,11 +454,21 @@
     flex-direction: column;
   }
   
-  :global(.panels-row-three) {
+  :global(.panels-row-bottom) {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 2fr 1fr;
     gap: 20px;
-    margin-top: 8px;
+    margin-top: 0px;
+  }
+  
+  :global(.left-panels) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+  
+  :global(.right-panel) {
+    display: flex;
   }
   
   :global(.gauge-panel) {
@@ -382,4 +482,5 @@
     display: flex;
     flex-direction: column;
   }
+
 </style>

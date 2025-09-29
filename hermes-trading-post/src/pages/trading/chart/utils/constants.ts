@@ -57,14 +57,25 @@ export const GRANULARITY_DISPLAY_NAMES: Record<string, string> = {
   '1d': '1 Day'
 };
 
-// Recommended granularities for each period
+// Traditional trading intervals for each timeframe (realistic data points)
 export const RECOMMENDED_GRANULARITIES: Record<string, string[]> = {
-  '1H': ['1m', '5m'],
-  '6H': ['5m', '15m', '30m'],
-  '1D': ['15m', '30m', '1h'],
-  '1W': ['1h', '2h', '4h'],
-  '1M': ['4h', '6h', '12h', '1d'],
-  '3M': ['12h', '1d'],
+  '1H': ['1m', '5m'],                    // 60-12 candles
+  '6H': ['5m', '15m', '30m'],           // 72-12 candles  
+  '1D': ['15m', '30m', '1h'],           // 96-24 candles
+  '1W': ['1h', '4h'],                   // 168-42 candles
+  '1M': ['4h', '1d'],                   // 180-30 candles
+  '3M': ['1d'],                         // 90 candles
+  '1Y': ['1d']                          // 365 candles
+};
+
+// All possible intervals for each timeframe (including non-recommended)
+export const VALID_GRANULARITIES: Record<string, string[]> = {
+  '1H': ['1m', '5m', '15m'],
+  '6H': ['1m', '5m', '15m', '30m', '1h'],
+  '1D': ['5m', '15m', '30m', '1h', '4h'],
+  '1W': ['30m', '1h', '4h', '1d'],
+  '1M': ['1h', '4h', '1d'],
+  '3M': ['4h', '1d'],
   '1Y': ['1d']
 };
 

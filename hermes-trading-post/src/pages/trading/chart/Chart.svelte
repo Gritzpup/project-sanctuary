@@ -21,6 +21,8 @@
   
   // Export all the props that ChartContainer accepts
   export let pair: string = 'BTC-USD';
+  export let granularity: string = '1m';
+  export let period: string = '1H';
   export let showControls: boolean = true;
   export let showStatus: boolean = true;
   export let showInfo: boolean = true;
@@ -79,6 +81,8 @@
 <ChartContainer
   bind:this={chartContainer}
   {pair}
+  {granularity}
+  {period}
   {showControls}
   {showStatus}
   {showInfo}
