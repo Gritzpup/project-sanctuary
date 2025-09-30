@@ -1,208 +1,149 @@
 <script lang="ts">
   import Chart from '../../trading/chart/Chart.svelte';
   import ChartInfo from '../../trading/chart/components/overlays/ChartInfo.svelte';
-  import BotTabs from '../BotTabs.svelte';
-  import { chartPreferencesStore } from '../../../stores/chartPreferencesStore';
+  import ChartHeader from './ChartHeader.svelte';
+  import ChartControls from './ChartControls.svelte';
+  import ChartProgressBar from './ChartProgressBar.svelte';
   import { createEventDispatcher } from 'svelte';
-  import { fly } from 'svelte/transition';
-  import { cubicOut } from 'svelte/easing';
+  import { dataStore } from '../../trading/chart/stores/dataStore.svelte';
   
-  export let selectedPair = 'BTC-USD';
-  export let selectedGranularity = '1m';
-  export let selectedPeriod = '1H';
-  export let chartSpeed = '1x';
-  export let selectedTestDateString = '';
-  export let botTabs: any[] = [];
-  export let activeBotInstance: any = null;
-  export let isRunning = false;
-  export let isPaused = false;
-  export let trades: any[] = [];
-  export let isPaperTestRunning = false;
-  export let chartComponent: any = null;
-  export let currentPrice: number = 0;
-  export let priceChange24h: number = 0;
-  export let priceChangePercent24h: number = 0;
+  let {
+    selectedPair = 'BTC-USD',
+    selectedGranularity = '1m',
+    selectedPeriod = '1H',
+    chartSpeed = '1x',
+    selectedTestDateString = '',
+    botTabs = [],
+    activeBotInstance = null,
+    isRunning = false,
+    isPaused = false,
+    trades = [],
+    isPaperTestRunning = false,
+    chartComponent = $bindable(null),
+    currentPrice = 0,
+    priceChange24h = 0,
+    priceChangePercent24h = 0
+  } = $props();
   
   const dispatch = createEventDispatcher();
   
-  // Paper forward test progress state
-  let forwardTestProgress = 0; // 0-100
+  // Forward test progress state
+  let forwardTestProgress = 0;
   let isForwardTestRunning = false;
   
-  // Price animation state
-  let previousPrice = 0;
-  let priceDirection = 'neutral'; // 'up', 'down', 'neutral'
-  let displayPrice = 0;
-  let priceDigits: string[] = [];
-  let targetDigits: string[] = [];
+  // Create reactive variable for latest price
+  let latestPrice = $state(0);
+  let live24hChange = $state(0);
+  let live24hPercent = $state(0);
   
-  // Initialize price direction based on 24h change to avoid white text on startup
-  $: if (priceDirection === 'neutral' && priceChange24h !== 0) {
-    priceDirection = priceChange24h >= 0 ? 'up' : 'down';
-  }
-  
-  // Convert price to padded digit array with cents
-  function priceToDigits(price: number): string[] {
-    const priceStr = price.toFixed(2).replace(/,/g, '').replace('.', '');
-    return priceStr.padStart(8, '0').split(''); // Pad to 8 digits for consistency (6 dollars + 2 cents)
-  }
-  
-  // Initialize digits with default or current price
-  $: if (priceDigits.length === 0) {
-    const initPrice = currentPrice > 0 ? currentPrice : 0;
-    displayPrice = initPrice;
-    priceDigits = priceToDigits(initPrice);
-    targetDigits = [...priceDigits];
-  }
-  
-  // Update when price becomes available
-  $: if (currentPrice > 0 && displayPrice === 0) {
-    displayPrice = currentPrice;
-    priceDigits = priceToDigits(currentPrice);
-    targetDigits = [...priceDigits];
-  }
-  
-  // Watch for price changes and update digits
-  $: if (currentPrice !== previousPrice && currentPrice > 0) {
-    if (previousPrice > 0) {
-      priceDirection = currentPrice > previousPrice ? 'up' : 'down';
-      priceDigits = priceToDigits(currentPrice);
-    } else {
-      displayPrice = currentPrice;
-      priceDigits = priceToDigits(currentPrice);
-    }
-    previousPrice = currentPrice;
-  }
-  
-  // 24h change direction
-  $: changeDirection = priceChange24h >= 0 ? 'up' : 'down';
-  
-  // Load saved chart preferences
-  const savedPrefs = chartPreferencesStore.getPreferences('paper-trading');
-  selectedGranularity = savedPrefs.granularity;
-  selectedPeriod = savedPrefs.period;
-  
-  // Force 1H period for 1m granularity immediately
-  if (selectedGranularity === '1m') {
-    selectedPeriod = '1H';
-  }
-  
-  
-  // Save preferences when they change, but enforce 1H period for 1m granularity
-  $: {
-    if (selectedGranularity === '1m' && selectedPeriod !== '1H') {
-      selectedPeriod = '1H';
-    }
-    chartPreferencesStore.setPreferences('paper-trading', selectedGranularity, selectedPeriod);
-  }
-  
-  // Add trade markers to chart when trades update
-  $: if (trades.length > 0 && chartComponent) {
-    setTimeout(() => addTradeMarkersToChart(), 500);
-  }
-  
-  function addTradeMarkersToChart() {
-    if (!chartComponent || !trades || trades.length === 0) return;
+  // Set initial price from dataStore and subscribe to updates
+  $effect(() => {
+    // Set initial price from dataStore
+    latestPrice = dataStore.latestPrice || currentPrice || 0;
+    console.log('🎯 [TradingChart] Initial price set:', latestPrice);
     
+    // Subscribe to data updates for real-time price changes
+    const unsubscribe = dataStore.onDataUpdate(() => {
+      const newPrice = dataStore.latestPrice;
+      if (newPrice && newPrice !== latestPrice) {
+        latestPrice = newPrice;
+        console.log('🚀 [TradingChart] FAST price update:', newPrice);
+      }
+    });
+    
+    return unsubscribe;
+  });
+  
+  // Fetch live 24-hour Bitcoin data
+  async function fetch24hData() {
     try {
-      const markers = trades.map((trade, index) => {
-        let time = trade.timestamp;
-        
-        if (time > 10000000000) {
-          time = Math.floor(time / 1000);
-        }
-        
-        const marker = {
-          time: time,
-          position: trade.side === 'buy' ? 'belowBar' : 'aboveBar',
-          color: trade.side === 'buy' ? '#26a69a' : '#ef5350',
-          shape: trade.side === 'buy' ? 'arrowUp' : 'arrowDown',
-          text: '',
-          size: 1
-        };
-        
-        return marker;
-      });
+      // Use CoinGecko API which has reliable 24h change data
+      const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true');
+      const data = await response.json();
       
-      if (chartComponent && typeof chartComponent.addMarkers === 'function') {
-        try {
-          chartComponent.addMarkers(markers);
-        } catch (markerError) {
-          console.error('Error calling addMarkers:', markerError);
-        }
+      if (data.bitcoin) {
+        const currentPrice = data.bitcoin.usd;
+        const percent24h = data.bitcoin.usd_24h_change;
+        
+        // Calculate absolute change from percentage
+        const change24h = (currentPrice * percent24h) / 100;
+        
+        live24hChange = change24h;
+        live24hPercent = percent24h;
+        
+        console.log('📊 [TradingChart] 24h data updated:', { 
+          currentPrice, 
+          change24h: change24h.toFixed(2), 
+          percent24h: percent24h.toFixed(2) 
+        });
       }
     } catch (error) {
-      console.error('Error adding trade markers:', error);
-    }
-  }
-  
-  function selectGranularity(granularity: string) {
-    selectedGranularity = granularity;
-    dispatch('granularityChange', { granularity });
-  }
-
-  function selectPeriod(period: string) {
-    selectedPeriod = period;
-    dispatch('periodChange', { period });
-  }
-  
-  function handlePairChange(newPair: string) {
-    selectedPair = newPair;
-    dispatch('pairChange', { pair: newPair });
-  }
-  
-  function handleSpeedChange(event: Event) {
-    const select = event.target as HTMLSelectElement;
-    chartSpeed = select.value;
-    dispatch('speedChange', { speed: chartSpeed });
-  }
-  
-  function handleZoomCorrection() {
-    if (chartComponent) {
+      console.error('Failed to fetch 24h Bitcoin data:', error);
+      // Try backup API
       try {
-        chartComponent.fitContent();
-      } catch (error) {
-        console.error('Error calling fitContent:', error);
+        const backupResponse = await fetch('https://api.coinbase.com/v2/exchange-rates?currency=BTC');
+        const backupData = await backupResponse.json();
+        console.log('📊 [TradingChart] Using Coinbase as backup, but no 24h data available');
+      } catch (backupError) {
+        console.error('Backup API also failed:', backupError);
       }
     }
   }
-
-  function handleDateSelection(event: Event) {
-    const input = event.target as HTMLInputElement;
-    selectedTestDateString = input.value;
-    dispatch('dateChange', { date: selectedTestDateString });
+  
+  // Fetch 24h data on mount and every 5 minutes
+  $effect(() => {
+    fetch24hData();
+    const interval = setInterval(fetch24hData, 5 * 60 * 1000); // 5 minutes
+    return () => clearInterval(interval);
+  });
+  
+  // Event handlers
+  function handlePairChange(event: CustomEvent) {
+    selectedPair = event.detail.pair;
+    dispatch('pairChange', event.detail);
   }
   
-  function handleBotTabSelect(event: CustomEvent) {
-    dispatch('botTabSelect', event.detail);
+  function handleGranularityChange(event: CustomEvent) {
+    selectedGranularity = event.detail.granularity;
+    dispatch('granularityChange', event.detail);
   }
   
-  function handlePlayButtonClick() {
-    if (!selectedTestDateString) {
-      alert('Please select a test date first');
-      return;
-    }
-    
+  function handlePeriodChange(event: CustomEvent) {
+    selectedPeriod = event.detail.period;
+    dispatch('periodChange', event.detail);
+  }
+  
+  function handleSpeedChange(event: CustomEvent) {
+    chartSpeed = event.detail.speed;
+    dispatch('speedChange', event.detail);
+  }
+  
+  function handleDateChange(event: CustomEvent) {
+    selectedTestDateString = event.detail.date;
+    dispatch('dateChange', event.detail);
+  }
+  
+  function handlePlay() {
     isForwardTestRunning = true;
-    forwardTestProgress = 0;
-    
-    // Start the forward test simulation
+    dispatch('play');
     simulateForwardTest();
-    
-    dispatch('forwardTestStart', { 
-      date: selectedTestDateString, 
-      speed: chartSpeed 
-    });
   }
   
-  function handleStopButtonClick() {
+  function handlePause() {
+    dispatch('pause');
+  }
+  
+  function handleStop() {
     isForwardTestRunning = false;
     forwardTestProgress = 0;
-    
-    dispatch('forwardTestStop');
+    dispatch('stop');
   }
   
-  // Simulate forward test progress for demo
+  function handleBotSelect(event: CustomEvent) {
+    dispatch('botSelect', event.detail);
+  }
+  
+  // Simulate forward test progress
   function simulateForwardTest() {
     if (!isForwardTestRunning) return;
     
@@ -215,7 +156,6 @@
         return;
       }
       
-      // Simulate progress based on speed
       const speedMultiplier = parseFloat(chartSpeed.replace('x', ''));
       forwardTestProgress += (0.5 * speedMultiplier);
       
@@ -226,635 +166,65 @@
   }
 </script>
 
-<div class="panel chart-panel">
-  <div class="panel-header">
-    <h2>
-      <select class="pair-selector" bind:value={selectedPair} on:change={() => handlePairChange(selectedPair)}>
-        <option value="BTC-USD">BTC/USD Chart</option>
-        <option value="ETH-USD">ETH/USD Chart</option>
-        <option value="PAXG-USD">PAXG/USD Chart</option>
-      </select>
-      <div class="bitcoin-price">
-        <span class="price-container" class:price-up={priceDirection === 'up'} class:price-down={priceDirection === 'down'}>
-          <span class="price-symbol" class:price-up={priceDirection === 'up'} class:price-down={priceDirection === 'down'}>$</span>
-          <div class="digits-container">
-            {#each priceDigits as digit, index (index)}
-              <div class="digit-wrapper">
-                {#key digit}
-                  <span class="digit" class:price-up={priceDirection === 'up'} class:price-down={priceDirection === 'down'} in:fly="{{ y: priceDirection === 'up' ? -25 : 25, duration: 350, easing: cubicOut }}" out:fly="{{ y: priceDirection === 'up' ? 25 : -25, duration: 250, easing: cubicOut }}">{digit}</span>
-                {/key}
-              </div>
-              <!-- Add comma after thousands and hundred thousands digits -->
-              {#if priceDigits.length >= 6 && (index === priceDigits.length - 6 || index === priceDigits.length - 9)}
-                <span class="comma" class:price-up={priceDirection === 'up'} class:price-down={priceDirection === 'down'}>,</span>
-              {/if}
-              <!-- Add decimal point before last 2 digits -->
-              {#if index === priceDigits.length - 3}
-                <span class="decimal-point" class:price-up={priceDirection === 'up'} class:price-down={priceDirection === 'down'}>.</span>
-              {/if}
-            {/each}
-          </div>
-        </span>
-        <span class="price-change" class:change-up={changeDirection === 'up'} class:change-down={changeDirection === 'down'}>
-          24h: ${Math.abs(priceChange24h).toFixed(2)} ({priceChangePercent24h >= 0 ? '+' : ''}{priceChangePercent24h.toFixed(2)}%) <span class="direction-arrow">{changeDirection === 'up' ? '↗' : '↘'}</span>
-        </span>
-      </div>
-      {#if isPaperTestRunning}
-        <span class="paper-test-indicator">📄 Paper Test Mode</span>
-      {/if}
-    </h2>
-    <div class="header-controls">
-      <button class="zoom-btn" on:click={handleZoomCorrection} title="Zoom to fit data">
-        🔍
-      </button>
-      <div class="separator">|</div>
-      <div class="granularity-buttons">
-        <button class="granularity-btn" class:active={selectedGranularity === '1m'} on:click={() => selectGranularity('1m')}>1m</button>
-        <button class="granularity-btn" class:active={selectedGranularity === '5m'} on:click={() => selectGranularity('5m')}>5m</button>
-        <button class="granularity-btn" class:active={selectedGranularity === '15m'} on:click={() => selectGranularity('15m')}>15m</button>
-        <button class="granularity-btn" class:active={selectedGranularity === '1h'} on:click={() => selectGranularity('1h')}>1h</button>
-        <button class="granularity-btn" class:active={selectedGranularity === '6h'} on:click={() => selectGranularity('6h')}>6h</button>
-        <button class="granularity-btn" class:active={selectedGranularity === '1D'} on:click={() => selectGranularity('1D')}>1D</button>
-      </div>
-    </div>
-  </div>
+<div class="panel-base chart-panel">
+  <ChartHeader 
+    {selectedPair}
+    {selectedGranularity}
+    currentPrice={latestPrice || currentPrice || 0}
+    priceChange24h={live24hChange || priceChange24h || 0}
+    priceChangePercent24h={live24hPercent || priceChangePercent24h || 0}
+    {botTabs}
+    {activeBotInstance}
+    on:pairChange={handlePairChange}
+    on:granularityChange={handleGranularityChange}
+    on:botSelect={handleBotSelect}
+  />
   
-  {#if botTabs.length > 0}
-    <BotTabs
-      bots={botTabs}
-      activeTabId={activeBotInstance?.id}
-      on:selectTab={handleBotTabSelect}
-    />
-  {/if}
+  <ChartProgressBar 
+    {forwardTestProgress}
+    {isForwardTestRunning}
+  />
   
-  <div class="panel-content">
-    <Chart
+  <div class="chart-container">
+    <Chart 
       bind:this={chartComponent}
       pair={selectedPair}
       granularity={selectedGranularity}
       period={selectedPeriod}
       showControls={false}
-      showStatus={true}
+      showStatus={false}
       showInfo={false}
-      showDebug={false}
       enablePlugins={true}
       defaultPlugins={['volume']}
-      onPairChange={handlePairChange}
     />
-    <div class="period-buttons">
-      <div class="footer-content-container">
-        <div class="left-column">
-          <div class="timeframe-buttons-group">
-            <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>
-            <button class="period-btn" class:active={selectedPeriod === '4H'} on:click={() => selectPeriod('4H')}>4H</button>
-            <button class="period-btn" class:active={selectedPeriod === '5D'} on:click={() => selectPeriod('5D')}>5D</button>
-            <button class="period-btn" class:active={selectedPeriod === '1M'} on:click={() => selectPeriod('1M')}>1M</button>
-            <button class="period-btn" class:active={selectedPeriod === '3M'} on:click={() => selectPeriod('3M')}>3M</button>
-            <button class="period-btn" class:active={selectedPeriod === '6M'} on:click={() => selectPeriod('6M')}>6M</button>
-            <button class="period-btn" class:active={selectedPeriod === '1Y'} on:click={() => selectPeriod('1Y')}>1Y</button>
-            <button class="period-btn" class:active={selectedPeriod === '5Y'} on:click={() => selectPeriod('5Y')}>5Y</button>
-          </div>
-          
-          <div class="candle-info-inline">
-            <ChartInfo 
-              position="footer"
-              showCandleCount={true}
-              showTimeRange={false}
-              showClock={true}
-              showPerformance={false}
-              showLatestPrice={true}
-              showLatestCandleTime={false}
-              showCandleCountdown={true}
-              tradingStatus={{ isRunning, isPaused }}
-            />
-          </div>
-        </div>
-        
-        <div class="separator-border"></div>
-      
-      <div class="right-column">
-        <div class="top-row">
-          <input 
-            type="date" 
-            id="paper-test-date-input"
-            class="period-btn date-picker-btn"
-            max={(() => {
-              const yesterday = new Date();
-              yesterday.setDate(yesterday.getDate() - 1);
-              return yesterday.toISOString().split('T')[0];
-            })()}
-            min="2024-01-01"
-            value={selectedTestDateString}
-            on:change={handleDateSelection}
-          />
-          <button class="period-btn chart-play-btn" title="Start Chart Playback" on:click={handlePlayButtonClick} disabled={isForwardTestRunning}>
-            ▶
-          </button>
-        </div>
-        
-        <div class="bottom-row">
-          <select class="speed-dropdown" bind:value={chartSpeed} on:change={handleSpeedChange} disabled={isForwardTestRunning}>
-            <option value="1x">1x Speed</option>
-            <option value="1.5x">1.5x Speed</option>
-            <option value="2x">2x Speed</option>
-            <option value="3x">3x Speed</option>
-            <option value="10x">10x Speed</option>
-          </select>
-          <button class="period-btn chart-stop-btn" title="Stop Chart Playback" on:click={handleStopButtonClick} disabled={!isForwardTestRunning}>
-            ⏹
-          </button>
-          <div class="progress-bar-container" class:active={isForwardTestRunning}>
-            <div class="progress-bar" class:active={isForwardTestRunning}>
-              <div class="progress-fill" class:active={isForwardTestRunning} style="width: {forwardTestProgress}%"></div>
-            </div>
-            <span class="progress-text" class:active={isForwardTestRunning}>{Math.round(forwardTestProgress)}%</span>
-          </div>
-        </div>
-      </div>
-      </div>
-    </div>
   </div>
+  
+  <ChartControls 
+    {selectedPeriod}
+    {chartSpeed}
+    {selectedTestDateString}
+    {isRunning}
+    {isPaused}
+    on:periodChange={handlePeriodChange}
+    on:speedChange={handleSpeedChange}
+    on:dateChange={handleDateChange}
+    on:play={handlePlay}
+    on:pause={handlePause}
+    on:stop={handleStop}
+  />
 </div>
 
 <style>
-  /* Import paper trading styles */
-  @import '../../../styles/paper-trading.css';
-  
-  /* Chart-specific styles */
-  .panel.chart-panel {
-    border: none !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-  }
-  
-  .panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 20px;
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px 8px 0 0;
-    background: rgba(255, 255, 255, 0.02);
-  }
-
-  .panel-header h2 {
-    margin: 0;
-    font-size: 16px;
-    color: #a78bfa;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-  }
-
-  .bitcoin-price {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .price-container {
-    display: flex;
-    align-items: center;
-    font-family: 'Courier New', monospace;
-    font-size: 24px;
-    font-weight: 400;
-  }
-
-  .price-symbol {
-    margin-right: 2px;
-    transition: color 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
-  }
-
-  .price-symbol.price-up {
-    color: #26a69a;
-  }
-
-  .price-symbol.price-down {
-    color: #ef5350;
-  }
-
-  .digits-container {
-    display: flex;
-    align-items: center;
-  }
-
-  .digit-wrapper {
-    height: 30px;
-    overflow: hidden;
-    position: relative;
-    width: 17px;
-  }
-
-  .digit-roller {
-    display: flex;
-    flex-direction: column;
-    transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
-    position: absolute;
-    top: 0;
-  }
-
-  .digit {
-    height: 30px;
-    line-height: 30px;
-    text-align: center;
-    transition: color 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
-    width: 17px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 400;
-    transform: translateZ(0); /* Hardware acceleration */
-    will-change: transform, color;
-  }
-
-  .digit.price-up {
-    color: #26a69a;
-  }
-
-  .digit.price-down {
-    color: #ef5350;
-  }
-
-  .decimal-point {
-    font-size: 24px;
-    font-weight: 400;
-    transition: color 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
-    margin: 0 1px;
-  }
-
-  .decimal-point.price-up {
-    color: #26a69a;
-  }
-
-  .decimal-point.price-down {
-    color: #ef5350;
-  }
-
-  .comma {
-    font-size: 24px;
-    font-weight: 400;
-    transition: color 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
-    margin: 0 1px;
-  }
-
-  .comma.price-up {
-    color: #26a69a;
-  }
-
-  .comma.price-down {
-    color: #ef5350;
-  }
-
-  .price-change {
-    font-size: 14px;
-    font-weight: 400;
-    transition: color 0.3s ease;
-    font-family: 'Courier New', monospace;
-  }
-
-  .price-change.change-up {
-    color: #26a69a;
-  }
-
-  .price-change.change-down {
-    color: #ef5350;
-  }
-
-  .direction-arrow {
-    font-size: 18px;
-    margin-left: 2px;
-  }
-
-  
-  .panel-header h2 {
-    margin: 0;
-    font-size: 16px;
-    color: #a78bfa;
-    font-weight: 500;
-  }
-  
-  .pair-selector {
-    background: transparent;
-    border: none;
-    color: #a78bfa;
-    font-size: 16px;
-    font-weight: 500;
-    cursor: pointer;
-  }
-  
-  .header-controls {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-  }
-  
-  .granularity-buttons {
-    display: flex;
-    gap: 5px;
-  }
-  
-  .zoom-btn {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(74, 0, 224, 0.2);
-    color: #9ca3af;
-    border-radius: 4px;
-    padding: 6px 10px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s ease;
-    font-weight: 500;
-  }
-  
-  .zoom-btn:hover {
-    background: rgba(74, 0, 224, 0.1);
-    border-color: rgba(74, 0, 224, 0.4);
-    color: #d1d4dc;
-    transform: translateY(-1px);
-  }
-  
-  .zoom-btn:active {
-    transform: translateY(0);
-    background: rgba(74, 0, 224, 0.2);
-  }
-  
-  .separator {
-    color: rgba(153, 102, 255, 0.5);
-    font-size: 14px;
-  }
-  
-  .panel-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    border-left: 1px solid rgba(74, 0, 224, 0.3);
-    border-right: 1px solid rgba(74, 0, 224, 0.3);
-    background: rgba(255, 255, 255, 0.02);
-  }
-  
-  /* Remove rounded edges from chart */
-  :global(.panel-content .chart-container) {
-    border-radius: 0 !important;
-  }
-  
-  :global(.panel-content .chart-container .chart-body) {
-    border-radius: 0 !important;
-  }
-  
-  /* Ensure the actual TradingView chart canvas doesn't have rounded edges */
-  :global(.panel-content canvas),
-  :global(.panel-content .tv-lightweight-charts),
-  :global(.panel-content .chart-container > *) {
-    border-radius: 0 !important;
-  }
-  
-  .period-buttons {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px 20px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 0 0 8px 8px;
-    flex-shrink: 0;
-    gap: 20px;
-    flex-wrap: nowrap;
-  }
-  
-  .footer-content-container {
-    display: flex;
-    gap: 20px;
-    align-items: center;
-    margin: 0 auto;
-  }
-
-  .left-column {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    align-items: flex-end;
-    flex-shrink: 1;
-    min-width: 0;
-  }
-  
-  .timeframe-buttons-group {
-    display: flex;
-    gap: 4px;
-    flex-wrap: nowrap;
-  }
-  
-  .candle-info-inline {
-    color: #888;
-    font-size: 12px;
-  }
-  
-  .separator-border {
-    width: 1px;
-    height: 35px;
-    background: rgba(153, 102, 255, 0.5);
-    flex-shrink: 0;
-  }
-  
-  .right-column {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    align-items: flex-start;
-    flex-shrink: 0;
-    min-width: 210px;
-  }
-  
-  .top-row {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-  }
-  
-  .bottom-row {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-  }
-  
-  .speed-dropdown {
-    min-width: 100px;
-    width: 100px;
-    height: 20px;
-    padding: 1px 20px 1px 4px;
-    font-size: 9px;
-    text-align: center;
-    box-sizing: border-box;
-    background: rgba(74, 0, 224, 0.2);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 4px;
-    color: #9ca3af;
-    transition: all 0.2s ease;
-  }
-  
-  .speed-dropdown:focus {
-    outline: none;
-    border-color: #2196f3;
-    background: #444;
-  }
-  
-  .speed-dropdown:hover {
-    border-color: #666;
-    background: #444;
-  }
-
-  .speed-dropdown option {
-    background: #333;
-    color: #9966ff;
-    padding: 4px 8px;
-  }
-
-  .speed-dropdown option:hover {
-    background: #444;
-  }
-
-  .speed-dropdown option:checked {
-    background: #555;
-  }
-  
-  .date-picker-btn {
-    min-width: 100px;
-    height: 20px;
-    padding: 0 !important;
-    font-size: 9px;
-    text-align: center;
-    box-sizing: border-box;
-    /* Override browser date input defaults */
-    -webkit-appearance: none;
-    -moz-appearance: textfield;
-    appearance: none;
-    text-indent: 0;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-  }
-  
-  /* Remove date picker icon spacing */
-  .date-picker-btn::-webkit-calendar-picker-indicator {
-    position: absolute;
-    right: 2px;
-    width: 12px;
-    height: 12px;
-    opacity: 0.7;
-  }
-  
-  .date-picker-btn::-webkit-inner-spin-button {
-    display: none;
-  }
-  
-  .chart-play-btn,
-  .chart-stop-btn {
-    width: 100px;
-    height: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 8px;
-  }
-  
-  .progress-bar-container {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: 8px;
-    opacity: 0.6;
-    transition: opacity 0.3s ease;
-  }
-  
-  .progress-bar-container.active {
-    opacity: 1;
-  }
-  
-  .progress-bar {
-    width: 120px;
-    height: 16px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 8px;
-    overflow: hidden;
-    position: relative;
-    transition: border-color 0.3s ease;
-  }
-  
-  .progress-bar.active {
-    border-color: rgba(124, 58, 237, 0.6);
-    box-shadow: 0 0 4px rgba(124, 58, 237, 0.3);
-  }
-  
-  .progress-fill {
+  .chart-panel {
     height: 100%;
-    background: linear-gradient(90deg, #4c1d95, #7c3aed, #a855f7);
-    border-radius: 7px;
-    transition: width 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   
-  .progress-fill.active {
-    box-shadow: 0 0 8px rgba(124, 58, 237, 0.4);
-    animation: pulse-progress 2s ease-in-out infinite;
-  }
-  
-  .progress-text {
-    font-size: 10px;
-    color: #a78bfa;
-    font-weight: 600;
-    min-width: 30px;
-    text-align: center;
-    transition: color 0.3s ease;
-  }
-  
-  .progress-text.active {
-    color: #c4b5fd;
-  }
-  
-  @keyframes pulse-progress {
-    0%, 100% { 
-      box-shadow: 0 0 8px rgba(124, 58, 237, 0.4);
-    }
-    50% { 
-      box-shadow: 0 0 12px rgba(124, 58, 237, 0.7);
-    }
-  }
-  
-  /* Responsive layout for smaller screens */
-  @media (max-width: 1200px) {
-    .period-buttons {
-      gap: 15px;
-      padding: 16px 15px;
-    }
-    
-    .right-column {
-      min-width: 190px;
-    }
-    
-    .timeframe-buttons-group {
-      gap: 3px;
-    }
-    
-    .timeframe-buttons-group .period-btn {
-      padding: 3px 6px;
-      font-size: 10px;
-    }
-  }
-  
-  @media (max-width: 1000px) {
-    .period-buttons {
-      flex-direction: column;
-      gap: 10px;
-      align-items: center;
-    }
-    
-    .separator-border {
-      display: none;
-    }
-    
-    .left-column,
-    .right-column {
-      align-items: center;
-    }
+  .chart-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
   }
 </style>

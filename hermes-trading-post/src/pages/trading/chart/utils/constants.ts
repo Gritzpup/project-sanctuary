@@ -121,7 +121,8 @@ export const CHART_COLORS = {
   DARK: {
     background: '#1a1a1a',
     text: '#d1d4dc',
-    grid: '#2a2a2a',
+    grid: 'rgba(255, 255, 255, 0.1)',
+    gridLines: 'rgba(255, 255, 255, 0.1)',
     border: '#2a2a2a',
     upColor: '#26a69a',
     downColor: '#ef5350'
@@ -129,7 +130,8 @@ export const CHART_COLORS = {
   LIGHT: {
     background: '#ffffff',
     text: '#191919',
-    grid: '#e1e1e1',
+    grid: 'rgba(225, 225, 225, 0.4)',
+    gridLines: 'rgba(225, 225, 225, 0.4)',
     border: '#e1e1e1',
     upColor: '#26a69a',
     downColor: '#ef5350'

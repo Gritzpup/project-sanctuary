@@ -120,7 +120,7 @@
   
   <!-- Traffic light WebSocket status - moved to very left -->
   <div class="info-item">
-    <span style="margin-right: 4px;">
+    <span class="mr-4">
       <TrafficLight size="medium" flashDuration={500} tradingStatus={tradingStatus} />
     </span>
   </div>
