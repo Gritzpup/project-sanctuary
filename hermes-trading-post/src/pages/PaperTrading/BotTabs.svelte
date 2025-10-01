@@ -38,7 +38,7 @@
 <div class="bot-tabs">
   {#each bots as bot, i}
     <button 
-      class="bot-tab" 
+      class="btn-base btn-xs" 
       class:active={activeTabId === bot.id}
       class:first={i === 0}
       class:last={i === bots.length - 1}
@@ -46,8 +46,7 @@
     >
       <span class="bot-name">{bot.name}</span>
       <span 
-        class="status-dot" 
-        style="background-color: {getStatusColor(bot.status)}"
+        class="status-dot status-{bot.status}" 
         title={bot.status}
       ></span>
     </button>
@@ -55,32 +54,6 @@
 </div>
 
 <style>
-  :global(.bot-tabs .bot-tab) {
-    flex: 1 !important;
-    min-width: 60px !important;
-    padding: 4px 8px !important;
-    background: rgba(255, 255, 255, 0.02) !important;
-    border: 1px solid rgba(74, 0, 224, 0.3) !important;
-    border-radius: 0 !important;
-    color: #9ca3af !important;
-    cursor: pointer !important;
-    transition: all 0.2s ease !important;
-    font-size: 11px !important;
-    position: relative !important;
-    border-right: none !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 4px !important;
-  }
-
-  :global(.bot-tabs .status-dot) {
-    width: 6px !important;
-    height: 6px !important;
-    border-radius: 50% !important;
-    flex-shrink: 0 !important;
-    animation: none !important;
-  }
   .bot-tabs {
     display: flex;
     gap: 0;
@@ -88,57 +61,35 @@
     overflow-x: auto;
   }
   
-  .bot-tabs .bot-tab {
-    flex: 1 !important;
-    min-width: 60px !important;
-    padding: 4px 8px !important;
-    background: rgba(255, 255, 255, 0.02) !important;
-    border: 1px solid rgba(74, 0, 224, 0.3) !important;
-    border-radius: 0 !important;
-    color: #9ca3af !important;
-    cursor: pointer !important;
-    transition: all 0.2s ease !important;
-    font-size: 11px !important;
-    position: relative !important;
-    border-right: none !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 4px !important;
+  .btn-xs {
+    flex: 1;
+    min-width: 60px;
+    border-radius: 0;
+    position: relative;
+    border-right: none;
+    gap: 4px;
   }
   
-  .bot-tab:last-child {
-    border-right: 1px solid rgba(74, 0, 224, 0.3);
+  .btn-xs:last-child {
+    border-right: 1px solid var(--border-primary);
   }
   
-  .bot-tab.first {
-    border-radius: 4px 0 0 4px;
+  .btn-xs.first {
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   }
   
-  .bot-tab.last {
-    border-radius: 0 4px 4px 0;
-  }
-  
-  .bot-tab:hover {
-    background: rgba(74, 0, 224, 0.1);
-    color: #d1d4dc;
-  }
-  
-  .bot-tab.active {
-    background: rgba(74, 0, 224, 0.3);
-    color: #a78bfa;
-    z-index: 1;
+  .btn-xs.last {
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   }
   
   .bot-name {
     font-weight: 500;
   }
   
-  .bot-tabs .status-dot {
-    width: 6px !important;
-    height: 6px !important;
-    border-radius: 50% !important;
-    flex-shrink: 0 !important;
-    animation: none !important;
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
   }
 </style>

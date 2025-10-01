@@ -1,14 +1,12 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { chartStore } from '../../stores/chartStore.svelte';
-  import { dataStore } from '../../stores/dataStore.svelte';
-  import { statusStore } from '../../stores/statusStore.svelte';
-  import { 
-    PERIOD_DISPLAY_NAMES, 
-    GRANULARITY_DISPLAY_NAMES,
-    RECOMMENDED_GRANULARITIES,
-    VALID_GRANULARITIES
-  } from '../../utils/constants';
-  import { ChartDebug } from '../../utils/debug';
+  import PairSelector from './components/PairSelector.svelte';
+  import TimeframeControls from './components/TimeframeControls.svelte';
+  import GranularityControls from './components/GranularityControls.svelte';
+  import SpeedControls from './components/SpeedControls.svelte';
+  import ActionButtons from './components/ActionButtons.svelte';
+  import { ChartControlsService } from './services/ChartControlsService.svelte';
   
   export let showTimeframes: boolean = true;
   export let showGranularities: boolean = true;
@@ -24,197 +22,88 @@
   let currentSpeed: string = '1x';
   const availableSpeeds = ['1x', '1.5x', '2x', '3x', '10x'];
   
+  // Service instance
+  let controlsService: ChartControlsService;
   let isRefreshing = false;
   let isClearingCache = false;
-  
-  // Get recommended and valid granularities for current timeframe
-  $: recommendedGranularities = RECOMMENDED_GRANULARITIES[chartStore.config.timeframe] || [];
-  $: validGranularities = VALID_GRANULARITIES[chartStore.config.timeframe] || [];
-  
-  // Show all valid granularities for the current timeframe
-  $: filteredGranularities = showGranularities ? 
-    availableGranularities.filter(g => validGranularities.includes(g)) :
-    [];
-  
-  function handleTimeframeChange(timeframe: string) {
-    chartStore.setTimeframe(timeframe);
-    
-    // Auto-select appropriate granularity if current one isn't valid for new timeframe
-    const currentGranularity = chartStore.config.granularity;
-    const validForTimeframe = VALID_GRANULARITIES[timeframe] || [];
-    const recommended = RECOMMENDED_GRANULARITIES[timeframe] || [];
-    
-    if (!validForTimeframe.includes(currentGranularity)) {
-      // Current granularity is invalid for new timeframe, select first recommended
-      const newGranularity = recommended[0] || validForTimeframe[0];
-      if (newGranularity) {
-        chartStore.setGranularity(newGranularity);
-      }
-    }
-  }
-  
-  function handleGranularityChange(granularity: string) {
-    chartStore.setGranularity(granularity);
-  }
-  
-  function handlePairChange(event: Event) {
-    const select = event.target as HTMLSelectElement;
-    const newPair = select.value;
+
+  // Event handlers
+  function handlePairChange(event: CustomEvent) {
+    const { pair: newPair } = event.detail;
     
     if (onPairChange) {
       onPairChange(newPair);
     }
   }
-  
+
+  function handleTimeframeChange(event: CustomEvent) {
+    const { timeframe } = event.detail;
+    controlsService.handleTimeframeChange(timeframe);
+  }
+
+  function handleGranularityChange(event: CustomEvent) {
+    const { granularity } = event.detail;
+    controlsService.handleGranularityChange(granularity);
+  }
+
+  function handleSpeedChange(event: CustomEvent) {
+    const { speed } = event.detail;
+    currentSpeed = speed;
+  }
+
   async function handleRefresh() {
-    if (isRefreshing) return;
-    
     isRefreshing = true;
-    statusStore.setLoading('Refreshing data...');
-    
-    try {
-      const stats = dataStore.stats;
-      if (stats.oldestTime && stats.newestTime) {
-        await dataStore.reloadData(stats.oldestTime, stats.newestTime);
-      }
-      statusStore.setReady();
-    } catch (error) {
-      console.error('ChartControls: Error refreshing data:', error);
-      statusStore.setError('Failed to refresh data');
-    } finally {
-      isRefreshing = false;
-    }
+    await controlsService.handleRefresh();
+    isRefreshing = false;
   }
-  
+
   async function handleClearCache() {
-    if (isClearingCache) return;
-    
     isClearingCache = true;
-    
-    try {
-      await dataStore.clearCache();
-      await handleRefresh();
-    } catch (error) {
-      console.error('ChartControls: Error clearing cache:', error);
-      statusStore.setError('Failed to clear cache');
-    } finally {
-      isClearingCache = false;
-    }
+    await controlsService.handleClearCache();
+    isClearingCache = false;
   }
-  
-  function handleSpeedChange(event: Event) {
-    const select = event.target as HTMLSelectElement;
-    currentSpeed = select.value;
-  }
-  
-  function getButtonClass(isActive: boolean, isRecommended: boolean = false, isDisabled: boolean = false): string {
-    let classes = ['control-button'];
-    
-    if (isActive) {
-      classes.push('active');
-    }
-    
-    if (isRecommended && !isActive && !isDisabled) {
-      classes.push('recommended');
-    }
-    
-    if (isDisabled) {
-      classes.push('disabled');
-    }
-    
-    return classes.join(' ');
-  }
+
+  onMount(() => {
+    controlsService = new ChartControlsService();
+  });
 </script>
 
 <div class="chart-controls">
-  <!-- Pair Selector -->
-  <div class="control-group">
-    <span class="control-label">Pair:</span>
-    <select class="pair-dropdown" bind:value={pair} on:change={handlePairChange}>
-      <option value="BTC-USD">BTC/USD</option>
-      <option value="PAXG-USD">PAXG/USD</option>
-    </select>
-  </div>
+  <PairSelector 
+    {pair} 
+    on:pairChange={handlePairChange} 
+  />
   
-  {#if showTimeframes}
-    <div class="control-group">
-      <span class="control-label">Period:</span>
-      <div class="button-group">
-        {#each availableTimeframes as timeframe}
-          <button
-            class={getButtonClass(chartStore.config.timeframe === timeframe)}
-            on:click={() => handleTimeframeChange(timeframe)}
-            title={PERIOD_DISPLAY_NAMES[timeframe] || timeframe}
-          >
-            {timeframe}
-          </button>
-        {/each}
-      </div>
-    </div>
-  {/if}
+  <TimeframeControls
+    currentTimeframe={chartStore.config.timeframe}
+    {availableTimeframes}
+    {showTimeframes}
+    on:timeframeChange={handleTimeframeChange}
+  />
   
-  {#if showGranularities && availableGranularities.length > 0}
-    <div class="control-group">
-      <span class="control-label">Interval:</span>
-      <div class="button-group">
-        {#each availableGranularities as granularity}
-          {@const isValid = validGranularities.includes(granularity)}
-          {@const isRecommended = recommendedGranularities.includes(granularity)}
-          {@const isActive = chartStore.config.granularity === granularity}
-          <button
-            class={getButtonClass(isActive, isRecommended, !isValid)}
-            on:click={() => handleGranularityChange(granularity)}
-            disabled={!isValid}
-            title={isValid ? 
-              (GRANULARITY_DISPLAY_NAMES[granularity] || granularity) : 
-              `${GRANULARITY_DISPLAY_NAMES[granularity] || granularity} (not suitable for ${chartStore.config.timeframe})`
-            }
-          >
-            {granularity}
-          </button>
-        {/each}
-      </div>
-    </div>
-  {/if}
+  <GranularityControls
+    currentGranularity={chartStore.config.granularity}
+    currentTimeframe={chartStore.config.timeframe}
+    {availableGranularities}
+    {showGranularities}
+    on:granularityChange={handleGranularityChange}
+  />
   
-  {#if showSpeed}
-    <div class="control-group">
-      <span class="control-label">Speed:</span>
-      <select 
-        class="speed-dropdown" 
-        bind:value={currentSpeed} 
-        on:change={handleSpeedChange}
-      >
-        {#each availableSpeeds as speed}
-          <option value={speed}>{speed}</option>
-        {/each}
-      </select>
-    </div>
-  {/if}
+  <SpeedControls
+    {currentSpeed}
+    {availableSpeeds}
+    {showSpeed}
+    on:speedChange={handleSpeedChange}
+  />
   
-  <div class="control-group actions">
-    {#if showRefresh}
-      <button 
-        class="control-button icon-button"
-        on:click={handleRefresh}
-        disabled={isRefreshing}
-        title="Refresh data"
-      >
-        <span class="icon" class:spinning={isRefreshing}>↻</span>
-      </button>
-    {/if}
-    
-    {#if showClearCache}
-      <button 
-        class="control-button icon-button"
-        on:click={handleClearCache}
-        disabled={isClearingCache}
-        title="Clear cache and refresh"
-      >
-        <span class="icon">🗑</span>
-      </button>
-    {/if}
-  </div>
+  <ActionButtons
+    {showRefresh}
+    {showClearCache}
+    {isRefreshing}
+    {isClearingCache}
+    on:refresh={handleRefresh}
+    on:clearCache={handleClearCache}
+  />
 </div>
 
 <style>
@@ -227,209 +116,18 @@
     border-radius: 8px;
     flex-wrap: wrap;
   }
-  
-  .control-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  
-  .control-group.actions {
-    margin-left: auto;
-  }
-  
-  .control-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-secondary, #666);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  
-  .button-group {
-    display: flex;
-    gap: 4px;
-  }
-  
-  .control-button {
-    padding: 6px 12px;
-    border: 1px solid var(--border-color, #ddd);
-    background: var(--button-bg, white);
-    color: var(--text-primary, #333);
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    position: relative;
-    overflow: hidden;
-  }
-  
-  .control-button:hover:not(:disabled) {
-    background: var(--button-hover-bg, #f5f5f5);
-    border-color: var(--border-hover-color, #bbb);
-  }
-  
-  .control-button:disabled,
-  .control-button.disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-    background: var(--button-bg, white);
-    color: var(--text-muted, #999);
-  }
-  
-  .control-button.disabled:hover {
-    background: var(--button-bg, white);
-    border-color: var(--border-color, #ddd);
-  }
-  
-  .control-button.active {
-    background: var(--primary-color, #2196f3);
-    color: white;
-    border-color: var(--primary-color, #2196f3);
-  }
-  
-  .control-button.recommended:not(.active)::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 4px;
-    height: 4px;
-    background: var(--accent-color, #4caf50);
-    border-radius: 50%;
-  }
-  
-  .icon-button {
-    padding: 6px 10px;
-    min-width: 32px;
-  }
-  
-  .icon {
-    display: inline-block;
-    font-size: 16px;
-    line-height: 1;
-  }
-  
-  .icon.spinning {
-    animation: spin 1s linear infinite;
-  }
-  
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-  
-  /* Pair Dropdown */
-  .pair-dropdown {
-    padding: 6px 12px;
-    border: 1px solid #555;
-    background: #333;
-    color: #9966ff !important;
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    min-width: 90px;
-    -webkit-text-fill-color: #9966ff !important;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-  }
-  
-  .pair-dropdown:hover {
-    background: #444;
-    border-color: #666;
-  }
-  
-  .pair-dropdown:focus {
-    outline: none;
-    border-color: #2196f3;
-    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
-  }
-  
-  .pair-dropdown option {
-    background: #333 !important;
-    color: #9966ff !important;
-    padding: 6px;
-    -webkit-text-fill-color: #9966ff !important;
-  }
-  
-  /* Speed Dropdown - Same styling as pair dropdown with high specificity */
-  select.speed-dropdown,
-  .control-group select.speed-dropdown,
-  .chart-controls .control-group select.speed-dropdown {
-    padding: 6px 12px;
-    border: 1px solid #555;
-    background: #333;
-    color: #9966ff;
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    min-width: 60px;
-    -webkit-text-fill-color: #9966ff;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-  }
-  
-  select.speed-dropdown:hover,
-  .control-group select.speed-dropdown:hover,
-  .chart-controls .control-group select.speed-dropdown:hover {
-    background: #444;
-    border-color: #666;
-  }
-  
-  select.speed-dropdown:focus,
-  .control-group select.speed-dropdown:focus,
-  .chart-controls .control-group select.speed-dropdown:focus {
-    outline: none;
-    border-color: #2196f3;
-    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
-  }
-  
-  .speed-dropdown option {
-    background: #333;
-    color: #9966ff;
-    padding: 6px;
-    -webkit-text-fill-color: #9966ff;
-  }
-  
+
   /* Dark theme support */
   :global(.dark) .chart-controls {
     --control-bg: rgba(255, 255, 255, 0.05);
-    --text-primary: #e0e0e0;
     --text-secondary: #999;
-    --text-muted: #555;
-    --button-bg: #2a2a2a;
-    --button-hover-bg: #3a3a3a;
-    --border-color: #444;
-    --border-hover-color: #666;
-    --primary-color: #2196f3;
-    --accent-color: #4caf50;
   }
-  
-  
-  
+
   /* Responsive */
   @media (max-width: 768px) {
     .chart-controls {
       padding: 8px;
       gap: 12px;
-    }
-    
-    .control-button {
-      padding: 5px 10px;
-      font-size: 12px;
-    }
-    
-    .control-group.actions {
-      margin-left: 0;
-      width: 100%;
-      justify-content: flex-end;
     }
   }
 </style>

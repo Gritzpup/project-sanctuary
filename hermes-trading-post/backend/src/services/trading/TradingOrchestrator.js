@@ -311,7 +311,6 @@ export class TradingOrchestrator extends EventEmitter {
           reason: lastBuyTrade.reason || 'Reconstructed from trade history'
         };
         positions = [reconstructedPosition];
-        console.log('🔧 HOTFIX: Reconstructed position from BTC balance and trade history');
       }
     }
     

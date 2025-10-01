@@ -32,9 +32,6 @@ export class CoinbaseAPI {
     start?: string,
     end?: string
   ): Promise<CandleData[]> {
-    console.log(`[CoinbaseAPI] getCandles called for ${productId}, granularity: ${granularity}s`);
-    console.log(`[CoinbaseAPI] Time range: ${start ? new Date(parseInt(start) * 1000).toISOString() : 'not specified'} to ${end ? new Date(parseInt(end) * 1000).toISOString() : 'not specified'}`);
-    
     // Create a unique key for this request for rate limiting
     const key = `candles-${productId}-${granularity}-${start || 'latest'}-${end || 'now'}`;
     
@@ -67,7 +64,6 @@ export class CoinbaseAPI {
         timeout: 15000,
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
       });
       
@@ -82,20 +78,6 @@ export class CoinbaseAPI {
         volume: candle[5]
       }));
       
-      console.log(`[CoinbaseAPI] Successfully fetched ${candles.length} candles`);
-      
-      // Debug: Log first few candles to verify volume data
-      if (candles.length > 0) {
-        console.log('📊 [CoinbaseAPI] First 3 raw candles with volume:');
-        candles.slice(0, 3).forEach((candle, i) => {
-          console.log(`📊 Raw candle ${i}:`, {
-            time: new Date(candle.time * 1000).toISOString(),
-            close: candle.close,
-            volume: candle.volume,
-            volumeType: typeof candle.volume
-          });
-        });
-      }
       return candles;
     }).catch(error => {
       console.error('[CoinbaseAPI] API request failed:', error.message);
@@ -133,5 +115,55 @@ export class CoinbaseAPI {
       startTime.toISOString(),
       endTime.toISOString()
     );
+  }
+
+  async get24hStats(productId: string = 'BTC-USD'): Promise<{
+    open: number;
+    high: number;
+    low: number;
+    last: number;
+    volume: number;
+    volume_30day: number;
+    priceChange24h: number;
+    priceChangePercent24h: number;
+  }> {
+    // Clean up - removed debug logging
+    const key = `stats-24h-${productId}`;
+    
+    return this.rateLimiter.execute(key, async () => {
+      const response = await axios.get(`${this.baseUrl}/products/${productId}/stats`, {
+        timeout: 10000,
+        headers: {
+          'Accept': 'application/json',
+        }
+      });
+      
+      const stats = response.data;
+      const open = parseFloat(stats.open);
+      const last = parseFloat(stats.last);
+      const priceChange24h = last - open;
+      const priceChangePercent24h = (priceChange24h / open) * 100;
+      
+      const result = {
+        open,
+        high: parseFloat(stats.high),
+        low: parseFloat(stats.low),
+        last,
+        volume: parseFloat(stats.volume),
+        volume_30day: parseFloat(stats.volume_30day),
+        priceChange24h,
+        priceChangePercent24h
+      };
+      
+      // Clean up - removed verbose logging
+      
+      return result;
+    }).catch(error => {
+      console.error('[CoinbaseAPI] Failed to fetch 24h stats:', error.message);
+      if (axios.isAxiosError(error) && error.response?.status !== 429) {
+        console.error('Coinbase API error:', error.response?.status, error.response?.data);
+      }
+      throw error;
+    });
   }
 }

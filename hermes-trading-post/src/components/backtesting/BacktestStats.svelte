@@ -306,11 +306,11 @@
   }
   
   .positive {
-    color: #26a69a !important;
+    color: #26a69a;
   }
   
   .negative {
-    color: #ef5350 !important;
+    color: #ef5350;
   }
   
   .balance-grid {

@@ -5,7 +5,8 @@
   import { 
     PERIOD_DISPLAY_NAMES, 
     GRANULARITY_DISPLAY_NAMES,
-    RECOMMENDED_GRANULARITIES 
+    RECOMMENDED_GRANULARITIES,
+    VALID_GRANULARITIES
   } from '../../utils/constants';
   import { ChartDebug } from '../../utils/debug';
   
@@ -26,25 +27,29 @@
   let isRefreshing = false;
   let isClearingCache = false;
   
-  // Get recommended granularities for current timeframe
+  // Get recommended and valid granularities for current timeframe
   $: recommendedGranularities = RECOMMENDED_GRANULARITIES[chartStore.config.timeframe] || [];
+  $: validGranularities = VALID_GRANULARITIES[chartStore.config.timeframe] || [];
   
-  // Filter available granularities based on recommendations
+  // Show all valid granularities for the current timeframe
   $: filteredGranularities = showGranularities ? 
-    availableGranularities.filter(g => recommendedGranularities.includes(g)) :
+    availableGranularities.filter(g => validGranularities.includes(g)) :
     [];
   
   function handleTimeframeChange(timeframe: string) {
-    ChartDebug.log(`Timeframe button clicked: ${timeframe}`);
     chartStore.setTimeframe(timeframe);
     
-    // Auto-select appropriate granularity if current one isn't recommended
+    // Auto-select appropriate granularity if current one isn't valid for new timeframe
     const currentGranularity = chartStore.config.granularity;
+    const validForTimeframe = VALID_GRANULARITIES[timeframe] || [];
     const recommended = RECOMMENDED_GRANULARITIES[timeframe] || [];
     
-    if (!recommended.includes(currentGranularity) && recommended.length > 0) {
-      ChartDebug.log(`Auto-selecting granularity: ${recommended[0]}`);
-      chartStore.setGranularity(recommended[0]);
+    if (!validForTimeframe.includes(currentGranularity)) {
+      // Current granularity is invalid for new timeframe, select first recommended
+      const newGranularity = recommended[0] || validForTimeframe[0];
+      if (newGranularity) {
+        chartStore.setGranularity(newGranularity);
+      }
     }
   }
   
@@ -55,7 +60,6 @@
   function handlePairChange(event: Event) {
     const select = event.target as HTMLSelectElement;
     const newPair = select.value;
-    console.log('🔄 Pair changed to:', newPair);
     
     if (onPairChange) {
       onPairChange(newPair);
@@ -101,18 +105,21 @@
   function handleSpeedChange(event: Event) {
     const select = event.target as HTMLSelectElement;
     currentSpeed = select.value;
-    console.log('🚀 Speed changed to:', currentSpeed);
   }
   
-  function getButtonClass(isActive: boolean, isRecommended: boolean = false): string {
+  function getButtonClass(isActive: boolean, isRecommended: boolean = false, isDisabled: boolean = false): string {
     let classes = ['control-button'];
     
     if (isActive) {
       classes.push('active');
     }
     
-    if (isRecommended && !isActive) {
+    if (isRecommended && !isActive && !isDisabled) {
       classes.push('recommended');
+    }
+    
+    if (isDisabled) {
+      classes.push('disabled');
     }
     
     return classes.join(' ');
@@ -146,18 +153,22 @@
     </div>
   {/if}
   
-  {#if showGranularities && filteredGranularities.length > 0}
+  {#if showGranularities && availableGranularities.length > 0}
     <div class="control-group">
       <span class="control-label">Interval:</span>
       <div class="button-group">
-        {#each filteredGranularities as granularity}
+        {#each availableGranularities as granularity}
+          {@const isValid = validGranularities.includes(granularity)}
+          {@const isRecommended = recommendedGranularities.includes(granularity)}
+          {@const isActive = chartStore.config.granularity === granularity}
           <button
-            class={getButtonClass(
-              chartStore.config.granularity === granularity,
-              recommendedGranularities.includes(granularity)
-            )}
+            class={getButtonClass(isActive, isRecommended, !isValid)}
             on:click={() => handleGranularityChange(granularity)}
-            title={GRANULARITY_DISPLAY_NAMES[granularity] || granularity}
+            disabled={!isValid}
+            title={isValid ? 
+              (GRANULARITY_DISPLAY_NAMES[granularity] || granularity) : 
+              `${GRANULARITY_DISPLAY_NAMES[granularity] || granularity} (not suitable for ${chartStore.config.timeframe})`
+            }
           >
             {granularity}
           </button>
@@ -259,9 +270,17 @@
     border-color: var(--border-hover-color, #bbb);
   }
   
-  .control-button:disabled {
-    opacity: 0.5;
+  .control-button:disabled,
+  .control-button.disabled {
+    opacity: 0.3;
     cursor: not-allowed;
+    background: var(--button-bg, white);
+    color: var(--text-muted, #999);
+  }
+  
+  .control-button.disabled:hover {
+    background: var(--button-bg, white);
+    border-color: var(--border-color, #ddd);
   }
   
   .control-button.active {
@@ -306,14 +325,14 @@
     padding: 6px 12px;
     border: 1px solid #555;
     background: #333;
-    color: #9966ff !important;
+    color: #9966ff;
     font-size: 13px;
     font-weight: 500;
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.2s ease;
     min-width: 90px;
-    -webkit-text-fill-color: #9966ff !important;
+    -webkit-text-fill-color: #9966ff;
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
@@ -331,52 +350,52 @@
   }
   
   .pair-dropdown option {
-    background: #333 !important;
-    color: #9966ff !important;
+    background: #333;
+    color: #9966ff;
     padding: 6px;
-    -webkit-text-fill-color: #9966ff !important;
+    -webkit-text-fill-color: #9966ff;
   }
   
   /* Speed Dropdown - Same styling as pair dropdown with high specificity */
   select.speed-dropdown,
   .control-group select.speed-dropdown,
   .chart-controls .control-group select.speed-dropdown {
-    padding: 6px 12px !important;
-    border: 1px solid #555 !important;
-    background: #333 !important;
-    color: #9966ff !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    border-radius: 4px !important;
-    cursor: pointer !important;
-    transition: all 0.2s ease !important;
-    min-width: 60px !important;
-    -webkit-text-fill-color: #9966ff !important;
-    -webkit-appearance: none !important;
-    -moz-appearance: none !important;
-    appearance: none !important;
+    padding: 6px 12px;
+    border: 1px solid #555;
+    background: #333;
+    color: #9966ff;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 60px;
+    -webkit-text-fill-color: #9966ff;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
   }
   
   select.speed-dropdown:hover,
   .control-group select.speed-dropdown:hover,
   .chart-controls .control-group select.speed-dropdown:hover {
-    background: #444 !important;
-    border-color: #666 !important;
+    background: #444;
+    border-color: #666;
   }
   
   select.speed-dropdown:focus,
   .control-group select.speed-dropdown:focus,
   .chart-controls .control-group select.speed-dropdown:focus {
-    outline: none !important;
-    border-color: #2196f3 !important;
-    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2) !important;
+    outline: none;
+    border-color: #2196f3;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
   }
   
   .speed-dropdown option {
-    background: #333 !important;
-    color: #9966ff !important;
+    background: #333;
+    color: #9966ff;
     padding: 6px;
-    -webkit-text-fill-color: #9966ff !important;
+    -webkit-text-fill-color: #9966ff;
   }
   
   /* Dark theme support */
@@ -384,6 +403,7 @@
     --control-bg: rgba(255, 255, 255, 0.05);
     --text-primary: #e0e0e0;
     --text-secondary: #999;
+    --text-muted: #555;
     --button-bg: #2a2a2a;
     --button-hover-bg: #3a3a3a;
     --border-color: #444;

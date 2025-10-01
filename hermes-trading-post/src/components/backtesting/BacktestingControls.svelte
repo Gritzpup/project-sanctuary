@@ -174,7 +174,7 @@
       {/if}
     </h2>
     <div class="header-buttons">
-      <button class="sync-btn" class:warning={paperTradingActive} class:success={showSyncSuccess} on:click={syncToPaperTrading} disabled={isSynced && !showSyncSuccess}>
+      <button class="btn-base btn-md" class:btn-warning={paperTradingActive} class:btn-success={showSyncSuccess} on:click={syncToPaperTrading} disabled={isSynced && !showSyncSuccess}>
         {#if showSyncSuccess}
           ✅ Synced!
         {:else if paperTradingActive && !isSynced}
@@ -185,20 +185,20 @@
           Sync to Paper Trading
         {/if}
       </button>
-      <button class="run-btn" on:click={() => { updateCurrentStrategy(); runBacktest(); }} disabled={isRunning}>
+      <button class="btn-base btn-md btn-primary" on:click={() => { updateCurrentStrategy(); runBacktest(); }} disabled={isRunning}>
         {isRunning ? 'Running...' : 'Run Backtest'}
       </button>
     </div>
   </div>
   
   <div class="tabs">
-    <button class="tab" class:active={activeTab === 'config'} on:click={() => activeTab = 'config'}>
+    <button class="btn-base btn-sm" class:active={activeTab === 'config'} on:click={() => activeTab = 'config'}>
       Config
     </button>
-    <button class="tab" class:active={activeTab === 'code'} on:click={() => activeTab = 'code'}>
+    <button class="btn-base btn-sm" class:active={activeTab === 'code'} on:click={() => activeTab = 'code'}>
       Source Code
     </button>
-    <button class="tab" class:active={activeTab === 'backups'} on:click={() => { activeTab = 'backups'; loadSavedBackups(); }}>
+    <button class="btn-base btn-sm" class:active={activeTab === 'backups'} on:click={() => { activeTab = 'backups'; loadSavedBackups(); }}>
       Backups
     </button>
   </div>
@@ -209,7 +209,7 @@
         <div class="strategy-header">
           <label class="strategy-label">
             Strategy
-            <select bind:value={selectedStrategyType} on:change={updateCurrentStrategy}>
+            <select class="select-base" bind:value={selectedStrategyType} on:change={updateCurrentStrategy}>
               {#each strategies as strat}
                 <option value={strat.value}>
                   {strat.label}
@@ -220,8 +220,8 @@
           </label>
           <div class="strategy-actions">
             <button 
-              class="icon-btn save-btn" 
-              class:success={showSaveSuccess}
+              class="btn-base btn-icon" 
+              class:btn-success={showSaveSuccess}
               on:click={saveCurrentStrategy}
               title="Save current configuration"
             >
@@ -232,14 +232,14 @@
               {/if}
             </button>
             <button 
-              class="icon-btn import-btn" 
+              class="btn-base btn-icon" 
               on:click={() => showImportDialog = true}
               title="Import strategy"
             >
               📥
             </button>
             <button 
-              class="icon-btn export-btn" 
+              class="btn-base btn-icon" 
               on:click={exportCurrentStrategy}
               title="Export current strategy"
             >
@@ -247,14 +247,14 @@
             </button>
             {#if strategies.find(s => s.value === selectedStrategyType)?.isCustom}
               <button 
-                class="icon-btn edit-btn" 
+                class="btn-base btn-icon" 
                 on:click={() => editStrategy(selectedStrategyType)}
                 title="Edit strategy code"
               >
                 ✏️
               </button>
               <button 
-                class="icon-btn delete-btn" 
+                class="btn-base btn-icon btn-error" 
                 on:click={() => deleteCustomStrategy(selectedStrategyType)}
                 title="Delete custom strategy"
               >
@@ -275,6 +275,7 @@
           Starting Balance
           <input 
             type="number" 
+            class="input-base"
             bind:value={startBalance}
             min="100" 
             step="100" 
@@ -284,11 +285,12 @@
       </div>
       
       <div class="config-section">
-        <h4 style="color: #a78bfa; margin-bottom: 10px;">Fee Structure</h4>
+        <h4 class="text-accent mb-10">Fee Structure</h4>
         <label>
           Maker Fee (%)
           <input 
             type="number" 
+            class="input-base"
             bind:value={makerFeePercent}
             min="0" 
             max="2" 
@@ -302,6 +304,7 @@
           Taker Fee (%)
           <input 
             type="number" 
+            class="input-base"
             bind:value={takerFeePercent}
             min="0" 
             max="2" 
@@ -315,6 +318,7 @@
           Fee Rebate (%)
           <input 
             type="number" 
+            class="input-base"
             bind:value={feeRebatePercent}
             min="0" 
             max="100" 
@@ -354,8 +358,8 @@
         rows="10"
       ></textarea>
       <div class="dialog-actions">
-        <button on:click={importStrategy}>Import</button>
-        <button on:click={() => { showImportDialog = false; importJsonText = ''; }}>Cancel</button>
+        <button class="btn-base btn-md btn-success" on:click={importStrategy}>Import</button>
+        <button class="btn-base btn-md btn-secondary" on:click={() => { showImportDialog = false; importJsonText = ''; }}>Cancel</button>
       </div>
     </div>
   </div>
@@ -371,6 +375,7 @@
           Strategy ID (lowercase, hyphens only)
           <input 
             type="text" 
+            class="input-base"
             bind:value={newStrategyName} 
             placeholder="my-custom-strategy"
             pattern="[a-z0-9-]+"
@@ -382,6 +387,7 @@
           Display Name
           <input 
             type="text" 
+            class="input-base"
             bind:value={newStrategyLabel} 
             placeholder="My Custom Strategy"
           />
@@ -391,6 +397,7 @@
           Description
           <input 
             type="text" 
+            class="input-base"
             bind:value={newStrategyDescription} 
             placeholder="Brief description of your strategy"
           />
@@ -410,10 +417,10 @@
       </div>
       
       <div class="dialog-actions">
-        <button class="save-strategy-btn" on:click={saveStrategy}>
+        <button class="btn-base btn-md btn-success" on:click={saveStrategy}>
           {editingStrategy ? 'Update' : 'Create'} Strategy
         </button>
-        <button on:click={() => showStrategyEditor = false}>Cancel</button>
+        <button class="btn-base btn-md btn-secondary" on:click={() => showStrategyEditor = false}>Cancel</button>
       </div>
     </div>
   </div>

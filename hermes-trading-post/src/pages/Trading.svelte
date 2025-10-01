@@ -153,8 +153,8 @@
       <!-- Candle Info Footer - RIGHT AFTER TIMEFRAME BUTTONS -->
       <div class="candle-info-section">
         <div class="candle-info-content">
-          <p style="color: white; margin: 0 0 10px 0; font-size: 18px; font-weight: bold;">🔥 TEST: Candle Info Footer Section 🔥</p>
-          <p style="color: lime; margin: 0;">This should appear below the timeframe buttons!</p>
+          <p class="test-text-white mb-10">🔥 TEST: Candle Info Footer Section 🔥</p>
+          <p class="test-text-lime">This should appear below the timeframe buttons!</p>
         </div>
       </div>
       

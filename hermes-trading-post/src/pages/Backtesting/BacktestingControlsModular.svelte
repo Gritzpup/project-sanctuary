@@ -3,7 +3,7 @@
   import StrategySelector from '../../components/backtesting/StrategySelector.svelte';
   import BalanceConfiguration from '../../components/backtesting/BalanceConfiguration.svelte';
   import FeeConfiguration from '../../components/backtesting/FeeConfiguration.svelte';
-  import '../../styles/backtesting.css';
+  // Removed backtesting.css - using design system only
   
   export let selectedStrategyType: string;
   export let strategies: Array<any>;

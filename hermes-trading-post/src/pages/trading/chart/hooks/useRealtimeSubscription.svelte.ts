@@ -96,11 +96,9 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       
       // Update volume series if available
       if (volumeSeries) {
-        console.log('📊 Creating new volume bar for new candle');
         
         // 🔥 FIX: Use real volume from WebSocket data
         const volume = fullCandleData?.volume || (newCandle as any).volume || 0;
-        console.log('🔥 [useRealtimeSubscription] NEW candle volume:', volume, 'from fullCandleData:', !!fullCandleData);
         
         // 🔥 FIX: Use volume-based coloring instead of price-based
         // Compare to previous candle volume to determine color
@@ -118,9 +116,8 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         
         try {
           volumeSeries.update(volumeBar);
-          console.log('📊 NEW volume bar added successfully with volume:', volume);
         } catch (error) {
-          console.error('📊 Error adding new volume bar:', error);
+          console.error('Error adding new volume bar:', error);
         }
       }
       
@@ -156,7 +153,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       if (volumeSeries) {
         // 🔥 FIX: Use real volume from WebSocket data
         const volume = fullCandleData?.volume || (updatedCandle as any).volume || 0;
-        console.log('🔥 [useRealtimeSubscription] UPDATE candle volume:', volume, 'from fullCandleData:', !!fullCandleData);
         
         // 🔥 FIX: Use volume-based coloring instead of price-based
         // Compare to previous candle volume to determine color
@@ -175,9 +171,8 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         
         try {
           volumeSeries.update(volumeBar);
-          console.log('📊 Volume bar updated for current candle with real volume:', volume);
         } catch (error) {
-          console.error('📊 Error updating volume bar:', error);
+          console.error('Error updating volume bar:', error);
         }
       }
       
@@ -204,17 +199,10 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       pair,
       granularity,
       (candleData) => {
-        // 🔥 FIX: Pass full candleData with volume, not just price
-        console.log('🔥 [useRealtimeSubscription] Received candleData:', {
-          close: candleData.close,
-          volume: candleData.volume,
-          time: new Date(candleData.time * 1000).toISOString()
-        });
         updateLiveCandleWithPrice(candleData.close, chartSeries, volumeSeries, candleData);
         statusStore.setPriceUpdate();
       },
       () => {
-        console.log('🔄 Backend WebSocket reconnected');
         statusStore.setReady();
         
         if (onReconnect) {
@@ -223,11 +211,9 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       }
     );
     
-    console.log('✅ Backend WebSocket subscription active');
     
     // Also keep Coinbase for price updates but don't use it for status
     import('../../../../services/api/coinbaseWebSocket').then(({ coinbaseWebSocket }) => {
-      console.log('📡 Also subscribing to Coinbase for additional price data');
       
       // Don't update status based on Coinbase - only use backend WebSocket for status
       coinbaseWebSocket.subscribeTicker('BTC-USD');

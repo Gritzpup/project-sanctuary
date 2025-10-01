@@ -120,21 +120,35 @@ export const PERFORMANCE_THRESHOLDS = {
 export const CHART_COLORS = {
   DARK: {
     background: '#1a1a1a',
-    text: '#d1d4dc',
+    textColor: '#d1d4dc',
     grid: 'rgba(255, 255, 255, 0.1)',
     gridLines: 'rgba(255, 255, 255, 0.1)',
     border: '#2a2a2a',
+    borderColor: '#2a2a2a',
+    crosshair: 'rgba(255, 255, 255, 0.5)',
     upColor: '#26a69a',
-    downColor: '#ef5350'
+    downColor: '#ef5350',
+    candleUp: '#26a69a',
+    candleDown: '#ef5350',
+    volume: 'rgba(38, 166, 154, 0.3)',
+    volumeUp: 'rgba(38, 166, 154, 0.6)',
+    volumeDown: 'rgba(239, 83, 80, 0.6)'
   },
   LIGHT: {
     background: '#ffffff',
-    text: '#191919',
+    textColor: '#191919',
     grid: 'rgba(225, 225, 225, 0.4)',
     gridLines: 'rgba(225, 225, 225, 0.4)',
     border: '#e1e1e1',
+    borderColor: '#e1e1e1',
+    crosshair: 'rgba(0, 0, 0, 0.3)',
     upColor: '#26a69a',
-    downColor: '#ef5350'
+    downColor: '#ef5350',
+    candleUp: '#26a69a',
+    candleDown: '#ef5350',
+    volume: 'rgba(38, 166, 154, 0.3)',
+    volumeUp: 'rgba(38, 166, 154, 0.6)',
+    volumeDown: 'rgba(239, 83, 80, 0.6)'
   }
 };
 

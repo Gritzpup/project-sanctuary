@@ -161,26 +161,6 @@ export class ChartAPIService {
         volume: candle.volume || 0
       }));
       
-      // Debug volume data for all granularities
-      console.log(`[ChartAPIService] 📊 API returned ${transformedCandles.length} candles for ${granularity}`);
-      if (transformedCandles.length > 0) {
-        const sampleCandle = transformedCandles[0];
-        const lastCandle = transformedCandles[transformedCandles.length - 1];
-        console.log('📊 Sample first candle:', {
-          time: new Date(sampleCandle.time * 1000).toISOString(),
-          volume: sampleCandle.volume,
-          price: sampleCandle.close
-        });
-        console.log('📊 Sample last candle:', {
-          time: new Date(lastCandle.time * 1000).toISOString(), 
-          volume: lastCandle.volume,
-          price: lastCandle.close
-        });
-        
-        // Count candles with volume > 0
-        const candlesWithVolume = transformedCandles.filter(c => c.volume > 0).length;
-        console.log(`📊 Candles with volume > 0: ${candlesWithVolume}/${transformedCandles.length}`);
-      }
       
       if (granularity === '1d' || granularity === '1D') {
         ChartDebug.critical(`[PERF END] fetchCandles completed in ${performance.now() - fetchStartTime}ms`);
@@ -202,8 +182,6 @@ export class ChartAPIService {
     onError?: (error: Error) => void,
     onReconnect?: () => void
   ): { unsubscribe: () => void } {
-    console.log(`🔌 Chart WebSocket connecting to ${this.wsUrl} for ${pair}:${granularity}`);
-    console.log('🔌 WebSocket URL:', this.wsUrl);
     
     // Store callbacks for reconnection
     this.onReconnectCallback = onReconnect || null;
@@ -245,15 +223,12 @@ export class ChartAPIService {
       this.ws = new WebSocket(this.wsUrl);
 
       this.ws.onopen = () => {
-        console.log('🟢 WebSocket connected to backend');
         ChartDebug.log('WebSocket connected');
         this.clearReconnectTimeout();
         
         // Update status store - WebSocket is connected
         import('../stores/statusStore.svelte').then(({ statusStore }) => {
-          console.log('🔧 Before setWebSocketConnected - wsConnected:', statusStore.wsConnected);
           statusStore.setWebSocketConnected(true);
-          console.log('✅ After setWebSocketConnected - wsConnected:', statusStore.wsConnected);
         }).catch(console.error);
         
         // Resubscribe to all active subscriptions
@@ -272,23 +247,11 @@ export class ChartAPIService {
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'candle') {
-            // DEBUG: Log incoming WebSocket volume data
-            console.log(`🔥 [Frontend] WebSocket received candle:`, {
-              time: new Date(data.time * 1000).toISOString(),
-              volume: data.volume,
-              candleType: data.candleType,
-              close: data.close
-            });
             
             const key = `${data.pair}:${data.granularity}`;
             const callback = this.wsSubscriptions.get(key);
             if (callback) {
               const transformedData = this.transformWebSocketCandle(data);
-              console.log(`🔥 [Frontend] Transformed data:`, {
-                time: new Date(transformedData.time * 1000).toISOString(),
-                volume: transformedData.volume,
-                type: transformedData.type
-              });
               callback(transformedData);
             }
           }
@@ -298,7 +261,6 @@ export class ChartAPIService {
       };
 
       this.ws.onerror = (error) => {
-        console.log('🔴 WebSocket error');
         ChartDebug.error('WebSocket error:', error);
         
         // Update status store - WebSocket error
@@ -312,7 +274,6 @@ export class ChartAPIService {
       };
 
       this.ws.onclose = () => {
-        console.log('🔴 WebSocket disconnected');
         ChartDebug.log('WebSocket disconnected');
         
         // Update status store - WebSocket disconnected

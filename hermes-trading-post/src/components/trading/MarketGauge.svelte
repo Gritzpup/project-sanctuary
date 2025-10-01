@@ -57,9 +57,12 @@
     : recentHigh > 0 ? recentHigh : currentPrice * 1.02;
 </script>
 
-<div class="market-gauge">
-  <div class="gauge-header">
-    <h3>Market Position</h3>
+<div class="panel market-gauge">
+  <div class="panel-header">
+    <h2>Market Position</h2>
+  </div>
+  <div class="panel-content">
+    <div class="gauge-content">
     <div class="zone-prices">
       <div class="zone-price buy">
         <span class="zone-label">Buy Zone</span>
@@ -74,9 +77,9 @@
         <span class="zone-value">${sellZonePrice.toFixed(2)}</span>
       </div>
     </div>
-  </div>
-  
-  <div class="gauge-chart">
+    </div>
+    
+    <div class="gauge-chart">
     <svg viewBox="0 0 240 140" class="gauge-svg">
       <!-- Gauge background -->
       <defs>
@@ -143,24 +146,49 @@
         ${currentPrice.toFixed(0)}
       </text>
     </svg>
+    </div>
   </div>
 </div>
 
 <style>
-  .market-gauge {
-    width: 100%;
-    padding: 15px;
+  .panel {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 300px;
   }
-  
-  .gauge-header {
-    margin-bottom: 10px;
+
+  .panel-header {
+    background: var(--bg-primary-subtle);
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-primary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 50px;
+    flex-shrink: 0;
   }
-  
-  .gauge-header h3 {
-    margin: 0 0 10px 0;
-    font-size: 14px;
+
+  .panel-header h2 {
+    margin: 0;
+    font-size: 16px;
     color: #a78bfa;
-    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .panel-content {
+    padding: 15px;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .gauge-content {
+    margin-bottom: 15px;
   }
   
   .zone-prices {

@@ -12,8 +12,7 @@
   
   const dispatch = createEventDispatcher();
   
-  // Header price debugging
-  $: console.log('📊 CHART HEADER RECEIVED:', { currentPrice, priceChange24h, priceChangePercent24h });
+  // Clean up - removed debug logs
   
   const pairOptions = [
     { value: 'BTC-USD', label: 'BTC/USD Chart' },
@@ -32,12 +31,16 @@
   function handleGranularityChange(granularity: string) {
     dispatch('granularityChange', { granularity });
   }
+
+  function handleZoomReset() {
+    dispatch('zoomReset');
+  }
   
   const granularityOptions = [
     { value: '1m', label: '1m' },
     { value: '5m', label: '5m' },
     { value: '15m', label: '15m' },
-    { value: '1h', label: '1h' },
+    { value: '1h', label: '1H' },
     { value: '6h', label: '6h' },
     { value: '1D', label: '1D' }
   ];
@@ -46,7 +49,7 @@
 <div class="chart-header">
   <div class="header-left">
     <select 
-      class="btn-base btn-timeframe pair-selector" 
+      class="select-base btn-chart-control speed-dropdown pair-selector" 
       bind:value={selectedPair} 
       on:change={() => handlePairChange(selectedPair)}
     >
@@ -81,7 +84,9 @@
   
   <div class="header-right">
     <div class="timeframe-controls">
-      <span class="magnifier-icon">🔍</span>
+      <button class="magnifier-btn" on:click={handleZoomReset} title="Reset zoom to 60 candles">
+        <span class="magnifier-icon">🔍</span>
+      </button>
       <div class="timeframe-separator"></div>
       <div class="timeframe-buttons">
         {#each granularityOptions as option}
@@ -134,9 +139,31 @@
     gap: var(--space-sm);
   }
   
+  .magnifier-btn {
+    background: none;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .magnifier-btn:hover {
+    background: rgba(74, 0, 224, 0.2);
+  }
+
   .magnifier-icon {
     font-size: var(--font-size-lg);
     opacity: 0.7;
+    color: #c4b5fd;
+  }
+
+  .magnifier-btn:hover .magnifier-icon {
+    opacity: 1;
+    color: white;
   }
   
   .timeframe-separator {
@@ -149,7 +176,7 @@
   
   .timeframe-buttons {
     display: flex;
-    gap: var(--space-xs);
+    gap: var(--space-sm);
   }
   
   .timeframe-buttons .btn-timeframe {
@@ -160,36 +187,61 @@
     font-weight: var(--font-weight-medium);
     border: 1px solid var(--border-primary);
     background: var(--bg-primary);
-    color: var(--text-primary);
+    color: #c4b5fd;
     display: flex;
     align-items: center;
     justify-content: center;
     min-width: 40px;
+    transition: all 0.2s ease;
+  }
+
+  .timeframe-buttons .btn-timeframe.active {
+    background: rgba(74, 0, 224, 0.4);
+    color: white;
+    border-color: rgba(74, 0, 224, 0.7);
+    box-shadow: inset 0 2px 4px rgba(74, 0, 224, 0.5);
+    font-weight: 600;
+  }
+
+  .timeframe-buttons .btn-timeframe:hover {
+    background: rgba(74, 0, 224, 0.2);
+    border-color: rgba(74, 0, 224, 0.5);
+    color: white;
   }
   
   .pair-selector {
-    height: 32px;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    border: 1px solid var(--border-primary);
-    background: var(--bg-primary);
-    color: var(--text-primary);
+    height: 32px !important;
+    padding: 4px 8px !important;
+    border-radius: 4px !important;
+    font-size: var(--font-size-sm) !important;
+    font-weight: var(--font-weight-medium) !important;
     min-width: 150px;
-    appearance: none;
-    background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%23a78bfa" d="M2 0L0 2h4zm0 5L0 3h4z"/></svg>');
-    background-repeat: no-repeat;
-    background-position: right 8px center;
-    background-size: 8px;
-    padding-right: 24px;
+    background: var(--bg-primary) !important;
+    color: #c4b5fd !important;
+    border: 1px solid var(--border-primary) !important;
+    appearance: none !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e") !important;
+    background-position: right 8px center !important;
+    background-repeat: no-repeat !important;
+    background-size: 16px !important;
+    padding-right: 32px !important;
+    transition: all 0.2s ease !important;
+  }
+  
+  .pair-selector:hover {
+    background: rgba(74, 0, 224, 0.2) !important;
+    border-color: rgba(74, 0, 224, 0.5) !important;
+    color: white !important;
   }
   
   .pair-selector option {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    padding: var(--space-sm);
+    font-weight: var(--font-weight-medium) !important;
   }
+  
+  .pair-selector {
+    font-weight: var(--font-weight-medium) !important;
+  }
+  
   
   .bot-tabs {
     display: flex;

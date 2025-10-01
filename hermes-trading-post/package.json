@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:frontend": "vite",
+    "dev:frontend": "vite --host",
     "dev:backend": "cd backend && npm install && npm run dev",
     "dev:router": "concurrently \"npm run dev:backend\" \"npm run dev:frontend:router\"",
-    "dev:frontend:router": "vite --config vite.config.router.ts",
+    "dev:frontend:router": "vite --config vite.config.router.ts --host",
     "build": "vite build",
     "build:router": "vite build --config vite.config.router.ts",
     "preview": "vite preview",

@@ -49,12 +49,9 @@
     if (!pluginManager) return;
     
     // Register default plugins
-    console.log('🔧 Registering default plugins:', defaultPlugins);
     for (const pluginName of defaultPlugins) {
-      console.log('🔧 Processing plugin:', pluginName);
       const plugin = createDefaultPlugin(pluginName);
       if (plugin) {
-        console.log('🔧 Plugin created, registering with PluginManager');
         try {
           await pluginManager.register(plugin);
           console.log('✅ Successfully registered plugin:', pluginName);
@@ -69,10 +66,8 @@
   
   // Create default plugin instances
   function createDefaultPlugin(name: string): Plugin | null {
-    console.log('🔧 createDefaultPlugin called with name:', name);
     switch (name) {
       case 'volume':
-        console.log('🔊 Creating VolumePlugin in createDefaultPlugin');
         return new VolumePlugin();
       case 'sma20':
         return new SMAPlugin({ period: 20, color: '#2196F3' });
@@ -97,12 +92,23 @@
   async function handleChartReady(chartInstance: IChartApi) {
     chart = chartInstance;
     
-    // Initialize plugins after chart is ready
-    await initializePlugins();
+    // Wait for plugin manager to be available from ChartCore
+    let attempts = 0;
+    while (!chartCore?.getPluginManager() && attempts < 50) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
     
-    // Add RSI pane if multi-pane is enabled and RSI plugin is loaded
-    if (multiPane && pluginManager?.hasPlugin('rsi-14')) {
-      chartPanes?.addPane('rsi', 25);
+    if (chartCore?.getPluginManager()) {
+      // Initialize plugins after chart is ready
+      await initializePlugins();
+      
+      // Add RSI pane if multi-pane is enabled and RSI plugin is loaded
+      if (multiPane && pluginManager?.hasPlugin('rsi-14')) {
+        chartPanes?.addPane('rsi', 25);
+      }
+    } else {
+      console.warn('ChartContainer: PluginManager not available after waiting');
     }
     
     isReady = true;
@@ -192,6 +198,19 @@
       console.error('ChartCore does not have clearMarkers method');
     }
   }
+
+  export function show60Candles(): void {
+    if (!chartCore) {
+      console.error('ChartCore not available for show60Candles');
+      return;
+    }
+    
+    if (typeof chartCore.show60Candles === 'function') {
+      chartCore.show60Candles();
+    } else {
+      console.error('ChartCore does not have show60Candles method');
+    }
+  }
 </script>
 
 <div class="chart-container">
@@ -271,6 +290,11 @@
     height: 100%;
     background: var(--chart-bg, #1a1a1a);
     color: var(--chart-text, #d1d4dc);
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
   }
   
   .chart-header {
@@ -285,6 +309,8 @@
     position: relative;
     min-height: 0;
     overflow: hidden;
+    width: 100%;
+    min-width: 0;
   }
   
   .main-pane {

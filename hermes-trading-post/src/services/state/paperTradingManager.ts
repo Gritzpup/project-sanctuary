@@ -97,7 +97,6 @@ class PaperTradingManager {
       // Restore the saved bot selection if it exists
       const savedBot = bots.find(bot => bot.id === state.activeTabId);
       if (savedBot) {
-        console.log('Restoring saved bot selection:', state.activeTabId);
         this.selectBot(strategyType, state.activeTabId);
       } else {
         // Saved bot not found, select first bot
@@ -138,10 +137,8 @@ class PaperTradingManager {
     // Notify backend - retry if WebSocket is not ready
     const notifyBackend = () => {
       if (tradingBackendService.isConnected()) {
-        console.log('Notifying backend of bot selection:', botId);
         tradingBackendService.selectBot(botId);
       } else {
-        console.log('WebSocket not ready, retrying bot selection in 100ms...');
         setTimeout(notifyBackend, 100);
       }
     };

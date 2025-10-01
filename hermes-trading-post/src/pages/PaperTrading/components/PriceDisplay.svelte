@@ -6,14 +6,16 @@
   export let priceChange24h: number = 0;
   export let priceChangePercent24h: number = 0;
   
-  // Header price debugging
-  $: if (currentPrice === 0) console.log('❌ HEADER PRICE: currentPrice is 0 - no data flowing');
+  // Clean up - removed debug logs
   
   let prevPrice = currentPrice;
+  let prev24hChange = priceChange24h;
+  let prev24hPercent = priceChangePercent24h;
   let priceDirection: 'up' | 'down' | 'neutral' = 'neutral';
   let lastDirection: 'up' | 'down' | 'neutral' = 'up'; // Default to green
   let directionTimeout: NodeJS.Timeout | null = null;
   let animatingDigits = new Set<number>();
+  let arrows24hAnimating = false;
   
   $: {
     if (currentPrice !== prevPrice && currentPrice > 0 && prevPrice > 0) {
@@ -33,7 +35,6 @@
       }
       
       prevPrice = currentPrice;
-      console.log(`💹 Price ${newDirection}: ${prevPrice} → ${currentPrice}`);
       
       // Clear existing timeout
       if (directionTimeout) {
@@ -50,9 +51,28 @@
       prevPrice = currentPrice;
     }
   }
+
+  // Handle 24h data changes and trigger arrow animations
+  $: {
+    if ((priceChange24h !== prev24hChange || priceChangePercent24h !== prev24hPercent) && 
+        (priceChange24h !== 0 || priceChangePercent24h !== 0)) {
+      
+      // Trigger arrow animation
+      arrows24hAnimating = true;
+      setTimeout(() => {
+        arrows24hAnimating = false;
+      }, 600);
+      
+      prev24hChange = priceChange24h;
+      prev24hPercent = priceChangePercent24h;
+    } else if (priceChange24h !== 0 && prev24hChange === 0) {
+      // Initialize when we first get 24h data
+      prev24hChange = priceChange24h;
+      prev24hPercent = priceChangePercent24h;
+    }
+  }
   
   $: displayPrice = currentPrice > 0 ? currentPrice : 0;
-  $: console.log('💰 PriceDisplay: currentPrice =', currentPrice, 'displayPrice =', displayPrice);
   
   // Use current direction or last direction if we're between updates
   $: displayDirection = priceDirection !== 'neutral' ? priceDirection : lastDirection;
@@ -102,6 +122,12 @@
     </span>
     <span class="change-percent" class:positive={priceChangePercent24h > 0} class:negative={priceChangePercent24h < 0}>
       ({priceChangePercent24h > 0 ? '+' : ''}{priceChangePercent24h.toFixed(2)}%)
+    </span>
+    <span class="change-arrow" 
+          class:positive={priceChangePercent24h > 0} 
+          class:negative={priceChangePercent24h < 0}
+          class:animating={arrows24hAnimating}>
+      {priceChangePercent24h > 0 ? '↗' : priceChangePercent24h < 0 ? '↘' : '→'}
     </span>
   </div>
 </div>
@@ -184,7 +210,7 @@
   .price-change {
     display: flex;
     gap: var(--space-xs);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-md);
     font-family: 'Courier New', monospace;
   }
   
@@ -194,5 +220,44 @@
   
   .negative {
     color: var(--color-error);
+  }
+
+  .change-arrow {
+    font-size: var(--font-size-md);
+    margin-left: 4px;
+    transition: all 0.3s ease;
+    display: inline-block;
+    vertical-align: baseline;
+    line-height: 1;
+  }
+
+  .change-arrow.positive {
+    color: var(--color-success);
+  }
+
+  .change-arrow.negative {
+    color: var(--color-error);
+  }
+
+  .change-arrow.animating.positive {
+    animation: bounceUp 0.6s ease-out;
+  }
+
+  .change-arrow.animating.negative {
+    animation: bounceDown 0.6s ease-out;
+  }
+
+  @keyframes bounceUp {
+    0% { transform: translateY(0) scale(1); }
+    30% { transform: translateY(-3px) scale(1.1); }
+    60% { transform: translateY(1px) scale(1.05); }
+    100% { transform: translateY(0) scale(1); }
+  }
+
+  @keyframes bounceDown {
+    0% { transform: translateY(0) scale(1); }
+    30% { transform: translateY(3px) scale(1.1); }
+    60% { transform: translateY(-1px) scale(1.05); }
+    100% { transform: translateY(0) scale(1); }
   }
 </style>

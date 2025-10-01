@@ -15,7 +15,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   private volumeData: HistogramData[] = [];
 
   constructor(settings?: VolumePluginSettings) {
-    console.log('🔊 VolumePlugin constructor called');
     
     const defaultSettings: VolumePluginSettings = {
       upColor: '#26a69a80',
@@ -59,7 +58,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         entireTextOnly: false,
       });
       
-      console.log('🔊 VolumePlugin series setup complete with price scale configuration');
     }
   }
 
@@ -67,25 +65,11 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
     const dataStore = this.getDataStore();
     const candles = dataStore.candles;
     
-    console.log('🔊 VolumePlugin getData() called with', candles.length, 'candles');
-    
-    // Log the latest few candles for debugging
-    if (candles.length > 0) {
-      const latestCandles = candles.slice(-3);
-      console.log('🔊 Latest 3 candles in VolumePlugin:');
-      latestCandles.forEach((candle, i) => {
-        console.log(`🔊 Candle ${candles.length - 3 + i}: time=${new Date(candle.time * 1000).toISOString()}, volume=${candle.volume}`);
-      });
-    }
     
     this.volumeData = candles.map((candle, index) => {
       const settings = this.settings as VolumePluginSettings;
       let volume = candle.volume || 0;
       
-      // Always use real volume data from Coinbase - no fake generation
-      if (volume === 0) {
-        console.warn('🔊 ⚠️  Volume is 0 for candle at', new Date(candle.time * 1000).toISOString());
-      }
       
       // 🔥 FIX: Use volume-based coloring instead of price-based
       // Compare current volume to previous volume to determine color
@@ -102,9 +86,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       };
     });
     
-    console.log('🔊 VolumePlugin returning', this.volumeData.length, 'volume bars');
-    const nonZeroVolume = this.volumeData.filter(v => v.value > 0);
-    console.log('🔊 Non-zero volume bars:', nonZeroVolume.length);
     
     return this.volumeData;
   }

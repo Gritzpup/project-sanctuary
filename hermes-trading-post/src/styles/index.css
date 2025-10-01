@@ -1,32 +1,41 @@
-/* Main CSS Import File - Organized Component Styles */
-/* This file imports all CSS in the correct order */
+/* Main CSS Import File - Consolidated Design System */
+/* This file imports all CSS in the correct order for optimal performance */
 
 /* ===================================== */
-/* 1. BASE STYLES                       */
+/* 1. DESIGN SYSTEM (FIRST - Contains CSS variables, reset, base styles) */
 /* ===================================== */
-@import './base.css';
+@import './design-system-consolidated.css';
 
 /* ===================================== */
-/* 2. LAYOUT COMPONENTS                 */
+/* 2. LAYOUT SYSTEM (Grid, panels, responsive) */
+/* ===================================== */
+@import './layout-system.css';
+
+/* ===================================== */
+/* 3. SIDEBAR COMPONENT */
 /* ===================================== */
 @import './sidebar.css';
 
 /* ===================================== */
-/* 3. PAGE-SPECIFIC STYLES              */
+/* 4. UTILITY SYSTEM (Helper classes) */
 /* ===================================== */
-
-/* Backtesting Styles */
-@import './backtesting-complete.css';
-
-/* Paper Trading Styles */
-@import './paper-trading-complete.css';
+@import './utility-system.css';
 
 /* ===================================== */
-/* 4. SHARED COMPONENTS                 */
+/* DEPRECATED FILES (For reference only) */
 /* ===================================== */
-@import './components.css';
+/* The following files have been consolidated and are no longer needed:
 
-/* ===================================== */
-/* 5. UTILITIES                         */
-/* ===================================== */
-@import './utilities.css';
+- design-system.css -> Merged into design-system-consolidated.css
+- base.css -> Merged into design-system-consolidated.css
+- components.css -> Merged into design-system-consolidated.css and layout-system.css
+- utilities.css -> Merged into utility-system.css
+- backtesting-page.css -> Merged into layout-system.css
+
+This consolidation provides:
+1. Single source of truth for all styles
+2. Consistent naming conventions
+3. No duplicate CSS custom properties
+4. Better performance with fewer HTTP requests
+5. Easier maintenance and debugging
+*/

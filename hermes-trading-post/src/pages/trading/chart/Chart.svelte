@@ -76,6 +76,10 @@
   export function clearMarkers(): void {
     return chartContainer?.clearMarkers();
   }
+
+  export function show60Candles(): void {
+    return chartContainer?.show60Candles();
+  }
 </script>
 
 <ChartContainer

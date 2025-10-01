@@ -108,7 +108,6 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
     
     // Subscribe to real-time updates
     this.dataUnsubscribe = dataStore.onDataUpdate(() => {
-      console.log(`🔧 [SeriesPlugin] ${this.id} received data update notification - refreshing data`);
       this.refreshData();
     });
   }

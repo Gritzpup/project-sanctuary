@@ -57,7 +57,7 @@
   <div class="section">
     <h2>Connection Status</h2>
     <div class="status-indicator">
-      <div class="status-dot" style="background-color: {statusColor}"></div>
+      <div class="status-dot status-{connectionStatus}"></div>
       <span>{statusText}</span>
     </div>
   </div>
@@ -88,11 +88,11 @@
   <div class="section controls">
     <h2>Chart Controls</h2>
     <div class="timeframe-buttons">
-      <button class="timeframe-btn" data-days="1">1D</button>
-      <button class="timeframe-btn" data-days="7">1W</button>
-      <button class="timeframe-btn" data-days="30">1M</button>
-      <button class="timeframe-btn" data-days="90">3M</button>
-      <button class="timeframe-btn active" data-days="300">1Y</button>
+      <button class="btn-base btn-sm btn-timeframe" data-days="1">1D</button>
+      <button class="btn-base btn-sm btn-timeframe" data-days="7">1W</button>
+      <button class="btn-base btn-sm btn-timeframe" data-days="30">1M</button>
+      <button class="btn-base btn-sm btn-timeframe" data-days="90">3M</button>
+      <button class="btn-base btn-sm btn-timeframe active" data-days="300">1Y</button>
     </div>
     <div class="control-info">
       <p>• Scroll to zoom in/out</p>
@@ -103,7 +103,7 @@
 
   <div class="section">
     <h2>Debug Tools</h2>
-    <button class="test-button" on:click={testAPI}>Test Coinbase API</button>
+    <button class="btn-base btn-md" on:click={testAPI}>Test Coinbase API</button>
   </div>
 </div>
 
@@ -124,26 +124,6 @@
     margin-bottom: 15px;
   }
 
-  .timeframe-btn {
-    padding: 8px;
-    background: rgba(74, 0, 224, 0.1);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    color: #a78bfa;
-    cursor: pointer;
-    border-radius: 4px;
-    font-size: 12px;
-    transition: all 0.3s ease;
-  }
-
-  .timeframe-btn:hover {
-    background: rgba(74, 0, 224, 0.3);
-  }
-
-  .timeframe-btn.active {
-    background: rgba(74, 0, 224, 0.5);
-    color: #e9d5ff;
-    border-color: #4a00e0;
-  }
 
   .header {
     margin-bottom: 30px;

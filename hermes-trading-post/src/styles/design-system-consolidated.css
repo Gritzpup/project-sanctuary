@@ -1,0 +1,486 @@
+/* Design System - Consolidated Single Source of Truth */
+/* CSS Custom Properties and base styles for consistent theming */
+
+/* ===================================== */
+/* 1. RESET & DEFAULTS                  */
+/* ===================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background-color: #0d0d0d;
+  color: #d1d4dc;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===================================== */
+/* 2. CSS CUSTOM PROPERTIES             */
+/* ===================================== */
+
+:root {
+  /* ===================================== */
+  /* THEME COLORS                         */
+  /* ===================================== */
+  
+  /* Primary Purple Theme */
+  --color-primary: #a78bfa;
+  --color-primary-dark: #7c3aed;
+  --color-primary-light: #c4b5fd;
+  
+  /* Background Colors */
+  --bg-main: #0a0a0a;
+  --bg-secondary: #0f0f0f;
+  --bg-primary: rgba(74, 0, 224, 0.2);
+  --bg-primary-hover: rgba(74, 0, 224, 0.3);
+  --bg-primary-active: rgba(74, 0, 224, 0.4);
+  --bg-primary-subtle: rgba(74, 0, 224, 0.1);
+  --bg-panel: rgba(255, 255, 255, 0.02);
+  --bg-hover: rgba(74, 0, 224, 0.1);
+  
+  /* Border Colors */
+  --border-primary: rgba(74, 0, 224, 0.3);
+  --border-primary-hover: rgba(74, 0, 224, 0.5);
+  --border-primary-active: rgba(74, 0, 224, 0.6);
+  --border-secondary: rgba(74, 0, 224, 0.2);
+  
+  /* Surface Colors */
+  --surface-base: #0a0a0a;
+  --surface-elevated: rgba(255, 255, 255, 0.02);
+  --surface-panel: rgba(255, 255, 255, 0.03);
+  
+  /* Text Colors */
+  --text-primary: #d1d4dc;
+  --text-secondary: #888;
+  --text-muted: #666;
+  --text-accent: #a78bfa;
+  
+  /* Status Colors */
+  --color-success: #26a69a;
+  --color-success-bg: rgba(38, 166, 154, 0.2);
+  --color-error: #ef4444;
+  --color-error-bg: rgba(239, 68, 68, 0.2);
+  --color-warning: #ffa726;
+  --color-warning-bg: rgba(255, 167, 38, 0.2);
+  --color-info: #42a5f5;
+  --color-info-bg: rgba(66, 165, 245, 0.2);
+  
+  /* ===================================== */
+  /* SPACING SYSTEM                       */
+  /* ===================================== */
+  
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+  
+  /* Legacy spacing (for backwards compatibility) */
+  --spacing-xs: 5px;
+  --spacing-sm: 10px;
+  --spacing-md: 15px;
+  --spacing-lg: 20px;
+  --spacing-xl: 30px;
+  
+  /* ===================================== */
+  /* BORDER RADIUS                        */
+  /* ===================================== */
+  
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  
+  /* ===================================== */
+  /* TYPOGRAPHY                           */
+  /* ===================================== */
+  
+  --font-size-xs: 10px;
+  --font-size-sm: 12px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 20px;
+  --font-size-3xl: 24px;
+  
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* ===================================== */
+  /* TRANSITIONS                          */
+  /* ===================================== */
+  
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.3s ease;
+  
+  /* ===================================== */
+  /* Z-INDEX SCALE                        */
+  /* ===================================== */
+  
+  --z-base: 1;
+  --z-overlay: 5;
+  --z-dropdown: 10;
+  --z-modal: 50;
+  --z-tooltip: 100;
+  --z-toast: 1000;
+}
+
+/* ===================================== */
+/* 3. TYPOGRAPHY                        */
+/* ===================================== */
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+h1 {
+  font-size: var(--font-size-3xl);
+  color: var(--text-accent);
+}
+
+h2 {
+  font-size: var(--font-size-2xl);
+  color: var(--text-accent);
+}
+
+h3 {
+  font-size: var(--font-size-lg);
+  color: var(--text-accent);
+}
+
+h4 {
+  font-size: var(--font-size-md);
+  color: var(--text-accent);
+}
+
+/* ===================================== */
+/* 4. LINKS                             */
+/* ===================================== */
+
+a {
+  color: var(--text-accent);
+  text-decoration: none;
+  transition: color var(--transition-normal);
+}
+
+a:hover {
+  color: var(--color-primary-light);
+}
+
+/* ===================================== */
+/* 5. BUTTON SYSTEM                     */
+/* ===================================== */
+
+/* Global button defaults */
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Base button class - all buttons inherit from this */
+.btn-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-accent);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  text-decoration: none;
+  user-select: none;
+}
+
+.btn-base:hover:not(:disabled) {
+  background: var(--bg-primary-hover);
+  border-color: var(--border-primary-hover);
+  color: var(--text-primary);
+}
+
+.btn-base:active:not(:disabled) {
+  background: var(--bg-primary-active);
+  border-color: var(--border-primary-active);
+}
+
+.btn-base.active {
+  background: var(--bg-primary-active);
+  border-color: var(--border-primary-active);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.btn-base:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===================================== */
+/* BUTTON VARIANTS                      */
+/* ===================================== */
+
+/* Size variants */
+.btn-xs {
+  padding: 2px var(--space-xs);
+  font-size: var(--font-size-xs);
+  min-height: 20px;
+}
+
+.btn-sm {
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-xs);
+  min-height: 24px;
+}
+
+.btn-md {
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-sm);
+  min-height: 32px;
+}
+
+.btn-lg {
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--font-size-md);
+  min-height: 40px;
+}
+
+/* Width variants */
+.btn-compact {
+  min-width: 40px;
+  padding-left: var(--space-xs);
+  padding-right: var(--space-xs);
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  min-width: unset;
+}
+
+.btn-full {
+  width: 100%;
+}
+
+/* Color variants */
+.btn-success {
+  background: var(--color-success-bg);
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.btn-success:hover:not(:disabled) {
+  background: rgba(38, 166, 154, 0.3);
+  border-color: var(--color-success);
+}
+
+.btn-error {
+  background: var(--color-error-bg);
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.btn-error:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: var(--color-error);
+}
+
+.btn-warning {
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: rgba(255, 167, 38, 0.3);
+  border-color: var(--color-warning);
+}
+
+/* ===================================== */
+/* SEMANTIC BUTTON CLASSES              */
+/* ===================================== */
+
+/* Primary buttons (main actions) */
+.btn-primary {
+  /* Uses default btn-base styling */
+}
+
+/* Secondary buttons (less emphasis) */
+.btn-secondary {
+  background: var(--bg-primary-subtle);
+  color: var(--text-secondary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-primary);
+  color: var(--text-accent);
+}
+
+/* Chart control buttons */
+.btn-chart-control {
+  /* Extends btn-base with specific sizing */
+  min-width: 100px;
+  height: 20px;
+  font-size: var(--font-size-xs);
+  padding: 1px var(--space-sm);
+}
+
+/* Timeframe/period buttons */
+.btn-timeframe {
+  /* Extends btn-base */
+  min-width: 40px;
+}
+
+/* Legacy icon button for compatibility */
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-size-lg);
+  transition: all var(--transition-normal);
+}
+
+.icon-btn:hover {
+  background: var(--bg-primary-hover);
+  border-color: var(--border-primary-hover);
+}
+
+/* ===================================== */
+/* 6. FORM ELEMENTS                     */
+/* ===================================== */
+
+input,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.input-base {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  transition: all var(--transition-normal);
+}
+
+.input-base:focus {
+  outline: none;
+  border-color: var(--border-primary-hover);
+  background: var(--surface-panel);
+}
+
+.select-base {
+  /* Extends input-base */
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right var(--space-sm) center;
+  background-repeat: no-repeat;
+  background-size: 12px 12px;
+  padding-right: calc(var(--space-2xl) + var(--space-xs));
+}
+
+.select-base option {
+  background: #2c0080;
+  color: var(--text-primary);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-primary-active);
+}
+
+/* Legacy form styles for compatibility */
+.form-group {
+  margin-bottom: var(--space-xl);
+}
+
+.form-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+}
+
+.form-input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-md);
+  transition: all var(--transition-normal);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--border-primary-hover);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.input-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Input size variants */
+.input-narrow {
+  width: 100px;
+}
+
+/* ===================================== */
+/* 7. SCROLLBARS                        */
+/* ===================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-primary);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-primary-hover);
+}

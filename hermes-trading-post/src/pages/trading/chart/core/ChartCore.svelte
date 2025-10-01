@@ -42,7 +42,6 @@
       // Price updates are handled internally by the hook
     },
     onNewCandle: (candle) => {
-      ChartDebug.log('New candle created:', candle);
     },
     onReconnect: () => {
       ChartDebug.log('Real-time connection reconnected');
@@ -75,6 +74,26 @@
     });
   }
   
+  async function handleChartReady(chart: IChartApi) {
+    
+    // Initialize plugin manager if plugins are enabled
+    if (enablePlugins) {
+      pluginManager = new PluginManager();
+      
+      await pluginManager.setContext({
+        chart,
+        dataStore,
+        chartStore,
+        statusStore
+      });
+    }
+    
+    // Notify parent component that chart is ready
+    if (onReady) {
+      onReady(chart);
+    }
+  }
+
   onMount(async () => {
     
     try {
@@ -104,12 +123,10 @@
       await dataLoader.checkAndFillDataGaps(chartCanvas?.getChart(), chartCanvas?.getSeries());
       
       // Subscribe to real-time updates
-      console.log('🔥 ChartCore: About to call subscribeToRealtime');
       realtimeSubscription.subscribeToRealtime({
         pair,
         granularity
       }, chartCanvas?.getSeries(), chartCanvas?.getVolumeSeries());
-      console.log('✅ ChartCore: subscribeToRealtime called with volume series');
       
       // Set status to ready after data loads and chart is updated
       setTimeout(() => {
@@ -124,11 +141,6 @@
           statusStore.setReady();
         }
       }, 1000);
-      
-      // Notify parent
-      if (onReady && chartCanvas?.getChart()) {
-        onReady(chartCanvas.getChart()!);
-      }
       
     } catch (error) {
       console.error('Chart initialization failed:', error);
@@ -187,15 +199,21 @@
     console.log('ChartCore: Forwarding clearMarkers to ChartCanvas');
     chartCanvas.clearMarkers();
   }
+
+  export function show60Candles() {
+    if (!chartCanvas) {
+      console.error('ChartCore: ChartCanvas not available for show60Candles');
+      return;
+    }
+    console.log('ChartCore: Forwarding show60Candles to ChartCanvas');
+    chartCanvas.show60Candles();
+  }
 </script>
 
 <div class="chart-core">
   <ChartCanvas 
     bind:this={chartCanvas}
-    onChartReady={(chart) => {
-      console.log('🎯 ChartCore: Canvas ready, chart instance:', !!chart);
-      console.log('🎯 ChartCore: Canvas ready fired');
-    }}
+    onChartReady={handleChartReady}
   />
   
   <slot name="overlays" />
@@ -208,5 +226,10 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
   }
 </style>

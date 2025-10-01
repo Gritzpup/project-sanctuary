@@ -135,19 +135,6 @@ class DataStore {
   }
 
   setCandles(candles: CandlestickDataWithVolume[]) {
-    // Debug volume data in setCandles
-    console.log('📊 [dataStore] setCandles called with', candles.length, 'candles');
-    if (candles.length > 0) {
-      console.log('📊 [dataStore] First 3 candles in setCandles:');
-      candles.slice(0, 3).forEach((candle, i) => {
-        console.log(`📊 setCandles candle ${i}:`, {
-          time: candle.time,
-          close: candle.close,
-          volume: candle.volume,
-          hasVolume: typeof candle.volume !== 'undefined'
-        });
-      });
-    }
     
     this._candles = candles;
     this._visibleCandles = candles; // Initially all candles are visible
@@ -221,13 +208,7 @@ class DataStore {
           volume: update.volume || 0
         };
 
-        // Debug real-time volume updates
-        console.log(`🔥 [dataStore] Real-time update received:`, {
-          time: new Date(update.time * 1000).toISOString(),
-          volume: update.volume,
-          type: (update as any).type || 'unknown',
-          candleType: (update as any).candleType || 'unknown'
-        });
+        // Clean up - removed verbose real-time logging
 
         // Update or add candle
         const existingIndex = this._candles.findIndex(c => c.time === update.time);
@@ -236,13 +217,13 @@ class DataStore {
           // Update existing candle
           const oldVolume = this._candles[existingIndex].volume;
           this._candles[existingIndex] = candleData;
-          console.log(`🔥 [dataStore] Updated existing candle - Volume: ${oldVolume} → ${candleData.volume}`);
+          // Clean up - removed candle update logging
         } else {
           // New candle
           this._candles = [...this._candles, candleData].sort(
             (a, b) => (a.time as number) - (b.time as number)
           );
-          console.log(`🔥 [dataStore] NEW candle created with volume: ${candleData.volume}`);
+          // Clean up - removed new candle logging
           this.triggerNewCandle();
         }
 
@@ -340,22 +321,18 @@ class DataStore {
   // Plugin subscription methods
   onDataUpdate(callback: () => void): () => void {
     this.dataUpdateCallbacks.add(callback);
-    console.log(`📊 [dataStore] Plugin subscribed to data updates. Total subscribers: ${this.dataUpdateCallbacks.size}`);
-    
     // Return unsubscribe function
     return () => {
       this.dataUpdateCallbacks.delete(callback);
-      console.log(`📊 [dataStore] Plugin unsubscribed from data updates. Total subscribers: ${this.dataUpdateCallbacks.size}`);
     };
   }
 
   private notifyDataUpdate() {
-    console.log(`📊 [dataStore] Notifying ${this.dataUpdateCallbacks.size} subscribers of data update`);
     this.dataUpdateCallbacks.forEach(callback => {
       try {
         callback();
       } catch (error) {
-        console.error('📊 [dataStore] Error in data update callback:', error);
+        console.error('Error in data update callback:', error);
       }
     });
   }

@@ -88,11 +88,9 @@ class TradingBackendService {
 
   private connect() {
     try {
-      console.log(`Connecting to trading backend at ${this.backendUrl}`);
       this.ws = new WebSocket(this.backendUrl);
 
       this.ws.onopen = () => {
-        console.log('Connected to trading backend');
         this.reconnectAttempts = 0;
         this.state.update(s => ({ ...s, isConnected: true }));
         
@@ -362,7 +360,6 @@ class TradingBackendService {
   }
 
   selectBot(botId: string) {
-    console.log('Selecting bot:', botId);
     this.send({
       type: 'selectBot',
       botId
@@ -370,7 +367,6 @@ class TradingBackendService {
   }
 
   deleteBot(botId: string) {
-    console.log('Deleting bot:', botId);
     this.send({
       type: 'deleteBot',
       botId

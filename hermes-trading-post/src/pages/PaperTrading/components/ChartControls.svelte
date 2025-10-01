@@ -108,12 +108,22 @@
             <option value={speed}>{speed} Speed   </option>
           {/each}
         </select>
-        <button 
-          class="btn-base btn-icon"
-          on:click={handleStop}
-        >
-          ⏹
-        </button>
+        <div class="stop-button-wrapper">
+          <button 
+            class="btn-base btn-icon"
+            on:click={handleStop}
+          >
+            ⏹
+          </button>
+          <!-- Progress Bar -->
+          <div class="progress-container">
+            <div class="progress-bar" style="width: {(isRunning && !isPaused) ? '75%' : '0%'}"></div>
+          </div>
+          <!-- Percentage Readout -->
+          <div class="progress-percentage">
+            {(isRunning && !isPaused) ? '75%' : '0%'}
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -134,6 +144,9 @@
     align-items: center;
     grid-template-rows: auto auto;
     justify-items: center;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
   
   .controls-separator {
@@ -143,6 +156,7 @@
     opacity: 1;
     border-radius: 1px;
     justify-self: center;
+    margin-top: 8px;
   }
   
   .left-column {
@@ -209,17 +223,32 @@
     font-weight: var(--font-weight-medium);
     border: 1px solid var(--border-primary);
     background: var(--bg-primary);
-    color: var(--text-primary);
+    color: #c4b5fd;
     display: flex;
     align-items: center;
     justify-content: center;
     min-width: 40px;
+    transition: all 0.2s ease;
+  }
+
+  .btn-timeframe.active {
+    background: rgba(74, 0, 224, 0.4);
+    color: white;
+    border-color: rgba(74, 0, 224, 0.7);
+    box-shadow: inset 0 2px 4px rgba(74, 0, 224, 0.5);
+    font-weight: 600;
+  }
+
+  .btn-timeframe:hover {
+    background: rgba(74, 0, 224, 0.2);
+    border-color: rgba(74, 0, 224, 0.5);
+    color: white;
   }
   
   .speed-dropdown {
     min-width: 125px;
     appearance: none;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
     background-position: right 8px center;
     background-repeat: no-repeat;
     background-size: 16px;
@@ -228,6 +257,17 @@
   
   .input-base {
     min-width: 120px;
+  }
+  
+  /* Make calendar icon white */
+  .input-base[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+  }
+  
+  .input-base[type="date"]::-moz-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
   }
   
   /* Ensure period buttons are consistent */
@@ -239,6 +279,44 @@
     display: flex;
     align-items: center;
     gap: var(--space-sm);
+  }
+  
+  .stop-button-wrapper {
+    position: relative;
+    display: inline-block;
+  }
+  
+  .progress-container {
+    position: absolute;
+    left: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 80px;
+    height: 6px;
+    background: rgba(74, 0, 224, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1px solid rgba(74, 0, 224, 0.3);
+  }
+  
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #c4b5fd 0%, #a78bfa 50%, #8b5cf6 100%);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 6px rgba(167, 139, 250, 0.4);
+  }
+  
+  .progress-percentage {
+    position: absolute;
+    left: calc(100% + 8px + 80px + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    font-weight: 500;
+    color: #c4b5fd;
+    min-width: 30px;
+    text-align: left;
   }
   
 </style>

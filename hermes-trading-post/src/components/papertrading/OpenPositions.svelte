@@ -52,5 +52,137 @@
 </div>
 
 <style>
-  /* Component styles are inherited from parent */
+  .panel {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 300px;
+  }
+
+  .panel-header {
+    background: var(--bg-primary-subtle);
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-primary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 50px;
+    flex-shrink: 0;
+  }
+
+  .panel-header h2 {
+    margin: 0;
+    font-size: 16px;
+    color: #a78bfa;
+    font-weight: 500;
+  }
+
+  .position-count {
+    font-size: 12px;
+    color: #c4b5fd;
+    background: rgba(74, 0, 224, 0.2);
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+
+  .panel-content {
+    padding: 15px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .positions-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .position-card {
+    background: rgba(74, 0, 224, 0.1);
+    border: 1px solid rgba(74, 0, 224, 0.2);
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    gap: 10px;
+  }
+
+  .position-index {
+    font-size: 11px;
+    color: #c4b5fd;
+    font-weight: 600;
+    min-width: 24px;
+  }
+
+  .position-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .position-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+  }
+
+  .position-size {
+    color: #c4b5fd;
+    font-weight: 500;
+  }
+
+  .position-entry {
+    color: #888;
+    font-size: 12px;
+  }
+
+  .position-metrics {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .profit {
+    color: #4ade80;
+  }
+
+  .loss {
+    color: #f87171;
+  }
+
+  .position-current {
+    font-size: 11px;
+    color: #888;
+    text-align: right;
+  }
+
+  .no-positions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+    gap: 8px;
+  }
+
+  .no-positions-icon {
+    font-size: 32px;
+    opacity: 0.5;
+  }
+
+  .no-positions-text {
+    color: #c4b5fd;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .no-positions-hint {
+    color: #888;
+    font-size: 12px;
+  }
 </style>

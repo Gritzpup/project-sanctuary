@@ -54,15 +54,6 @@ function getGranularitySeconds(granularity) {
   
   // Set up Coinbase WebSocket event handlers
   coinbaseWebSocket.on('candle', (candleData) => {
-    // DEBUG: Log all candle data being sent
-    console.log(`🔥 [Backend] Candle data from Coinbase:`, {
-      product_id: candleData.product_id,
-      time: new Date(candleData.time * 1000).toISOString(),
-      volume: candleData.volume,
-      type: candleData.type,
-      close: candleData.close,
-      granularitySeconds: candleData.granularity
-    });
     
     // Convert granularity seconds back to string using mapping
     const mappingKey = `${candleData.product_id}:${candleData.granularity}`;
@@ -71,7 +62,6 @@ function getGranularitySeconds(granularity) {
     // Create proper subscription key with string granularity
     const subscriptionKey = `${candleData.product_id}:${granularityString}`;
     
-    console.log(`🔥 [Backend] Looking for subscriptions to: ${subscriptionKey}`);
     
     wss.clients.forEach(client => {
       if (client.readyState === client.OPEN) {
@@ -93,12 +83,6 @@ function getGranularitySeconds(granularity) {
             candleType: candleData.type
           };
           
-          console.log(`🔥 [Backend] Sending to client ${clientId}:`, {
-            granularity: messageToSend.granularity,
-            volume: messageToSend.volume,
-            type: messageToSend.candleType,
-            time: new Date(messageToSend.time * 1000).toISOString()
-          });
           
           client.send(JSON.stringify(messageToSend));
         }

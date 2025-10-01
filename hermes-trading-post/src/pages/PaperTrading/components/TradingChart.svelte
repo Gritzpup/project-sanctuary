@@ -27,6 +27,7 @@
   
   const dispatch = createEventDispatcher();
   
+  
   // Forward test progress state
   let forwardTestProgress = 0;
   let isForwardTestRunning = false;
@@ -40,14 +41,12 @@
   $effect(() => {
     // Set initial price from dataStore
     latestPrice = dataStore.latestPrice || currentPrice || 0;
-    console.log('🎯 [TradingChart] Initial price set:', latestPrice);
     
     // Subscribe to data updates for real-time price changes
     const unsubscribe = dataStore.onDataUpdate(() => {
       const newPrice = dataStore.latestPrice;
       if (newPrice && newPrice !== latestPrice) {
         latestPrice = newPrice;
-        console.log('🚀 [TradingChart] FAST price update:', newPrice);
       }
     });
     
@@ -71,11 +70,6 @@
         live24hChange = change24h;
         live24hPercent = percent24h;
         
-        console.log('📊 [TradingChart] 24h data updated:', { 
-          currentPrice, 
-          change24h: change24h.toFixed(2), 
-          percent24h: percent24h.toFixed(2) 
-        });
       }
     } catch (error) {
       console.error('Failed to fetch 24h Bitcoin data:', error);
@@ -83,7 +77,6 @@
       try {
         const backupResponse = await fetch('https://api.coinbase.com/v2/exchange-rates?currency=BTC');
         const backupData = await backupResponse.json();
-        console.log('📊 [TradingChart] Using Coinbase as backup, but no 24h data available');
       } catch (backupError) {
         console.error('Backup API also failed:', backupError);
       }
@@ -142,6 +135,13 @@
   function handleBotSelect(event: CustomEvent) {
     dispatch('botSelect', event.detail);
   }
+
+  function handleZoomReset() {
+    // Call the chart's show60Candles method
+    if (chartComponent && chartComponent.show60Candles) {
+      chartComponent.show60Candles();
+    }
+  }
   
   // Simulate forward test progress
   function simulateForwardTest() {
@@ -178,6 +178,7 @@
     on:pairChange={handlePairChange}
     on:granularityChange={handleGranularityChange}
     on:botSelect={handleBotSelect}
+    on:zoomReset={handleZoomReset}
   />
   
   <ChartProgressBar 
@@ -217,14 +218,63 @@
 <style>
   .chart-panel {
     height: 100%;
+    width: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    max-width: 100%;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box;
   }
   
   .chart-container {
     flex: 1;
     position: relative;
     overflow: hidden;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Global styles to fix LightweightCharts layout issues */
+  :global(.chart-container .tv-lightweight-charts) {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    position: relative !important;
+  }
+
+  :global(.chart-container .tv-lightweight-charts > div) {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+  }
+
+  :global(.chart-container canvas) {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+  }
+
+  /* Force chart content to start from absolute left edge */
+  :global(.chart-container .tv-lightweight-charts table) {
+    margin: 0 !important;
+    padding: 0 !important;
+    border-spacing: 0 !important;
+  }
+
+  :global(.chart-container .tv-lightweight-charts td) {
+    margin: 0 !important;
+    padding: 0 !important;
   }
 </style>

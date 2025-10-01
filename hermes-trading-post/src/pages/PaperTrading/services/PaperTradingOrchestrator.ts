@@ -30,6 +30,7 @@ export interface TradingState {
   totalRebalance: number;
   recentHigh: number;
   recentLow: number;
+  currentPrice: number;
 }
 
 export class PaperTradingOrchestrator {
@@ -50,7 +51,8 @@ export class PaperTradingOrchestrator {
     totalRebates: 0,
     totalRebalance: 0,
     recentHigh: 0,
-    recentLow: 0
+    recentLow: 0,
+    currentPrice: 0
   });
 
   private backendWs: WebSocket | null = null;
@@ -97,8 +99,6 @@ export class PaperTradingOrchestrator {
       this.backendWs.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('🔴 RAW WebSocket message received:', event.data);
-          console.log('🔴 Parsed WebSocket data:', data);
           this.handleBackendMessage(data);
         } catch (error) {
           console.error('Backend WebSocket message error:', error);
@@ -125,10 +125,6 @@ export class PaperTradingOrchestrator {
 
   private handleBackendMessage(data: any) {
     if (data.type === 'status' && data.data) {
-      console.log('📊 Backend status update:', data.data);
-      console.log('📊 Available data keys:', Object.keys(data.data));
-      console.log('📊 Balance structure:', data.data.balance);
-      console.log('📊 Stats check - totalFees:', data.data.totalFees, 'totalReturn:', data.data.totalReturn, 'winRate:', data.data.winRate);
       this.updateState({
         isRunning: data.data.isRunning || false,
         isPaused: data.data.isPaused || false,
@@ -144,7 +140,8 @@ export class PaperTradingOrchestrator {
         totalRebates: data.data.totalRebates || 0,
         totalRebalance: data.data.totalRebalance || 0,
         recentHigh: data.data.recentHigh || 0,
-        recentLow: data.data.recentLow || 0
+        recentLow: data.data.recentLow || 0,
+        currentPrice: data.data.currentPrice || 0
       });
     }
     

@@ -20,11 +20,9 @@ class StatusStore {
   private transitionDuration = 300; // ms
 
   constructor() {
-    console.log('🔥 StatusStore constructor - Setting up automatic status override in 3 seconds');
     // Auto-override stuck loading after 3 seconds
     setTimeout(() => {
       if (this._currentStatus === 'loading' || this._currentStatus === 'initializing') {
-        console.log('🚨 AUTO-OVERRIDE: Status stuck on', this._currentStatus, '- forcing to ready');
         this.forceReady();
       }
     }, 3000);
@@ -158,7 +156,6 @@ class StatusStore {
   
   setWebSocketConnected(connected: boolean) {
     this._wsConnected = connected;
-    console.log(`[StatusStore] WebSocket ${connected ? 'connected' : 'disconnected'}`);
     
     // Update status based on connection
     if (!connected && this._currentStatus === 'ready') {
@@ -216,7 +213,6 @@ class StatusStore {
   
   // Force ready state - for debugging stuck loading states
   forceReady() {
-    console.log('[StatusStore] FORCE READY - Overriding stuck loading state');
     this.clearAllTimeouts();
     this._currentStatus = 'ready';
     this._message = '';

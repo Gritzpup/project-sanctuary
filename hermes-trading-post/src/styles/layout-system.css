@@ -1,0 +1,405 @@
+/* Layout System - Consistent layout patterns across the app */
+
+/* ===================================== */
+/* 1. DASHBOARD LAYOUT                  */
+/* ===================================== */
+
+.dashboard-layout {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg-main);
+  color: var(--text-primary);
+}
+
+.dashboard-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-left: 250px;
+  width: calc(100% - 250px);
+  transition: all var(--transition-slow);
+}
+
+.dashboard-content.expanded {
+  margin-left: 80px;
+  width: calc(100% - 80px);
+}
+
+.content-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-xl);
+}
+
+/* ===================================== */
+/* 2. HEADER SYSTEM                     */
+/* ===================================== */
+
+.header {
+  padding: var(--space-xl);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: var(--font-size-3xl);
+  color: var(--text-accent);
+}
+
+.header-stats {
+  display: flex;
+  gap: var(--space-3xl);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.stat-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.stat-value.price {
+  color: var(--color-success);
+}
+
+.stat-value.status {
+  font-size: var(--font-size-md);
+}
+
+.stat-value.connected {
+  color: var(--color-success);
+}
+
+.stat-value.disconnected,
+.stat-value.error {
+  color: var(--color-error);
+}
+
+.stat-value.loading {
+  color: var(--color-warning);
+}
+
+/* ===================================== */
+/* 3. PANEL SYSTEM                     */
+/* ===================================== */
+
+.panel-base {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+}
+
+.panel {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  padding: var(--space-lg) var(--space-xl);
+  background: var(--bg-primary-subtle);
+  border-bottom: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  color: var(--text-accent);
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--text-accent);
+}
+
+.panel-content {
+  flex: 1;
+  padding: var(--space-xl);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===================================== */
+/* 4. GRID SYSTEMS                     */
+/* ===================================== */
+
+/* Backtest/Trading Grid Layout */
+.backtest-grid,
+.trading-grid,
+.paper-trading-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.panels-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-xl);
+}
+
+.panels-row.auto-height {
+  height: auto;
+}
+
+.panels-row.fixed-height {
+  height: 600px;
+}
+
+.panels-row-bottom {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-xl);
+  margin-top: 0;
+}
+
+.left-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-xs);
+}
+
+.right-panel {
+  display: flex;
+}
+
+.gauge-panel {
+  width: 100%;
+}
+
+/* Chart and Strategy Panel Heights */
+.chart-panel {
+  height: auto;
+  min-height: 400px;
+}
+
+.strategy-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===================================== */
+/* 5. TAB SYSTEM                        */
+/* ===================================== */
+
+.tabs {
+  display: flex;
+  gap: 0;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.tab {
+  padding: var(--space-md) var(--space-2xl);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  transition: all var(--transition-normal);
+  position: relative;
+}
+
+.tab:hover {
+  background: var(--bg-primary-subtle);
+  color: var(--text-accent);
+}
+
+.tab.active {
+  background: var(--bg-primary);
+  border-bottom: 2px solid var(--text-accent);
+  color: var(--text-accent);
+}
+
+.tab:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 25%;
+  height: 50%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tab.active::after,
+.tab.active + .tab::after {
+  display: none;
+}
+
+/* ===================================== */
+/* 6. STATS SYSTEM                     */
+/* ===================================== */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.stat-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.stat-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.stat-value.positive {
+  color: var(--color-success);
+}
+
+.stat-value.negative {
+  color: var(--color-error);
+}
+
+/* ===================================== */
+/* 7. DIALOG SYSTEM                    */
+/* ===================================== */
+
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+}
+
+.dialog {
+  background: #1a1a1a;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.dialog h3 {
+  margin: 0 0 var(--space-xl) 0;
+  color: var(--text-accent);
+}
+
+.dialog-actions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+  margin-top: var(--space-xl);
+}
+
+/* ===================================== */
+/* 8. RESPONSIVE BREAKPOINTS           */
+/* ===================================== */
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .dashboard-content {
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .dashboard-content.expanded {
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .content-wrapper {
+    padding: var(--space-md);
+  }
+  
+  .header {
+    padding: var(--space-md);
+  }
+  
+  .header-stats {
+    gap: var(--space-lg);
+  }
+  
+  .panels-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+  
+  .panels-row-bottom {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+  
+  .left-panels {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+  
+  .panel-content {
+    padding: var(--space-md);
+  }
+  
+  .panel-header {
+    padding: var(--space-md);
+  }
+  
+  .stat-grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--space-sm);
+  }
+}
+
+/* Tablet adjustments */
+@media (max-width: 1024px) {
+  .panels-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .panels-row-bottom {
+    grid-template-columns: 1fr;
+  }
+}

@@ -25,12 +25,10 @@ class PriceForwarder {
             this.ws = new WebSocket(wsUrl);
             
             this.ws.addEventListener('open', () => {
-                console.log('PriceForwarder connected to backend');
                 this.isForwarding = true;
             });
             
             this.ws.addEventListener('close', () => {
-                console.log('PriceForwarder disconnected from backend');
                 this.isForwarding = false;
                 setTimeout(() => this.connect(), 5000);
             });
