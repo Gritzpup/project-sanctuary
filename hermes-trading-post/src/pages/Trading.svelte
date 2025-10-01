@@ -220,6 +220,20 @@
     margin-left: 80px;
     width: calc(100% - 80px);
   }
+
+  /* Mobile responsive layout */
+  @media (max-width: 768px) {
+    .dashboard-content,
+    .dashboard-content.expanded {
+      margin-left: 0;
+      width: 100%;
+      margin-top: 60px; /* Account for mobile header */
+    }
+    
+    .header {
+      display: none; /* Hide old trading header on mobile */
+    }
+  }
   
   .header {
     margin-bottom: 30px;

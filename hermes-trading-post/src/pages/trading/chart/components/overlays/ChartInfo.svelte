@@ -354,6 +354,12 @@
       font-size: 11px;
       padding: 8px 12px;
       gap: 12px;
+      z-index: 1; /* Lower z-index to stay below mobile header */
+    }
+    
+    /* Hide absolute positioned chart info on mobile to prevent interference */
+    .chart-info:not(.position-footer) {
+      display: none;
     }
     
     .price-value {
