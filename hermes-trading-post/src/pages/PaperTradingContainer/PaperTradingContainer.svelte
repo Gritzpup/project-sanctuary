@@ -6,6 +6,7 @@
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   
   export let sidebarCollapsed = false;
+  export let currentPrice: number = 0;
 
   const dispatch = createEventDispatcher();
 
@@ -108,6 +109,7 @@
 
 <div class="dashboard-layout">
   <CollapsibleSidebar 
+    {currentPrice}
     {sidebarCollapsed}
     activeSection="paper-trading"
     on:toggle={toggleSidebar}

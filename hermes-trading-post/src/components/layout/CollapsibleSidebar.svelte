@@ -5,6 +5,7 @@
   
   export let sidebarCollapsed = false;
   export let activeSection = 'dashboard';
+  export let currentPrice: number = 0;
   
   let mobileMenuOpen = false;
   
@@ -49,7 +50,12 @@
 <!-- Mobile Header -->
 <header class="mobile-header">
   <div class="mobile-header-content">
-    <h2 class="mobile-title">Hermes Trading</h2>
+    <div class="mobile-title-section">
+      <h2 class="mobile-title">Hermes Trading</h2>
+      {#if currentPrice > 0}
+        <div class="mobile-price">BTC ${currentPrice.toLocaleString()}</div>
+      {/if}
+    </div>
     <button class="hamburger-btn" on:click={toggleMobileMenu}>
       <span class="hamburger-line"></span>
       <span class="hamburger-line"></span>
@@ -128,11 +134,24 @@
     padding: 15px 20px;
   }
 
+  .mobile-title-section {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
   .mobile-title {
     color: #a78bfa;
     font-size: 18px;
     font-weight: 600;
     margin: 0;
+  }
+
+  .mobile-price {
+    color: #c4b5fd;
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0.9;
   }
 
   .hamburger-btn {

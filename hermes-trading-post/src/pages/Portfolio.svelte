@@ -19,6 +19,7 @@
 
 <div class="portfolio-container">
   <CollapsibleSidebar 
+    {currentPrice}
     {sidebarCollapsed} 
     activeSection="portfolio"
     on:toggle={toggleSidebar}

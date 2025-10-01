@@ -81,6 +81,7 @@
 
 <div class="dashboard-layout">
   <CollapsibleSidebar 
+    {currentPrice}
     {sidebarCollapsed} 
     activeSection="trading"
     on:toggle={toggleSidebar} 

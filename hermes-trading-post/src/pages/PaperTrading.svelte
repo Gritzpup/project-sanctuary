@@ -18,6 +18,7 @@
 </script>
 
 <PaperTradingContainer 
+  {currentPrice}
   {sidebarCollapsed}
   on:toggle={handleToggle}
   on:navigate={handleNavigation}
