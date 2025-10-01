@@ -148,15 +148,17 @@
   }
   
   .price-symbol {
-    font-size: var(--font-size-2xl);
+    font-size: 32px;
     margin-right: 2px;
     transition: color var(--transition-fast);
+    font-weight: 700;
   }
   
   .price-text {
     display: inline-flex;
     align-items: baseline;
-    font-size: var(--font-size-2xl);
+    font-size: 32px;
+    font-weight: 700;
   }
   
   .price-digit {
@@ -210,8 +212,9 @@
   .price-change {
     display: flex;
     gap: var(--space-xs);
-    font-size: var(--font-size-md);
+    font-size: 22px;
     font-family: 'Courier New', monospace;
+    font-weight: 600;
   }
   
   .positive {
@@ -223,12 +226,13 @@
   }
 
   .change-arrow {
-    font-size: var(--font-size-md);
+    font-size: 22px;
     margin-left: 4px;
     transition: all 0.3s ease;
     display: inline-block;
     vertical-align: baseline;
     line-height: 1;
+    font-weight: 600;
   }
 
   .change-arrow.positive {

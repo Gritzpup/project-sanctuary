@@ -51,7 +51,6 @@
 <div class="sidebar">
   <div class="header">
     <h1>Hermes Trading Post</h1>
-    <div class="subtitle">BTC-USD Live Trading Dashboard</div>
   </div>
 
   <div class="section">

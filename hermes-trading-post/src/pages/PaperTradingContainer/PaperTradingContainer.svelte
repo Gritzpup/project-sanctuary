@@ -202,6 +202,7 @@
     
     .content-wrapper {
       padding: 10px;
+      padding-top: 40px;
     }
     
     .paper-trading-grid {

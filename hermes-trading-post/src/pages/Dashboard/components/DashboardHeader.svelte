@@ -4,7 +4,7 @@
 </script>
 
 <div class="header-bar">
-  <h1>Trading Dashboard</h1>
+  <h1>Dashboard</h1>
   <div class="header-stats">
     <div class="stat-item">
       <span class="stat-label">BTC/USD</span>

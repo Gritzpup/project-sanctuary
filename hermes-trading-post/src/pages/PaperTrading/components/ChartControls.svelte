@@ -38,10 +38,52 @@
   function handleStop() {
     dispatch('stop');
   }
+
+  // Mobile drag scroll functionality
+  let isDragging = false;
+  let startX = 0;
+  let scrollLeft = 0;
+  let controlsGrid: HTMLElement;
+
+  function handleDragStart(event: MouseEvent | TouchEvent) {
+    if (window.innerWidth > 768) return; // Only on mobile
+    
+    isDragging = true;
+    const clientX = event instanceof TouchEvent ? event.touches[0].clientX : event.clientX;
+    startX = clientX - controlsGrid.offsetLeft;
+    scrollLeft = controlsGrid.scrollLeft;
+    controlsGrid.style.cursor = 'grabbing';
+  }
+
+  function handleDragMove(event: MouseEvent | TouchEvent) {
+    if (!isDragging || window.innerWidth > 768) return;
+    
+    event.preventDefault();
+    const clientX = event instanceof TouchEvent ? event.touches[0].clientX : event.clientX;
+    const x = clientX - controlsGrid.offsetLeft;
+    const walk = (x - startX) * 2; // Scroll speed multiplier
+    controlsGrid.scrollLeft = scrollLeft - walk;
+  }
+
+  function handleDragEnd() {
+    if (!isDragging) return;
+    isDragging = false;
+    controlsGrid.style.cursor = 'grab';
+  }
 </script>
 
 <div class="chart-controls">
-  <div class="controls-grid">
+  <div 
+    class="controls-grid" 
+    bind:this={controlsGrid}
+    on:mousedown={handleDragStart}
+    on:mousemove={handleDragMove}
+    on:mouseup={handleDragEnd}
+    on:mouseleave={handleDragEnd}
+    on:touchstart={handleDragStart}
+    on:touchmove={handleDragMove}
+    on:touchend={handleDragEnd}
+  >
     <!-- Left Column -->
     <div class="left-column">
       <!-- Row 1: Period Buttons -->
@@ -131,7 +173,7 @@
 
 <style>
   .chart-controls {
-    padding: var(--space-sm);
+    padding: 0 var(--space-sm);
     background: var(--surface-elevated);
     border-top: 1px solid var(--border-primary);
     border-bottom: 1px solid var(--border-primary);
@@ -147,6 +189,7 @@
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
+    align-content: center;
   }
   
   .controls-separator {
@@ -156,7 +199,13 @@
     opacity: 1;
     border-radius: 1px;
     justify-self: center;
-    margin-top: 8px;
+    align-self: center;
+    cursor: grab;
+    margin-top: var(--space-sm);
+  }
+  
+  .controls-separator:active {
+    cursor: grabbing;
   }
   
   .left-column {
@@ -173,9 +222,9 @@
     flex-direction: column;
     gap: var(--space-sm);
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
     justify-self: start;
-    padding-top: var(--space-sm);
+    margin-top: var(--space-sm);
   }
   
   .period-buttons {
@@ -186,7 +235,6 @@
   .chart-stats {
     display: flex;
     align-items: flex-start;
-    margin-top: var(--space-sm);
   }
   
   .chart-stats :global(.clock) {
@@ -197,6 +245,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-sm);
+    margin-top: var(--space-sm);
   }
   
   .playback-controls {
@@ -319,4 +368,72 @@
     text-align: left;
   }
   
+  /* Mobile: Enable horizontal scrolling */
+  @media (max-width: 768px) {
+    .controls-grid {
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-behavior: smooth;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE/Edge */
+      cursor: grab;
+    }
+    
+    .controls-grid::-webkit-scrollbar {
+      display: none; /* Chrome/Safari */
+    }
+    
+    .controls-grid:active {
+      cursor: grabbing;
+    }
+    
+    .controls-separator {
+      cursor: grab;
+      user-select: none;
+    }
+    
+    .controls-separator:active {
+      cursor: grabbing;
+    }
+    
+    /* Force consistent heights on mobile */
+    .btn-timeframe,
+    .btn-icon,
+    .input-base,
+    .speed-dropdown {
+      height: 32px !important;
+      min-height: 32px !important;
+      max-height: 32px !important;
+      box-sizing: border-box !important;
+      line-height: 1 !important;
+    }
+    
+    /* Ensure date input specifically matches */
+    .input-base[type="date"] {
+      height: 32px !important;
+      padding: 4px 8px !important;
+    }
+    
+    /* Adjust left column positioning on mobile */
+    .left-column {
+      margin-top: var(--space-sm) !important;
+    }
+    
+    /* Adjust right column positioning on mobile */
+    .right-column {
+      margin-top: calc(var(--space-sm) - var(--space-xs)) !important;
+    }
+    
+    /* Lower separator on mobile to align with buttons */
+    .controls-separator {
+      margin-top: calc(var(--space-sm) + var(--space-xs)) !important;
+    }
+  }
+  
+  /* Desktop: Adjust separator positioning */
+  @media (min-width: 769px) {
+    .controls-separator {
+      margin-top: calc(var(--space-sm) + var(--space-xs)) !important;
+    }
+  }
 </style>

@@ -35,6 +35,38 @@
   function handleZoomReset() {
     dispatch('zoomReset');
   }
+
+  // Mobile drag scroll functionality for header row 2
+  let isDraggingHeader = false;
+  let startXHeader = 0;
+  let scrollLeftHeader = 0;
+  let headerRow2: HTMLElement;
+
+  function handleHeaderDragStart(event: MouseEvent | TouchEvent) {
+    if (window.innerWidth > 768) return; // Only on mobile
+    
+    isDraggingHeader = true;
+    const clientX = event instanceof TouchEvent ? event.touches[0].clientX : event.clientX;
+    startXHeader = clientX - headerRow2.offsetLeft;
+    scrollLeftHeader = headerRow2.scrollLeft;
+    headerRow2.style.cursor = 'grabbing';
+  }
+
+  function handleHeaderDragMove(event: MouseEvent | TouchEvent) {
+    if (!isDraggingHeader || window.innerWidth > 768) return;
+    
+    event.preventDefault();
+    const clientX = event instanceof TouchEvent ? event.touches[0].clientX : event.clientX;
+    const x = clientX - headerRow2.offsetLeft;
+    const walk = (x - startXHeader) * 2; // Scroll speed multiplier
+    headerRow2.scrollLeft = scrollLeftHeader - walk;
+  }
+
+  function handleHeaderDragEnd() {
+    if (!isDraggingHeader) return;
+    isDraggingHeader = false;
+    headerRow2.style.cursor = 'grab';
+  }
   
   const granularityOptions = [
     { value: '1m', label: '1m' },
@@ -47,43 +79,55 @@
 </script>
 
 <div class="chart-header">
-  <div class="header-left">
-    <select 
-      class="select-base btn-chart-control speed-dropdown pair-selector" 
-      bind:value={selectedPair} 
-      on:change={() => handlePairChange(selectedPair)}
-    >
-      {#each pairOptions as option}
-        <option value={option.value}>{option.label}</option>
-      {/each}
-    </select>
+  <div class="header-row-1">
+    <div class="price-section">
+      <PriceDisplay 
+        {currentPrice}
+        {priceChange24h}
+        {priceChangePercent24h}
+      />
+    </div>
     
-    <PriceDisplay 
-      {currentPrice}
-      {priceChange24h}
-      {priceChangePercent24h}
-    />
+    <div class="bot-section">
+      {#if botTabs.length > 0}
+        <div class="bot-tabs">
+          {#each botTabs as bot}
+            <button 
+              class="btn-base btn-xs"
+              class:active={activeBotInstance?.id === bot.id}
+              on:click={() => handleBotSelect(bot.id)}
+            >
+              {bot.name}
+              <span class="status-dot status-{bot.status}"></span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
   </div>
   
-  <div class="header-center">
-    {#if botTabs.length > 0}
-      <div class="bot-tabs">
-        {#each botTabs as bot}
-          <button 
-            class="btn-base btn-xs"
-            class:active={activeBotInstance?.id === bot.id}
-            on:click={() => handleBotSelect(bot.id)}
-          >
-            {bot.name}
-            <span class="status-dot status-{bot.status}"></span>
-          </button>
+  <div 
+    class="header-row-2" 
+    bind:this={headerRow2}
+    on:mousedown={handleHeaderDragStart}
+    on:mousemove={handleHeaderDragMove}
+    on:mouseup={handleHeaderDragEnd}
+    on:mouseleave={handleHeaderDragEnd}
+    on:touchstart={handleHeaderDragStart}
+    on:touchmove={handleHeaderDragMove}
+    on:touchend={handleHeaderDragEnd}
+  >
+    <div class="left-controls">
+      <select 
+        class="select-base btn-chart-control speed-dropdown pair-selector" 
+        bind:value={selectedPair} 
+        on:change={() => handlePairChange(selectedPair)}
+        title={pairOptions.find(p => p.value === selectedPair)?.label || selectedPair}
+      >
+        {#each pairOptions as option}
+          <option value={option.value}>{option.label}</option>
         {/each}
-      </div>
-    {/if}
-  </div>
-  
-  <div class="header-right">
-    <div class="timeframe-controls">
+      </select>
       <button class="magnifier-btn" on:click={handleZoomReset} title="Reset zoom to 60 candles">
         <span class="magnifier-icon">🔍</span>
       </button>
@@ -100,6 +144,22 @@
         {/each}
       </div>
     </div>
+    <div class="bot-section">
+      {#if botTabs.length > 0}
+        <div class="bot-tabs">
+          {#each botTabs as bot}
+            <button 
+              class="btn-base btn-xs"
+              class:active={activeBotInstance?.id === bot.id}
+              on:click={() => handleBotSelect(bot.id)}
+            >
+              {bot.name}
+              <span class="status-dot status-{bot.status}"></span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
   </div>
 </div>
 
@@ -108,16 +168,75 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-lg) var(--space-xl);
+    padding: var(--space-md) var(--space-xl) var(--space-lg) var(--space-xl);
     background: var(--bg-primary-subtle);
     border-bottom: 1px solid var(--border-primary);
+    min-height: 90px;
+    box-sizing: border-box;
+  }
+
+  /* Mobile-only: Switch to two-row layout */
+  @media (max-width: 768px) {
+    .chart-header {
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .header-row-1 {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex: 1;
+      width: 100%;
+    }
+
+    .header-row-2 {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex: 0 0 auto;
+      width: 100%;
+    }
+  }
+
+  /* Desktop: Keep two-row structure but adjust layout */
+  @media (min-width: 769px) {
+    .chart-header {
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .header-row-1 {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex: 1;
+      width: 100%;
+    }
+
+    .header-row-2 {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex: 0 0 auto;
+      width: 100%;
+    }
   }
   
-  .header-left {
-    flex: 1;
+  .left-controls {
     display: flex;
     align-items: center;
-    gap: var(--space-lg);
+    gap: var(--space-sm);
+  }
+  
+  .price-section {
+    display: flex;
+    align-items: center;
+  }
+
+  .bot-section {
+    display: flex;
+    align-items: center;
   }
   
   .header-center {
@@ -149,6 +268,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-left: var(--space-xs);
   }
 
   .magnifier-btn:hover {
@@ -168,10 +288,12 @@
   
   .timeframe-separator {
     width: 2px;
-    height: 24px;
+    height: 32px;
     background: var(--border-primary);
     opacity: 1;
     border-radius: 1px;
+    margin-left: var(--space-xs);
+    margin-right: var(--space-xs);
   }
   
   .timeframe-buttons {
@@ -253,5 +375,58 @@
     height: 6px;
     border-radius: 50%;
     margin-left: var(--space-xs);
+  }
+
+  /* Mobile responsive - show full text */
+  @media (max-width: 768px) {
+    .pair-selector {
+      min-width: 120px !important;
+      width: auto !important;
+      padding: 4px 32px 4px 8px !important;
+      text-indent: 0 !important; /* Show text */
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23c4b5fd' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e") !important;
+      background-position: right 8px center !important;
+      background-size: 14px !important;
+    }
+
+    .pair-selector option {
+      text-indent: 0 !important; /* Show text in options */
+      padding: 8px 12px !important;
+    }
+    
+    /* Enable horizontal scrolling for header row 2 */
+    .header-row-2 {
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
+      scroll-behavior: smooth !important;
+      scrollbar-width: none !important; /* Firefox */
+      -ms-overflow-style: none !important; /* IE/Edge */
+      cursor: grab !important;
+      display: flex !important;
+      justify-content: flex-start !important;
+      white-space: nowrap !important;
+    }
+    
+    .left-controls {
+      flex-shrink: 0 !important;
+      white-space: nowrap !important;
+    }
+    
+    .header-row-2::-webkit-scrollbar {
+      display: none !important; /* Chrome/Safari */
+    }
+    
+    .header-row-2:active {
+      cursor: grabbing !important;
+    }
+    
+    .timeframe-separator {
+      cursor: grab !important;
+      user-select: none !important;
+    }
+    
+    .timeframe-separator:active {
+      cursor: grabbing !important;
+    }
   }
 </style>
