@@ -88,4 +88,12 @@
     color: #ffa94d;
     background: rgba(255, 169, 77, 0.1);
   }
+
+  /* Remove bottom spacing on mobile */
+  @media (max-width: 768px) {
+    .header {
+      padding: 20px 20px 0 20px;
+      margin-bottom: 0;
+    }
+  }
 </style>

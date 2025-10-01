@@ -201,12 +201,11 @@
     }
     
     .content-wrapper {
-      padding: 10px;
-      padding-top: 40px;
+      padding: 25px 10px;
     }
     
     .paper-trading-grid {
-      gap: 15px;
+      gap: 5px;
     }
   }
 

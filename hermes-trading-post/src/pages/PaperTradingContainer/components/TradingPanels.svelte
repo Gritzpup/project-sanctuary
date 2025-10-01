@@ -136,7 +136,7 @@
       width: 100%;
       height: auto;
       order: 2;
-      margin-top: 20px;
+      margin-top: 0;
     }
   }
 

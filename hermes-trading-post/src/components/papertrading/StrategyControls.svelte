@@ -117,8 +117,19 @@
     font-weight: 500;
   }
 
+  /* Remove top spacing on mobile */
+  @media (max-width: 768px) {
+    .strategy-panel {
+      margin-top: 0;
+    }
+    
+    .panel-header {
+      padding-top: 10px;
+    }
+  }
+
   .panel-content {
-    padding: 20px;
+    padding: 0 20px 20px 20px;
     display: flex;
     flex-direction: column;
     gap: 8px;

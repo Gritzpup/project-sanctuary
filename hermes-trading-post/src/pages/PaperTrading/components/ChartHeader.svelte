@@ -347,20 +347,30 @@
     background-repeat: no-repeat !important;
     background-size: 16px !important;
     padding-right: 32px !important;
-    transition: all 0.2s ease !important;
   }
   
   .pair-selector:hover {
     background: rgba(74, 0, 224, 0.2) !important;
     border-color: rgba(74, 0, 224, 0.5) !important;
     color: white !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e") !important;
+    background-position: right 8px center !important;
+    background-repeat: no-repeat !important;
+    background-size: 16px !important;
+  }
+  
+  .pair-selector:focus {
+    background: rgba(74, 0, 224, 0.2) !important;
+    border-color: rgba(74, 0, 224, 0.5) !important;
+    color: white !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e") !important;
+    background-position: right 8px center !important;
+    background-repeat: no-repeat !important;
+    background-size: 16px !important;
+    outline: none !important;
   }
   
   .pair-selector option {
-    font-weight: var(--font-weight-medium) !important;
-  }
-  
-  .pair-selector {
     font-weight: var(--font-weight-medium) !important;
   }
   
