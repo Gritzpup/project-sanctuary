@@ -20,7 +20,10 @@
             <div class="position-details">
               <div class="position-info">
                 <span class="position-size">{position.size.toFixed(6)} BTC</span>
-                <span class="position-entry">Entry: ${position.entryPrice.toFixed(2)}</span>
+                <div class="position-entry">
+                  <span class="entry-price">${position.entryPrice.toFixed(2)}</span>
+                  <span class="entry-time">{new Date(position.timestamp).toLocaleTimeString()}</span>
+                </div>
               </div>
               {#if currentPrice > 0}
                 {@const pnl = (currentPrice - position.entryPrice) * position.size}
@@ -106,6 +109,7 @@
     border-radius: 6px;
     padding: 12px;
     display: flex;
+    align-items: center;
     gap: 10px;
   }
 
@@ -126,6 +130,7 @@
   .position-info {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     font-size: 13px;
   }
 
@@ -135,8 +140,21 @@
   }
 
   .position-entry {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .entry-price {
+    color: #c4b5fd;
+    font-weight: 500;
+    font-size: 13px;
+  }
+
+  .entry-time {
     color: #888;
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .position-metrics {
