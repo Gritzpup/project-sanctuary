@@ -88,11 +88,11 @@
   }
 
   .trade-item.buy {
-    border-left: 3px solid #4ade80;
+    border-left: 3px solid #26a69a;
   }
 
   .trade-item.sell {
-    border-left: 3px solid #f87171;
+    border-left: 3px solid #ef4444;
   }
 
   .trade-type {

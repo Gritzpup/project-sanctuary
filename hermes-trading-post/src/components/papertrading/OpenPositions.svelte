@@ -16,29 +16,18 @@
       <div class="positions-grid">
         {#each positions as position, i}
           <div class="position-card">
-            <div class="position-index">#{i + 1}</div>
+            <div class="position-type">#{i + 1}</div>
+            <div class="position-size">{position.size.toFixed(6)} BTC</div>
             <div class="position-details">
-              <div class="position-info">
-                <span class="position-size">{position.size.toFixed(6)} BTC</span>
-                <div class="position-entry">
-                  <span class="entry-price">${position.entryPrice.toFixed(2)}</span>
-                  <span class="entry-time">{new Date(position.timestamp).toLocaleTimeString()}</span>
-                </div>
-              </div>
-              {#if currentPrice > 0}
+              {#if position.entryPrice}
                 {@const pnl = (currentPrice - position.entryPrice) * position.size}
                 {@const pnlPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100}
-                <div class="position-metrics">
-                  <div class="pnl-amount" class:profit={pnl > 0} class:loss={pnl < 0}>
-                    ${pnl.toFixed(2)}
-                  </div>
-                  <div class="pnl-percent" class:profit={pnl > 0} class:loss={pnl < 0}>
-                    {pnl > 0 ? '+' : ''}{pnlPercent.toFixed(2)}%
-                  </div>
-                </div>
-                <div class="position-current">
-                  Current: ${currentPrice.toFixed(2)}
-                </div>
+                <span class="position-pnl-amount" class:profit={pnl > 0} class:loss={pnl < 0}>
+                  {pnl > 0 ? '+' : ''}${pnl.toFixed(2)}
+                </span>
+                <span class="position-pnl-percent" class:profit={pnl > 0} class:loss={pnl < 0}>
+                  {pnl > 0 ? '+' : ''}{pnlPercent.toFixed(2)}%
+                </span>
               {/if}
             </div>
           </div>
@@ -107,75 +96,50 @@
     background: rgba(74, 0, 224, 0.1);
     border: 1px solid rgba(74, 0, 224, 0.2);
     border-radius: 6px;
-    padding: 12px;
+    padding: 10px 12px;
     display: flex;
     align-items: center;
     gap: 10px;
   }
 
-  .position-index {
+  .position-type {
     font-size: 11px;
-    color: #c4b5fd;
     font-weight: 600;
-    min-width: 24px;
-  }
-
-  .position-details {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .position-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 13px;
+    color: #c4b5fd;
+    min-width: 40px;
   }
 
   .position-size {
     color: #c4b5fd;
     font-weight: 500;
+    font-size: 13px;
   }
 
-  .position-entry {
+  .position-details {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     gap: 2px;
+    margin-left: auto;
   }
 
-  .entry-price {
+  .position-pnl-amount {
+    font-size: 13px;
     color: #c4b5fd;
     font-weight: 500;
-    font-size: 13px;
   }
 
-  .entry-time {
-    color: #888;
+  .position-pnl-percent {
     font-size: 11px;
-  }
-
-  .position-metrics {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12px;
-    font-weight: 500;
+    color: #888;
   }
 
   .profit {
-    color: #4ade80;
+    color: #26a69a;
   }
 
   .loss {
-    color: #f87171;
-  }
-
-  .position-current {
-    font-size: 11px;
-    color: #888;
-    text-align: right;
+    color: #ef4444;
   }
 
   .no-positions {

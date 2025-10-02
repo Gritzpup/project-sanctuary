@@ -62,6 +62,7 @@
 <style>
   .trading-controls {
     margin-top: auto;
+    margin-bottom: auto;
     padding-top: 0;
     border-top: 1px solid rgba(74, 0, 224, 0.2);
   }
