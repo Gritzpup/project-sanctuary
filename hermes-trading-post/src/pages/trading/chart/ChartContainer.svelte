@@ -168,9 +168,19 @@
       return;
     }
     
+    console.log('ChartContainer: chartCore type and methods:', {
+      type: typeof chartCore,
+      hasAddMarkers: typeof chartCore.addMarkers,
+      methods: Object.getOwnPropertyNames(chartCore).filter(name => typeof chartCore[name] === 'function')
+    });
+    
     // Try the bulk method first
     if (typeof chartCore.addMarkers === 'function') {
-      chartCore.addMarkers(markers);
+      try {
+        chartCore.addMarkers(markers);
+      } catch (error) {
+        console.error('Error calling chartCore.addMarkers:', error);
+      }
     } else {
       // Fallback: add markers one by one
       console.log('Using fallback: adding markers one by one');

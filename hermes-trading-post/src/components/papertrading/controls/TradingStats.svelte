@@ -45,8 +45,16 @@
   .control-group {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin-bottom: 6px;
+    gap: 8px;
+    margin-bottom: 0;
+    margin-top: 0;
+  }
+
+  /* Desktop spacing */
+  @media (min-width: 769px) {
+    .control-group {
+      gap: 12px;
+    }
   }
 
   .control-group label {
@@ -62,6 +70,7 @@
     border: 1px solid rgba(74, 0, 224, 0.2);
     border-radius: 4px;
     padding: 6px 8px;
+    margin-top: 0;
   }
 
   .stats-grid {

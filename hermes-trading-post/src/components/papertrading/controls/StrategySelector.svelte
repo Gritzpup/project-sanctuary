@@ -33,8 +33,15 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-bottom: 2px;
-    margin-top: 10px;
+    margin-bottom: 0;
+    margin-top: 0;
+  }
+
+  /* Desktop spacing */
+  @media (min-width: 769px) {
+    .control-group {
+      gap: 12px;
+    }
   }
 
   .control-group label {

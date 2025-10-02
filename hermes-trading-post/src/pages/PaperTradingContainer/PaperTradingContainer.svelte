@@ -95,6 +95,13 @@
     }
   }
 
+  // Pass chart component to state manager when available
+  $: {
+    if (stateManager && chartComponent) {
+      stateManager.setChartComponent(chartComponent);
+    }
+  }
+
   onMount(() => {
     // Initialize state manager
     stateManager = new PaperTradingStateManager();

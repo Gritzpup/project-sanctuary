@@ -51,13 +51,20 @@
   .control-group {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin-bottom: 6px;
-    margin-top: 10px;
+    gap: 8px;
+    margin-bottom: 0;
+    margin-top: 0;
+  }
+
+  /* Desktop spacing */
+  @media (min-width: 769px) {
+    .control-group {
+      gap: 12px;
+    }
   }
 
   .control-group:has(.balance-controls-simple) {
-    margin-bottom: 8px;
+    margin-bottom: 0;
   }
 
   .control-group label {
@@ -71,7 +78,8 @@
   .balance-controls-simple {
     display: flex;
     gap: 24px;
-    margin-bottom: 8px;
+    margin-bottom: 0;
+    margin-top: 0;
   }
 
   .balance-pair {

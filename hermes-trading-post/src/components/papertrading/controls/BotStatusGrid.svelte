@@ -67,9 +67,16 @@
   .control-group {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin-bottom: 2px;
-    margin-top: 5px;
+    gap: 8px;
+    margin-bottom: 0;
+    margin-top: 0;
+  }
+
+  /* Desktop spacing */
+  @media (min-width: 769px) {
+    .control-group {
+      gap: 12px;
+    }
   }
 
   .control-group label {
@@ -83,7 +90,7 @@
   .bot-status-row {
     display: flex;
     gap: 0;
-    margin-top: 8px;
+    margin-top: 0;
   }
 
   .btn-compact {

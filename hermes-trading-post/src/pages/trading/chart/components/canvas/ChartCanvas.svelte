@@ -187,6 +187,47 @@
       }
     }
   }
+
+  export function addMarker(marker: any) {
+    if (!candleSeries) {
+      console.log('ChartCanvas: Cannot add marker - series not ready');
+      return;
+    }
+    console.log('ChartCanvas: Adding single marker to candlestick series');
+    candleSeries.setMarkers([marker]);
+  }
+
+  export function addMarkers(markers: any[]) {
+    if (!candleSeries) {
+      console.log('ChartCanvas: Cannot add markers - series not ready');
+      return;
+    }
+    
+    if (!markers || markers.length === 0) {
+      console.log('ChartCanvas: Clearing all markers from chart');
+      candleSeries.setMarkers([]);
+      console.log('✅ ChartCanvas: All markers cleared from chart');
+      return;
+    }
+    
+    console.log('ChartCanvas: Adding', markers.length, 'markers to candlestick series');
+    try {
+      candleSeries.setMarkers(markers);
+      console.log('✅ ChartCanvas: Successfully added markers to chart');
+    } catch (error) {
+      console.error('❌ ChartCanvas: Error setting markers:', error);
+    }
+  }
+
+  export function clearMarkers() {
+    if (!candleSeries) {
+      console.log('ChartCanvas: Cannot clear markers - series not ready');
+      return;
+    }
+    console.log('ChartCanvas: Clearing all markers from chart');
+    candleSeries.setMarkers([]);
+    console.log('✅ ChartCanvas: All markers cleared from chart');
+  }
 </script>
 
 <ChartInitializer bind:this={chartInitializer} {container} {width} {height} />

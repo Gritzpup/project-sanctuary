@@ -38,6 +38,8 @@
     
     public customStrategies: any[] = [];
     
+    private chartComponent: any = null;
+    
     constructor() {
       console.log('🏗️ PaperTradingStateManager constructor called');
       this.orchestrator = new PaperTradingOrchestrator();
@@ -102,6 +104,9 @@
           totalReturn: backendState.profitLoss,
           totalFees: (backendState.trades || []).reduce((sum, trade) => sum + (trade.fees || 0), 0)
         }));
+        
+        // Create chart markers from trades and update chart
+        this.updateChartMarkers(backendState.trades || []);
         
         // Also update backend state for UI
         this.backendState = {
@@ -247,6 +252,54 @@
           // Sync with backend if available
         }
       }, 100);
+    }
+
+    setChartComponent(chartComponent: any) {
+      this.chartComponent = chartComponent;
+      console.log('📊 Chart component set:', {
+        component: !!chartComponent,
+        addMarkers: typeof chartComponent?.addMarkers,
+        methods: chartComponent ? Object.getOwnPropertyNames(chartComponent).filter(name => typeof chartComponent[name] === 'function') : []
+      });
+    }
+
+    private updateChartMarkers(trades: any[]) {
+      if (!this.chartComponent || !trades.length) return;
+      
+      try {
+        // Convert trades to chart markers
+        const markers = trades.map(trade => {
+          // Align marker time to the candle time (1-minute candles)
+          const tradeTime = Math.floor(trade.timestamp / 1000); // Convert to seconds
+          const candleTime = Math.floor(tradeTime / 60) * 60; // Round down to nearest minute
+          
+          return {
+            time: candleTime,
+            position: trade.side === 'buy' ? 'belowBar' : 'aboveBar',
+            color: trade.side === 'buy' ? '#26a69a' : '#ef4444',
+            shape: trade.side === 'buy' ? 'arrowUp' : 'arrowDown',
+            text: trade.side.toUpperCase()
+          };
+        });
+        
+        console.log('📈 Adding', markers.length, 'trade markers to chart:', markers);
+        
+        // Try multiple ways to access the addMarkers method
+        if (typeof this.chartComponent.addMarkers === 'function') {
+          console.log('✅ Calling chartComponent.addMarkers');
+          this.chartComponent.addMarkers(markers);
+        } else if (this.chartComponent.chartCore && typeof this.chartComponent.chartCore.addMarkers === 'function') {
+          console.log('✅ Calling chartComponent.chartCore.addMarkers');
+          this.chartComponent.chartCore.addMarkers(markers);
+        } else {
+          console.warn('Chart addMarkers method not available. Available methods:', 
+            this.chartComponent ? Object.getOwnPropertyNames(this.chartComponent).filter(name => typeof this.chartComponent[name] === 'function') : 'no component');
+          console.warn('Retrying in 1 second...');
+          setTimeout(() => this.updateChartMarkers(trades), 1000);
+        }
+      } catch (error) {
+        console.warn('Failed to update chart markers:', error);
+      }
     }
 
     destroy() {

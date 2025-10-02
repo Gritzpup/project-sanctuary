@@ -129,12 +129,20 @@
   }
 
   .panel-content {
-    padding: 0 20px 20px 20px;
+    padding: 16px 20px 20px 20px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 16px;
     flex: 1;
     height: 100%;
+  }
+
+  /* Desktop spacing adjustments */
+  @media (min-width: 769px) {
+    .panel-content {
+      gap: 18px;
+      padding: 20px 20px 24px 20px;
+    }
   }
 
   /* Responsive adjustments */
