@@ -159,11 +159,11 @@
           </button>
           <!-- Progress Bar -->
           <div class="progress-container">
-            <div class="progress-bar" style="width: {(isRunning && !isPaused) ? '75%' : '0%'}"></div>
+            <div class="progress-bar" style="width: {(selectedTestDateString && isRunning && !isPaused) ? '75%' : '0%'}"></div>
           </div>
           <!-- Percentage Readout -->
           <div class="progress-percentage">
-            {(isRunning && !isPaused) ? '75%' : '0%'}
+            {(selectedTestDateString && isRunning && !isPaused) ? '75%' : '0%'}
           </div>
         </div>
       </div>
