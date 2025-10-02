@@ -92,7 +92,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 5px;
     transition: all 0.2s ease;
   }
 
@@ -105,6 +105,20 @@
     line-height: 1;
     display: inline-flex;
     align-items: center;
+  }
+
+  /* Add consistent spacing between icons and text */
+  .btn-icon {
+    margin-right: 4px;
+  }
+
+  /* Reset other properties for text icons */
+  .btn-icon:not(.spinner) {
+    font-size: 11px;
+    margin-right: 4px;
+    padding: 0;
+    width: auto;
+    height: auto;
   }
   
   /* Success button (Start/Resume) - Subtle green theme */
