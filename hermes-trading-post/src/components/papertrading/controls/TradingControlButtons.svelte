@@ -47,9 +47,9 @@
         Reset
       </button>
     {:else}
-      <button class="btn-base btn-md btn-warning" on:click={pauseTrading}>
-        <span class="btn-icon">⏸</span>
-        Pause
+      <button class="btn-base btn-md btn-trading" on:click={pauseTrading}>
+        <span class="btn-icon spinner">⟳</span>
+        Now Trading
       </button>
       <button class="btn-base btn-md btn-error" on:click={resetTrading}>
         <span class="btn-icon">↻</span>
@@ -100,38 +100,78 @@
     align-items: center;
   }
   
-  /* Purple theme styling */
+  /* Success button (Start/Resume) - Subtle green theme */
   .main-controls .btn-success {
-    background: rgba(74, 0, 224, 0.4);
-    color: white;
-    border-color: rgba(74, 0, 224, 0.6);
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    border-color: rgba(34, 197, 94, 0.3);
+    box-shadow: none;
   }
   
   .main-controls .btn-success:hover {
-    background: rgba(74, 0, 224, 0.5);
-    border-color: rgba(74, 0, 224, 0.7);
+    background: rgba(34, 197, 94, 0.15);
+    border-color: rgba(34, 197, 94, 0.4);
+    color: #16a34a;
   }
   
+  .main-controls .btn-success:active {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: rgba(34, 197, 94, 0.5);
+    color: #15803d;
+  }
+  
+  /* Error button (Reset) - Subtle red theme */
   .main-controls .btn-error {
-    background: rgba(74, 0, 224, 0.2);
-    color: #c4b5fd;
-    border-color: rgba(74, 0, 224, 0.4);
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+    box-shadow: none;
   }
   
   .main-controls .btn-error:hover {
-    background: rgba(74, 0, 224, 0.3);
-    border-color: rgba(74, 0, 224, 0.5);
-    color: white;
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #dc2626;
   }
   
-  .main-controls .btn-warning {
-    background: rgba(74, 0, 224, 0.3);
-    color: white;
-    border-color: rgba(74, 0, 224, 0.5);
+  .main-controls .btn-error:active {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #b91c1c;
   }
   
-  .main-controls .btn-warning:hover {
-    background: rgba(74, 0, 224, 0.4);
-    border-color: rgba(74, 0, 224, 0.6);
+  /* Trading button - Amber/yellow theme */
+  .main-controls .btn-trading {
+    background: rgba(251, 191, 36, 0.1);
+    color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.3);
+    box-shadow: none;
+  }
+  
+  .main-controls .btn-trading:hover {
+    background: rgba(251, 191, 36, 0.15);
+    border-color: rgba(251, 191, 36, 0.4);
+    color: #f59e0b;
+  }
+  
+  .main-controls .btn-trading:active {
+    background: rgba(251, 191, 36, 0.2);
+    border-color: rgba(251, 191, 36, 0.5);
+    color: #d97706;
+  }
+
+  /* Spinner animation for trading button */
+  .spinner {
+    animation: spin 1s linear infinite;
+    display: inline-block;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

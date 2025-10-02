@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
-  import { cubicOut } from 'svelte/easing';
+  import { quintOut } from 'svelte/easing';
   
   export let currentPrice: number = 0;
   export let priceChange24h: number = 0;
@@ -104,8 +104,8 @@
             {#key char}
               <span 
                 class="digit-inner"
-                in:fly={{ y: priceDirection === 'up' ? 10 : -10, duration: 150, easing: cubicOut }}
-                out:fly={{ y: priceDirection === 'up' ? -10 : 10, duration: 150, easing: cubicOut }}
+                in:fly={{ y: priceDirection === 'up' ? 8 : -8, duration: 300, easing: quintOut }}
+                out:fly={{ y: priceDirection === 'up' ? -8 : 8, duration: 300, easing: quintOut }}
               >
                 {char}
               </span>

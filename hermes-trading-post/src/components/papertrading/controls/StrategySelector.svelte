@@ -32,8 +32,9 @@
   .control-group {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin-bottom: 6px;
+    gap: 8px;
+    margin-bottom: 2px;
+    margin-top: 10px;
   }
 
   .control-group label {

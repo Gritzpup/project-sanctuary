@@ -68,7 +68,8 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    margin-bottom: 6px;
+    margin-bottom: 2px;
+    margin-top: 5px;
   }
 
   .control-group label {
@@ -120,7 +121,7 @@
 
   .status-light-compact {
     position: absolute;
-    right: 8px;
+    right: 6px;
     width: 6px;
     height: 6px;
     border-radius: 50%;

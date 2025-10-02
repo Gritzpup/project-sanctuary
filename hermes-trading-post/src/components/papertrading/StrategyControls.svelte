@@ -124,7 +124,7 @@
     }
     
     .panel-header {
-      padding-top: 10px;
+      padding-top: 15px;
     }
   }
 

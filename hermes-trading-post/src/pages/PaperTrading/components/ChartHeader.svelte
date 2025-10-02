@@ -336,7 +336,7 @@
     padding: 4px 8px !important;
     border-radius: 4px !important;
     font-size: var(--font-size-sm) !important;
-    font-weight: var(--font-weight-medium) !important;
+    font-weight: 500 !important;
     min-width: 150px;
     background: var(--bg-primary) !important;
     color: #c4b5fd !important;

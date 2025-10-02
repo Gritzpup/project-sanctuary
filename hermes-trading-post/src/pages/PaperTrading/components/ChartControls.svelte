@@ -230,11 +230,14 @@
   .period-buttons {
     display: flex;
     gap: var(--space-sm);
+    margin-top: 12px;
   }
   
   .chart-stats {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: center;
+    margin-top: 12px;
   }
   
   .chart-stats :global(.clock) {
@@ -269,7 +272,7 @@
     padding: 4px 8px;
     border-radius: 4px;
     font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
+    font-weight: 500;
     border: 1px solid var(--border-primary);
     background: var(--bg-primary);
     color: #c4b5fd;

@@ -53,6 +53,7 @@
     flex-direction: column;
     gap: 4px;
     margin-bottom: 6px;
+    margin-top: 10px;
   }
 
   .control-group:has(.balance-controls-simple) {
