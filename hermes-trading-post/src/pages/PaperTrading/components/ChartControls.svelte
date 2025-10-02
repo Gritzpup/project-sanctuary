@@ -427,16 +427,31 @@
       margin-top: calc(var(--space-sm) - var(--space-xs)) !important;
     }
     
+    /* Align chart stats with right column buttons on mobile */
+    .chart-stats {
+      margin-top: calc(var(--space-sm) - var(--space-xs)) !important;
+      transform: translateY(-4px);
+    }
+    
+    /* Move timescale buttons up to align with calendar button */
+    .period-buttons {
+      transform: translateY(-2px);
+    }
+    
     /* Lower separator on mobile to align with buttons */
     .controls-separator {
       margin-top: calc(var(--space-sm) + var(--space-xs)) !important;
     }
   }
   
-  /* Desktop: Adjust separator positioning */
+  /* Desktop: Adjust separator positioning and candle stats alignment */
   @media (min-width: 769px) {
     .controls-separator {
-      margin-top: calc(var(--space-sm) + var(--space-xs)) !important;
+      margin-top: calc(var(--space-sm) + var(--space-xs) + 2px) !important;
+    }
+    
+    .chart-stats {
+      transform: translateY(-3px);
     }
   }
 </style>
