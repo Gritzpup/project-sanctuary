@@ -12,6 +12,8 @@
 
   // Initialize state manager
   let stateManager: PaperTradingStateManager;
+  let tradingState: any = {};
+  let backendState: any = {};
   
   // Component state
   let selectedPair = 'BTC-USD';
@@ -97,7 +99,16 @@
     // Initialize state manager
     stateManager = new PaperTradingStateManager();
     
+    // Subscribe to the reactive stores
+    const unsubscribeTradingState = stateManager.tradingState.subscribe(state => {
+      tradingState = state;
+    });
+    
+    // Also subscribe to backend state
+    backendState = stateManager.backendState;
+    
     return () => {
+      unsubscribeTradingState();
       stateManager.destroy();
     };
   });
@@ -118,7 +129,7 @@
   
   <main class="dashboard-content" class:expanded={sidebarCollapsed}>
     <div class="content-wrapper">
-      <div class="paper-trading-grid" class:trading-active={stateManager?.tradingState?.isRunning}>
+      <div class="paper-trading-grid" class:trading-active={tradingState?.isRunning}>
         {#if stateManager}
           <TradingPanels
             bind:chartComponent
@@ -129,8 +140,8 @@
             {selectedTestDateString}
             botTabs={stateManager.botTabs}
             activeBotInstance={stateManager.activeBotInstance}
-            tradingState={stateManager.tradingState}
-            backendState={stateManager.backendState}
+            {tradingState}
+            {backendState}
             strategies={stateManager.strategies}
             on:pairChange={handleChartEvents}
             on:granularityChange={handleChartEvents}
@@ -148,8 +159,8 @@
           />
           
           <BottomPanels 
-            tradingState={stateManager.tradingState}
-            backendState={stateManager.backendState}
+            {tradingState}
+            {backendState}
           />
         {/if}
       </div>

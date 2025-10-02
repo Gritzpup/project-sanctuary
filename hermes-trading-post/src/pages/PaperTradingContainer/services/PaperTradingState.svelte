@@ -1,8 +1,10 @@
 <script lang="ts" context="module">
+  import { writable, get } from 'svelte/store';
   import { PaperTradingOrchestrator } from '../../PaperTrading/services/PaperTradingOrchestrator';
   import { BackendConnector } from '../../PaperTrading/services/BackendConnector';
   import { paperTradingManager } from '../../../services/state/paperTradingManager';
   import { strategyStore } from '../../../stores/strategyStore';
+  import { tradingBackendService } from '../../../services/state/tradingBackendService';
 
   // Built-in strategies
   export const builtInStrategies = [
@@ -21,7 +23,14 @@
     private backendConnector: BackendConnector;
     private managerStateStore = paperTradingManager.getState();
     
-    public tradingState: any = {};
+    public tradingState = writable({
+      selectedStrategyType: 'reverse-ratio',
+      isRunning: false,
+      isPaused: false,
+      balance: 10000,
+      trades: [],
+      positions: []
+    });
     public backendState: any = {};
     public managerState: any = {};
     public activeBotInstance: any = null;
@@ -30,9 +39,32 @@
     public customStrategies: any[] = [];
     
     constructor() {
+      console.log('🏗️ PaperTradingStateManager constructor called');
       this.orchestrator = new PaperTradingOrchestrator();
       this.backendConnector = new BackendConnector();
+      
+      // Test if tradingBackendService is working
+      console.log('🔍 Testing tradingBackendService connection:', {
+        isConnected: tradingBackendService.isConnected(),
+        service: !!tradingBackendService
+      });
+      
       this.initializeSubscriptions();
+      
+      // Immediately fetch current trading status from backend
+      this.fetchBackendStatus();
+    }
+
+    private async fetchBackendStatus() {
+      try {
+        console.log('🔄 Fetching current backend status...');
+        const status = await tradingBackendService.fetchStatus();
+        if (status) {
+          console.log('✅ Backend status fetched:', status);
+        }
+      } catch (error) {
+        console.error('❌ Failed to fetch backend status:', error);
+      }
     }
 
     get strategies() {
@@ -40,20 +72,50 @@
     }
 
     private initializeSubscriptions() {
-      // Subscribe to trading state
-      this.orchestrator.getState().subscribe(state => {
-        this.tradingState = state;
-        this.updateBotTabs();
-        
-        // Forward currentPrice to BackendConnector if available
-        if (state.currentPrice && state.currentPrice > 0) {
-          this.backendConnector.updatePrice(state.currentPrice);
-        }
-      });
-      
-      // Subscribe to backend state
+      // Subscribe to backend state for price data
       this.backendConnector.getState().subscribe(state => {
         this.backendState = state;
+      });
+
+      // Subscribe to ACTUAL trading backend service for real-time updates - THIS IS THE PRIMARY DATA SOURCE
+      console.log('📡 Setting up tradingBackendService subscription...');
+      tradingBackendService.getState().subscribe(backendState => {
+        console.log('📡 Backend state update received:', {
+          isConnected: backendState.isConnected,
+          isRunning: backendState.isRunning,
+          trades: backendState.trades?.length || 0,
+          positions: backendState.positions?.length || 0,
+          balance: backendState.balance
+        });
+        
+        // Update frontend state with backend trading data
+        this.tradingState.update(current => ({
+          ...current,
+          isRunning: backendState.isRunning,
+          isPaused: backendState.isPaused,
+          selectedStrategyType: backendState.strategy?.strategyType || current.selectedStrategyType || 'reverse-ratio',
+          balance: backendState.balance.usd,
+          btcBalance: backendState.balance.btc,
+          trades: backendState.trades || [],
+          positions: backendState.positions || [],
+          currentPrice: backendState.currentPrice,
+          totalReturn: backendState.profitLoss,
+          totalFees: (backendState.trades || []).reduce((sum, trade) => sum + (trade.fees || 0), 0)
+        }));
+        
+        // Also update backend state for UI
+        this.backendState = {
+          ...this.backendState,
+          currentPrice: backendState.currentPrice
+        };
+        
+        // Forward currentPrice to BackendConnector if available
+        if (backendState.currentPrice && backendState.currentPrice > 0) {
+          this.backendConnector.updatePrice(backendState.currentPrice);
+        }
+        
+        // Force reactivity update
+        this.updateBotTabs();
       });
       
       // Subscribe to manager state
@@ -76,17 +138,18 @@
     }
 
     private updateBotTabs() {
-      if (!this.managerState || !this.tradingState.selectedStrategyType) return;
+      const tradingStateValue = get(this.tradingState);
+      if (!this.managerState || !tradingStateValue.selectedStrategyType) return;
       
       this.activeBotInstance = this.managerState.activeBot;
       
       const strategies = this.managerState.strategies || {};
-      const managerBots = strategies[this.tradingState.selectedStrategyType]?.bots || [];
+      const managerBots = strategies[tradingStateValue.selectedStrategyType]?.bots || [];
       this.botTabs = managerBots.map((bot: any, index: number) => {
         let status: 'idle' | 'running' | 'paused' = 'idle';
         
         if (bot.id === this.activeBotInstance?.id) {
-          status = this.tradingState.isRunning ? (this.tradingState.isPaused ? 'paused' : 'running') : 'idle';
+          status = tradingStateValue.isRunning ? (tradingStateValue.isPaused ? 'paused' : 'running') : 'idle';
         }
         
         return {
@@ -100,13 +163,13 @@
 
     // Event handlers
     handleStrategyChange(value: string) {
-      this.orchestrator.updateState({ selectedStrategyType: value });
+      this.tradingState.update(current => ({ ...current, selectedStrategyType: value }));
       strategyStore.setStrategy(value, {});
       paperTradingManager.selectStrategy(value);
     }
 
     handleBalanceChange(balance: number) {
-      this.orchestrator.updateState({ balance });
+      this.tradingState.update(current => ({ ...current, balance }));
       const activeBot = paperTradingManager.getActiveBot();
       if (activeBot) {
         activeBot.setBalance(balance);
@@ -114,8 +177,9 @@
     }
 
     handleStartTrading() {
+      const tradingStateValue = get(this.tradingState);
       
-      if (!this.tradingState.selectedStrategyType) {
+      if (!tradingStateValue.selectedStrategyType) {
         console.error('No strategy type selected!');
         return;
       }
@@ -125,25 +189,44 @@
         return;
       }
       
-      this.orchestrator.startTrading(this.tradingState.selectedStrategyType, this.backendState.currentPrice);
+      // Use the backend service to start trading instead of just the orchestrator
+      console.log('🚀 Starting trading via backend service...');
+      const strategy = {
+        strategyType: tradingStateValue.selectedStrategyType,
+        strategyConfig: {
+          initialDropPercent: 0.1,
+          levelDropPercent: 0.1,
+          profitTarget: 0.85,
+          maxLevels: 12,
+          basePositionPercent: 6
+        }
+      };
+      tradingBackendService.startTrading(strategy);
+      
+      console.log('✅ Start trading command sent, NOT calling reset');
     }
 
     handlePauseTrading() {
-      this.orchestrator.pauseTrading();
+      tradingBackendService.pauseTrading();
     }
 
     handleResumeTrading() {
-      this.orchestrator.resumeTrading();
+      tradingBackendService.resumeTrading();
     }
 
     handleReset(chartComponent?: any) {
-      this.orchestrator.resetState();
+      console.log('🔄 Manual reset requested');
+      tradingBackendService.resetTrading();
       
-      // Clear chart markers
-      if (chartComponent && typeof chartComponent.clearMarkers === 'function') {
-        chartComponent.clearMarkers();
-      } else if (chartComponent && typeof chartComponent.addMarkers === 'function') {
-        chartComponent.addMarkers([]);
+      // Clear chart markers safely
+      try {
+        if (chartComponent && typeof chartComponent.clearMarkers === 'function') {
+          chartComponent.clearMarkers();
+        } else if (chartComponent && typeof chartComponent.addMarkers === 'function') {
+          chartComponent.addMarkers([]);
+        }
+      } catch (error) {
+        console.warn('Chart marker clearing failed:', error);
       }
     }
 

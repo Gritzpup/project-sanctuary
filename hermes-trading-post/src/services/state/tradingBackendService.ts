@@ -51,6 +51,8 @@ class TradingBackendService {
     const backendPort = import.meta.env.VITE_BACKEND_PORT || '4827';
     this.backendUrl = `ws://localhost:${backendPort}`;
     
+    console.log('🚀 TradingBackendService constructor called, connecting to:', this.backendUrl);
+    
     this.state = writable<BackendTradingState>({
       isConnected: false,
       isRunning: false,
@@ -88,13 +90,16 @@ class TradingBackendService {
 
   private connect() {
     try {
+      console.log('🔌 Connecting to backend WebSocket:', this.backendUrl);
       this.ws = new WebSocket(this.backendUrl);
 
       this.ws.onopen = () => {
+        console.log('🟢 Connected to backend WebSocket at', this.backendUrl);
         this.reconnectAttempts = 0;
         this.state.update(s => ({ ...s, isConnected: true }));
         
         // Request manager state and current status immediately after connecting
+        console.log('📤 Requesting manager state and status...');
         this.send({ type: 'getManagerState' });
         this.send({ type: 'getStatus' });
       };
@@ -109,13 +114,13 @@ class TradingBackendService {
       };
 
       this.ws.onclose = () => {
-        console.log('Disconnected from trading backend');
+        console.log('🔴 Disconnected from trading backend');
         this.state.update(s => ({ ...s, isConnected: false }));
         this.attemptReconnect();
       };
 
       this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('❌ WebSocket error:', error);
       };
     } catch (error) {
       console.error('Failed to connect to backend:', error);
@@ -138,7 +143,7 @@ class TradingBackendService {
   }
 
   private handleMessage(message: any) {
-    // console.log('Received message:', message.type);
+    console.log('📡 Backend WebSocket message received:', message.type, message);
     
     switch (message.type) {
       case 'connected':
@@ -228,6 +233,14 @@ class TradingBackendService {
   }
 
   private updateStateFromBackend(status: any) {
+    console.log('🔄 Updating frontend state from backend:', {
+      isRunning: status.isRunning,
+      tradesCount: status.trades?.length || 0,
+      positionsCount: status.positions?.length || 0,
+      balance: status.balance,
+      currentPrice: status.currentPrice
+    });
+    
     this.state.update(s => ({
       ...s,
       isRunning: status.isRunning || false,
@@ -281,9 +294,14 @@ class TradingBackendService {
       });
     }
     
+    // Flatten the structure - backend expects strategyType and strategyConfig directly in config
     this.send({
       type: 'start',
-      config: { strategy, reset }
+      config: { 
+        strategyType: strategy.strategyType,
+        strategyConfig: strategy.strategyConfig,
+        reset 
+      }
     });
   }
 

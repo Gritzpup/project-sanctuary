@@ -48,7 +48,7 @@
       </button>
     {:else}
       <button class="btn-base btn-md btn-trading" on:click={pauseTrading}>
-        <span class="btn-icon spinner">⟳</span>
+        <span class="btn-icon spinner"></span>
         Now Trading
       </button>
       <button class="btn-base btn-md btn-error" on:click={resetTrading}>
@@ -62,8 +62,15 @@
 <style>
   .trading-controls {
     margin-top: auto;
-    padding-top: 20px;
+    padding-top: 0;
     border-top: 1px solid rgba(74, 0, 224, 0.2);
+  }
+
+  /* Desktop spacing adjustments */
+  @media (min-width: 769px) {
+    .trading-controls {
+      padding-top: 8px;
+    }
   }
 
   .main-controls {
@@ -162,15 +169,20 @@
 
   /* Spinner animation for trading button */
   .spinner {
-    animation: spin 1s linear infinite;
+    width: 12px;
+    height: 12px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
     display: inline-block;
+    animation: spin 1s linear infinite;
   }
 
   @keyframes spin {
-    from {
+    0% {
       transform: rotate(0deg);
     }
-    to {
+    100% {
       transform: rotate(360deg);
     }
   }
