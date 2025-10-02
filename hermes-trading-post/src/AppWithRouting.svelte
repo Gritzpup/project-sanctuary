@@ -105,49 +105,38 @@
 </Router>
 
 <style>
-  :global(body) {
-    margin: 0;
-    padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: #0a0a0a;
-    color: #ffffff;
-    overflow: hidden;
-  }
-
-  :global(*) {
-    box-sizing: border-box;
-  }
+  /* Global styles are centralized in design-system-consolidated.css */
 
   .main-nav {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 20px;
-    background: rgba(255, 255, 255, 0.02);
-    border-bottom: 1px solid rgba(74, 0, 224, 0.3);
+    padding: var(--space-md) var(--space-xl);
+    background: var(--surface-elevated);
+    border-bottom: 1px solid var(--border-primary);
   }
 
   .nav-links {
     display: flex;
-    gap: 20px;
+    gap: var(--space-xl);
   }
 
   :global(.nav-link) {
-    color: #a78bfa;
+    color: var(--text-accent);
     text-decoration: none;
-    padding: 8px 16px;
-    border-radius: 6px;
-    transition: all 0.2s;
-    font-weight: 500;
+    padding: var(--space-sm) var(--space-lg);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-normal);
+    font-weight: var(--font-weight-medium);
   }
 
   :global(.nav-link:hover) {
-    background: rgba(74, 0, 224, 0.2);
+    background: var(--bg-primary);
   }
 
   :global(.nav-link[aria-current="page"]) {
-    background: rgba(74, 0, 224, 0.3);
-    color: #ffffff;
+    background: var(--bg-primary-hover);
+    color: var(--text-primary);
   }
 
   .connection-status {

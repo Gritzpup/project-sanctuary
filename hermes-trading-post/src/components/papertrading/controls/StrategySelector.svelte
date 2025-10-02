@@ -52,32 +52,32 @@
     font-weight: 500;
   }
   
-  .strategy-dropdown {
-    height: 28px !important;
-    padding: 2px 6px !important;
-    border-radius: 4px !important;
-    font-size: 12px !important;
-    font-weight: 500 !important;
-    background: var(--bg-primary) !important;
-    color: #c4b5fd !important;
-    border: 1px solid var(--border-primary) !important;
-    appearance: none !important;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e") !important;
-    background-position: right 6px center !important;
-    background-repeat: no-repeat !important;
-    background-size: 12px !important;
-    padding-right: 24px !important;
-    transition: all 0.2s ease !important;
+  .control-group .strategy-dropdown {
+    height: 28px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--bg-primary);
+    color: #c4b5fd;
+    border: 1px solid var(--border-primary);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 6px center;
+    background-repeat: no-repeat;
+    background-size: 12px;
+    padding-right: 24px;
+    transition: all 0.2s ease;
   }
   
-  .strategy-dropdown:hover:not(:disabled) {
-    background: rgba(74, 0, 224, 0.2) !important;
-    border-color: rgba(74, 0, 224, 0.5) !important;
-    color: white !important;
+  .control-group .strategy-dropdown:hover:not(:disabled) {
+    background: rgba(74, 0, 224, 0.2);
+    border-color: rgba(74, 0, 224, 0.5);
+    color: white;
   }
   
-  .strategy-dropdown:disabled {
-    opacity: 0.5 !important;
-    cursor: not-allowed !important;
+  .control-group .strategy-dropdown:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

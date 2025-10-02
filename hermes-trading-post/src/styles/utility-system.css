@@ -197,7 +197,22 @@
 .gap-lg { gap: var(--space-lg); }
 .gap-xl { gap: var(--space-xl); }
 
-/* Legacy gap utilities */
+/* Modern gap utilities with CSS logical properties */
+.gap-inline-0 { column-gap: 0; }
+.gap-inline-xs { column-gap: var(--space-xs); }
+.gap-inline-sm { column-gap: var(--space-sm); }
+.gap-inline-md { column-gap: var(--space-md); }
+.gap-inline-lg { column-gap: var(--space-lg); }
+.gap-inline-xl { column-gap: var(--space-xl); }
+
+.gap-block-0 { row-gap: 0; }
+.gap-block-xs { row-gap: var(--space-xs); }
+.gap-block-sm { row-gap: var(--space-sm); }
+.gap-block-md { row-gap: var(--space-md); }
+.gap-block-lg { row-gap: var(--space-lg); }
+.gap-block-xl { row-gap: var(--space-xl); }
+
+/* Legacy gap utilities (kept for backwards compatibility) */
 .gap-5 { gap: 5px; }
 .gap-10 { gap: 10px; }
 .gap-15 { gap: 15px; }
@@ -403,3 +418,56 @@
 .status-disconnected { background-color: var(--color-warning); }
 .status-error { background-color: var(--color-error); }
 .status-loading { background-color: var(--color-info); }
+
+/* ===================================== */
+/* 16. MODERN CSS LOGICAL PROPERTIES    */
+/* ===================================== */
+
+/* Logical margin utilities (better for internationalization) */
+.m-inline-0 { margin-inline: 0; }
+.m-inline-xs { margin-inline: var(--space-xs); }
+.m-inline-sm { margin-inline: var(--space-sm); }
+.m-inline-md { margin-inline: var(--space-md); }
+.m-inline-lg { margin-inline: var(--space-lg); }
+.m-inline-xl { margin-inline: var(--space-xl); }
+
+.m-block-0 { margin-block: 0; }
+.m-block-xs { margin-block: var(--space-xs); }
+.m-block-sm { margin-block: var(--space-sm); }
+.m-block-md { margin-block: var(--space-md); }
+.m-block-lg { margin-block: var(--space-lg); }
+.m-block-xl { margin-block: var(--space-xl); }
+
+/* Logical padding utilities */
+.p-inline-0 { padding-inline: 0; }
+.p-inline-xs { padding-inline: var(--space-xs); }
+.p-inline-sm { padding-inline: var(--space-sm); }
+.p-inline-md { padding-inline: var(--space-md); }
+.p-inline-lg { padding-inline: var(--space-lg); }
+.p-inline-xl { padding-inline: var(--space-xl); }
+
+.p-block-0 { padding-block: 0; }
+.p-block-xs { padding-block: var(--space-xs); }
+.p-block-sm { padding-block: var(--space-sm); }
+.p-block-md { padding-block: var(--space-md); }
+.p-block-lg { padding-block: var(--space-lg); }
+.p-block-xl { padding-block: var(--space-xl); }
+
+/* ===================================== */
+/* 17. FOCUS MANAGEMENT                 */
+/* ===================================== */
+
+/* Modern focus management with :focus-visible */
+*:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--text-accent);
+  outline-offset: 2px;
+}
+
+/* Remove focus from mouse interactions */
+*:focus:not(:focus-visible) {
+  outline: none;
+}

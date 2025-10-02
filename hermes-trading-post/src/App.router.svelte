@@ -86,17 +86,10 @@
 </Router>
 
 <style>
-  :global(body) {
-    margin: 0;
-    padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    background-color: #0d0d0d;
-    color: #d1d4dc;
-  }
-
+  /* Global styles are centralized in design-system-consolidated.css */
   main {
-    height: 100vh;
-    background-color: #0a0a0a;
+    block-size: 100vh;
+    background-color: var(--bg-main);
     overflow: auto;
   }
 </style>

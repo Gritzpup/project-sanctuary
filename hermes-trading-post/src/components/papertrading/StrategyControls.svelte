@@ -2,7 +2,6 @@
   import { createEventDispatcher } from 'svelte';
   import StrategySelector from './controls/StrategySelector.svelte';
   import BotStatusGrid from './controls/BotStatusGrid.svelte';
-  import BalanceControls from './controls/BalanceControls.svelte';
   import TradingStats from './controls/TradingStats.svelte';
   import TradingControlButtons from './controls/TradingControlButtons.svelte';
   
@@ -54,14 +53,6 @@
       on:selectBot={handleEvent}
     />
     
-    <BalanceControls 
-      {balance} 
-      {vaultBalance} 
-      {btcVaultBalance} 
-      {currentPrice}
-      on:balanceChange={handleEvent}
-    />
-
     <TradingStats 
       {balance}
       {startingBalance}
@@ -73,6 +64,8 @@
       {positions}
       {currentPrice}
       {btcBalance}
+      {vaultBalance}
+      {btcVaultBalance}
     />
     
     <TradingControlButtons 
@@ -129,10 +122,10 @@
   }
 
   .panel-content {
-    padding: 16px 20px 20px 20px;
+    padding: 16px 20px 12px 20px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 8px;
     flex: 1;
     height: 100%;
   }
@@ -140,8 +133,8 @@
   /* Desktop spacing adjustments */
   @media (min-width: 769px) {
     .panel-content {
-      gap: 18px;
-      padding: 20px 20px 24px 20px;
+      gap: 10px;
+      padding: 20px 20px 12px 20px;
     }
   }
 

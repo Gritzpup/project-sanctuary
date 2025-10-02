@@ -13,4 +13,4 @@ export { MetadataManager } from './MetadataManager';
 export type { DataMetadata } from './MetadataManager';
 
 // Legacy IndexedDB cache (deprecated - use BackendCacheService instead)
-export { IndexedDBCache } from './indexedDB';
+export { IndexedDBService as IndexedDBCache } from './indexeddb';

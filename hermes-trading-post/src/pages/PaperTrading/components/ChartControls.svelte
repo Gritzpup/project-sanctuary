@@ -240,8 +240,8 @@
     margin-top: 12px;
   }
   
-  .chart-stats :global(.clock) {
-    margin-left: 0 !important;
+  .chart-controls .chart-stats :global(.clock) {
+    margin-left: 0;
   }
   
   .control-row {
@@ -263,9 +263,8 @@
     gap: var(--space-sm);
   }
   
-  /* Consistent sizing for all controls */
+  /* Consistent sizing for text controls */
   .btn-timeframe,
-  .btn-icon,
   .input-base,
   .speed-dropdown {
     height: 32px;
@@ -280,6 +279,25 @@
     align-items: center;
     justify-content: center;
     min-width: 40px;
+    transition: all 0.2s ease;
+  }
+
+  /* Icon buttons - square and same height as other controls */
+  .btn-icon {
+    height: 32px;
+    min-height: 32px;
+    width: 32px;
+    min-width: 32px;
+    padding: 0;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 500;
+    border: 1px solid var(--border-primary);
+    background: var(--bg-primary);
+    color: #c4b5fd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.2s ease;
   }
 
@@ -401,35 +419,44 @@
     
     /* Force consistent heights on mobile */
     .btn-timeframe,
-    .btn-icon,
-    .input-base,
-    .speed-dropdown {
-      height: 32px !important;
-      min-height: 32px !important;
-      max-height: 32px !important;
-      box-sizing: border-box !important;
-      line-height: 1 !important;
+    .chart-controls .input-base,
+    .chart-controls .speed-dropdown {
+      height: 32px;
+      min-height: 32px;
+      max-height: 32px;
+      box-sizing: border-box;
+      line-height: 1;
+    }
+
+    /* Ensure icon buttons stay square and proper height on mobile */
+    .btn-icon {
+      height: 32px;
+      width: 32px;
+      min-width: 32px;
+      max-width: 32px;
+      min-height: 32px;
+      max-height: 32px;
     }
     
     /* Ensure date input specifically matches */
-    .input-base[type="date"] {
-      height: 32px !important;
-      padding: 4px 8px !important;
+    .chart-controls .input-base[type="date"] {
+      height: 32px;
+      padding: 4px 8px;
     }
     
     /* Adjust left column positioning on mobile */
-    .left-column {
-      margin-top: var(--space-sm) !important;
+    .chart-controls .left-column {
+      margin-top: var(--space-sm);
     }
     
     /* Adjust right column positioning on mobile */
-    .right-column {
-      margin-top: calc(var(--space-sm) - var(--space-xs)) !important;
+    .chart-controls .right-column {
+      margin-top: calc(var(--space-sm) - var(--space-xs));
     }
     
     /* Align chart stats with right column buttons on mobile */
-    .chart-stats {
-      margin-top: calc(var(--space-sm) - var(--space-xs)) !important;
+    .chart-controls .chart-stats {
+      margin-top: calc(var(--space-sm) - var(--space-xs));
       transform: translateY(-4px);
     }
     
@@ -439,15 +466,15 @@
     }
     
     /* Lower separator on mobile to align with buttons */
-    .controls-separator {
-      margin-top: calc(var(--space-sm) + var(--space-xs)) !important;
+    .chart-controls .controls-separator {
+      margin-top: calc(var(--space-sm) + var(--space-xs));
     }
   }
   
   /* Desktop: Adjust separator positioning and candle stats alignment */
   @media (min-width: 769px) {
-    .controls-separator {
-      margin-top: calc(var(--space-sm) + var(--space-xs) + 2px) !important;
+    .chart-controls .controls-separator {
+      margin-top: calc(var(--space-sm) + var(--space-xs) + 2px);
     }
     
     .chart-stats {

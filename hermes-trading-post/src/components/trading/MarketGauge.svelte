@@ -9,52 +9,38 @@
   $: angle = calculateNeedleAngle();
   
   function calculateNeedleAngle(): number {
-    // Default to center when not running
     if (!isRunning || currentPrice === 0) {
-      return 90;
+      return 90; // Center
     }
     
-    // Calculate drop from recent high
-    const dropFromHigh = recentHigh > 0 ? ((recentHigh - currentPrice) / recentHigh) * 100 : 0;
-    
     if (positions.length === 0) {
-      // No positions - needle based on drop percentage
-      if (dropFromHigh <= 0) {
-        return 90; // At or above high - center
-      } else if (dropFromHigh < 5) {
-        // Small drop - slightly left of center
-        return 90 - (dropFromHigh / 5) * 30;
-      } else if (dropFromHigh < 15) {
-        // Medium drop - moving into buy zone
-        return 60 - ((dropFromHigh - 5) / 10) * 30;
-      } else {
-        // Large drop - deep in buy zone
-        return Math.max(20, 30 - ((dropFromHigh - 15) / 10) * 10);
-      }
+      return 90; // No positions, center
+    }
+    
+    // Calculate based on profit/loss
+    const avgEntryPrice = positions.reduce((sum, p) => sum + p.entryPrice * p.size, 0) / 
+                         positions.reduce((sum, p) => sum + p.size, 0);
+    const profitPercent = ((currentPrice - avgEntryPrice) / avgEntryPrice) * 100;
+    
+    // Map profit percent to angle (30 degrees left to 150 degrees right)
+    if (profitPercent <= -2) {
+      return 30; // Far left (big loss)
+    } else if (profitPercent >= 2) {
+      return 150; // Far right (good profit)
     } else {
-      // Has positions - needle based on profit potential
-      const avgEntryPrice = positions.reduce((sum, p) => sum + p.entryPrice * p.size, 0) / 
-                           positions.reduce((sum, p) => sum + p.size, 0);
-      const profitPercent = ((currentPrice - avgEntryPrice) / avgEntryPrice) * 100;
-      
-      if (profitPercent < -2) {
-        // Loss - left side (buy zone)
-        return Math.max(20, 60 - Math.abs(profitPercent) * 5);
-      } else if (profitPercent < 2) {
-        // Break even - center
-        return 90 + profitPercent * 15;
-      } else {
-        // Profit - right side (sell zone)
-        return Math.min(160, 120 + profitPercent * 5);
-      }
+      // Linear interpolation between 30 and 150 degrees
+      return 30 + ((profitPercent + 2) / 4) * 120;
     }
   }
   
-  // Calculate zone prices for display
-  $: buyZonePrice = recentHigh > 0 ? recentHigh * 0.95 : currentPrice * 0.95;
-  $: sellZonePrice = positions.length > 0 
+  // Calculate display values
+  $: nextBuyPrice = positions.length > 0 
+    ? positions.reduce((sum, p) => sum + p.entryPrice * p.size, 0) / positions.reduce((sum, p) => sum + p.size, 0) * 0.99
+    : currentPrice * 0.99;
+    
+  $: profitTargetPrice = positions.length > 0 
     ? positions.reduce((sum, p) => sum + p.entryPrice * p.size, 0) / positions.reduce((sum, p) => sum + p.size, 0) * 1.02
-    : recentHigh > 0 ? recentHigh : currentPrice * 1.02;
+    : currentPrice * 1.02;
 </script>
 
 <div class="panel market-gauge">
@@ -62,90 +48,152 @@
     <h2>Market Position</h2>
   </div>
   <div class="panel-content">
-    <div class="gauge-content">
-    <div class="zone-prices">
-      <div class="zone-price buy">
-        <span class="zone-label">Buy Zone</span>
-        <span class="zone-value">${buyZonePrice.toFixed(2)}</span>
+    <!-- Price display -->
+    <div class="price-row">
+      <div class="price-item">
+        <span class="label">Next Buy</span>
+        <span class="value red">${nextBuyPrice.toFixed(0)}</span>
       </div>
-      <div class="zone-price current">
-        <span class="zone-label">Current</span>
-        <span class="zone-value">${currentPrice.toFixed(2)}</span>
+      <div class="price-item">
+        <span class="label">Current</span>
+        <span class="value purple">${currentPrice.toFixed(0)}</span>
       </div>
-      <div class="zone-price sell">
-        <span class="zone-label">Profit Zone</span>
-        <span class="zone-value">${sellZonePrice.toFixed(2)}</span>
+      <div class="price-item">
+        <span class="label">Target</span>
+        <span class="value green">${profitTargetPrice.toFixed(0)}</span>
       </div>
-    </div>
     </div>
     
-    <div class="gauge-chart">
-    <svg viewBox="0 0 240 140" class="gauge-svg">
-      <!-- Gauge background -->
-      <defs>
-        <linearGradient id="buyGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#ef5350;stop-opacity:0.3" />
-          <stop offset="100%" style="stop-color:#ef5350;stop-opacity:0.15" />
-        </linearGradient>
-        <linearGradient id="holdGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#42a5f5;stop-opacity:0.3" />
-          <stop offset="100%" style="stop-color:#42a5f5;stop-opacity:0.15" />
-        </linearGradient>
-        <linearGradient id="sellGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#26a69a;stop-opacity:0.15" />
-          <stop offset="100%" style="stop-color:#26a69a;stop-opacity:0.3" />
-        </linearGradient>
-      </defs>
-      
-      <!-- Gauge arc sections -->
-      <!-- Buy zone: 0-60 degrees -->
-      <path d="M 40 120 A 80 80 0 0 1 80 50.7" 
-            fill="none" 
-            stroke="url(#buyGradient)" 
-            stroke-width="30" 
-            class="gauge-section buy-section"/>
-      
-      <!-- Hold zone: 60-120 degrees -->
-      <path d="M 80 50.7 A 80 80 0 0 1 160 50.7" 
-            fill="none" 
-            stroke="url(#holdGradient)" 
-            stroke-width="30" 
-            class="gauge-section hold-section"/>
-      
-      <!-- Sell zone: 120-180 degrees -->
-      <path d="M 160 50.7 A 80 80 0 0 1 200 120" 
-            fill="none" 
-            stroke="url(#sellGradient)" 
-            stroke-width="30" 
-            class="gauge-section sell-section"/>
-      
-      <!-- Gauge outline -->
-      <path d="M 40 120 A 80 80 0 0 1 200 120" 
-            fill="none" 
-            stroke="rgba(255,255,255,0.2)" 
-            stroke-width="1" 
-            class="gauge-outline"/>
-      
-      <!-- Zone labels -->
-      <text x="50" y="130" text-anchor="middle" class="zone-label-text">BUY</text>
-      <text x="120" y="40" text-anchor="middle" class="zone-label-text">HOLD</text>
-      <text x="190" y="130" text-anchor="middle" class="zone-label-text">SELL</text>
-      
-      <!-- Needle -->
-      <g transform="rotate({angle - 90} 120 120)" class="needle-group">
-        <line x1="120" y1="120" x2="120" y2="45" 
-              stroke="#a78bfa" 
-              stroke-width="3" 
-              class="needle"/>
-        <circle cx="120" cy="120" r="6" fill="#a78bfa" class="needle-center"/>
-        <circle cx="120" cy="45" r="4" fill="#a78bfa" class="needle-tip"/>
-      </g>
-      
-      <!-- Current value indicator -->
-      <text x="120" y="100" text-anchor="middle" class="current-value">
-        ${currentPrice.toFixed(0)}
-      </text>
-    </svg>
+    <!-- Gauge -->
+    <div class="gauge-container">
+      <svg viewBox="0 0 240 140" class="gauge-svg">
+        <!-- Definitions for gradients and effects -->
+        <defs>
+          <!-- Gradient for buy zone -->
+          <linearGradient id="buyGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" class="svg-gradient-buy-start" stop-opacity="1"/>
+            <stop offset="100%" class="svg-gradient-buy-end" stop-opacity="1"/>
+          </linearGradient>
+          
+          <!-- Gradient for hold zone -->
+          <linearGradient id="holdGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" class="svg-gradient-hold-start" stop-opacity="1"/>
+            <stop offset="100%" class="svg-gradient-hold-end" stop-opacity="1"/>
+          </linearGradient>
+          
+          <!-- Gradient for sell zone -->
+          <linearGradient id="sellGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" class="svg-gradient-sell-start" stop-opacity="1"/>
+            <stop offset="100%" class="svg-gradient-sell-end" stop-opacity="1"/>
+          </linearGradient>
+          
+          <!-- Needle gradient -->
+          <linearGradient id="needleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" class="svg-gradient-needle-start" stop-opacity="1"/>
+            <stop offset="50%" class="svg-gradient-needle-mid" stop-opacity="1"/>
+            <stop offset="100%" class="svg-gradient-needle-end" stop-opacity="1"/>
+          </linearGradient>
+          
+          <!-- Drop shadow filter -->
+          <filter id="dropshadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+          </filter>
+          
+          <!-- Glow filter -->
+          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+            <feMerge> 
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        
+        <!-- Outer ring shadow -->
+        <path d="M 30 110 A 90 90 0 0 1 210 110" 
+              fill="none" 
+              stroke="rgba(0,0,0,0.3)" 
+              stroke-width="16"
+              transform="translate(2,2)"/>
+        
+        <!-- Background arc with subtle gradient -->
+        <path d="M 30 110 A 90 90 0 0 1 210 110" 
+              fill="none" 
+              stroke="rgba(255,255,255,0.08)" 
+              stroke-width="16"
+              filter="url(#dropshadow)"/>
+        
+        <!-- Buy zone with gradient and glow -->
+        <path d="M 30 110 A 90 90 0 0 1 85 50" 
+              fill="none" 
+              stroke="url(#buyGradient)" 
+              stroke-width="14"
+              stroke-linecap="round"
+              filter="url(#glow)"/>
+        
+        <!-- Hold zone with gradient and glow -->
+        <path d="M 85 50 A 90 90 0 0 1 155 50" 
+              fill="none" 
+              stroke="url(#holdGradient)" 
+              stroke-width="14"
+              stroke-linecap="round"
+              filter="url(#glow)"/>
+        
+        <!-- Sell zone with gradient and glow -->
+        <path d="M 155 50 A 90 90 0 0 1 210 110" 
+              fill="none" 
+              stroke="url(#sellGradient)" 
+              stroke-width="14"
+              stroke-linecap="round"
+              filter="url(#glow)"/>
+        
+        <!-- Tick marks -->
+        <g stroke="rgba(255,255,255,0.4)" stroke-width="1">
+          <line x1="35" y1="108" x2="40" y2="102" transform="rotate(-60 120 110)"/>
+          <line x1="35" y1="108" x2="40" y2="102" transform="rotate(-30 120 110)"/>
+          <line x1="35" y1="108" x2="40" y2="102" transform="rotate(0 120 110)"/>
+          <line x1="35" y1="108" x2="40" y2="102" transform="rotate(30 120 110)"/>
+          <line x1="35" y1="108" x2="40" y2="102" transform="rotate(60 120 110)"/>
+        </g>
+        
+        <!-- Center hub shadow -->
+        <circle cx="122" cy="112" r="12" fill="rgba(0,0,0,0.5)"/>
+        
+        <!-- Center hub - MADE DARKER -->
+        <circle cx="120" cy="110" r="12" fill="rgba(15,23,42,0.95)" stroke="rgba(30,41,59,0.8)" stroke-width="2"/>
+        <circle cx="120" cy="110" r="8" fill="rgba(30,41,59,0.9)"/>
+        
+        <!-- Needle shadow - MADE THICKER -->
+        <g transform="rotate({angle - 90} 120 110)">
+          <line x1="120" y1="110" x2="120" y2="40" 
+                stroke="rgba(0,0,0,0.6)" 
+                stroke-width="8"
+                transform="translate(2,2)"/>
+        </g>
+        
+        <!-- Main needle -->
+        <g transform="rotate({angle - 90} 120 110)" class="needle">
+          <!-- Needle body with gradient - MADE THICKER -->
+          <line x1="120" y1="110" x2="120" y2="40" 
+                stroke="url(#needleGradient)" 
+                stroke-width="6"
+                stroke-linecap="round"
+                filter="url(#glow)"/>
+          
+          <!-- Needle tip - MADE WIDER -->
+          <polygon points="120,40 112,52 128,52" 
+                   fill="url(#needleGradient)" 
+                   filter="url(#glow)"/>
+          
+          <!-- Center dot - MADE DARKER -->
+          <circle cx="120" cy="110" r="5" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#glow)"/>
+        </g>
+        
+        <!-- Labels with enhanced styling -->
+        <text x="60" y="125" text-anchor="middle" class="zone-text buy-text">BUY</text>
+        <text x="120" y="35" text-anchor="middle" class="zone-text hold-text">HOLD</text>
+        <text x="180" y="125" text-anchor="middle" class="zone-text sell-text">SELL</text>
+      </svg>
     </div>
   </div>
 </div>
@@ -165,10 +213,6 @@
     background: var(--bg-primary-subtle);
     padding: 15px 20px;
     border-bottom: 1px solid var(--border-primary);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    min-height: 50px;
     flex-shrink: 0;
   }
 
@@ -180,100 +224,73 @@
   }
 
   .panel-content {
-    padding: 15px;
-    overflow-y: auto;
+    padding: 20px;
     flex: 1;
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
   }
 
-  .gauge-content {
-    margin-bottom: 15px;
-  }
-  
-  .zone-prices {
+  .price-row {
     display: flex;
     justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 10px;
+    margin-bottom: 20px;
   }
-  
-  .zone-price {
-    flex: 1;
+
+  .price-item {
     text-align: center;
+    flex: 1;
   }
-  
-  .zone-label {
+
+  .label {
     display: block;
-    font-size: 11px;
-    color: #758696;
-    text-transform: uppercase;
+    font-size: 12px;
+    color: #888;
     margin-bottom: 4px;
+    text-transform: uppercase;
+    font-weight: 500;
   }
-  
-  .zone-value {
+
+  .value {
     display: block;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
+    font-family: 'Courier New', monospace;
   }
-  
-  .zone-price.buy .zone-value {
-    color: #ef5350;
+
+  .value.red {
+    color: #dc2626;
   }
-  
-  .zone-price.current .zone-value {
-    color: #a78bfa;
+
+  .value.purple {
+    color: #7c3aed;
   }
-  
-  .zone-price.sell .zone-value {
-    color: #26a69a;
+
+  .value.green {
+    color: #16a34a;
   }
-  
-  .gauge-chart {
-    width: 100%;
-    max-width: 300px;
-    margin: 0 auto;
+
+  .gauge-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
-  
+
   .gauge-svg {
     width: 100%;
+    max-width: 200px;
     height: auto;
   }
-  
-  .zone-label-text {
-    fill: #758696;
-    font-size: 10px;
+
+  .zone-text {
+    font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
   }
-  
-  .needle-group {
-    transition: transform 0.3s ease;
-  }
-  
-  .needle {
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
-  }
-  
-  .needle-center {
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
-  }
-  
-  .needle-tip {
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
-  }
-  
-  .current-value {
-    fill: #d1d4dc;
-    font-size: 20px;
-    font-weight: 600;
-  }
-  
-  .gauge-section {
-    transition: stroke-opacity 0.3s ease;
-  }
-  
-  .gauge-section:hover {
-    stroke-opacity: 0.8;
+
+  /* Needle animation */
+  g {
+    transition: transform 0.5s ease;
   }
 </style>

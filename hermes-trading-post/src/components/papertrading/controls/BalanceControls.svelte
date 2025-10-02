@@ -77,7 +77,7 @@
 
   .balance-controls-simple {
     display: flex;
-    gap: 24px;
+    gap: 8px;
     margin-bottom: 0;
     margin-top: 0;
   }
@@ -86,21 +86,41 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0;
   }
 
   .balance-label-inline {
     font-size: 14px;
     color: rgba(255, 255, 255, 0.7);
-    font-weight: 500;
+    font-weight: 400;
   }
 
   .vault-balance-inline {
-    padding: 8px 10px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(74, 0, 224, 0.2);
-    border-radius: 4px;
-    color: #a78bfa;
-    font-size: 14px;
+    padding: 0;
+    background: none;
+    border: none;
+    color: #d1d4dc;
+    font-size: 13px;
     font-family: 'Courier New', monospace;
+    font-weight: 400;
+  }
+
+  .balance-controls-simple .input-base {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #d1d4dc;
+    font-size: 13px;
+    font-family: 'Courier New', monospace;
+    font-weight: 400;
+    outline: none;
+    box-shadow: none;
+  }
+
+  .balance-controls-simple .input-narrow {
+    width: 80px;
+    max-width: 80px;
+    min-width: 60px;
+    flex-shrink: 0;
   }
 </style>

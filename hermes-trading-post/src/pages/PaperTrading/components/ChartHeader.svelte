@@ -331,47 +331,47 @@
     color: white;
   }
   
-  .pair-selector {
-    height: 32px !important;
-    padding: 4px 8px !important;
-    border-radius: 4px !important;
-    font-size: var(--font-size-sm) !important;
-    font-weight: 500 !important;
+  .left-controls .pair-selector {
+    height: 32px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
     min-width: 150px;
-    background: var(--bg-primary) !important;
-    color: #c4b5fd !important;
-    border: 1px solid var(--border-primary) !important;
-    appearance: none !important;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e") !important;
-    background-position: right 8px center !important;
-    background-repeat: no-repeat !important;
-    background-size: 16px !important;
-    padding-right: 32px !important;
+    background: var(--bg-primary);
+    color: #c4b5fd;
+    border: 1px solid var(--border-primary);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 8px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+    padding-right: 32px;
   }
   
-  .pair-selector:hover {
-    background: rgba(74, 0, 224, 0.2) !important;
-    border-color: rgba(74, 0, 224, 0.5) !important;
-    color: white !important;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e") !important;
-    background-position: right 8px center !important;
-    background-repeat: no-repeat !important;
-    background-size: 16px !important;
+  .left-controls .pair-selector:hover {
+    background: rgba(74, 0, 224, 0.2);
+    border-color: rgba(74, 0, 224, 0.5);
+    color: white;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 8px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
   }
   
-  .pair-selector:focus {
-    background: rgba(74, 0, 224, 0.2) !important;
-    border-color: rgba(74, 0, 224, 0.5) !important;
-    color: white !important;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e") !important;
-    background-position: right 8px center !important;
-    background-repeat: no-repeat !important;
-    background-size: 16px !important;
-    outline: none !important;
+  .left-controls .pair-selector:focus {
+    background: rgba(74, 0, 224, 0.2);
+    border-color: rgba(74, 0, 224, 0.5);
+    color: white;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 8px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+    outline: none;
   }
   
-  .pair-selector option {
-    font-weight: var(--font-weight-medium) !important;
+  .left-controls .pair-selector option {
+    font-weight: var(--font-weight-medium);
   }
   
   
@@ -389,54 +389,54 @@
 
   /* Mobile responsive - show full text */
   @media (max-width: 768px) {
-    .pair-selector {
-      min-width: 120px !important;
-      width: auto !important;
-      padding: 4px 32px 4px 8px !important;
-      text-indent: 0 !important; /* Show text */
-      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23c4b5fd' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e") !important;
-      background-position: right 8px center !important;
-      background-size: 14px !important;
+    .left-controls .pair-selector {
+      min-width: 120px;
+      width: auto;
+      padding: 4px 32px 4px 8px;
+      text-indent: 0; /* Show text */
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23c4b5fd' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+      background-position: right 8px center;
+      background-size: 14px;
     }
 
-    .pair-selector option {
-      text-indent: 0 !important; /* Show text in options */
-      padding: 8px 12px !important;
+    .left-controls .pair-selector option {
+      text-indent: 0; /* Show text in options */
+      padding: 8px 12px;
     }
     
     /* Enable horizontal scrolling for header row 2 */
-    .header-row-2 {
-      overflow-x: auto !important;
-      overflow-y: hidden !important;
-      scroll-behavior: smooth !important;
-      scrollbar-width: none !important; /* Firefox */
-      -ms-overflow-style: none !important; /* IE/Edge */
-      cursor: grab !important;
-      display: flex !important;
-      justify-content: flex-start !important;
-      white-space: nowrap !important;
+    .chart-header .header-row-2 {
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-behavior: smooth;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE/Edge */
+      cursor: grab;
+      display: flex;
+      justify-content: flex-start;
+      white-space: nowrap;
     }
     
-    .left-controls {
-      flex-shrink: 0 !important;
-      white-space: nowrap !important;
+    .chart-header .left-controls {
+      flex-shrink: 0;
+      white-space: nowrap;
     }
     
-    .header-row-2::-webkit-scrollbar {
-      display: none !important; /* Chrome/Safari */
+    .chart-header .header-row-2::-webkit-scrollbar {
+      display: none; /* Chrome/Safari */
     }
     
-    .header-row-2:active {
-      cursor: grabbing !important;
+    .chart-header .header-row-2:active {
+      cursor: grabbing;
     }
     
-    .timeframe-separator {
-      cursor: grab !important;
-      user-select: none !important;
+    .chart-header .timeframe-separator {
+      cursor: grab;
+      user-select: none;
     }
     
-    .timeframe-separator:active {
-      cursor: grabbing !important;
+    .chart-header .timeframe-separator:active {
+      cursor: grabbing;
     }
   }
 </style>

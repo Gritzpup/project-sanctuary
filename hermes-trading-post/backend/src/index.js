@@ -30,6 +30,9 @@ const activeSubscriptions = new Map(); // key: "pair", value: Set of granulariti
 // Track granularity mappings for proper subscription key matching
 const granularityMappings = new Map(); // key: "pair:granularitySeconds", value: "granularityString"
 
+// 🔥 MEMORY LEAK FIX: Track mapping creation times for TTL cleanup
+const granularityMappingTimes = new Map(); // key: "pair:granularitySeconds", value: timestamp
+
 // Helper function to convert granularity strings to seconds
 function getGranularitySeconds(granularity) {
   const GRANULARITY_TO_SECONDS = {
@@ -43,6 +46,28 @@ function getGranularitySeconds(granularity) {
   };
   return GRANULARITY_TO_SECONDS[granularity] || 60; // Default to 1 minute
 }
+
+// 🔥 MEMORY LEAK FIX: Clean up old granularity mappings (TTL: 1 hour)
+function cleanupOldMappings() {
+  const TTL = 60 * 60 * 1000; // 1 hour in milliseconds
+  const now = Date.now();
+  let cleanedCount = 0;
+  
+  for (const [key, timestamp] of granularityMappingTimes.entries()) {
+    if (now - timestamp > TTL) {
+      granularityMappings.delete(key);
+      granularityMappingTimes.delete(key);
+      cleanedCount++;
+    }
+  }
+  
+  if (cleanedCount > 0) {
+    console.log(`🧹 Cleaned up ${cleanedCount} old granularity mappings`);
+  }
+}
+
+// 🔥 MEMORY LEAK FIX: Periodic cleanup every 30 minutes
+let cleanupInterval = setInterval(cleanupOldMappings, 30 * 60 * 1000);
 
 // Initialize default bots on startup
 // Use async IIFE to handle async initialization
@@ -303,6 +328,8 @@ wss.on('connection', (ws) => {
             // Track the mapping between seconds and string for this pair
             const mappingKey = `${data.pair}:${granularitySeconds}`;
             granularityMappings.set(mappingKey, data.granularity);
+            // 🔥 MEMORY LEAK FIX: Track creation time for TTL cleanup
+            granularityMappingTimes.set(mappingKey, Date.now());
             
             // Subscribe to Coinbase WebSocket for this pair
             coinbaseWebSocket.subscribeMatches(data.pair, granularitySeconds);
@@ -340,10 +367,11 @@ wss.on('connection', (ws) => {
               coinbaseWebSocket.unsubscribe(data.pair, 'matches');
               console.log(`📡 Unsubscribed from Coinbase for ${unsubKey} - no more clients`);
               
-              // 🔥 MEMORY LEAK FIX: Clean up granularity mappings
+              // 🔥 MEMORY LEAK FIX: Clean up granularity mappings and timestamps
               const granularitySeconds = getGranularitySeconds(data.granularity);
               const mappingKey = `${data.pair}:${granularitySeconds}`;
               granularityMappings.delete(mappingKey);
+              granularityMappingTimes.delete(mappingKey);
               console.log(`🧹 Cleaned up granularity mapping: ${mappingKey}`);
             }
             
@@ -389,10 +417,11 @@ wss.on('connection', (ws) => {
           coinbaseWebSocket.unsubscribe(pair, 'matches');
           console.log(`📡 Unsubscribed from Coinbase for ${subscriptionKey} - client disconnected`);
           
-          // 🔥 MEMORY LEAK FIX: Clean up granularity mappings
+          // 🔥 MEMORY LEAK FIX: Clean up granularity mappings and timestamps
           const granularitySeconds = getGranularitySeconds(granularityStr);
           const mappingKey = `${pair}:${granularitySeconds}`;
           granularityMappings.delete(mappingKey);
+          granularityMappingTimes.delete(mappingKey);
           console.log(`🧹 Cleaned up granularity mapping: ${mappingKey}`);
         }
       });
@@ -436,7 +465,8 @@ app.get('/health', (req, res) => {
     subscriptions: {
       chartSubscriptions: chartSubscriptions.size,
       activeSubscriptions: activeSubscriptions.size,
-      granularityMappings: granularityMappings.size
+      granularityMappings: granularityMappings.size,
+      granularityMappingTimes: granularityMappingTimes.size
     },
     botManager: {
       totalBots: botManager.bots.size,
@@ -476,6 +506,13 @@ const gracefulShutdown = (signal) => {
   chartSubscriptions.clear();
   activeSubscriptions.clear();
   granularityMappings.clear();
+  granularityMappingTimes.clear();
+  
+  // Clear the cleanup interval
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
   
   // Disconnect Coinbase WebSocket
   coinbaseWebSocket.disconnect();

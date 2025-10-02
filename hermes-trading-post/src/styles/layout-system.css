@@ -147,19 +147,25 @@
 /* 4. GRID SYSTEMS                     */
 /* ===================================== */
 
-/* Backtest/Trading Grid Layout */
+/* Modern Grid Layouts with CSS Grid Level 2 features */
 .backtest-grid,
 .trading-grid,
 .paper-trading-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto 1fr;
   gap: var(--space-xl);
+  container-type: inline-size;
 }
 
 .panels-row {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: var(--space-xl);
+  
+  /* Use subgrid when available for consistent alignment */
+  & > * {
+    grid-row: 1;
+  }
 }
 
 .panels-row.auto-height {
@@ -174,21 +180,22 @@
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: var(--space-xl);
-  margin-top: 0;
+  margin-block-start: 0;
 }
 
 .left-panels {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: var(--space-xs);
 }
 
 .right-panel {
   display: flex;
+  flex-direction: column;
 }
 
 .gauge-panel {
-  width: 100%;
+  inline-size: 100%;
 }
 
 /* Chart and Strategy Panel Heights */
@@ -337,10 +344,27 @@
 }
 
 /* ===================================== */
-/* 8. RESPONSIVE BREAKPOINTS           */
+/* 8. CONTAINER QUERIES & RESPONSIVE   */
 /* ===================================== */
 
-/* Mobile adjustments */
+/* Modern container queries for intrinsic responsive design */
+.panel-base,
+.panel {
+  container-type: inline-size;
+}
+
+/* Container-based responsive adjustments */
+@container (max-width: 400px) {
+  .panel-content {
+    padding: var(--space-md);
+  }
+  
+  .panel-header {
+    padding: var(--space-md);
+  }
+}
+
+/* Mobile responsive design */
 @media (max-width: 768px) {
   .dashboard-content {
     margin-left: 0;

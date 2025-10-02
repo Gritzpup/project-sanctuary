@@ -84,19 +84,19 @@
 </div>
 
 <style>
+  /* Mobile-first design: Default flex layout */
   .panels-row {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 20px;
     width: 100%;
     min-width: 0;
   }
 
   .main-panels-row {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 20px;
-    height: 600px;
     width: 100%;
     min-width: 0;
     align-items: stretch;
@@ -105,43 +105,44 @@
   .chart-container {
     width: 100%;
     min-width: 0;
-    height: 100%;
+    height: 600px;
+    order: 1;
   }
 
   .strategy-container {
     width: 100%;
     min-width: 0;
-    height: 100%;
+    height: auto;
+    order: 2;
+    margin-top: 0;
   }
 
-  /* Mobile responsive layout - stack strategy controls below chart */
-  @media (max-width: 768px) {
+  /* Desktop enhancement: Grid layout for larger screens */
+  @media (min-width: 769px) {
     .panels-row,
     .main-panels-row {
-      display: flex !important;
-      flex-direction: column !important;
-      grid-template-columns: none !important;
-      grid-template-rows: none !important;
-      grid-template-areas: none !important;
-      height: auto !important;
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+    }
+
+    .main-panels-row {
+      height: 600px;
     }
 
     .chart-container {
-      width: 100%;
-      height: 600px;
-      order: 1;
+      height: 100%;
+      order: unset;
     }
 
     .strategy-container {
-      width: 100%;
-      height: auto;
-      order: 2;
-      margin-top: 0;
+      height: 100%;
+      order: unset;
+      margin-top: unset;
     }
   }
 
-  /* Tablet responsive layout - adjust ratio */
-  @media (max-width: 1024px) and (min-width: 769px) {
+  /* Tablet responsive layout - adjust grid ratio */
+  @media (min-width: 769px) and (max-width: 1024px) {
     .panels-row,
     .main-panels-row {
       grid-template-columns: 1.5fr 1fr;

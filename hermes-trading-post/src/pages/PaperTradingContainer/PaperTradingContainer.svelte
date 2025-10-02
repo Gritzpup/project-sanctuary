@@ -111,11 +111,14 @@
       tradingState = state;
     });
     
-    // Also subscribe to backend state
-    backendState = stateManager.backendState;
+    // Subscribe to backend state store
+    const unsubscribeBackendState = stateManager.backendState.subscribe(state => {
+      backendState = state;
+    });
     
     return () => {
       unsubscribeTradingState();
+      unsubscribeBackendState();
       stateManager.destroy();
     };
   });

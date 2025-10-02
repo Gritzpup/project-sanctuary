@@ -18,7 +18,7 @@
   // Internal state for traffic light logic
   let previousPrice = $state<number | null>(null);
   let priceDirection = $state<'up' | 'down'>('up');
-  let isWaitingForPrice = $state(true); // Start as waiting (blue)
+  let isWaitingForPrice = $state(true); // Start as waiting (yellow)
   let priceFlashTimeout: NodeJS.Timeout;
 
   // Traffic light status using $derived
@@ -26,7 +26,7 @@
   const trafficLightColor = $derived(getTrafficLightColor(actualWsStatus));
 
   // Traffic light status function - trading status takes priority only when running
-  function getTrafficLightStatus(): 'green' | 'red' | 'blue' | 'orange' {
+  function getTrafficLightStatus(): 'green' | 'red' | 'yellow' | 'orange' {
     // Priority 1: Trading status (only when bot is actively running)
     if (tradingStatus && tradingStatus.isRunning) {
       return tradingStatus.isPaused ? 'orange' : 'green'; // Green when running, orange when paused
@@ -37,14 +37,14 @@
     const hasDataStoreCandles = dataStore.stats.totalCount > 0;
     const hasPrice = dataStore.latestPrice && dataStore.latestPrice > 0;
     
-    // If no data at all, show blue (waiting)
+    // If no data at all, show yellow (waiting)
     if (!(hasDataStoreCandles || hasPrice || !dataStore.isEmpty)) {
-      return 'blue';
+      return 'yellow';
     }
     
-    // If waiting for next price update, show blue
+    // If waiting for next price update, show yellow
     if (isWaitingForPrice) {
-      return 'blue';
+      return 'yellow';
     }
     
     // Show color based on last price direction when we just got an update
@@ -56,13 +56,13 @@
   }
 
   // Get traffic light color
-  function getTrafficLightColor(status: 'green' | 'red' | 'blue' | 'orange'): string {
+  function getTrafficLightColor(status: 'green' | 'red' | 'yellow' | 'orange'): string {
     switch (status) {
       case 'green': return '#4caf50'; // Green - bot running / price went up
       case 'red': return '#f44336';   // Red - bot stopped / price went down
       case 'orange': return '#ff9800'; // Orange - bot paused
-      case 'blue': return '#2196f3';  // Blue - waiting for next update
-      default: return '#2196f3';
+      case 'yellow': return '#ffeb3b'; // Yellow - waiting for next update (like real traffic light)
+      default: return '#ffeb3b';
     }
   }
 
@@ -78,7 +78,8 @@
     switch (actualWsStatus) {
       case 'green': return 'Price Up';
       case 'red': return 'Price Down';
-      case 'blue': return 'Waiting for Update';
+      case 'yellow': return 'Waiting for Update';
+      case 'orange': return 'Bot Paused';
       default: return 'Unknown';
     }
   });
@@ -106,7 +107,7 @@
           isWaitingForPrice = false;
           priceDirection = priceDiff > 0 ? 'up' : 'down';
           
-          // Show direction color for specified duration, then go back to waiting (blue)
+          // Show direction color for specified duration, then go back to waiting (yellow)
           priceFlashTimeout = setTimeout(() => {
             isWaitingForPrice = true;
           }, flashDuration);
@@ -178,9 +179,9 @@
     box-shadow: 0 0 8px rgba(244, 67, 54, 0.8);
   }
 
-  .traffic-light[data-status="blue"] {
-    animation: pulse-blue 1.5s ease-in-out infinite;
-    box-shadow: 0 0 6px rgba(33, 150, 243, 0.6);
+  .traffic-light[data-status="yellow"] {
+    animation: pulse-yellow 1.5s ease-in-out infinite;
+    box-shadow: 0 0 6px rgba(255, 235, 59, 0.6);
   }
 
   @keyframes pulse-green {
@@ -229,17 +230,17 @@
     }
   }
 
-  @keyframes pulse-blue {
+  @keyframes pulse-yellow {
     0% { 
-      box-shadow: 0 0 4px rgba(33, 150, 243, 0.4);
+      box-shadow: 0 0 4px rgba(255, 235, 59, 0.4);
       opacity: 0.8;
     }
     50% { 
-      box-shadow: 0 0 12px rgba(33, 150, 243, 0.8);
+      box-shadow: 0 0 12px rgba(255, 235, 59, 0.9);
       opacity: 1;
     }
     100% { 
-      box-shadow: 0 0 4px rgba(33, 150, 243, 0.4);
+      box-shadow: 0 0 4px rgba(255, 235, 59, 0.4);
       opacity: 0.8;
     }
   }

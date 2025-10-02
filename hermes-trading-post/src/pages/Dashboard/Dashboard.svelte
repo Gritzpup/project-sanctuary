@@ -125,36 +125,7 @@
     color: #d1d4dc;
   }
 
-  /* Custom Scrollbar Styling */
-  :global(::-webkit-scrollbar) {
-    width: 10px;
-    height: 10px;
-  }
-
-  :global(::-webkit-scrollbar-track) {
-    background: rgba(22, 33, 62, 0.3);
-    border-radius: 5px;
-  }
-
-  :global(::-webkit-scrollbar-thumb) {
-    background: rgba(74, 0, 224, 0.5);
-    border-radius: 5px;
-    transition: background 0.2s ease;
-  }
-
-  :global(::-webkit-scrollbar-thumb:hover) {
-    background: rgba(167, 139, 250, 0.6);
-  }
-
-  :global(::-webkit-scrollbar-thumb:active) {
-    background: #a78bfa;
-  }
-
-  /* Firefox scrollbar styling */
-  :global(*) {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(74, 0, 224, 0.5) rgba(22, 33, 62, 0.3);
-  }
+  /* Scrollbar styles are now centralized in design-system-consolidated.css */
   
   .dashboard-content {
     flex: 1;

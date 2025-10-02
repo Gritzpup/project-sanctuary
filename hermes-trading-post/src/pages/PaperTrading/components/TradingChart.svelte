@@ -223,8 +223,8 @@
     flex-direction: column;
     overflow: hidden;
     max-width: 100%;
-    padding: 0 !important;
-    margin: 0 !important;
+    padding: 0;
+    margin: 0;
     box-sizing: border-box;
   }
   
@@ -239,42 +239,42 @@
   }
 
   /* Global styles to fix LightweightCharts layout issues */
-  :global(.chart-container .tv-lightweight-charts) {
-    width: 100% !important;
-    height: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    top: 0 !important;
-    position: relative !important;
+  :global(.chart-panel .chart-container .tv-lightweight-charts) {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    left: 0;
+    right: 0;
+    top: 0;
+    position: relative;
   }
 
-  :global(.chart-container .tv-lightweight-charts > div) {
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
+  :global(.chart-panel .chart-container .tv-lightweight-charts > div) {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    left: 0;
+    right: 0;
   }
 
-  :global(.chart-container canvas) {
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
+  :global(.chart-panel .chart-container canvas) {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    left: 0;
+    right: 0;
   }
 
   /* Force chart content to start from absolute left edge */
-  :global(.chart-container .tv-lightweight-charts table) {
-    margin: 0 !important;
-    padding: 0 !important;
-    border-spacing: 0 !important;
+  :global(.chart-panel .chart-container .tv-lightweight-charts table) {
+    margin: 0;
+    padding: 0;
+    border-spacing: 0;
   }
 
-  :global(.chart-container .tv-lightweight-charts td) {
-    margin: 0 !important;
-    padding: 0 !important;
+  :global(.chart-panel .chart-container .tv-lightweight-charts td) {
+    margin: 0;
+    padding: 0;
   }
 </style>

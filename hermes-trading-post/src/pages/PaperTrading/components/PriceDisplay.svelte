@@ -181,11 +181,11 @@
   }
   
   .price-up {
-    color: var(--color-success) !important;
+    color: var(--color-success);
   }
   
   .price-down {
-    color: var(--color-error) !important;
+    color: var(--color-error);
   }
   
   /* Ensure the price stays colored and never goes white */
@@ -198,7 +198,7 @@
   .price-container:not(.price-up):not(.price-down) .price-comma,
   .price-container:not(.price-up):not(.price-down) .price-dot,
   .price-container:not(.price-up):not(.price-down) .price-symbol {
-    color: var(--text-primary) !important;
+    color: var(--text-primary);
   }
   
   .animating {

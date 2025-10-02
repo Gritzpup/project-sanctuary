@@ -110,24 +110,18 @@
   .chart-controls {
     display: flex;
     align-items: center;
-    gap: 20px;
-    padding: 10px;
-    background: var(--control-bg, rgba(0, 0, 0, 0.05));
-    border-radius: 8px;
+    gap: var(--space-xl);
+    padding: var(--space-md);
+    background: var(--surface-elevated);
+    border-radius: var(--radius-lg);
     flex-wrap: wrap;
-  }
-
-  /* Dark theme support */
-  :global(.dark) .chart-controls {
-    --control-bg: rgba(255, 255, 255, 0.05);
-    --text-secondary: #999;
   }
 
   /* Responsive */
   @media (max-width: 768px) {
     .chart-controls {
-      padding: 8px;
-      gap: 12px;
+      padding: var(--space-sm);
+      gap: var(--space-md);
     }
   }
 </style>

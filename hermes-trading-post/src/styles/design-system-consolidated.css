@@ -30,6 +30,34 @@ body {
   /* THEME COLORS                         */
   /* ===================================== */
   
+  /* Respect user's color scheme preference */
+  color-scheme: dark;
+  
+  /* Support for prefers-reduced-motion */
+  --motion-duration: 0.2s;
+  --motion-easing: ease;
+}
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration: 0.01ms;
+    --transition-fast: 0.01ms ease;
+    --transition-normal: 0.01ms ease;
+    --transition-slow: 0.01ms ease;
+  }
+  
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:root {
+  
   /* Primary Purple Theme */
   --color-primary: #a78bfa;
   --color-primary-dark: #7c3aed;
@@ -37,6 +65,7 @@ body {
   
   /* Background Colors */
   --bg-main: #0a0a0a;
+  --bg-main-alpha: rgba(10, 10, 10, 0.95);
   --bg-secondary: #0f0f0f;
   --bg-primary: rgba(74, 0, 224, 0.2);
   --bg-primary-hover: rgba(74, 0, 224, 0.3);
@@ -72,6 +101,14 @@ body {
   --color-info: #42a5f5;
   --color-info-bg: rgba(66, 165, 245, 0.2);
   
+  /* Chart Status Colors */
+  --status-initializing: #ff9800;
+  --status-loading: #ff9800;
+  --status-ready: #4caf50;
+  --status-error: #f44336;
+  --status-price-update: #2196f3;
+  --status-new-candle: #00e676;
+  
   /* ===================================== */
   /* SPACING SYSTEM                       */
   /* ===================================== */
@@ -83,6 +120,8 @@ body {
   --space-xl: 20px;
   --space-2xl: 24px;
   --space-3xl: 32px;
+  --space-4xl: 40px;
+  --space-5xl: 48px;
   
   /* Legacy spacing (for backwards compatibility) */
   --spacing-xs: 5px;
@@ -118,12 +157,17 @@ body {
   --font-weight-bold: 700;
   
   /* ===================================== */
-  /* TRANSITIONS                          */
+  /* TRANSITIONS & ANIMATIONS            */
   /* ===================================== */
   
   --transition-fast: 0.15s ease;
   --transition-normal: 0.2s ease;
   --transition-slow: 0.3s ease;
+  
+  /* Modern easing functions */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+  --ease-spring: cubic-bezier(0.68, -0.55, 0.265, 1.55);
   
   /* ===================================== */
   /* Z-INDEX SCALE                        */
@@ -214,6 +258,17 @@ button:disabled {
   transition: all var(--transition-normal);
   text-decoration: none;
   user-select: none;
+  
+  /* Modern CSS properties */
+  isolation: isolate;
+  will-change: transform, background-color;
+  
+  /* Ensure consistent button baseline */
+  vertical-align: baseline;
+  
+  /* Better touch targets for mobile */
+  min-height: 44px;
+  touch-action: manipulation;
 }
 
 .btn-base:hover:not(:disabled) {
@@ -466,6 +521,13 @@ textarea {
 /* 7. SCROLLBARS                        */
 /* ===================================== */
 
+/* Modern scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-primary) rgba(255, 255, 255, 0.02);
+}
+
+/* Webkit scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -484,3 +546,27 @@ textarea {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--border-primary-hover);
 }
+
+/* ===================================== */
+/* 8. SVG & GRAPHICS SYSTEM            */
+/* ===================================== */
+
+/* SVG gradient definitions for consistent theming */
+.svg-gradient-buy-start { stop-color: #b91c1c; }
+.svg-gradient-buy-end { stop-color: #dc2626; }
+
+.svg-gradient-hold-start { stop-color: #6d28d9; }
+.svg-gradient-hold-end { stop-color: #7c3aed; }
+
+.svg-gradient-sell-start { stop-color: #15803d; }
+.svg-gradient-sell-end { stop-color: #16a34a; }
+
+.svg-gradient-needle-start { stop-color: #1e293b; }
+.svg-gradient-needle-mid { stop-color: #334155; }
+.svg-gradient-needle-end { stop-color: #475569; }
+
+/* Chart colors */
+.chart-color-primary { color: var(--color-primary); }
+.chart-color-success { color: var(--color-success); }
+.chart-color-error { color: var(--color-error); }
+.chart-color-warning { color: var(--color-warning); }

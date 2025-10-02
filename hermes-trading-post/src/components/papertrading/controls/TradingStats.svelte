@@ -9,12 +9,17 @@
   export let positions: any[];
   export let currentPrice: number;
   export let btcBalance: number;
+  export let vaultBalance: number = 0;
+  export let btcVaultBalance: number = 0;
 
   // Calculate derived stats
   $: growth = balance - startingBalance;
   $: growthPercent = ((balance - startingBalance) / startingBalance * 100);
   $: totalValue = balance + (btcBalance * currentPrice);
+  // Calculate total P/L including both realized and unrealized profits
   $: totalPL = totalValue - startingBalance;
+  // Calculate unrealized P/L from current positions
+  $: unrealizedPL = positions.length > 0 ? (currentPrice - averageEntryPrice) * totalPositionSize : 0;
   $: netFeesAfterRebase = totalFees - totalRebates;
 
   // Calculate position stats
@@ -28,15 +33,18 @@
   <div class="stats-panel">
     <div class="stats-grid">
       <div class="stat-item">Start: <span class="stat-value">${startingBalance.toLocaleString()}</span></div>
-      <div class="stat-item">Growth: <span class="stat-value" class:profit={growth > 0} class:loss={growth < 0}>{growth > 0 ? '+' : ''}${growth.toLocaleString()}</span></div>
-      <div class="stat-item">Rebalance: <span class="stat-value" class:profit={totalRebalance > 0}>${totalRebalance.toFixed(2)}</span></div>
-      <div class="stat-item">Fees: <span class="stat-value">${totalFees.toFixed(2)}</span></div>
-      <div class="stat-item">Position Size: <span class="stat-value">{totalPositionSize.toFixed(6)} BTC</span></div>
+      <div class="stat-item">Balance: <span class="stat-value">${balance.toLocaleString()}</span></div>
+      <div class="stat-item">USDC Vault: <span class="stat-value" class:profit={vaultBalance > 0}>${vaultBalance.toFixed(2)}</span></div>
+      <div class="stat-item">BTC Vault: <span class="stat-value" class:profit={btcVaultBalance > 0}>{btcVaultBalance.toFixed(6)} BTC</span></div>
+      <div class="stat-item">Position Size: <span class="stat-value">{totalPositionSize.toFixed(6)} BTC (${(totalPositionSize * currentPrice).toLocaleString()})</span></div>
       <div class="stat-item">Avg Entry: <span class="stat-value">${averageEntryPrice > 0 ? averageEntryPrice.toLocaleString() : 'N/A'}</span></div>
+      <div class="stat-item">Fees: <span class="stat-value">${totalFees.toFixed(2)}</span></div>
+      <div class="stat-item">Net Fees: <span class="stat-value">${netFeesAfterRebase.toFixed(2)}</span></div>
+      <div class="stat-item">Unrealized P/L: <span class="stat-value" class:profit={unrealizedPL > 0} class:loss={unrealizedPL < 0}>{unrealizedPL > 0 ? '+' : ''}${unrealizedPL.toFixed(2)}</span></div>
       <div class="stat-item">Return: <span class="stat-value" class:profit={growthPercent > 0} class:loss={growthPercent < 0}>{growthPercent > 0 ? '+' : ''}{growthPercent.toFixed(1)}%</span></div>
       <div class="stat-item">Total: <span class="stat-value">${totalValue.toLocaleString()}</span></div>
       <div class="stat-item">Trades: <span class="stat-value">{totalTrades}</span></div>
-      <div class="stat-item">P/L: <span class="stat-value" class:profit={totalPL > 0} class:loss={totalPL < 0}>{totalPL > 0 ? '+' : ''}${totalPL.toLocaleString()}</span></div>
+      <div class="stat-item">Total P/L: <span class="stat-value" class:profit={totalPL > 0} class:loss={totalPL < 0}>{totalPL > 0 ? '+' : ''}${totalPL.toLocaleString()}</span></div>
     </div>
   </div>
 </div>
@@ -66,10 +74,9 @@
   }
 
   .stats-panel {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(74, 0, 224, 0.2);
-    border-radius: 4px;
-    padding: 6px 8px;
+    background: none;
+    border: none;
+    padding: 0;
     margin-top: 0;
   }
 
@@ -94,7 +101,7 @@
 
   .stat-value {
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     color: #d1d4dc;
     font-family: 'Courier New', monospace;
     display: inline;
