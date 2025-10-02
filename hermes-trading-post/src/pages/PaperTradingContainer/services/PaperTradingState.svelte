@@ -199,9 +199,9 @@
       const strategy = {
         strategyType: tradingStateValue.selectedStrategyType,
         strategyConfig: {
-          initialDropPercent: 0.1,
-          levelDropPercent: 0.1,
-          profitTarget: 0.85,
+          initialDropPercent: 0.01,
+          levelDropPercent: 0.01,
+          profitTarget: 0.02,
           maxLevels: 12,
           basePositionPercent: 6
         }
