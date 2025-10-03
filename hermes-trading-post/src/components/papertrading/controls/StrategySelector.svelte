@@ -20,7 +20,6 @@
     class="select-base strategy-dropdown"
     bind:value={selectedStrategyType}
     on:change={handleStrategyChange}
-    disabled={isRunning}
   >
     {#each strategies as strategy}
       <option value={strategy.value}>{strategy.label}</option>
@@ -69,14 +68,9 @@
     padding-right: 24px;
   }
   
-  .control-group .strategy-dropdown:hover:not(:disabled) {
+  .control-group .strategy-dropdown:hover {
     background: rgba(74, 0, 224, 0.2);
     border-color: rgba(74, 0, 224, 0.5);
     color: white;
-  }
-  
-  .control-group .strategy-dropdown:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 </style>

@@ -18,6 +18,11 @@
   function handleZoomReset() {
     dispatch('zoomReset');
   }
+
+  function handleSeparatorClick() {
+    // Could add functionality here if needed for header separator
+    console.log('Header separator clicked');
+  }
 </script>
 
 <div class="left-controls">
@@ -36,7 +41,11 @@
     <span class="magnifier-icon">🔍</span>
   </button>
   
-  <div class="timeframe-separator"></div>
+  <div class="timeframe-separator">
+    <div class="separator-line left-line"></div>
+    <div class="separator-control" on:click={handleSeparatorClick}></div>
+    <div class="separator-line right-line"></div>
+  </div>
   
   <div class="timeframe-buttons">
     {#each GRANULARITY_OPTIONS as option}
@@ -96,10 +105,35 @@
   }
 
   .timeframe-separator {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    height: 20px;
+    margin: 0 4px;
+    gap: 0px;
+  }
+
+  .separator-line {
     width: 1px;
     height: 20px;
     background: var(--border-primary);
-    margin: 0 4px;
+  }
+
+  .separator-control {
+    width: 1px;
+    height: 20px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+  }
+
+  .separator-control:hover {
+    transform: scale(1.2);
+  }
+
+  .separator-control:active {
+    transform: scale(0.8);
   }
 
   .timeframe-buttons {

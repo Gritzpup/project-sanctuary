@@ -119,13 +119,13 @@
     display: inline-block;
   }
   
-  /* Consistent sizing for controls */
-  .input-base,
-  .speed-dropdown {
-    height: 32px;
+  /* Match header dropdown proportions - use specific selectors */
+  .right-row-2 .speed-dropdown,
+  .control-row .input-base {
+    height: 28px;
     padding: 4px 8px;
     border-radius: 4px;
-    font-size: var(--font-size-sm);
+    font-size: 12px;
     font-weight: 500;
     border: 1px solid var(--border-primary);
     background: var(--bg-primary);
@@ -135,17 +135,18 @@
     justify-content: center;
     min-width: 40px;
     transition: all 0.2s ease;
+    box-sizing: border-box;
   }
 
-  /* Icon buttons - square and same height as other controls */
-  .btn-icon {
-    height: 32px;
-    min-height: 32px;
-    width: 32px;
-    min-width: 32px;
+  /* Match header magnifier button proportions - override any global btn-base styles */
+  .playback-container .btn-base.btn-icon {
+    width: 28px;
+    height: 28px;
+    min-height: 28px;
+    max-height: 28px;
     padding: 0;
     border-radius: 4px;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 500;
     border: 1px solid var(--border-primary);
     background: var(--bg-primary);
@@ -154,10 +155,12 @@
     align-items: center;
     justify-content: center;
     transition: all 0.2s ease;
+    box-sizing: border-box;
+    line-height: 1;
   }
   
-  .speed-dropdown {
-    min-width: 125px;
+  .right-row-2 .speed-dropdown {
+    min-width: 120px;
     appearance: none;
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23c4b5fd' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
     background-position: right 8px center;
@@ -166,7 +169,7 @@
     padding-right: 32px;
   }
   
-  .input-base {
+  .control-row .input-base {
     min-width: 120px;
   }
   
@@ -214,31 +217,22 @@
     text-align: left;
   }
   
-  /* Mobile adjustments */
+  /* Mobile adjustments - match header mobile styles */
   @media (max-width: 768px) {
-    .input-base,
-    .speed-dropdown {
-      height: 32px;
-      min-height: 32px;
-      max-height: 32px;
+    .right-row-2 .speed-dropdown,
+    .control-row .input-base {
+      font-size: 11px;
       box-sizing: border-box;
       line-height: 1;
     }
 
-    /* Ensure icon buttons stay square and proper height on mobile */
-    .btn-icon {
-      height: 32px;
-      width: 32px;
-      min-width: 32px;
-      max-width: 32px;
-      min-height: 32px;
-      max-height: 32px;
-    }
-    
-    /* Ensure date input specifically matches */
-    .input-base[type="date"] {
-      height: 32px;
-      padding: 4px 8px;
+    /* Match header magnifier button mobile size */
+    .playback-container .btn-base.btn-icon {
+      width: 24px;
+      height: 24px;
+      min-height: 24px;
+      max-height: 24px;
+      font-size: 12px;
     }
     
     /* Adjust positioning on mobile */

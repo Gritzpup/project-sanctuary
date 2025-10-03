@@ -21,6 +21,17 @@
   function forwardEvent(event: CustomEvent) {
     dispatch(event.type, event.detail);
   }
+
+  // Handle separator click to center the scroll
+  function handleSeparatorClick() {
+    if (controlsGrid) {
+      const maxScroll = controlsGrid.scrollWidth - controlsGrid.clientWidth;
+      controlsGrid.scrollTo({
+        left: maxScroll / 2,
+        behavior: 'smooth'
+      });
+    }
+  }
 </script>
 
 <div class="chart-controls">
@@ -60,8 +71,12 @@
         </div>
       </div>
       
-      <!-- Separator -->
-      <div class="controls-separator"></div>
+      <!-- Dual Separator with clickable center -->
+      <div class="controls-separator">
+        <div class="separator-line left-line"></div>
+        <div class="separator-control" on:click={handleSeparatorClick}></div>
+        <div class="separator-line right-line"></div>
+      </div>
       
       <!-- Right Column -->
       <div class="right-column">
@@ -103,15 +118,39 @@
   }
   
   .controls-separator {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-self: center;
+    align-self: center;
+    height: 80px;
+    margin-top: var(--space-sm);
+    cursor: grab;
+    gap: 0px;
+  }
+
+  .separator-line {
     width: 2px;
     height: 80px;
     background: var(--border-primary);
-    opacity: 1;
     border-radius: 1px;
-    justify-self: center;
-    align-self: center;
-    cursor: grab;
-    margin-top: var(--space-sm);
+  }
+
+  .separator-control {
+    width: 1px;
+    height: 80px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+  }
+
+  .separator-control:hover {
+    transform: scale(1.2);
+  }
+
+  .separator-control:active {
+    transform: scale(0.8);
   }
   
   .controls-separator:active {
@@ -147,9 +186,10 @@
     margin-left: 0;
   }
   
-  /* Mobile: Enable horizontal scrolling */
+  /* Mobile: Enable horizontal scrolling and prevent wrapping */
   @media (max-width: 768px) {
     .controls-grid {
+      grid-template-columns: auto auto auto;
       overflow-x: auto;
       overflow-y: hidden;
       scroll-behavior: smooth;
@@ -180,10 +220,12 @@
       margin-top: var(--space-sm);
     }
     
-    /* Align chart stats with right column buttons on mobile */
+    /* Prevent chart stats from wrapping - keep on single line */
     .chart-controls .chart-stats {
       margin-top: calc(var(--space-sm) - var(--space-xs));
       transform: translateY(-4px);
+      white-space: nowrap;
+      overflow: visible;
     }
     
     /* Lower separator on mobile to align with buttons */

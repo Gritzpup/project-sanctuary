@@ -30,21 +30,22 @@
     margin-top: 12px;
   }
   
-  /* Consistent sizing for text controls */
-  .btn-timeframe {
-    height: 32px;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: var(--font-size-sm);
+  /* Match actual header button proportions exactly */
+  .period-buttons .btn-timeframe {
+    height: 28px;
+    min-width: 32px;
+    padding: 2px 6px;
+    font-size: 11px;
     font-weight: 500;
     border: 1px solid var(--border-primary);
     background: var(--bg-primary);
     color: #c4b5fd;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    margin: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 40px;
-    transition: all 0.2s ease;
   }
 
   .btn-timeframe.active {
@@ -61,19 +62,12 @@
     color: white;
   }
   
-  /* Ensure period buttons are consistent */
-  .period-buttons .btn-timeframe {
-    min-width: 45px;
-  }
-  
-  /* Mobile adjustments */
+  /* Mobile adjustments - match header button mobile styles */
   @media (max-width: 768px) {
-    .btn-timeframe {
-      height: 32px;
-      min-height: 32px;
-      max-height: 32px;
-      box-sizing: border-box;
-      line-height: 1;
+    .period-buttons .btn-timeframe {
+      min-width: 28px;
+      padding: 2px 4px;
+      font-size: 10px;
     }
     
     /* Move timescale buttons up to align with calendar button */
