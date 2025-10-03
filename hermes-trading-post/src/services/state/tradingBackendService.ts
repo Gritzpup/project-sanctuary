@@ -223,6 +223,8 @@ class TradingBackendService {
         if (message.status) {
           this.updateStateFromBackend(message.status);
         }
+        // Clear chart markers when reset is complete
+        this.state.update(s => ({ ...s, shouldClearChart: true }));
         // Request updated manager state to refresh all bot states
         this.send({ type: 'getManagerState' });
         break;

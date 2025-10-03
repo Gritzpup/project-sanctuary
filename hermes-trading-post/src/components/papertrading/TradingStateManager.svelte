@@ -20,6 +20,14 @@
     const backendState = tradingBackendService.getState();
     const state = backendState.state || {};
     
+    // Check if chart should be cleared (on reset)
+    if (backendState.shouldClearChart) {
+      console.log('📊 Clearing chart markers due to reset');
+      dispatch('clearChart');
+      // Clear the flag after dispatching
+      tradingBackendService.getState().update(s => ({ ...s, shouldClearChart: false }));
+    }
+    
     if (state.isTestMode && state.activeBot) {
       const bot = state.activeBot;
       
