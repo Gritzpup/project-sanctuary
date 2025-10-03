@@ -267,8 +267,8 @@ export class PaperTradingStateManager {
         const quantity = trade.quantity || trade.amount || 0;
         const price = trade.price || 0;
         const fees = trade.fees || 0;
-        console.log(`   ${emoji} ${side} ${quantity.toFixed(8)} BTC @ $${price.toFixed(2)} | ${time}`);
-        if (fees) console.log(`      Fee: $${fees.toFixed(2)}`);
+        console.log(`   ${emoji} ${side} ${(quantity || 0).toFixed(8)} BTC @ $${(price || 0).toFixed(2)} | ${time}`);
+        if (fees) console.log(`      Fee: $${(fees || 0).toFixed(2)}`);
       });
       
       // Price levels analysis
@@ -294,17 +294,24 @@ export class PaperTradingStateManager {
     
     try {
       // Create markers from trades
-      const markers = trades.map(trade => ({
-        time: Math.floor(new Date(trade.timestamp).getTime() / 1000),
-        position: trade.side === 'buy' ? 'belowBar' : 'aboveBar',
-        color: trade.side === 'buy' ? '#4ade80' : '#f87171',
-        shape: trade.side === 'buy' ? 'arrowUp' : 'arrowDown',
-        text: `${trade.side.toUpperCase()}: ${trade.quantity.toFixed(6)} @ $${trade.price.toFixed(2)}`
-      }));
+      const markers = trades.map(trade => {
+        const quantity = trade.quantity || trade.amount || 0;
+        const price = trade.price || 0;
+        const side = trade.side || 'unknown';
+        
+        return {
+          time: Math.floor(new Date(trade.timestamp).getTime() / 1000),
+          position: side === 'buy' ? 'belowBar' : 'aboveBar',
+          color: side === 'buy' ? '#26a69a' : '#ef5350',
+          shape: side === 'buy' ? 'arrowUp' : 'arrowDown',
+          text: side.toUpperCase()
+        };
+      });
       
       // Update chart with markers
-      if (this.chartComponent.setMarkers) {
-        this.chartComponent.setMarkers(markers);
+      if (this.chartComponent.clearMarkers && this.chartComponent.addMarkers) {
+        this.chartComponent.clearMarkers();
+        this.chartComponent.addMarkers(markers);
       }
       
       console.log(`📍 Updated chart with ${markers.length} trade markers`);
@@ -415,11 +422,22 @@ export class PaperTradingStateManager {
     }
   }
 
+  public async handleStopTrading() {
+    console.log('⏹️ Stopping trading...');
+    
+    try {
+      await tradingBackendService.stopTrading();
+      console.log('✅ Trading stopped successfully');
+    } catch (error) {
+      console.error('❌ Failed to stop trading:', error);
+    }
+  }
+
   public async handleReset(chartComponent?: any) {
     console.log('🔄 Resetting trading state...');
     
     try {
-      await tradingBackendService.reset();
+      await tradingBackendService.resetTrading();
       
       // Reset local state
       this.tradingState.update(current => ({
@@ -434,8 +452,8 @@ export class PaperTradingStateManager {
       }));
       
       // Clear chart markers
-      if (chartComponent && chartComponent.setMarkers) {
-        chartComponent.setMarkers([]);
+      if (chartComponent && chartComponent.clearMarkers) {
+        chartComponent.clearMarkers();
       }
       
       console.log('✅ Trading state reset successfully');

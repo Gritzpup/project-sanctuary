@@ -54,6 +54,10 @@
     stateManager.handleResumeTrading();
   }
 
+  function handleStopTrading() {
+    stateManager.handleStopTrading();
+  }
+
   function handleReset() {
     stateManager.handleReset(chartComponent);
   }
@@ -175,6 +179,7 @@
             on:start={handleStartTrading}
             on:pause={handlePauseTrading}
             on:resume={handleResumeTrading}
+            on:stop={handleStopTrading}
             on:selectBot={handleBotTabSelect}
             on:reset={handleReset}
           />
