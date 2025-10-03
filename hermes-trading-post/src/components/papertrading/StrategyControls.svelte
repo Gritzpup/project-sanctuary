@@ -27,6 +27,8 @@
   export let totalRebalance: number = 0;
   export let nextBuyDistance: number | null = null;
   export let nextSellDistance: number | null = null;
+  export let nextBuyPrice: number | null = null;
+  export let nextSellPrice: number | null = null;
 
   const dispatch = createEventDispatcher();
 
@@ -70,6 +72,8 @@
       {btcVaultBalance}
       {nextBuyDistance}
       {nextSellDistance}
+      {nextBuyPrice}
+      {nextSellPrice}
     />
     
     <TradingControlButtons 

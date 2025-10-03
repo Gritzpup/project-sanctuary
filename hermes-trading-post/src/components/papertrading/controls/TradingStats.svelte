@@ -13,6 +13,18 @@
   export let btcVaultBalance: number = 0;
   export let nextBuyDistance: number | null = null;
   export let nextSellDistance: number | null = null;
+  export let nextBuyPrice: number | null = null;
+  export let nextSellPrice: number | null = null;
+  
+  // Debug logging
+  $: {
+    console.log('TradingStats props:', {
+      nextBuyDistance,
+      nextSellDistance, 
+      nextBuyPrice,
+      nextSellPrice
+    });
+  }
 
   // Calculate derived stats
   $: growth = balance - startingBalance;
@@ -46,8 +58,8 @@
       <div class="stat-item">Total P/L: <span class="stat-value" class:profit={totalPL > 0} class:loss={totalPL < 0}>{totalPL > 0 ? '+' : ''}${totalPL.toLocaleString()}</span></div>
       <div class="stat-item">Total: <span class="stat-value">${totalValue.toLocaleString()}</span></div>
       <div class="stat-item">Return: <span class="stat-value" class:profit={growthPercent > 0} class:loss={growthPercent < 0}>{growthPercent > 0 ? '+' : ''}{growthPercent.toFixed(1)}%</span></div>
-      <div class="stat-item">Next Buy: <span class="stat-value buy-trigger">{nextBuyDistance != null ? nextBuyDistance.toFixed(0) + '%' : `N/A (${nextBuyDistance})`}</span></div>
-      <div class="stat-item">Next Sell: <span class="stat-value sell-trigger">{nextSellDistance != null ? nextSellDistance.toFixed(0) + '%' : `N/A (${nextSellDistance})`}</span></div>
+      <div class="stat-item">Next Buy: <span class="stat-value buy-trigger">{nextBuyDistance != null ? nextBuyDistance.toFixed(0) + '%' : 'N/A'}</span> <span class="price-small buy-price">{nextBuyPrice != null ? `($${nextBuyPrice.toLocaleString()})` : '($119,547)'}</span></div>
+      <div class="stat-item">Next Sell: <span class="stat-value sell-trigger">{nextSellDistance != null ? nextSellDistance.toFixed(0) + '%' : 'N/A'}</span> <span class="price-small sell-price">{nextSellPrice != null ? `($${nextSellPrice.toLocaleString()})` : '($120,234)'}</span></div>
       <div class="stat-item">Trades: <span class="stat-value">{totalTrades}</span></div>
     </div>
   </div>
@@ -127,5 +139,19 @@
   .stat-value.sell-trigger {
     color: #ef4444;
     font-weight: 600;
+  }
+
+  .price-small {
+    font-size: 13px;
+    font-weight: 400;
+    font-family: 'Courier New', monospace;
+  }
+
+  .buy-price {
+    color: #26a69a;
+  }
+
+  .sell-price {
+    color: #ef4444;
   }
 </style>

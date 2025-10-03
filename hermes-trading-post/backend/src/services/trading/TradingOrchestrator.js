@@ -366,6 +366,8 @@ export class TradingOrchestrator extends EventEmitter {
     // Calculate next buy/sell trigger distances
     let nextBuyDistance = null;
     let nextSellDistance = null;
+    let nextBuyPrice = null;
+    let nextSellPrice = null;
     
     console.log('🔍 Trigger distance calculation debug:', {
       hasStrategy: !!this.strategy,
@@ -422,6 +424,9 @@ export class TradingOrchestrator extends EventEmitter {
         const requiredDrop = initialDropPercent + (currentLevel - 1) * levelDropPercent;
         const currentDrop = ((recentHigh - this.currentPrice) / recentHigh) * 100;
         
+        // Calculate the actual buy trigger price
+        nextBuyPrice = recentHigh * (1 - requiredDrop / 100);
+        
         // Calculate progress percentage (how close we are to triggering the buy)
         // If currentDrop >= requiredDrop, we're ready to trigger (0% distance remaining)
         // Otherwise, show percentage of progress toward the trigger
@@ -459,12 +464,16 @@ export class TradingOrchestrator extends EventEmitter {
       // Calculate sell trigger if we have BTC balance (even without explicit positions)
       if (positionsCount > 0 || hasBtcBalance) {
         let profitPercent = 0;
+        let averageEntryPrice = 0; // Declare at higher scope so it's accessible for price calculation
         
         if (this.strategy && this.strategy.calculateProfitPercent) {
           profitPercent = this.strategy.calculateProfitPercent(this.currentPrice);
+          // Try to get average entry price from strategy if available
+          if (this.strategy.getAverageEntryPrice) {
+            averageEntryPrice = this.strategy.getAverageEntryPrice();
+          }
         } else {
           // Calculate from saved data
-          let averageEntryPrice = 0;
           
           if (savedPositions.length > 0) {
             // Use position data
@@ -491,6 +500,9 @@ export class TradingOrchestrator extends EventEmitter {
         }
         
         const profitTarget = strategyConfig.profitTarget || strategyConfig.profitTargetPercent || 0.5;
+        
+        // Calculate the actual sell trigger price
+        nextSellPrice = averageEntryPrice > 0 ? averageEntryPrice * (1 + profitTarget / 100) : null;
         
         // Calculate progress percentage (how close we are to triggering the sell)
         // If profitPercent >= profitTarget, we're ready to trigger (0% distance remaining)
@@ -542,9 +554,11 @@ export class TradingOrchestrator extends EventEmitter {
       recentHigh: this.chartData.recentHigh,
       recentLow: this.chartData.recentLow,
       
-      // Next trigger distances
+      // Next trigger distances and prices
       nextBuyDistance: nextBuyDistance,
-      nextSellDistance: nextSellDistance
+      nextSellDistance: nextSellDistance,
+      nextBuyPrice: nextBuyPrice,
+      nextSellPrice: nextSellPrice
     };
   }
 

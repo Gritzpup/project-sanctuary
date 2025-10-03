@@ -34,8 +34,13 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       seriesType: 'Histogram',
       seriesOptions: {
         color: defaultSettings.upColor,
+        title: 'Vol',
+        lastValueVisible: true,
         priceFormat: {
-          type: 'volume',
+          type: 'custom',
+          formatter: (price: number) => {
+            return price.toFixed(1) + 'B';
+          },
         },
         priceScaleId: 'volume', // Use separate price scale for volume
         scaleMargins: defaultSettings.scaleMargins,
@@ -57,6 +62,16 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         borderVisible: false,
         entireTextOnly: false,
       });
+
+      // Apply the custom price formatter directly to the series
+      this.series.applyOptions({
+        priceFormat: {
+          type: 'custom',
+          formatter: (price: number) => {
+            return price.toFixed(1) + 'B';
+          },
+        },
+      });
       
     }
   }
@@ -70,7 +85,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       const settings = this.settings as VolumePluginSettings;
       let volume = candle.volume || 0;
       
-      
       // 🔥 FIX: Use volume-based coloring instead of price-based
       // Compare current volume to previous volume to determine color
       let isVolumeUp = true; // Default for first candle
@@ -79,9 +93,19 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         isVolumeUp = volume >= prevVolume;
       }
       
+      // Convert volume to billions for display
+      let displayVolume = volume;
+      if (volume >= 1e9) {
+        displayVolume = volume / 1e9;
+      } else if (volume >= 1e6) {
+        displayVolume = volume / 1e6;
+      } else if (volume >= 1e3) {
+        displayVolume = volume / 1e3;
+      }
+      
       return {
         time: candle.time,
-        value: volume,
+        value: displayVolume,
         color: isVolumeUp ? settings.upColor : settings.downColor
       };
     });

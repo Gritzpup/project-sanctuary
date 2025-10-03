@@ -75,6 +75,8 @@
     totalRebalance={tradingState.totalRebalance}
     nextBuyDistance={backendState.nextBuyDistance}
     nextSellDistance={backendState.nextSellDistance}
+    nextBuyPrice={backendState.nextBuyPrice}
+    nextSellPrice={backendState.nextSellPrice}
     on:strategyChange={forwardEvent}
     on:balanceChange={forwardEvent}
     on:start={forwardEvent}
