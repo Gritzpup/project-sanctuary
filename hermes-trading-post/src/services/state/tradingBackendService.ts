@@ -267,15 +267,7 @@ class TradingBackendService {
   }
 
   private updateStateFromBackend(status: any) {
-    console.log('🔄 Updating frontend state from backend:', {
-      isRunning: status.isRunning,
-      tradesCount: status.trades?.length || 0,
-      positionsCount: status.positions?.length || 0,
-      balance: status.balance,
-      currentPrice: status.currentPrice,
-      nextBuyDistance: status.nextBuyDistance,
-      nextSellDistance: status.nextSellDistance
-    });
+    console.log('🔄 Frontend received from backend:', { nextBuyPrice: status.nextBuyPrice, nextSellPrice: status.nextSellPrice });
     
     this.state.update(s => ({
       ...s,
@@ -302,9 +294,11 @@ class TradingBackendService {
       winRate: status.winRate || 0,
       winningTrades: status.winningTrades || 0,
       losingTrades: status.losingTrades || 0,
-      // Next trigger distances
+      // Next trigger distances and prices
       nextBuyDistance: status.nextBuyDistance,
       nextSellDistance: status.nextSellDistance,
+      nextBuyPrice: status.nextBuyPrice,
+      nextSellPrice: status.nextSellPrice,
       activeBotId: status.activeBotId || s.activeBotId,
       botName: status.botName || s.botName
     }));

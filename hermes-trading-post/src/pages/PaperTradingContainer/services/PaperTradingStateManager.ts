@@ -40,6 +40,8 @@ export interface BackendState {
   priceChangePercent24h: number;
   nextBuyDistance: number | null;
   nextSellDistance: number | null;
+  nextBuyPrice: number | null;
+  nextSellPrice: number | null;
 }
 
 export class PaperTradingStateManager {
@@ -61,7 +63,9 @@ export class PaperTradingStateManager {
     priceChange24h: 0,
     priceChangePercent24h: 0,
     nextBuyDistance: null,
-    nextSellDistance: null
+    nextSellDistance: null,
+    nextBuyPrice: null,
+    nextSellPrice: null
   });
   
   public managerState: any = {};
@@ -169,7 +173,9 @@ export class PaperTradingStateManager {
         ...current,
         currentPrice: backendState.currentPrice,
         nextBuyDistance: backendState.nextBuyDistance,
-        nextSellDistance: backendState.nextSellDistance
+        nextSellDistance: backendState.nextSellDistance,
+        nextBuyPrice: backendState.nextBuyPrice,
+        nextSellPrice: backendState.nextSellPrice
       }));
       
       // Forward currentPrice to BackendConnector if available

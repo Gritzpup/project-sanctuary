@@ -86,13 +86,20 @@ export class TradingOrchestrator extends EventEmitter {
     }
 
     try {
-      // Create strategy instance
+      // Try to create strategy instance, but allow bot to run even if it fails
       this.strategyConfig = config.strategyConfig || {};
-      this.strategy = strategyRegistry.createStrategy(config.strategyType, this.strategyConfig);
-      
-      // Restore positions to strategy if they exist
-      if (this.positionManager.getPositions().length > 0) {
-        this.strategy.restorePositions(this.positionManager.getPositions());
+      try {
+        const strategyType = config.strategyType || this.selectedStrategyType || 'reverse-descending-grid';
+        this.strategy = strategyRegistry.createStrategy(strategyType, this.strategyConfig);
+        
+        // Restore positions to strategy if they exist
+        if (this.positionManager.getPositions().length > 0) {
+          this.strategy.restorePositions(this.positionManager.getPositions());
+        }
+        console.log(`✅ Strategy ${config.strategyType} created successfully`);
+      } catch (strategyError) {
+        console.warn(`⚠️ Strategy creation failed, but bot will run with profit-based selling only:`, strategyError.message);
+        this.strategy = null;
       }
 
       this.isRunning = true;
@@ -102,7 +109,9 @@ export class TradingOrchestrator extends EventEmitter {
       if (this.currentPrice > 0) {
         this.chartData.initialTradingPrice = this.currentPrice;
         this.chartData.initialRecentHigh = this.currentPrice;
-        this.strategy.recentHigh = this.currentPrice;
+        if (this.strategy) {
+          this.strategy.recentHigh = this.currentPrice;
+        }
       }
       
       console.log(`✅ Trading started with ${config.strategyType} strategy`);
@@ -146,10 +155,38 @@ export class TradingOrchestrator extends EventEmitter {
   }
 
   async processPrice(price, product_id) {
-    if (!this.isRunning || this.isPaused || !this.strategy) return;
-
+    // 🔥 PERFORMANCE FIX: Rate limit price processing to prevent lag
+    const now = Date.now();
+    if (this._lastPriceUpdate && (now - this._lastPriceUpdate) < 2000) {
+      // Skip processing if less than 2 seconds since last update
+      this.currentPrice = price; // Still update price for display
+      return;
+    }
+    this._lastPriceUpdate = now;
+    
+    // Always update current price for accurate displays
     const prevPrice = this.currentPrice;
     this.currentPrice = price;
+    
+    // 🔥 CRITICAL: Always check for profitable sells, regardless of bot status
+    if (this.positionManager && this.positionManager.getPositions().length > 0) {
+      try {
+        const averageEntryPrice = this.positionManager.getAverageEntryPrice();
+        const profitPercent = ((price - averageEntryPrice) / averageEntryPrice) * 100;
+        const profitTarget = 0.4; // 0.4% profit target
+        
+        if (profitPercent >= profitTarget) {
+          console.log(`🎯 Profit target reached: ${profitPercent.toFixed(2)}% - executing sell`);
+          await this.executeSellSignal({ reason: `Profit target reached: ${profitPercent.toFixed(2)}%` }, price);
+          return; // Exit early after sell
+        }
+      } catch (error) {
+        console.error('Error in profit-based sell check:', error);
+      }
+    }
+    
+    // Only continue with regular trading logic if running, not paused, and has strategy
+    if (!this.isRunning || this.isPaused) return;
     this.updateCandles(price);
 
     // Broadcast price update with updated P&L if we have positions
@@ -171,13 +208,16 @@ export class TradingOrchestrator extends EventEmitter {
     this._priceUpdateCount = (this._priceUpdateCount || 0) + 1;
 
     try {
-      // Analyze market conditions
-      const signal = this.strategy.analyze(this.candles, price);
-      
-      if (signal.type === 'buy') {
-        await this.executeBuySignal(signal, price);
-      } else if (signal.type === 'sell') {
-        await this.executeSellSignal(signal, price);
+      // Only proceed with strategy analysis if strategy exists
+      if (this.strategy) {
+        // Analyze market conditions
+        const signal = this.strategy.analyze(this.candles, price);
+        
+        if (signal.type === 'buy') {
+          await this.executeBuySignal(signal, price);
+        } else if (signal.type === 'sell') {
+          await this.executeSellSignal(signal, price);
+        }
       }
       
     } catch (error) {
@@ -369,17 +409,10 @@ export class TradingOrchestrator extends EventEmitter {
     let nextBuyPrice = null;
     let nextSellPrice = null;
     
-    console.log('🔍 Trigger distance calculation debug:', {
-      hasStrategy: !!this.strategy,
-      currentPrice: this.currentPrice,
-      strategyConfig: this.strategy?.config,
-      positionsCount: this.positionManager.getPositions().length,
-      recentHigh: this.strategy?.recentHigh || this.chartData.recentHigh,
-      selectedStrategyType: this.selectedStrategyType
-    });
+    // Debug logging removed to prevent memory leak
     
-    // Calculate trigger distances from saved state data (works without active strategy)
-    if (this.currentPrice > 0) {
+    // Only calculate trigger distances if bot is actually running and has trading state
+    if (this.isRunning && this.currentPrice > 0) {
       // Always use saved strategy config or defaults - don't require active strategy
       const strategyConfig = this.strategy?.config || {
         initialDropPercent: 0.02,   // Ultra aggressive: 0.02% drop for first buy
@@ -419,8 +452,8 @@ export class TradingOrchestrator extends EventEmitter {
       });
       
       if (currentLevel <= maxLevels && recentHigh > 0) {
-        const initialDropPercent = strategyConfig.initialDropPercent || 0.1;
-        const levelDropPercent = strategyConfig.levelDropPercent || 0.1;
+        const initialDropPercent = strategyConfig.initialDropPercent || 1.0; // 1% initial drop
+        const levelDropPercent = strategyConfig.levelDropPercent || 0.5;   // 0.5% per additional level
         const requiredDrop = initialDropPercent + (currentLevel - 1) * levelDropPercent;
         const currentDrop = ((recentHigh - this.currentPrice) / recentHigh) * 100;
         
@@ -439,14 +472,7 @@ export class TradingOrchestrator extends EventEmitter {
           nextBuyDistance = Math.max(0, progressToTrigger);
         }
         
-        console.log('🟢 Buy distance calculated:', {
-          initialDropPercent,
-          levelDropPercent,
-          requiredDrop,
-          currentDrop,
-          progressToTrigger,
-          nextBuyDistance: `${nextBuyDistance.toFixed(1)}%`
-        });
+        // Buy distance debug logging removed to prevent memory leak
       }
       
       // Calculate next sell trigger (check both positions and BTC balance)
@@ -496,10 +522,10 @@ export class TradingOrchestrator extends EventEmitter {
           
           profitPercent = averageEntryPrice > 0 ? ((this.currentPrice - averageEntryPrice) / averageEntryPrice) * 100 : 0;
           
-          console.log(`📊 Profit calculation: currentPrice=$${this.currentPrice.toFixed(2)}, avgEntry=$${averageEntryPrice.toFixed(2)}, profit=${profitPercent.toFixed(3)}%`);
+          // Removed excessive logging to prevent memory leak
         }
         
-        const profitTarget = strategyConfig.profitTarget || strategyConfig.profitTargetPercent || 0.5;
+        const profitTarget = strategyConfig?.profitTarget || strategyConfig?.profitTargetPercent || 0.4; // Default 0.4%
         
         // Calculate the actual sell trigger price
         nextSellPrice = averageEntryPrice > 0 ? averageEntryPrice * (1 + profitTarget / 100) : null;
@@ -516,12 +542,7 @@ export class TradingOrchestrator extends EventEmitter {
           nextSellDistance = Math.max(0, progressToSell);
         }
         
-        console.log('🔴 Sell distance calculated:', {
-          profitPercent: profitPercent.toFixed(3),
-          profitTarget,
-          progressToSell: progressToSell.toFixed(1),
-          nextSellDistance: `${nextSellDistance.toFixed(1)}%`
-        });
+        // Sell distance debug logging removed to prevent memory leak
       }
     } else {
       console.log('❌ Cannot calculate trigger distances: no current price');
@@ -643,6 +664,9 @@ export class TradingOrchestrator extends EventEmitter {
           });
           console.log(`🔄 Restored ${state.positions.length} positions to PositionManager`);
         }
+        
+        // Note: Strategy recreation removed to prevent crashes
+        // Profit-based selling will work regardless of strategy status
         
         console.log(`✅ State loaded for bot ${this.botId}`);
         

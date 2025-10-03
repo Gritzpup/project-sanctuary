@@ -34,7 +34,7 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       seriesType: 'Histogram',
       seriesOptions: {
         color: defaultSettings.upColor,
-        title: 'Vol',
+        title: '',
         lastValueVisible: true,
         priceFormat: {
           type: 'custom',

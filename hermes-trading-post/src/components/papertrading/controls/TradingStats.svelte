@@ -18,6 +18,7 @@
   
   // Debug logging
   $: {
+    console.log('🔍 TradingStats props:', { nextBuyPrice, nextSellPrice, nextBuyDistance, nextSellDistance });
     console.log('TradingStats props:', {
       nextBuyDistance,
       nextSellDistance, 
@@ -58,8 +59,8 @@
       <div class="stat-item">Total P/L: <span class="stat-value" class:profit={totalPL > 0} class:loss={totalPL < 0}>{totalPL > 0 ? '+' : ''}${totalPL.toLocaleString()}</span></div>
       <div class="stat-item">Total: <span class="stat-value">${totalValue.toLocaleString()}</span></div>
       <div class="stat-item">Return: <span class="stat-value" class:profit={growthPercent > 0} class:loss={growthPercent < 0}>{growthPercent > 0 ? '+' : ''}{growthPercent.toFixed(1)}%</span></div>
-      <div class="stat-item">Next Buy: <span class="stat-value buy-trigger">{nextBuyDistance != null ? nextBuyDistance.toFixed(0) + '%' : 'N/A'}</span> <span class="price-small buy-price">{nextBuyPrice != null ? `($${nextBuyPrice.toLocaleString()})` : '($119,547)'}</span></div>
-      <div class="stat-item">Next Sell: <span class="stat-value sell-trigger">{nextSellDistance != null ? nextSellDistance.toFixed(0) + '%' : 'N/A'}</span> <span class="price-small sell-price">{nextSellPrice != null ? `($${nextSellPrice.toLocaleString()})` : '($120,234)'}</span></div>
+      <div class="stat-item">Next Buy: <span class="stat-value buy-trigger">{nextBuyDistance != null ? nextBuyDistance.toFixed(0) + '%' : 'N/A'}</span> <span class="price-small buy-price">{nextBuyPrice != null ? `($${nextBuyPrice.toFixed(0)})` : '(N/A)'}</span></div>
+      <div class="stat-item">Next Sell: <span class="stat-value sell-trigger">{nextSellDistance != null ? nextSellDistance.toFixed(0) + '%' : 'N/A'}</span> <span class="price-small sell-price">{nextSellPrice != null ? `($${nextSellPrice.toFixed(0)})` : '(N/A)'}</span></div>
       <div class="stat-item">Trades: <span class="stat-value">{totalTrades}</span></div>
     </div>
   </div>
