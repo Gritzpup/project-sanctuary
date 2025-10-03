@@ -7,7 +7,7 @@ import { tradingBackendService } from '../../../services/state/tradingBackendSer
 
 // Built-in strategies
 export const builtInStrategies = [
-  { value: 'reverse-ratio', label: 'Reverse Ratio', description: 'Grid trading with reverse position sizing', isCustom: false },
+  { value: 'reverse-descending-grid', label: 'Reverse Descending Grid', description: 'Grid trading with reverse position sizing', isCustom: false },
   { value: 'grid-trading', label: 'Grid Trading', description: 'Classic grid trading strategy', isCustom: false },
   { value: 'rsi-mean-reversion', label: 'RSI Mean Reversion', description: 'Trade RSI oversold/overbought', isCustom: false },
   { value: 'dca', label: 'Dollar Cost Averaging', description: 'Regular periodic purchases', isCustom: false },
@@ -38,6 +38,8 @@ export interface BackendState {
   currentPrice: number;
   priceChange24h: number;
   priceChangePercent24h: number;
+  nextBuyDistance: number | null;
+  nextSellDistance: number | null;
 }
 
 export class PaperTradingStateManager {
@@ -46,7 +48,7 @@ export class PaperTradingStateManager {
   private managerStateStore = paperTradingManager.getState();
   
   public tradingState = writable<TradingState>({
-    selectedStrategyType: 'reverse-ratio',
+    selectedStrategyType: 'reverse-descending-grid',
     isRunning: false,
     isPaused: false,
     balance: 10000,
@@ -57,7 +59,9 @@ export class PaperTradingStateManager {
   public backendState = writable<BackendState>({
     currentPrice: 0,
     priceChange24h: 0,
-    priceChangePercent24h: 0
+    priceChangePercent24h: 0,
+    nextBuyDistance: null,
+    nextSellDistance: null
   });
   
   public managerState: any = {};
@@ -122,19 +126,40 @@ export class PaperTradingStateManager {
       this.logTradingPerformance(backendState);
       
       // Update frontend state with backend trading data
-      this.tradingState.update(current => ({
-        ...current,
-        isRunning: backendState.isRunning,
-        isPaused: backendState.isPaused,
-        selectedStrategyType: backendState.strategy?.strategyType || current.selectedStrategyType || 'reverse-ratio',
-        balance: backendState.balance.usd,
-        btcBalance: backendState.balance.btc,
-        trades: backendState.trades || [],
-        positions: backendState.positions || [],
-        currentPrice: backendState.currentPrice,
-        totalReturn: backendState.profitLoss,
-        totalFees: (backendState.trades || []).reduce((sum, trade) => sum + (trade.fees || 0), 0)
-      }));
+      this.tradingState.update(current => {
+        // Try to get selectedStrategyType from various sources
+        let selectedStrategyType = current.selectedStrategyType || 'reverse-descending-grid';
+        
+        // First priority: direct from backend state
+        if (backendState.selectedStrategyType) {
+          selectedStrategyType = backendState.selectedStrategyType;
+        }
+        // Second priority: from strategy type
+        else if (backendState.strategy?.strategyType) {
+          selectedStrategyType = backendState.strategy?.strategyType;
+        }
+        // Third priority: from manager state active bot
+        else if (backendState.managerState?.bots && backendState.activeBotId) {
+          const activeBot = backendState.managerState.bots[backendState.activeBotId];
+          if (activeBot?.status?.selectedStrategyType) {
+            selectedStrategyType = activeBot.status.selectedStrategyType;
+          }
+        }
+        
+        return {
+          ...current,
+          isRunning: backendState.isRunning,
+          isPaused: backendState.isPaused,
+          selectedStrategyType,
+          balance: backendState.balance.usd,
+          btcBalance: backendState.balance.btc,
+          trades: backendState.trades || [],
+          positions: backendState.positions || [],
+          currentPrice: backendState.currentPrice,
+          totalReturn: backendState.profitLoss,
+          totalFees: (backendState.trades || []).reduce((sum, trade) => sum + (trade.fees || 0), 0)
+        };
+      });
       
       // Create chart markers from trades and update chart
       this.updateChartMarkers(backendState.trades || []);
@@ -142,7 +167,9 @@ export class PaperTradingStateManager {
       // Also update backend state for UI
       this.backendState.update(current => ({
         ...current,
-        currentPrice: backendState.currentPrice
+        currentPrice: backendState.currentPrice,
+        nextBuyDistance: backendState.nextBuyDistance,
+        nextSellDistance: backendState.nextSellDistance
       }));
       
       // Forward currentPrice to BackendConnector if available
@@ -349,8 +376,13 @@ export class PaperTradingStateManager {
     }));
     
     try {
+      // Update strategy parameters for current session
       await tradingBackendService.updateStrategy(strategyType);
-      console.log('✅ Strategy updated successfully');
+      
+      // Persist strategy selection in backend database for this bot
+      await tradingBackendService.updateSelectedStrategy(strategyType);
+      
+      console.log('✅ Strategy updated and selection persisted successfully');
     } catch (error) {
       console.error('❌ Failed to update strategy:', error);
     }
@@ -386,10 +418,10 @@ export class PaperTradingStateManager {
       const strategyConfig = {
         strategyType: selectedStrategy.value,
         strategyConfig: {
-          initialDropPercent: 2.0,
-          levelDropPercent: 1.0,
-          profitTargetPercent: 1.5,
-          maxLevels: 10
+          initialDropPercent: 0.02,   // Ultra aggressive: 0.02% drop for first level
+          levelDropPercent: 0.02,     // Ultra aggressive: 0.02% additional drop per level
+          profitTargetPercent: 0.5,   // Optimized: 0.5% profit target (covers fees + vault + rebalance)
+          maxLevels: 15              // Increased to 15 levels for more frequent buys
         }
       };
       

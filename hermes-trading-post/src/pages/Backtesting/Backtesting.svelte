@@ -55,7 +55,7 @@
   let refreshInterval: number | null = null;
   
   // Backtesting state
-  let selectedStrategyType = 'reverse-ratio';
+  let selectedStrategyType = 'reverse-descending-grid';
   let startBalance = 1000;
   let backtestResults: BacktestResult | null = null;
   let isRunning = false;

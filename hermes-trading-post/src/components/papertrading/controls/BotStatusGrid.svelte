@@ -17,8 +17,8 @@
 
   function getBotStatus(bot: any): 'idle' | 'running' | 'paused' | 'empty' {
     if (!bot) return 'empty';
-    // For Bot 1 (reverse-ratio bot), use the backend status
-    if (bot.name === 'Bot 1' || bot.id === 'reverse-ratio-bot-1' || bot.id === 'bot-1') {
+    // For Bot 1 (reverse-descending-grid bot), use the backend status
+    if (bot.name === 'Bot 1' || bot.id === 'reverse-descending-grid-bot-1' || bot.id === 'bot-1') {
       const status = isRunning ? (isPaused ? 'paused' : 'running') : 'idle';
       return status;
     }

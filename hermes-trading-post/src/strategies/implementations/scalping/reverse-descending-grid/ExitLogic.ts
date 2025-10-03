@@ -2,7 +2,7 @@ import type { Position } from '../../base/StrategyTypes';
 import type { ReverseRatioConfig, ReverseRatioState } from './types';
 
 /**
- * Handles exit logic for the Reverse Ratio Strategy
+ * Handles exit logic for the Reverse Descending Grid Strategy
  * Determines when to take profits and exit positions
  */
 export class ExitLogic {

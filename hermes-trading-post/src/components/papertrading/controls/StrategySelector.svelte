@@ -62,12 +62,11 @@
     color: #c4b5fd;
     border: 1px solid var(--border-primary);
     appearance: none;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23c4b5fd' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
     background-position: right 6px center;
     background-repeat: no-repeat;
     background-size: 12px;
     padding-right: 24px;
-    transition: all 0.2s ease;
   }
   
   .control-group .strategy-dropdown:hover:not(:disabled) {

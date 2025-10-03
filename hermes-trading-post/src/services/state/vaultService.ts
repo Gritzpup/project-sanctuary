@@ -51,8 +51,8 @@ class VaultService {
           vaults: [
             {
               botId: 'bot-1',
-              name: 'BTC Bot 1 - Reverse Ratio',
-              strategy: 'reverse-ratio',
+              name: 'BTC Bot 1 - Reverse Descending Grid',
+              strategy: 'reverse-descending-grid',
               asset: 'BTC',
               status: 'active',
               value: 12847.32,

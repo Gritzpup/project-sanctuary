@@ -28,7 +28,7 @@ import { ProperScalpingStrategy } from './implementations/ProperScalpingStrategy
 
 // Strategy registry for easy access
 export const StrategyRegistry = {
-  'reverse-ratio': ReverseRatioStrategy,
+  'reverse-descending-grid': ReverseRatioStrategy,
   'grid-trading': GridTradingStrategy,
   'rsi-mean-reversion': RSIMeanReversionStrategy,
   'dca': DCAStrategy,

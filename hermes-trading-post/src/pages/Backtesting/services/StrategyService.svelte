@@ -9,7 +9,7 @@
 
   // Built-in strategies
   export const builtInStrategies = [
-    { value: 'reverse-ratio', label: 'Reverse Ratio', description: 'Grid trading with reverse position sizing', isCustom: false },
+    { value: 'reverse-descending-grid', label: 'Reverse Descending Grid', description: 'Grid trading with reverse position sizing', isCustom: false },
     { value: 'grid-trading', label: 'Grid Trading', description: 'Classic grid trading strategy', isCustom: false },
     { value: 'rsi-mean-reversion', label: 'RSI Mean Reversion', description: 'Trade RSI oversold/overbought', isCustom: false },
     { value: 'dca', label: 'Dollar Cost Averaging', description: 'Regular periodic purchases', isCustom: false },
@@ -20,7 +20,7 @@
 
   // Default strategy parameters
   export const defaultStrategyParams: Record<string, any> = {
-    'reverse-ratio': {
+    'reverse-descending-grid': {
       initialDropPercent: 0.02,
       levelDropPercent: 0.015,
       ratioMultiplier: 1.0,
@@ -90,7 +90,7 @@
       }
       
       switch (type) {
-        case 'reverse-ratio':
+        case 'reverse-descending-grid':
           return new ReverseRatioStrategy(strategyParams);
         case 'grid-trading':
           return new GridTradingStrategy(strategyParams);

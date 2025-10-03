@@ -136,10 +136,10 @@ export class BackendStrategyAdapter extends Strategy {
  */
 export class BackendStrategyFactory {
   /**
-   * Create a Reverse Ratio strategy adapter
+   * Create a Reverse Descending Grid strategy adapter
    */
   static createReverseRatio(config: Record<string, any> = {}): BackendStrategyAdapter {
-    return BackendStrategyAdapter.create('reverse-ratio', {
+    return BackendStrategyAdapter.create('reverse-descending-grid', {
       initialDropPercent: 0.1,
       levelDropPercent: 0.1,
       profitTarget: 0.85,

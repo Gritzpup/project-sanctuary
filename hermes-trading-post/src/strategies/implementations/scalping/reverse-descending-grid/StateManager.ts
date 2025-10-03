@@ -2,7 +2,7 @@ import type { Position } from '../../base/StrategyTypes';
 import type { ReverseRatioState } from './types';
 
 /**
- * Manages internal state for the Reverse Ratio Strategy
+ * Manages internal state for the Reverse Descending Grid Strategy
  * Handles state resets and synchronization
  */
 export class StateManager {

@@ -11,7 +11,7 @@
   }
   
   function calculatePositionSizes(balance: number = startBalance): Array<{level: number, amount: number, percentage: number}> {
-    const params = strategyParams['reverse-ratio'];
+    const params = strategyParams['reverse-descending-grid'];
     const sizes = [];
     
     for (let level = 1; level <= Math.min(params.maxLevels, 5); level++) {
@@ -57,25 +57,25 @@
       Position Size Mode
       <select 
         class="select-base"
-        bind:value={strategyParams['reverse-ratio'].positionSizeMode}
-        on:change={() => updateParam('positionSizeMode', strategyParams['reverse-ratio'].positionSizeMode)}
+        bind:value={strategyParams['reverse-descending-grid'].positionSizeMode}
+        on:change={() => updateParam('positionSizeMode', strategyParams['reverse-descending-grid'].positionSizeMode)}
       >
         <option value="percentage">Percentage of Balance</option>
         <option value="fixed">Fixed Dollar Amount</option>
       </select>
     </label>
     
-    {#if strategyParams['reverse-ratio'].positionSizeMode === 'percentage'}
+    {#if strategyParams['reverse-descending-grid'].positionSizeMode === 'percentage'}
       <label class="form-label">
         Base Position Percentage
         <input 
           type="number" 
           class="input-base"
-          bind:value={strategyParams['reverse-ratio'].basePositionPercent}
+          bind:value={strategyParams['reverse-descending-grid'].basePositionPercent}
           min="1" 
           max="50" 
           step="0.1"
-          on:input={() => updateParam('basePositionPercent', strategyParams['reverse-ratio'].basePositionPercent)}
+          on:input={() => updateParam('basePositionPercent', strategyParams['reverse-descending-grid'].basePositionPercent)}
         />
         <span class="input-hint">Percentage of balance for first position</span>
       </label>
@@ -85,10 +85,10 @@
         <input 
           type="number" 
           class="input-base"
-          bind:value={strategyParams['reverse-ratio'].basePositionAmount}
+          bind:value={strategyParams['reverse-descending-grid'].basePositionAmount}
           min="10" 
           step="10"
-          on:input={() => updateParam('basePositionAmount', strategyParams['reverse-ratio'].basePositionAmount)}
+          on:input={() => updateParam('basePositionAmount', strategyParams['reverse-descending-grid'].basePositionAmount)}
         />
         <span class="input-hint">Fixed dollar amount for first position</span>
       </label>
@@ -99,11 +99,11 @@
       <input 
         type="number" 
         class="input-base"
-        bind:value={strategyParams['reverse-ratio'].ratioMultiplier}
+        bind:value={strategyParams['reverse-descending-grid'].ratioMultiplier}
         min="1" 
         max="5" 
         step="0.1"
-        on:input={() => updateParam('ratioMultiplier', strategyParams['reverse-ratio'].ratioMultiplier)}
+        on:input={() => updateParam('ratioMultiplier', strategyParams['reverse-descending-grid'].ratioMultiplier)}
       />
       <span class="input-hint">How much to increase each level (1 = equal sizes)</span>
     </label>
@@ -113,11 +113,11 @@
       <input 
         type="number" 
         class="input-base"
-        bind:value={strategyParams['reverse-ratio'].maxLevels}
+        bind:value={strategyParams['reverse-descending-grid'].maxLevels}
         min="1" 
         max="10" 
         step="1"
-        on:input={() => updateParam('maxLevels', strategyParams['reverse-ratio'].maxLevels)}
+        on:input={() => updateParam('maxLevels', strategyParams['reverse-descending-grid'].maxLevels)}
       />
       <span class="input-hint">Maximum number of positions to open</span>
     </label>

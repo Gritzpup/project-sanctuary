@@ -198,7 +198,7 @@ wss.on('connection', (ws) => {
     ws.close();
   });
 
-  ws.on('message', (message) => {
+  ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message.toString());
       // Only log non-status messages to reduce spam
@@ -274,6 +274,18 @@ wss.on('connection', (ws) => {
           break;
         case 'updateStrategy':
           botManager.updateStrategy(data.strategy);
+          break;
+        case 'updateSelectedStrategy':
+          // Update just the dropdown selection for persistence
+          const bot = data.botId ? botManager.getBot(data.botId) : botManager.getActiveBot();
+          if (bot) {
+            await bot.updateSelectedStrategy(data.strategyType);
+            ws.send(JSON.stringify({
+              type: 'selectedStrategyUpdated',
+              botId: data.botId || botManager.activeBotId,
+              strategyType: data.strategyType
+            }));
+          }
           break;
         case 'realtimePrice':
           // Forward real-time price to bot manager

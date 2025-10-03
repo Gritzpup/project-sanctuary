@@ -43,14 +43,14 @@
             <li>Using a different strategy like DCA or Grid Trading</li>
           </ul>
         </div>
-      {:else if backtestResults.metrics.totalTrades === 1 && selectedStrategyType === 'reverse-ratio'}
+      {:else if backtestResults.metrics.totalTrades === 1 && selectedStrategyType === 'reverse-descending-grid'}
         <div class="single-trade-notice">
           <h3>⚠️ Only 1 buy level was used</h3>
-          <p>The Reverse Ratio strategy only triggered one buy because:</p>
+          <p>The Reverse Descending Grid strategy only triggered one buy because:</p>
           <ul>
-            <li>Price dropped {strategyParams['reverse-ratio'].initialDropPercent}% to trigger the first buy</li>
-            <li>Price didn't drop another {strategyParams['reverse-ratio'].levelDropPercent}% for the second level</li>
-            <li>Strategy is waiting for {strategyParams['reverse-ratio'].profitTarget}% profit to sell</li>
+            <li>Price dropped {strategyParams['reverse-descending-grid'].initialDropPercent}% to trigger the first buy</li>
+            <li>Price didn't drop another {strategyParams['reverse-descending-grid'].levelDropPercent}% for the second level</li>
+            <li>Strategy is waiting for {strategyParams['reverse-descending-grid'].profitTarget}% profit to sell</li>
           </ul>
           <p><strong>For {selectedGranularity} timeframe, consider:</strong></p>
           <ul>

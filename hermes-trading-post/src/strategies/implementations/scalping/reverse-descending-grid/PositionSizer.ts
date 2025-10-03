@@ -2,7 +2,7 @@ import type { Signal, StrategyBalance } from '../../base/StrategyTypes';
 import type { ReverseRatioConfig, ReverseRatioState } from './types';
 
 /**
- * Handles position sizing calculations for the Reverse Ratio Strategy
+ * Handles position sizing calculations for the Reverse Descending Grid Strategy
  * Calculates appropriate position sizes based on level and configuration
  */
 export class PositionSizer {

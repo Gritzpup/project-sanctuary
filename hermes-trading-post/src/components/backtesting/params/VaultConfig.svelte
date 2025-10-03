@@ -10,7 +10,7 @@
     <h5 class="config-subtitle">Profit Distribution</h5>
     <label>
       BTC Vault Allocation (%)
-      <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.btcVaultPercent} min="0" max="100" step="0.1" />
+      <input type="number" bind:value={strategyParams['reverse-descending-grid'].vaultConfig.btcVaultPercent} min="0" max="100" step="0.1" />
       <span class="input-hint">Percentage of profits allocated to BTC vault (default: 14.3% = 1/7)</span>
     </label>
   </div>
@@ -18,7 +18,7 @@
   <div class="config-section">
     <label>
       USD Growth Allocation (%)
-      <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.usdGrowthPercent} min="0" max="100" step="0.1" />
+      <input type="number" bind:value={strategyParams['reverse-descending-grid'].vaultConfig.usdGrowthPercent} min="0" max="100" step="0.1" />
       <span class="input-hint">Percentage of profits to grow trading balance (default: 14.3% = 1/7)</span>
     </label>
   </div>
@@ -26,11 +26,11 @@
   <div class="config-section">
     <label>
       USDC Vault Allocation (%)
-      <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.usdcVaultPercent} min="0" max="100" step="0.1" />
+      <input type="number" bind:value={strategyParams['reverse-descending-grid'].vaultConfig.usdcVaultPercent} min="0" max="100" step="0.1" />
       <span class="input-hint">Percentage of profits to USDC vault (default: 71.4% = 5/7)</span>
     </label>
-    {#if strategyParams['reverse-ratio'].vaultConfig.btcVaultPercent + strategyParams['reverse-ratio'].vaultConfig.usdGrowthPercent + strategyParams['reverse-ratio'].vaultConfig.usdcVaultPercent !== 100}
-      <span class="warning-text">⚠️ Allocations should sum to 100% (current: {(strategyParams['reverse-ratio'].vaultConfig.btcVaultPercent + strategyParams['reverse-ratio'].vaultConfig.usdGrowthPercent + strategyParams['reverse-ratio'].vaultConfig.usdcVaultPercent).toFixed(1)}%)</span>
+    {#if strategyParams['reverse-descending-grid'].vaultConfig.btcVaultPercent + strategyParams['reverse-descending-grid'].vaultConfig.usdGrowthPercent + strategyParams['reverse-descending-grid'].vaultConfig.usdcVaultPercent !== 100}
+      <span class="warning-text">⚠️ Allocations should sum to 100% (current: {(strategyParams['reverse-descending-grid'].vaultConfig.btcVaultPercent + strategyParams['reverse-descending-grid'].vaultConfig.usdGrowthPercent + strategyParams['reverse-descending-grid'].vaultConfig.usdcVaultPercent).toFixed(1)}%)</span>
     {/if}
   </div>
   
@@ -38,7 +38,7 @@
     <h5 class="config-subtitle">Compound Settings</h5>
     <label>
       Compound Frequency
-      <select bind:value={strategyParams['reverse-ratio'].vaultConfig.compoundFrequency}>
+      <select bind:value={strategyParams['reverse-descending-grid'].vaultConfig.compoundFrequency}>
         <option value="trade">Every Trade</option>
         <option value="daily">Daily</option>
         <option value="weekly">Weekly</option>
@@ -51,14 +51,14 @@
   <div class="config-section">
     <label>
       Min Compound Amount ($)
-      <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.minCompoundAmount} min="0.01" max="100" step="0.01" />
+      <input type="number" bind:value={strategyParams['reverse-descending-grid'].vaultConfig.minCompoundAmount} min="0.01" max="100" step="0.01" />
       <span class="input-hint">Minimum profit required to trigger compound</span>
     </label>
   </div>
   
   <div class="config-section">
     <label>
-      <input type="checkbox" bind:checked={strategyParams['reverse-ratio'].vaultConfig.autoCompound} />
+      <input type="checkbox" bind:checked={strategyParams['reverse-descending-grid'].vaultConfig.autoCompound} />
       Auto-Compound
       <span class="input-hint">Automatically compound vault earnings</span>
     </label>
@@ -68,7 +68,7 @@
     <h5 class="config-subtitle">Vault Targets (Optional)</h5>
     <label>
       BTC Vault Target
-      <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.btcVaultTarget} min="0" max="10" step="0.01" />
+      <input type="number" bind:value={strategyParams['reverse-descending-grid'].vaultConfig.btcVaultTarget} min="0" max="10" step="0.01" />
       <span class="input-hint">Target BTC amount for vault (optional)</span>
     </label>
   </div>
@@ -76,7 +76,7 @@
   <div class="config-section">
     <label>
       USDC Vault Target ($)
-      <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.usdcVaultTarget} min="0" max="1000000" step="100" />
+      <input type="number" bind:value={strategyParams['reverse-descending-grid'].vaultConfig.usdcVaultTarget} min="0" max="1000000" step="100" />
       <span class="input-hint">Target USDC amount for vault (optional)</span>
     </label>
   </div>
@@ -84,7 +84,7 @@
   <div class="config-section">
     <label>
       Rebalance Threshold (%)
-      <input type="number" bind:value={strategyParams['reverse-ratio'].vaultConfig.rebalanceThreshold} min="0" max="20" step="0.5" />
+      <input type="number" bind:value={strategyParams['reverse-descending-grid'].vaultConfig.rebalanceThreshold} min="0" max="20" step="0.5" />
       <span class="input-hint">Rebalance when allocation deviates by this percentage</span>
     </label>
   </div>

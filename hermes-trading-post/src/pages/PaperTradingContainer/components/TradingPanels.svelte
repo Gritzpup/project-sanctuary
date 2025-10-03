@@ -72,11 +72,14 @@
     totalFees={tradingState.totalFees}
     totalRebates={tradingState.totalRebates}
     totalRebalance={tradingState.totalRebalance}
+    nextBuyDistance={backendState.nextBuyDistance}
+    nextSellDistance={backendState.nextSellDistance}
     on:strategyChange={forwardEvent}
     on:balanceChange={forwardEvent}
     on:start={forwardEvent}
     on:pause={forwardEvent}
     on:resume={forwardEvent}
+    on:stop={forwardEvent}
     on:selectBot={forwardEvent}
     on:reset={forwardEvent}
     />
@@ -147,8 +150,8 @@
   /* Mobile-specific adjustments */
   @media (max-width: 768px) {
     .chart-container {
-      height: 800px; /* 2x taller for mobile screens */
-      min-height: 600px;
+      height: 650px; /* 50px taller than 600px */
+      min-height: 500px;
     }
     
     .strategy-container {

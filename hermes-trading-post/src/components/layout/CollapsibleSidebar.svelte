@@ -52,9 +52,6 @@
   <div class="mobile-header-content">
     <div class="mobile-title-section">
       <h2 class="mobile-title">Hermes Trading</h2>
-      {#if currentPrice > 0}
-        <div class="mobile-price">BTC ${currentPrice.toLocaleString()}</div>
-      {/if}
     </div>
     <button class="hamburger-btn" on:click={toggleMobileMenu} aria-label="Toggle navigation menu">
       <span class="hamburger-line"></span>

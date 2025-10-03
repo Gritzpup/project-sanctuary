@@ -8,7 +8,7 @@ export class StrategyRegistry {
 
   registerDefaultStrategies() {
     // Register built-in strategies
-    this.register('reverse-ratio', ReverseRatioStrategy);
+    this.register('reverse-descending-grid', ReverseRatioStrategy);
     this.register('ultra-micro-scalping', ReverseRatioStrategy); // Use same for now
     this.register('micro-scalping', ReverseRatioStrategy); // Use same strategy class
     // Add other strategies as they're implemented
@@ -38,7 +38,7 @@ export class StrategyRegistry {
 
   extractStrategyType(strategyName) {
     const nameToType = {
-      'Reverse Ratio Buying': 'reverse-ratio',
+      'Reverse Descending Grid Buying': 'reverse-ratio',
       'Ultra Micro-Scalping': 'ultra-micro-scalping'
     };
     

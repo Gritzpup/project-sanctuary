@@ -154,7 +154,7 @@ export class BotManager {
   // Initialize default bots for each strategy
   async initializeDefaultBots() {
     const strategies = [
-      'reverse-ratio',
+      'reverse-descending-grid',
       'grid-trading',
       'rsi-mean-reversion',
       'dca',
@@ -202,7 +202,7 @@ export class BotManager {
               botsToRestart.push({
                 botId,
                 strategyConfig: {
-                  strategyType: state.strategyType || 'reverse-ratio',
+                  strategyType: state.strategyType || 'reverse-descending-grid',
                   strategyConfig: strategyParams
                 }
               });

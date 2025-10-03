@@ -30,10 +30,10 @@ class PaperTradingManager {
   constructor() {
     // Initialize state
     this.state = writable<BotManagerState>({
-      selectedStrategy: 'reverse-ratio',
+      selectedStrategy: 'reverse-descending-grid',
       activeTabId: '',
       bots: {
-        'reverse-ratio': [],
+        'reverse-descending-grid': [],
         'grid-trading': [],
         'rsi-mean-reversion': [],
         'dca': [],
@@ -195,7 +195,7 @@ class PaperTradingManager {
         // Restore selected strategy and active tab
         this.state.update(s => ({
           ...s,
-          selectedStrategy: config.selectedStrategy || 'reverse-ratio',
+          selectedStrategy: config.selectedStrategy || 'reverse-descending-grid',
           activeTabId: config.activeTabId || ''
         }));
         

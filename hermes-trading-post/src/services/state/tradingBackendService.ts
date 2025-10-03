@@ -33,6 +33,17 @@ export interface BackendTradingState {
   };
   tradesCount: number;
   openPositions: number;
+  // Trading statistics
+  totalFees: number;
+  totalRebates: number;
+  totalReturn: number;
+  totalRebalance: number;
+  winRate: number;
+  winningTrades: number;
+  losingTrades: number;
+  // Next trigger distances
+  nextBuyDistance: number | null;
+  nextSellDistance: number | null;
   // Bot manager state
   activeBotId: string | null;
   botName: string | null;
@@ -80,6 +91,17 @@ class TradingBackendService {
       },
       tradesCount: 0,
       openPositions: 0,
+      // Trading statistics
+      totalFees: 0,
+      totalRebates: 0,
+      totalReturn: 0,
+      totalRebalance: 0,
+      winRate: 0,
+      winningTrades: 0,
+      losingTrades: 0,
+      // Next trigger distances
+      nextBuyDistance: null,
+      nextSellDistance: null,
       activeBotId: null,
       botName: null,
       managerState: null
@@ -166,6 +188,10 @@ class TradingBackendService {
           currentPrice: message.price,
           chartData: message.chartData || s.chartData
         }));
+        // If status is included, update P&L and other values
+        if (message.status) {
+          this.updateStateFromBackend(message.status);
+        }
         break;
         
       case 'trade':
@@ -229,6 +255,12 @@ class TradingBackendService {
         this.send({ type: 'getManagerState' });
         break;
         
+      case 'selectedStrategyUpdated':
+        console.log('Selected strategy updated for bot:', message.botId, 'to:', message.strategyType);
+        // Request updated manager state to refresh bot configs
+        this.send({ type: 'getManagerState' });
+        break;
+        
       default:
         console.log('Unknown message type:', message.type);
     }
@@ -240,7 +272,9 @@ class TradingBackendService {
       tradesCount: status.trades?.length || 0,
       positionsCount: status.positions?.length || 0,
       balance: status.balance,
-      currentPrice: status.currentPrice
+      currentPrice: status.currentPrice,
+      nextBuyDistance: status.nextBuyDistance,
+      nextSellDistance: status.nextSellDistance
     });
     
     this.state.update(s => ({
@@ -260,6 +294,17 @@ class TradingBackendService {
       chartData: status.chartData || s.chartData,
       tradesCount: status.tradesCount || status.trades?.length || 0,
       openPositions: status.openPositions || status.positions?.length || 0,
+      // Trading statistics
+      totalFees: status.totalFees || 0,
+      totalRebates: status.totalRebates || 0,
+      totalReturn: status.totalReturn || 0,
+      totalRebalance: status.totalRebalance || 0,
+      winRate: status.winRate || 0,
+      winningTrades: status.winningTrades || 0,
+      losingTrades: status.losingTrades || 0,
+      // Next trigger distances
+      nextBuyDistance: status.nextBuyDistance,
+      nextSellDistance: status.nextSellDistance,
       activeBotId: status.activeBotId || s.activeBotId,
       botName: status.botName || s.botName
     }));
@@ -395,6 +440,15 @@ class TradingBackendService {
 
   getManagerState() {
     this.send({ type: 'getManagerState' });
+  }
+
+  updateSelectedStrategy(strategyType: string, botId?: string) {
+    console.log('Updating selected strategy:', { strategyType, botId: botId || 'active bot' });
+    this.send({
+      type: 'updateSelectedStrategy',
+      strategyType,
+      botId
+    });
   }
 
   disconnect() {

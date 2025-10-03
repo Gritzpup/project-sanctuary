@@ -244,6 +244,10 @@ class PaperTradingService {
     }
   }
 
+  getInitialState(): PaperTradingState {
+    return createInitialState(this.config);
+  }
+
   destroy(): void {
     // Clean up resources
     this.stop();

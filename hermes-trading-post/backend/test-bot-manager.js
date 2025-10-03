@@ -28,7 +28,7 @@ async function testBotManager() {
     console.log('');
 
     // 4. Select a different bot
-    const reverseBots = initialState.data.strategyBots['reverse-ratio'];
+    const reverseBots = initialState.data.strategyBots['reverse-descending-grid'];
     if (reverseBots && reverseBots.length > 1) {
       const secondBotId = reverseBots[1];
       console.log(`4. Selecting bot: ${secondBotId}...`);
@@ -37,7 +37,7 @@ async function testBotManager() {
     }
 
     // 5. Test creating a new bot (if room)
-    const strategies = ['reverse-ratio', 'micro-scalping', 'grid-trading'];
+    const strategies = ['reverse-descending-grid', 'micro-scalping', 'grid-trading'];
     let createdBot = false;
     
     for (const strategy of strategies) {

@@ -10,7 +10,7 @@ export class EntryLogic {
   private state: ScalpingState;
   private variant: StrategyVariant;
 
-  constructor(config: ScalpingConfig, state: ScalpingState, variant: StrategyVariant = 'reverse-ratio') {
+  constructor(config: ScalpingConfig, state: ScalpingState, variant: StrategyVariant = 'reverse-descending-grid') {
     this.config = config;
     this.state = state;
     this.variant = variant;

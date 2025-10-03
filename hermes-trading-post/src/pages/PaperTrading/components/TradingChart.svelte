@@ -185,19 +185,21 @@
 </script>
 
 <div class="panel-base chart-panel">
-  <ChartHeader 
-    {selectedPair}
-    {selectedGranularity}
-    currentPrice={latestPrice || currentPrice || 0}
-    priceChange24h={live24hChange || priceChange24h || 0}
-    priceChangePercent24h={live24hPercent || priceChangePercent24h || 0}
-    {botTabs}
-    {activeBotInstance}
-    on:pairChange={handlePairChange}
-    on:granularityChange={handleGranularityChange}
-    on:botSelect={handleBotSelect}
-    on:zoomReset={handleZoomReset}
-  />
+  <div class="chart-header-wrapper">
+    <ChartHeader 
+      {selectedPair}
+      {selectedGranularity}
+      currentPrice={latestPrice || currentPrice || 0}
+      priceChange24h={live24hChange || priceChange24h || 0}
+      priceChangePercent24h={live24hPercent || priceChangePercent24h || 0}
+      {botTabs}
+      {activeBotInstance}
+      on:pairChange={handlePairChange}
+      on:granularityChange={handleGranularityChange}
+      on:botSelect={handleBotSelect}
+      on:zoomReset={handleZoomReset}
+    />
+  </div>
   
   <ChartProgressBar 
     {forwardTestProgress}
@@ -246,6 +248,10 @@
     box-sizing: border-box;
   }
   
+  .chart-header-wrapper {
+    margin-bottom: 0;
+  }
+
   .chart-container {
     flex: 1;
     position: relative;

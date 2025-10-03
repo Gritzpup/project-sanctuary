@@ -4,7 +4,7 @@
   export let startBalance: number;
 
   function calculatePositionSizes(balance: number = startBalance): Array<{level: number, amount: number, percentage: number}> {
-    const params = strategyParams['reverse-ratio'];
+    const params = strategyParams['reverse-descending-grid'];
     const sizes = [];
     
     for (let level = 1; level <= Math.min(params.maxLevels, 5); level++) {
@@ -45,21 +45,21 @@
   <div class="config-section">
     <label>
       Position Size Mode
-      <select bind:value={strategyParams['reverse-ratio'].positionSizeMode}>
+      <select bind:value={strategyParams['reverse-descending-grid'].positionSizeMode}>
         <option value="percentage">Percentage of Balance</option>
         <option value="fixed">Fixed Dollar Amount</option>
       </select>
     </label>
   </div>
   
-  {#if strategyParams['reverse-ratio'].positionSizeMode === 'percentage'}
+  {#if strategyParams['reverse-descending-grid'].positionSizeMode === 'percentage'}
     <div class="config-section">
       <label>
         Base Position Size (%)
-        <input type="number" bind:value={strategyParams['reverse-ratio'].basePositionPercent} min="1" max="95" step="1" />
+        <input type="number" bind:value={strategyParams['reverse-descending-grid'].basePositionPercent} min="1" max="95" step="1" />
         <span class="input-hint">Percentage of balance for first buy level</span>
-        {#if strategyParams['reverse-ratio'].basePositionPercent >= 80}
-          <span class="position-size-warning">⚠️ HIGH RISK: Using {strategyParams['reverse-ratio'].basePositionPercent}% of capital!</span>
+        {#if strategyParams['reverse-descending-grid'].basePositionPercent >= 80}
+          <span class="position-size-warning">⚠️ HIGH RISK: Using {strategyParams['reverse-descending-grid'].basePositionPercent}% of capital!</span>
         {/if}
       </label>
     </div>
@@ -67,7 +67,7 @@
     <div class="config-section">
       <label>
         Base Position Amount ($)
-        <input type="number" bind:value={strategyParams['reverse-ratio'].basePositionAmount} min="10" max="1000" step="10" />
+        <input type="number" bind:value={strategyParams['reverse-descending-grid'].basePositionAmount} min="10" max="1000" step="10" />
         <span class="input-hint">Dollar amount for first buy level</span>
       </label>
     </div>
@@ -76,7 +76,7 @@
   <div class="config-section">
     <label>
       Ratio Multiplier
-      <input type="number" bind:value={strategyParams['reverse-ratio'].ratioMultiplier} min="1" max="5" step="0.25" />
+      <input type="number" bind:value={strategyParams['reverse-descending-grid'].ratioMultiplier} min="1" max="5" step="0.25" />
       <span class="input-hint">How much to increase position size per level</span>
     </label>
   </div>
@@ -84,7 +84,7 @@
   <div class="config-section">
     <label>
       Max Total Position (%)
-      <input type="number" bind:value={strategyParams['reverse-ratio'].maxPositionPercent} min="10" max="100" step="5" />
+      <input type="number" bind:value={strategyParams['reverse-descending-grid'].maxPositionPercent} min="10" max="100" step="5" />
       <span class="input-hint">Maximum percentage of balance to use across all levels</span>
     </label>
   </div>
@@ -120,11 +120,11 @@
   <div class="config-section">
     <label>
       Initial Drop (%)
-      <input type="number" bind:value={strategyParams['reverse-ratio'].initialDropPercent} min="0.01" max="10" step="0.01" />
+      <input type="number" bind:value={strategyParams['reverse-descending-grid'].initialDropPercent} min="0.01" max="10" step="0.01" />
       <span class="input-hint">Price drop from recent high to trigger first buy</span>
       {#if currentPrice > 0}
         <span class="price-preview">
-          At current price ${currentPrice.toFixed(2)}, this means buying at ${(currentPrice * (1 - strategyParams['reverse-ratio'].initialDropPercent / 100)).toFixed(2)}
+          At current price ${currentPrice.toFixed(2)}, this means buying at ${(currentPrice * (1 - strategyParams['reverse-descending-grid'].initialDropPercent / 100)).toFixed(2)}
         </span>
       {/if}
     </label>
@@ -133,7 +133,7 @@
   <div class="config-section">
     <label>
       Level Drop (%)
-      <input type="number" bind:value={strategyParams['reverse-ratio'].levelDropPercent} min="0.01" max="10" step="0.01" />
+      <input type="number" bind:value={strategyParams['reverse-descending-grid'].levelDropPercent} min="0.01" max="10" step="0.01" />
       <span class="input-hint">Additional drop between each buy level</span>
     </label>
   </div>
@@ -141,7 +141,7 @@
   <div class="config-section">
     <label>
       Max Levels
-      <input type="number" bind:value={strategyParams['reverse-ratio'].maxLevels} min="3" max="30" step="1" />
+      <input type="number" bind:value={strategyParams['reverse-descending-grid'].maxLevels} min="3" max="30" step="1" />
       <span class="input-hint">Maximum number of buy levels</span>
     </label>
   </div>
@@ -154,11 +154,11 @@
   <div class="config-section">
     <label>
       Profit Target (%)
-      <input type="number" bind:value={strategyParams['reverse-ratio'].profitTarget} min="0.1" max="20" step="0.05" />
+      <input type="number" bind:value={strategyParams['reverse-descending-grid'].profitTarget} min="0.1" max="20" step="0.05" />
       <span class="input-hint">Sell all positions when first entry reaches this profit</span>
-      {#if currentPrice > 0 && strategyParams['reverse-ratio'].initialDropPercent > 0}
+      {#if currentPrice > 0 && strategyParams['reverse-descending-grid'].initialDropPercent > 0}
         <span class="price-preview">
-          Sell target: ${(currentPrice * (1 - strategyParams['reverse-ratio'].initialDropPercent / 100) * (1 + strategyParams['reverse-ratio'].profitTarget / 100)).toFixed(2)}
+          Sell target: ${(currentPrice * (1 - strategyParams['reverse-descending-grid'].initialDropPercent / 100) * (1 + strategyParams['reverse-descending-grid'].profitTarget / 100)).toFixed(2)}
         </span>
       {/if}
     </label>

@@ -5,7 +5,7 @@
   import TradingStats from './controls/TradingStats.svelte';
   import TradingControlButtons from './controls/TradingControlButtons.svelte';
   
-  export let selectedStrategyType: string = 'reverse-ratio';
+  export let selectedStrategyType: string = 'reverse-descending-grid';
   export let strategies: any[] = [];
   export let isRunning: boolean = false;
   export let isPaused: boolean = false;
@@ -25,6 +25,8 @@
   export let totalFees: number = 0;
   export let totalRebates: number = 0;
   export let totalRebalance: number = 0;
+  export let nextBuyDistance: number | null = null;
+  export let nextSellDistance: number | null = null;
 
   const dispatch = createEventDispatcher();
 
@@ -66,6 +68,8 @@
       {btcBalance}
       {vaultBalance}
       {btcVaultBalance}
+      {nextBuyDistance}
+      {nextSellDistance}
     />
     
     <TradingControlButtons 

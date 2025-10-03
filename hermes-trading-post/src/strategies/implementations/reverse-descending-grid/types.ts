@@ -1,7 +1,7 @@
 import type { StrategyConfig } from '../../base/StrategyTypes';
 
 /**
- * Configuration interface for Reverse Ratio Strategy
+ * Configuration interface for Reverse Descending Grid Strategy
  */
 export interface ReverseRatioConfig extends StrategyConfig {
   initialDropPercent: number;    // % drop from recent high to start buying (default: 0.01)

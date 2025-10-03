@@ -2,7 +2,7 @@ import type { CandleData } from '../../base/StrategyTypes';
 import type { ReverseRatioConfig, ReverseRatioState, MarketAnalysis } from './types';
 
 /**
- * Handles market analysis for the Reverse Ratio Strategy
+ * Handles market analysis for the Reverse Descending Grid Strategy
  * Responsible for tracking recent highs and analyzing market conditions
  */
 export class MarketAnalyzer {

@@ -9,7 +9,7 @@ export class StateManager {
   private state: ScalpingState;
   private variant: StrategyVariant;
 
-  constructor(state: ScalpingState, variant: StrategyVariant = 'reverse-ratio') {
+  constructor(state: ScalpingState, variant: StrategyVariant = 'reverse-descending-grid') {
     this.state = state;
     this.variant = variant;
   }

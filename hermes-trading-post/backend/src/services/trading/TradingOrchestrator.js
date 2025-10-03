@@ -14,6 +14,7 @@ export class TradingOrchestrator extends EventEmitter {
     this.isPaused = false;
     this.strategy = null;
     this.strategyConfig = null;
+    this.selectedStrategyType = 'reverse-descending-grid'; // Track dropdown selection
     
     // Initialize sub-services
     this.tradeExecutor = new TradeExecutor();
@@ -147,8 +148,27 @@ export class TradingOrchestrator extends EventEmitter {
   async processPrice(price, product_id) {
     if (!this.isRunning || this.isPaused || !this.strategy) return;
 
+    const prevPrice = this.currentPrice;
     this.currentPrice = price;
     this.updateCandles(price);
+
+    // Broadcast price update with updated P&L if we have positions
+    if (this.positionManager.getPositions().length > 0) {
+      // Calculate percentage change from previous price
+      const priceChangePercent = prevPrice > 0 ? Math.abs((price - prevPrice) / prevPrice) * 100 : 0;
+      
+      // Broadcast updated P&L on significant price changes (>0.01%) or every 10th update
+      if (priceChangePercent > 0.01 || (this._priceUpdateCount % 10 === 0)) {
+        this.broadcast({
+          type: 'priceUpdate',
+          price: price,
+          status: this.getStatus()
+        });
+      }
+    }
+    
+    // Increment update counter for periodic broadcasts
+    this._priceUpdateCount = (this._priceUpdateCount || 0) + 1;
 
     try {
       // Analyze market conditions
@@ -210,23 +230,24 @@ export class TradingOrchestrator extends EventEmitter {
         this.statistics.winningTrades++;
         this.statistics.totalReturn += netProfit;
         
-        // Vault allocation: 85.7% USDC vault, 14.3% BTC vault
-        const usdcVaultAllocation = netProfit * 0.857;
-        const btcVaultAllocation = netProfit * 0.143;
+        // Optimized profit allocation: 60% vault, 20% BTC vault, 20% trading rebalance
+        const usdcVaultAllocation = netProfit * 0.60;    // 60% to USDC vault
+        const btcVaultAllocation = netProfit * 0.20;     // 20% to BTC vault  
+        const tradingRebalance = netProfit * 0.20;       // 20% back to trading for growth
         
         this.balance.vault += usdcVaultAllocation;
         this.balance.btcVault += btcVaultAllocation / price; // Convert to BTC
         
-        // Remaining goes back to trading balance
-        const remainingForTrading = netProfit - usdcVaultAllocation - btcVaultAllocation;
-        this.balance.usd += totalCostBasis + remainingForTrading;
+        // Add cost basis back + rebalance amount for trading growth
+        this.balance.usd += totalCostBasis + tradingRebalance;
         
-        console.log(`💰 PROFITABLE SELL: Profit $${netProfit.toFixed(2)} allocated to vaults`);
-        console.log(`  - USDC Vault: +$${usdcVaultAllocation.toFixed(2)}`);
-        console.log(`  - BTC Vault: +${(btcVaultAllocation / price).toFixed(6)} BTC`);
+        console.log(`💰 PROFITABLE SELL: Profit $${netProfit.toFixed(2)} allocated optimally`);
+        console.log(`  - USDC Vault (60%): +$${usdcVaultAllocation.toFixed(2)}`);
+        console.log(`  - BTC Vault (20%): +${(btcVaultAllocation / price).toFixed(6)} BTC`);
+        console.log(`  - Trading Rebalance (20%): +$${tradingRebalance.toFixed(2)}`);
         
-        // Track rebalance amount (20% of profit goes back to trading balance)
-        this.statistics.totalRebalance += remainingForTrading;
+        // Track rebalance amount for growth
+        this.statistics.totalRebalance += tradingRebalance;
         
       } else {
         // Losing trade
@@ -268,6 +289,12 @@ export class TradingOrchestrator extends EventEmitter {
   updateCandles(price) {
     const now = Date.now();
     const currentMinute = Math.floor(now / 60000) * 60000;
+    
+    // Update recentHigh for trigger calculations
+    if (price > this.chartData.recentHigh) {
+      this.chartData.recentHigh = price;
+      console.log(`📈 New recent high: $${price.toFixed(2)}`);
+    }
     
     if (!this.currentCandle || this.currentCandle.time < currentMinute / 1000) {
       if (this.currentCandle) {
@@ -318,6 +345,142 @@ export class TradingOrchestrator extends EventEmitter {
     const totalTrades = this.statistics.winningTrades + this.statistics.losingTrades;
     const winRate = totalTrades > 0 ? (this.statistics.winningTrades / totalTrades) * 100 : 0;
     
+    // Calculate next buy/sell trigger distances
+    let nextBuyDistance = null;
+    let nextSellDistance = null;
+    
+    console.log('🔍 Trigger distance calculation debug:', {
+      hasStrategy: !!this.strategy,
+      currentPrice: this.currentPrice,
+      strategyConfig: this.strategy?.config,
+      positionsCount: this.positionManager.getPositions().length,
+      recentHigh: this.strategy?.recentHigh || this.chartData.recentHigh,
+      selectedStrategyType: this.selectedStrategyType
+    });
+    
+    // Calculate trigger distances from saved state data (works without active strategy)
+    if (this.currentPrice > 0) {
+      // Always use saved strategy config or defaults - don't require active strategy
+      const strategyConfig = this.strategy?.config || {
+        initialDropPercent: 0.02,   // Ultra aggressive: 0.02% drop for first buy
+        levelDropPercent: 0.02,     // Ultra aggressive: 0.02% additional drop per level
+        profitTarget: 0.5,          // Optimized: 0.5% profit target (covers fees + vault + rebalance)
+        profitTargetPercent: 0.5,   // Optimized: 0.5% profit target (covers fees + vault + rebalance)
+        maxLevels: 15               // Increase levels to accommodate more frequent buys
+      };
+      
+      // Use recentHigh from saved chartData, strategy, or derive from trade history
+      let recentHigh = this.strategy?.recentHigh || this.chartData.recentHigh;
+      
+      // If no recentHigh saved, calculate from trade history or use current price
+      if (!recentHigh || recentHigh === 0) {
+        if (this.trades.length > 0) {
+          // Find the highest price from recent trade history
+          const recentTrades = this.trades.slice(-20); // Last 20 trades
+          recentHigh = Math.max(...recentTrades.map(t => t.price || 0));
+        } else {
+          recentHigh = this.currentPrice;
+        }
+        
+        // Update chartData with calculated recentHigh
+        this.chartData.recentHigh = recentHigh;
+        console.log(`📊 Calculated recentHigh from trade history: $${recentHigh.toFixed(2)}`);
+      }
+      // Calculate next buy trigger (if not at max levels)
+      const currentLevel = this.positionManager.getPositions().length + 1;
+      const maxLevels = strategyConfig.maxLevels || 12;
+      
+      console.log('📊 Buy trigger calculation:', {
+        currentLevel,
+        maxLevels,
+        canBuy: currentLevel <= maxLevels,
+        recentHigh,
+        currentPrice: this.currentPrice
+      });
+      
+      if (currentLevel <= maxLevels && recentHigh > 0) {
+        const initialDropPercent = strategyConfig.initialDropPercent || 0.1;
+        const levelDropPercent = strategyConfig.levelDropPercent || 0.1;
+        const requiredDrop = initialDropPercent + (currentLevel - 1) * levelDropPercent;
+        const currentDrop = ((recentHigh - this.currentPrice) / recentHigh) * 100;
+        
+        // Calculate progress percentage (how close we are to triggering the buy)
+        const progressToTrigger = requiredDrop > 0 ? (currentDrop / requiredDrop) * 100 : 0;
+        nextBuyDistance = Math.min(100, Math.max(0, progressToTrigger));
+        
+        console.log('🟢 Buy distance calculated:', {
+          initialDropPercent,
+          levelDropPercent,
+          requiredDrop,
+          currentDrop,
+          progressToTrigger,
+          nextBuyDistance: `${nextBuyDistance.toFixed(1)}%`
+        });
+      }
+      
+      // Calculate next sell trigger (check both positions and BTC balance)
+      const savedPositions = this.positionManager.getPositions();
+      const hasBtcBalance = this.balance.btc > 0;
+      const positionsCount = savedPositions.length;
+      
+      console.log('📊 Sell trigger calculation:', {
+        positionsCount,
+        hasBtcBalance,
+        btcBalance: this.balance.btc,
+        hasPositions: positionsCount > 0 || hasBtcBalance
+      });
+      
+      // Calculate sell trigger if we have BTC balance (even without explicit positions)
+      if (positionsCount > 0 || hasBtcBalance) {
+        let profitPercent = 0;
+        
+        if (this.strategy && this.strategy.calculateProfitPercent) {
+          profitPercent = this.strategy.calculateProfitPercent(this.currentPrice);
+        } else {
+          // Calculate from saved data
+          let averageEntryPrice = 0;
+          
+          if (savedPositions.length > 0) {
+            // Use position data
+            const totalCostBasis = savedPositions.reduce((sum, pos) => sum + (pos.entryPrice * pos.size), 0);
+            const totalBtc = savedPositions.reduce((sum, pos) => sum + pos.size, 0);
+            averageEntryPrice = totalBtc > 0 ? totalCostBasis / totalBtc : 0;
+          } else if (hasBtcBalance && this.trades.length > 0) {
+            // Calculate from recent buy trades if no explicit positions
+            const buyTrades = this.trades.filter(t => t.side === 'buy' || t.type === 'buy');
+            console.log(`📊 Calculating from trade history: ${buyTrades.length} buy trades found out of ${this.trades.length} total trades`);
+            
+            if (buyTrades.length > 0) {
+              const totalCost = buyTrades.reduce((sum, t) => sum + (t.price * (t.amount || t.quantity || 0)), 0);
+              const totalAmount = buyTrades.reduce((sum, t) => sum + (t.amount || t.quantity || 0), 0);
+              averageEntryPrice = totalAmount > 0 ? totalCost / totalAmount : 0;
+              
+              console.log(`📊 Trade calculation: totalCost=$${totalCost.toFixed(2)}, totalAmount=${totalAmount.toFixed(6)}, avgEntry=$${averageEntryPrice.toFixed(2)}`);
+            }
+          }
+          
+          profitPercent = averageEntryPrice > 0 ? ((this.currentPrice - averageEntryPrice) / averageEntryPrice) * 100 : 0;
+          
+          console.log(`📊 Profit calculation: currentPrice=$${this.currentPrice.toFixed(2)}, avgEntry=$${averageEntryPrice.toFixed(2)}, profit=${profitPercent.toFixed(3)}%`);
+        }
+        
+        const profitTarget = strategyConfig.profitTarget || strategyConfig.profitTargetPercent || 0.5;
+        
+        // Calculate progress percentage (how close we are to triggering the sell)
+        const progressToSell = profitTarget > 0 ? (profitPercent / profitTarget) * 100 : 0;
+        nextSellDistance = Math.min(100, Math.max(0, progressToSell));
+        
+        console.log('🔴 Sell distance calculated:', {
+          profitPercent: profitPercent.toFixed(3),
+          profitTarget,
+          progressToSell: progressToSell.toFixed(1),
+          nextSellDistance: `${nextSellDistance.toFixed(1)}%`
+        });
+      }
+    } else {
+      console.log('❌ Cannot calculate trigger distances: no current price');
+    }
+    
     return {
       isRunning: this.isRunning,
       isPaused: this.isPaused,
@@ -326,6 +489,7 @@ export class TradingOrchestrator extends EventEmitter {
       positions: positions,
       trades: this.trades,
       strategyType: this.strategy ? this.strategyConfig?.strategyType : null,
+      selectedStrategyType: this.selectedStrategyType,
       positionCount: positions.length,
       totalValue: this.calculateTotalValue(),
       
@@ -342,7 +506,11 @@ export class TradingOrchestrator extends EventEmitter {
       
       // Additional debugging info
       recentHigh: this.chartData.recentHigh,
-      recentLow: this.chartData.recentLow
+      recentLow: this.chartData.recentLow,
+      
+      // Next trigger distances
+      nextBuyDistance: nextBuyDistance,
+      nextSellDistance: nextSellDistance
     };
   }
 
@@ -433,6 +601,12 @@ export class TradingOrchestrator extends EventEmitter {
     } catch (error) {
       console.error('Error saving state:', error);
     }
+  }
+
+  async updateSelectedStrategy(strategyType) {
+    this.selectedStrategyType = strategyType;
+    await this.saveState();
+    console.log(`📝 Updated selected strategy for bot ${this.botId} to: ${strategyType}`);
   }
 
   cleanup() {

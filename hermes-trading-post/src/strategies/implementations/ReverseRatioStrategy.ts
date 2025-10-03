@@ -1,11 +1,11 @@
 import { Strategy } from '../base/Strategy';
 import type { CandleData, Position, Signal } from '../base/StrategyTypes';
-import type { ReverseRatioConfig, ReverseRatioState } from './reverse-ratio/types';
-import { MarketAnalyzer } from './reverse-ratio/MarketAnalyzer';
-import { EntryLogic } from './reverse-ratio/EntryLogic';
-import { ExitLogic } from './reverse-ratio/ExitLogic';
-import { PositionSizer } from './reverse-ratio/PositionSizer';
-import { StateManager } from './reverse-ratio/StateManager';
+import type { ReverseRatioConfig, ReverseRatioState } from './reverse-descending-grid/types';
+import { MarketAnalyzer } from './reverse-descending-grid/MarketAnalyzer';
+import { EntryLogic } from './reverse-descending-grid/EntryLogic';
+import { ExitLogic } from './reverse-descending-grid/ExitLogic';
+import { PositionSizer } from './reverse-descending-grid/PositionSizer';
+import { StateManager } from './reverse-descending-grid/StateManager';
 
 /**
  * ULTRA MICRO-SCALPING STRATEGY

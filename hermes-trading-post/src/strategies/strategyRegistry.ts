@@ -20,7 +20,7 @@ export interface StrategyInfo {
 export const STRATEGIES: Record<string, StrategyInfo> = {
   reverseRatio: {
     id: 'reverseRatio',
-    name: 'Reverse Ratio Buying',
+    name: 'Reverse Descending Grid Buying',
     description: 'Buys on dips with increasing ratios, sells at 7% profit. Never sells at a loss.',
     category: 'Mean Reversion',
     riskLevel: 'Medium',

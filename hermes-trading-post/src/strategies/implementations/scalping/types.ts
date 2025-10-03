@@ -42,4 +42,4 @@ export interface MarketAnalysis {
 /**
  * Strategy variant types
  */
-export type StrategyVariant = 'reverse-ratio' | 'ultra-micro' | 'micro' | 'proper';
+export type StrategyVariant = 'reverse-descending-grid' | 'ultra-micro' | 'micro' | 'proper';

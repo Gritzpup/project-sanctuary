@@ -2,8 +2,8 @@
   import { Router, Route } from 'svelte-routing';
   import Dashboard from './pages/Dashboard.svelte';
   import Portfolio from './pages/Portfolio.svelte';
-  import PaperTrading from './pages/PaperTrading.svelte';
-  import Backtesting from './pages/Backtesting.svelte';
+  import PaperTrading from './pages/PaperTradingContainer/PaperTradingContainer.svelte';
+  import Backtesting from './pages/Backtesting/Backtesting.svelte';
   import Trading from './pages/Trading.svelte';
   import Vault from './pages/Vault.svelte';
   import News from './pages/News.svelte';

@@ -30,9 +30,9 @@
   export function generateMockBotVaults(currentPrice: number): BotVault[] {
     return [
       {
-        botId: 'reverse-ratio-bot-1',
-        botName: 'Reverse Ratio Bot 1',
-        strategy: 'reverse-ratio',
+        botId: 'reverse-descending-grid-bot-1',
+        botName: 'Reverse Descending Grid Bot 1',
+        strategy: 'reverse-descending-grid',
         btcBalance: 0.0234,
         usdBalance: 2500,
         totalValue: 0.0234 * currentPrice + 2500,

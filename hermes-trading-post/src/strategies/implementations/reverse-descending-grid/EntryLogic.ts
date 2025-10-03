@@ -2,7 +2,7 @@ import type { Signal } from '../../base/StrategyTypes';
 import type { ReverseRatioConfig, ReverseRatioState, MarketAnalysis } from './types';
 
 /**
- * Handles entry logic for the Reverse Ratio Strategy
+ * Handles entry logic for the Reverse Descending Grid Strategy
  * Determines when and how to enter new positions
  */
 export class EntryLogic {

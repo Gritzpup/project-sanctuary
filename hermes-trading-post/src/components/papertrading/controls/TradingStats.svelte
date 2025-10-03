@@ -11,6 +11,8 @@
   export let btcBalance: number;
   export let vaultBalance: number = 0;
   export let btcVaultBalance: number = 0;
+  export let nextBuyDistance: number | null = null;
+  export let nextSellDistance: number | null = null;
 
   // Calculate derived stats
   $: growth = balance - startingBalance;
@@ -45,6 +47,8 @@
       <div class="stat-item">Total: <span class="stat-value">${totalValue.toLocaleString()}</span></div>
       <div class="stat-item">Trades: <span class="stat-value">{totalTrades}</span></div>
       <div class="stat-item">Total P/L: <span class="stat-value" class:profit={totalPL > 0} class:loss={totalPL < 0}>{totalPL > 0 ? '+' : ''}${totalPL.toLocaleString()}</span></div>
+      <div class="stat-item">Next Buy: <span class="stat-value buy-trigger">{nextBuyDistance != null ? nextBuyDistance.toFixed(0) + '%' : `N/A (${nextBuyDistance})`}</span></div>
+      <div class="stat-item">Next Sell: <span class="stat-value sell-trigger">{nextSellDistance != null ? nextSellDistance.toFixed(0) + '%' : `N/A (${nextSellDistance})`}</span></div>
     </div>
   </div>
 </div>
@@ -113,5 +117,15 @@
 
   .stat-value.loss {
     color: #ef4444;
+  }
+
+  .stat-value.buy-trigger {
+    color: #26a69a;
+    font-weight: 600;
+  }
+
+  .stat-value.sell-trigger {
+    color: #ef4444;
+    font-weight: 600;
   }
 </style>

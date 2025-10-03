@@ -19,11 +19,11 @@
       <input 
         type="number" 
         class="input-base"
-        bind:value={strategyParams['reverse-ratio'].initialDropPercent}
+        bind:value={strategyParams['reverse-descending-grid'].initialDropPercent}
         min="0.1" 
         max="20" 
         step="0.1"
-        on:input={() => updateParam('initialDropPercent', strategyParams['reverse-ratio'].initialDropPercent)}
+        on:input={() => updateParam('initialDropPercent', strategyParams['reverse-descending-grid'].initialDropPercent)}
       />
       <span class="input-hint">Percentage drop to trigger first buy</span>
     </label>
@@ -33,11 +33,11 @@
       <input 
         type="number" 
         class="input-base"
-        bind:value={strategyParams['reverse-ratio'].additionalDropPercent}
+        bind:value={strategyParams['reverse-descending-grid'].additionalDropPercent}
         min="0.1" 
         max="10" 
         step="0.1"
-        on:input={() => updateParam('additionalDropPercent', strategyParams['reverse-ratio'].additionalDropPercent)}
+        on:input={() => updateParam('additionalDropPercent', strategyParams['reverse-descending-grid'].additionalDropPercent)}
       />
       <span class="input-hint">Additional drop for each subsequent level</span>
     </label>
@@ -47,11 +47,11 @@
       <input 
         type="number" 
         class="input-base"
-        bind:value={strategyParams['reverse-ratio'].minTimeBetweenBuys}
+        bind:value={strategyParams['reverse-descending-grid'].minTimeBetweenBuys}
         min="1" 
         max="1440" 
         step="1"
-        on:input={() => updateParam('minTimeBetweenBuys', strategyParams['reverse-ratio'].minTimeBetweenBuys)}
+        on:input={() => updateParam('minTimeBetweenBuys', strategyParams['reverse-descending-grid'].minTimeBetweenBuys)}
       />
       <span class="input-hint">Cooldown period between purchases</span>
     </label>
@@ -61,11 +61,11 @@
       <input 
         type="number" 
         class="input-base"
-        bind:value={strategyParams['reverse-ratio'].stopLossPercent}
+        bind:value={strategyParams['reverse-descending-grid'].stopLossPercent}
         min="0" 
         max="50" 
         step="1"
-        on:input={() => updateParam('stopLossPercent', strategyParams['reverse-ratio'].stopLossPercent)}
+        on:input={() => updateParam('stopLossPercent', strategyParams['reverse-descending-grid'].stopLossPercent)}
       />
       <span class="input-hint">Set to 0 to disable stop loss</span>
     </label>

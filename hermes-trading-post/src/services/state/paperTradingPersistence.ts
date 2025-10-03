@@ -7,7 +7,7 @@ interface PersistentTradingState {
   isRunning: boolean;
   isPaused?: boolean; // Added for pause state
   strategyType: string;
-  strategyTypeKey?: string; // e.g. 'reverse-ratio', 'grid-trading', etc.
+  strategyTypeKey?: string; // e.g. 'reverse-descending-grid', 'grid-trading', etc.
   strategyConfig: any;
   balance: {
     usd: number;

@@ -19,7 +19,7 @@
   }
 </script>
 
-{#if selectedStrategyType === 'reverse-ratio'}
+{#if selectedStrategyType === 'reverse-descending-grid'}
   <PresetManager 
     {customPresets} 
     {selectedPresetIndex}

@@ -41,7 +41,7 @@ function loadStoredStrategy(): StrategyConfig {
   
   // Return default values if no stored strategy or error
   return {
-    selectedType: 'reverse-ratio',
+    selectedType: 'reverse-descending-grid',
     parameters: {},
     isCustom: false,
     balance: 10000,
@@ -141,7 +141,7 @@ function createStrategyStore() {
     // Reset store to defaults
     reset: () => {
       const defaultConfig = {
-        selectedType: 'reverse-ratio',
+        selectedType: 'reverse-descending-grid',
         parameters: {},
         isCustom: false,
         balance: 10000,

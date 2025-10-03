@@ -37,7 +37,7 @@ export class PaperTradingOrchestrator {
   private state = writable<TradingState>({
     isRunning: false,
     isPaused: false,
-    selectedStrategyType: 'reverse-ratio',
+    selectedStrategyType: 'reverse-descending-grid',
     currentStrategy: null,
     balance: 10000,
     btcBalance: 0,
@@ -86,7 +86,7 @@ export class PaperTradingOrchestrator {
       this.backendWs.onopen = () => {
         console.log('🟢 Connected to backend WebSocket');
         this.backendConnected = true;
-        this.backendWs?.send(JSON.stringify({ type: 'selectBot', botId: 'reverse-ratio-bot-1' }));
+        this.backendWs?.send(JSON.stringify({ type: 'selectBot', botId: 'reverse-descending-grid-bot-1' }));
         this.backendWs?.send(JSON.stringify({ type: 'getStatus' }));
         
         this.statusPollingInterval = setInterval(() => {
@@ -180,7 +180,7 @@ export class PaperTradingOrchestrator {
 
   createStrategy(strategyType: string): Strategy | null {
     switch (strategyType) {
-      case 'reverse-ratio':
+      case 'reverse-descending-grid':
         return new ReverseRatioStrategy({
           initialDropPercent: 0.1,
           levelDropPercent: 0.1,
@@ -304,7 +304,7 @@ export class PaperTradingOrchestrator {
     this.updateState({
       isRunning: false,
       isPaused: false,
-      selectedStrategyType: 'reverse-ratio', // Reset to default strategy
+      selectedStrategyType: 'reverse-descending-grid', // Reset to default strategy
       balance: 10000,
       btcBalance: 0,
       vaultBalance: 0,
@@ -319,13 +319,13 @@ export class PaperTradingOrchestrator {
     if (this.backendWs && this.backendConnected) {
       this.backendWs.send(JSON.stringify({ 
         type: 'stop', 
-        botId: 'reverse-ratio-bot-1' 
+        botId: 'reverse-descending-grid-bot-1' 
       }));
       
       setTimeout(() => {
         this.backendWs?.send(JSON.stringify({ 
           type: 'reset', 
-          botId: 'reverse-ratio-bot-1' 
+          botId: 'reverse-descending-grid-bot-1' 
         }));
       }, 200);
       return;
