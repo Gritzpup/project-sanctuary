@@ -75,6 +75,7 @@
       on:pause={handleEvent}
       on:resume={handleEvent}
       on:reset={handleEvent}
+      on:stop={handleEvent}
     />
   </div>
 </div>

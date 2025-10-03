@@ -24,6 +24,10 @@
   function resetTrading() {
     dispatch('reset');
   }
+
+  function stopTrading() {
+    dispatch('stop');
+  }
 </script>
 
 <div class="trading-controls">
@@ -51,9 +55,9 @@
         <span class="btn-icon spinner"></span>
         Now Trading
       </button>
-      <button class="btn-base btn-md btn-error" on:click={resetTrading}>
-        <span class="btn-icon">↻</span>
-        Reset
+      <button class="btn-base btn-md btn-error" on:click={stopTrading}>
+        <span class="btn-icon">⏹</span>
+        Stop
       </button>
     {/if}
   </div>

@@ -69,6 +69,44 @@ function cleanupOldMappings() {
 // 🔥 MEMORY LEAK FIX: Periodic cleanup every 30 minutes
 let cleanupInterval = setInterval(cleanupOldMappings, 30 * 60 * 1000);
 
+// 🔥 MEMORY MONITORING: Add memory usage monitoring and circuit breaker
+function monitorMemoryUsage() {
+  const memUsage = process.memoryUsage();
+  const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+  const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
+  const rssMB = Math.round(memUsage.rss / 1024 / 1024);
+  
+  // Log memory usage every 5 minutes
+  console.log(`📊 Memory Usage: RSS: ${rssMB}MB, Heap: ${heapUsedMB}/${heapTotalMB}MB, Clients: ${wss.clients.size}, Subscriptions: ${chartSubscriptions.size}`);
+  
+  // Circuit breaker: If memory usage exceeds 1GB, force cleanup
+  if (memUsage.heapUsed > 1024 * 1024 * 1024) {
+    console.warn(`⚠️ HIGH MEMORY USAGE: ${heapUsedMB}MB - Forcing cleanup`);
+    
+    // Force cleanup of old mappings
+    cleanupOldMappings();
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+      console.log('🗑️ Forced garbage collection');
+    }
+    
+    // If still high after cleanup, log warning
+    const newMemUsage = process.memoryUsage();
+    const newHeapUsedMB = Math.round(newMemUsage.heapUsed / 1024 / 1024);
+    if (newMemUsage.heapUsed > 800 * 1024 * 1024) {
+      console.error(`🚨 CRITICAL MEMORY: ${newHeapUsedMB}MB after cleanup - Consider restarting`);
+    }
+  }
+}
+
+// Monitor memory every 5 minutes
+let memoryMonitorInterval = setInterval(monitorMemoryUsage, 5 * 60 * 1000);
+
+// Initial memory check
+setTimeout(monitorMemoryUsage, 10000);
+
 // Initialize default bots on startup
 // Use async IIFE to handle async initialization
 (async () => {
@@ -136,6 +174,28 @@ wss.on('connection', (ws) => {
   // Also add client to all bot instances for price updates
   botManager.bots.forEach(bot => {
     bot.addClient(ws);
+  });
+
+  // 🔥 MEMORY LEAK FIX: Clean up on disconnect
+  ws.on('close', () => {
+    // Remove client subscriptions
+    chartSubscriptions.delete(ws._clientId);
+    
+    // Remove client from bot manager
+    botManager.removeClient(ws);
+    
+    // Remove client from all bots
+    botManager.bots.forEach(bot => {
+      bot.removeClient(ws);
+    });
+    
+    console.log(`🧹 WebSocket client ${ws._clientId} disconnected and cleaned up`);
+  });
+
+  ws.on('error', (error) => {
+    console.error(`WebSocket error for client ${ws._clientId}:`, error);
+    // Trigger cleanup on error
+    ws.close();
   });
 
   ws.on('message', (message) => {
