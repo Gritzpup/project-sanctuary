@@ -24,7 +24,10 @@
     showLatestPrice = true,
     showLatestCandleTime = true,
     showCandleCountdown = true,
+    showTotalPnL = false,
+    showTradesCount = false,
     tradingStatus = null,
+    tradingData = null,
   }: {
     position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'footer';
     showCandleCount?: boolean;
@@ -34,7 +37,10 @@
     showLatestPrice?: boolean;
     showLatestCandleTime?: boolean;
     showCandleCountdown?: boolean;
+    showTotalPnL?: boolean;
+    showTradesCount?: boolean;
     tradingStatus?: { isRunning: boolean; isPaused: boolean } | null;
+    tradingData?: { totalReturn?: number; trades?: any[] } | null;
   } = $props();
   
   let currentTime = $state(new Date());
@@ -161,6 +167,16 @@
       <span class="info-value time">{clockDisplay}</span>
     </div>
   {/if}
+  
+  {#if showTotalPnL && tradingData?.totalReturn !== undefined}
+    <div class="info-item total-pnl">
+      <span class="info-label">Total P/L:</span>
+      <span class="info-value" class:profit={tradingData.totalReturn > 0} class:loss={tradingData.totalReturn < 0}>
+        ${tradingData.totalReturn.toFixed(2)}
+      </span>
+    </div>
+  {/if}
+  
   
   {#if showPerformance && performanceStore.isMonitoring}
     <div class="info-item performance">
@@ -326,6 +342,17 @@
   
   .performance .info-value.poor {
     color: #f44336;
+  }
+  
+  /* Total P/L */
+  .total-pnl .info-value.profit {
+    color: #4caf50;
+    font-weight: 600;
+  }
+  
+  .total-pnl .info-value.loss {
+    color: #f44336;
+    font-weight: 600;
   }
   
   /* WebSocket Status Light */

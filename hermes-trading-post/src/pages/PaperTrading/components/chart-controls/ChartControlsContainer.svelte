@@ -11,6 +11,7 @@
   export let selectedTestDateString: string = '';
   export let isRunning: boolean = false;
   export let isPaused: boolean = false;
+  export let tradingData: { totalReturn?: number } | null = null;
   
   const dispatch = createEventDispatcher();
   
@@ -66,7 +67,10 @@
             showLatestPrice={false}
             showLatestCandleTime={false}
             showCandleCountdown={true}
+            showTotalPnL={true}
+            showTradesCount={true}
             tradingStatus={{isRunning, isPaused}}
+            {tradingData}
           />
         </div>
       </div>

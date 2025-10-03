@@ -43,12 +43,12 @@
       <div class="stat-item">Fees: <span class="stat-value">${totalFees.toFixed(2)}</span></div>
       <div class="stat-item">Net Fees: <span class="stat-value">${netFeesAfterRebase.toFixed(2)}</span></div>
       <div class="stat-item">Unrealized P/L: <span class="stat-value" class:profit={unrealizedPL > 0} class:loss={unrealizedPL < 0}>{unrealizedPL > 0 ? '+' : ''}${unrealizedPL.toFixed(2)}</span></div>
-      <div class="stat-item">Return: <span class="stat-value" class:profit={growthPercent > 0} class:loss={growthPercent < 0}>{growthPercent > 0 ? '+' : ''}{growthPercent.toFixed(1)}%</span></div>
-      <div class="stat-item">Total: <span class="stat-value">${totalValue.toLocaleString()}</span></div>
-      <div class="stat-item">Trades: <span class="stat-value">{totalTrades}</span></div>
       <div class="stat-item">Total P/L: <span class="stat-value" class:profit={totalPL > 0} class:loss={totalPL < 0}>{totalPL > 0 ? '+' : ''}${totalPL.toLocaleString()}</span></div>
+      <div class="stat-item">Total: <span class="stat-value">${totalValue.toLocaleString()}</span></div>
+      <div class="stat-item">Return: <span class="stat-value" class:profit={growthPercent > 0} class:loss={growthPercent < 0}>{growthPercent > 0 ? '+' : ''}{growthPercent.toFixed(1)}%</span></div>
       <div class="stat-item">Next Buy: <span class="stat-value buy-trigger">{nextBuyDistance != null ? nextBuyDistance.toFixed(0) + '%' : `N/A (${nextBuyDistance})`}</span></div>
       <div class="stat-item">Next Sell: <span class="stat-value sell-trigger">{nextSellDistance != null ? nextSellDistance.toFixed(0) + '%' : `N/A (${nextSellDistance})`}</span></div>
+      <div class="stat-item">Trades: <span class="stat-value">{totalTrades}</span></div>
     </div>
   </div>
 </div>

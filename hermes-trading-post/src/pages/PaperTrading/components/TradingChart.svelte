@@ -23,7 +23,8 @@
     chartComponent = $bindable(null),
     currentPrice = 0,
     priceChange24h = 0,
-    priceChangePercent24h = 0
+    priceChangePercent24h = 0,
+    tradingData = null
   } = $props();
   
   const dispatch = createEventDispatcher();
@@ -226,6 +227,7 @@
     {selectedTestDateString}
     {isRunning}
     {isPaused}
+    {tradingData}
     on:periodChange={handlePeriodChange}
     on:speedChange={handleSpeedChange}
     on:dateChange={handleDateChange}

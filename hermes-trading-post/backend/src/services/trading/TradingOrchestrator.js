@@ -323,21 +323,39 @@ export class TradingOrchestrator extends EventEmitter {
   getStatus() {
     let positions = this.positionManager.getPositions();
     
-    // HOTFIX: If we have BTC balance but no positions, reconstruct from trades
+    // Debug: Check if positions are being properly maintained
+    console.log('🔍 Position debug:', {
+      positionsCount: positions.length,
+      btcBalance: this.balance.btc,
+      tradesCount: this.trades.length,
+      shouldHavePositions: this.balance.btc > 0
+    });
+    
+    // RECONSTRUCT POSITIONS FROM TRADES - Enhanced version to show all positions
     if (positions.length === 0 && this.balance.btc > 0 && this.trades.length > 0) {
-      // Find the most recent buy trade to reconstruct the position
+      console.log('⚠️ ENHANCED RECONSTRUCTION: No positions but have BTC balance and trades');
       const buyTrades = this.trades.filter(t => t.side === 'buy' || t.type === 'buy');
+      console.log(`📊 Found ${buyTrades.length} buy trades to reconstruct positions from`);
+      
       if (buyTrades.length > 0) {
-        const lastBuyTrade = buyTrades[buyTrades.length - 1];
-        const reconstructedPosition = {
-          id: lastBuyTrade.id || lastBuyTrade.timestamp,
-          entryPrice: lastBuyTrade.price,
-          size: this.balance.btc, // Use current BTC balance as position size
-          timestamp: lastBuyTrade.timestamp,
+        // Create individual positions from each buy trade instead of consolidating
+        positions = buyTrades.map(trade => ({
+          id: trade.id || trade.timestamp,
+          entryPrice: trade.price,
+          size: trade.amount, // Use individual trade amount, not total balance
+          timestamp: trade.timestamp,
           type: 'buy',
-          reason: lastBuyTrade.reason || 'Reconstructed from trade history'
-        };
-        positions = [reconstructedPosition];
+          reason: trade.reason || 'Reconstructed from trade history'
+        }));
+        
+        console.log(`🔄 Reconstructed ${positions.length} individual positions from trades`);
+        
+        // Also restore them to the PositionManager
+        this.positionManager.clearAllPositions();
+        positions.forEach(position => {
+          this.positionManager.addPosition(position);
+        });
+        console.log(`✅ Restored ${positions.length} reconstructed positions to PositionManager`);
       }
     }
     
@@ -405,8 +423,16 @@ export class TradingOrchestrator extends EventEmitter {
         const currentDrop = ((recentHigh - this.currentPrice) / recentHigh) * 100;
         
         // Calculate progress percentage (how close we are to triggering the buy)
-        const progressToTrigger = requiredDrop > 0 ? (currentDrop / requiredDrop) * 100 : 0;
-        nextBuyDistance = Math.min(100, Math.max(0, progressToTrigger));
+        // If currentDrop >= requiredDrop, we're ready to trigger (0% distance remaining)
+        // Otherwise, show percentage of progress toward the trigger
+        let progressToTrigger = 0;
+        if (currentDrop >= requiredDrop) {
+          nextBuyDistance = 0; // Ready to trigger
+          progressToTrigger = 100; // Show 100% when ready
+        } else {
+          progressToTrigger = requiredDrop > 0 ? (currentDrop / requiredDrop) * 100 : 0;
+          nextBuyDistance = Math.max(0, progressToTrigger);
+        }
         
         console.log('🟢 Buy distance calculated:', {
           initialDropPercent,
@@ -467,8 +493,16 @@ export class TradingOrchestrator extends EventEmitter {
         const profitTarget = strategyConfig.profitTarget || strategyConfig.profitTargetPercent || 0.5;
         
         // Calculate progress percentage (how close we are to triggering the sell)
-        const progressToSell = profitTarget > 0 ? (profitPercent / profitTarget) * 100 : 0;
-        nextSellDistance = Math.min(100, Math.max(0, progressToSell));
+        // If profitPercent >= profitTarget, we're ready to trigger (0% distance remaining)
+        // Otherwise, show percentage of progress toward the sell trigger
+        let progressToSell = 0;
+        if (profitPercent >= profitTarget) {
+          nextSellDistance = 0; // Ready to trigger
+          progressToSell = 100; // Show 100% when ready
+        } else {
+          progressToSell = profitTarget > 0 ? (profitPercent / profitTarget) * 100 : 0;
+          nextSellDistance = Math.max(0, progressToSell);
+        }
         
         console.log('🔴 Sell distance calculated:', {
           profitPercent: profitPercent.toFixed(3),
@@ -585,6 +619,17 @@ export class TradingOrchestrator extends EventEmitter {
         }
         
         Object.assign(this, state);
+        
+        // CRITICAL FIX: Restore positions to PositionManager after Object.assign
+        if (state.positions && Array.isArray(state.positions)) {
+          // Clear any existing positions and restore from saved state
+          this.positionManager.clearAllPositions();
+          state.positions.forEach(position => {
+            this.positionManager.addPosition(position);
+          });
+          console.log(`🔄 Restored ${state.positions.length} positions to PositionManager`);
+        }
+        
         console.log(`✅ State loaded for bot ${this.botId}`);
         
         // Save the migrated state

@@ -6,6 +6,7 @@
   export let selectedTestDateString = '';
   export let isRunning = false;
   export let isPaused = false;
+  export let tradingData = null;
 </script>
 
 <ChartControlsContainer 
@@ -14,6 +15,7 @@
   {selectedTestDateString}
   {isRunning}
   {isPaused}
+  {tradingData}
   on:periodChange
   on:speedChange
   on:dateChange

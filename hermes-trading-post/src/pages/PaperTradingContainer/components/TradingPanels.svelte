@@ -42,6 +42,7 @@
     currentPrice={backendState.currentPrice || 0}
     priceChange24h={backendState.priceChange24h || 0}
     priceChangePercent24h={backendState.priceChangePercent24h || 0}
+    tradingData={backendState}
     on:pairChange={forwardEvent}
     on:granularityChange={forwardEvent}
     on:periodChange={forwardEvent}
