@@ -13,9 +13,9 @@
   export let isLoading: boolean = false;
   export let status: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   
-  let dataFeed: ChartDataFeed | null = null;
+  let dataFeed: any | null = null;
   let updateInterval: number | null = null;
-  let unsubscribe: (() => void) | null = null;
+  let subscriptionId: string | null = null;
   
   // Map periods to days
   const periodToDays: Record<string, number> = {
@@ -58,12 +58,13 @@
         const endDate = new Date(paperTestDate);
         const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
         
-        // Use getDataForVisibleRange method which exists on ChartDataFeed
-        const data = await dataFeed.getDataForVisibleRange(
-          startDate.getTime() / 1000,
-          endDate.getTime() / 1000,
-          'paper-test'
-        );
+        // Get data for the specified range
+        const data = await dataFeed.loadData({
+          symbol: 'BTC-USD',
+          granularity: '1m',
+          startTime: startDate.getTime() / 1000,
+          endTime: endDate.getTime() / 1000
+        });
         
         console.log('ChartDataManager: Loaded', data.length, 'paper test candles');
         candles = data;
@@ -72,10 +73,12 @@
         const endDate = new Date();
         const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
         
-        const data = await dataFeed.getDataForVisibleRange(
-          startDate.getTime() / 1000,
-          endDate.getTime() / 1000
-        );
+        const data = await dataFeed.loadData({
+          symbol: 'BTC-USD',
+          granularity: '1m',
+          startTime: startDate.getTime() / 1000,
+          endTime: endDate.getTime() / 1000
+        });
         console.log('ChartDataManager: Loaded', data.length, 'candles');
         candles = data;
       }
@@ -119,7 +122,8 @@
     if (!dataFeed || isPaperTestMode) return;
     
     // Subscribe to real-time candle updates
-    unsubscribe = dataFeed.subscribe((candle: CandleData) => {
+    subscriptionId = 'ChartDataManager';
+    dataFeed.subscribe(subscriptionId, (candle: CandleData) => {
       // Add or update the latest candle
       const existingIndex = candles.findIndex(c => c.time === candle.time);
       if (existingIndex >= 0) {
@@ -181,9 +185,9 @@
       updateInterval = null;
     }
     
-    if (unsubscribe) {
-      unsubscribe();
-      unsubscribe = null;
+    if (subscriptionId && dataFeed) {
+      dataFeed.unsubscribe(subscriptionId);
+      subscriptionId = null;
     }
   });
 </script>

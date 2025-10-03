@@ -11,9 +11,9 @@
   export let isSynced: boolean;
   export let paperTradingActive: boolean;
   export let isRunning: boolean;
-  export let currentPrice: number = 0;
-  export let customPresets: Array<any>;
-  export let selectedPresetIndex: number;
+  export const currentPrice: number = 0;
+  export const customPresets: Array<any> = [];
+  export const selectedPresetIndex: number = 0;
   export let showSaveSuccess: boolean = false;
   export let showSyncSuccess: boolean = false;
   

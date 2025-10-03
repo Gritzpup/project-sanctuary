@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import Chart from '../../trading/chart/Chart.svelte';
   import ChartInfo from '../../trading/chart/components/overlays/ChartInfo.svelte';
   import ChartHeader from './ChartHeader.svelte';
@@ -31,6 +32,7 @@
   // Forward test progress state
   let forwardTestProgress = 0;
   let isForwardTestRunning = false;
+  let forwardTestInterval: number | null = null;
   
   // Create reactive variable for latest price
   let latestPrice = $state(0);
@@ -147,9 +149,17 @@
   function simulateForwardTest() {
     if (!isForwardTestRunning) return;
     
-    const interval = setInterval(() => {
+    // Clear any existing interval
+    if (forwardTestInterval) {
+      clearInterval(forwardTestInterval);
+    }
+    
+    forwardTestInterval = setInterval(() => {
       if (!isForwardTestRunning || forwardTestProgress >= 100) {
-        clearInterval(interval);
+        if (forwardTestInterval) {
+          clearInterval(forwardTestInterval);
+          forwardTestInterval = null;
+        }
         if (forwardTestProgress >= 100) {
           isForwardTestRunning = false;
         }
@@ -164,6 +174,14 @@
       }
     }, 100);
   }
+
+  // Cleanup timers on component destroy
+  onDestroy(() => {
+    if (forwardTestInterval) {
+      clearInterval(forwardTestInterval);
+      forwardTestInterval = null;
+    }
+  });
 </script>
 
 <div class="panel-base chart-panel">

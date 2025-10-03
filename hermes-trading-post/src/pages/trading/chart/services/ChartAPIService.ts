@@ -3,6 +3,7 @@ import { ChartDebug } from '../utils/debug';
 import { perfTest } from '../utils/performanceTest';
 import { CoinbaseAPI } from '../../../../services/api/coinbaseApi';
 import { getGranularitySeconds } from '../utils/granularityHelpers';
+import { Logger } from '../../../../utils/Logger';
 
 export class ChartAPIService {
   private coinbaseApi: CoinbaseAPI;
@@ -26,8 +27,10 @@ export class ChartAPIService {
     const fetchStartTime = performance.now();
     perfTest.mark('fetchCandles-start');
     
-    console.log(`[ChartAPIService] fetchCandles called for ${pair} ${granularity}`);
-    console.log(`[ChartAPIService] Time range: ${new Date(start * 1000).toISOString()} to ${new Date(end * 1000).toISOString()}`);
+    Logger.debug('ChartAPIService', `fetchCandles called for ${pair} ${granularity}`);
+    if (start && end) {
+      Logger.debug('ChartAPIService', `Time range: ${new Date(start * 1000).toISOString()} to ${new Date(end * 1000).toISOString()}`);
+    }
     
     // Log performance start for 3M/1d
     if (granularity === '1d' || granularity === '1D') {
@@ -37,7 +40,7 @@ export class ChartAPIService {
     const granularitySeconds = getGranularitySeconds(granularity);
     
     // Consolidated debug for 1d granularity
-    if (granularity === '1d' || granularity === '1D') {
+    if ((granularity === '1d' || granularity === '1D') && start && end) {
       ChartDebug.critical('Fetching 1d candles', {
         granularity: `${granularity} (${granularitySeconds}s)`,
         pair,
@@ -55,6 +58,9 @@ export class ChartAPIService {
       const maxTimeSpan = maxCandles * granularitySeconds;
       
       // Check if we need to chunk the request
+      if (!start || !end) {
+        throw new Error('Start and end timestamps are required for chunked requests');
+      }
       const timeRange = end - start;
       const expectedCandles = Math.ceil(timeRange / granularitySeconds);
       
@@ -113,8 +119,8 @@ export class ChartAPIService {
         allCandles = await this.coinbaseApi.getCandles(
           pair,
           granularitySeconds,
-          start.toString(),
-          end.toString()
+          start?.toString(),
+          end?.toString()
         );
         const apiEndTime = performance.now();
         
@@ -136,7 +142,7 @@ export class ChartAPIService {
           debugData.lastCandle = new Date(allCandles[allCandles.length - 1].time * 1000).toISOString();
         }
         
-        if (allCandles.length < expectedCandles) {
+        if (allCandles.length < expectedCandles && start && end) {
           const totalDays = (end - start) / 86400;
           debugData.warning = {
             missing: expectedCandles - allCandles.length,

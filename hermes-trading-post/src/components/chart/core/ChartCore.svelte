@@ -3,7 +3,7 @@
   import { createChart, ColorType } from 'lightweight-charts';
   import type { IChartApi, ISeriesApi } from 'lightweight-charts';
   
-  export let width: number = 800;
+  export const width: number = 800;
   export let height: number = 400;
   export let data: any[] = [];
   export let enableZoom: boolean = true;

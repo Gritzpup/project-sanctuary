@@ -16,11 +16,11 @@
 </script>
 
 <div class="control-group">
-  <label>Account Balances</label>
   <div class="balance-controls-simple">
     <div class="balance-pair">
-      <span class="balance-label-inline">USD</span>
+      <label for="usd-balance" class="balance-label-inline">USD</label>
       <input 
+        id="usd-balance"
         type="number" 
         class="input-base input-narrow"
         bind:value={balance}

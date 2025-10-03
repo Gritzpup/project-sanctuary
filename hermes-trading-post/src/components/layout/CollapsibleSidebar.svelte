@@ -56,7 +56,7 @@
         <div class="mobile-price">BTC ${currentPrice.toLocaleString()}</div>
       {/if}
     </div>
-    <button class="hamburger-btn" on:click={toggleMobileMenu}>
+    <button class="hamburger-btn" on:click={toggleMobileMenu} aria-label="Toggle navigation menu">
       <span class="hamburger-line"></span>
       <span class="hamburger-line"></span>
       <span class="hamburger-line"></span>
@@ -65,7 +65,14 @@
   
   <!-- Mobile Menu Overlay -->
   {#if mobileMenuOpen}
-    <div class="mobile-menu-overlay" on:click={toggleMobileMenu}></div>
+    <div 
+      class="mobile-menu-overlay" 
+      role="button" 
+      tabindex="0"
+      aria-label="Close navigation menu"
+      on:click={toggleMobileMenu}
+      on:keydown={(e) => e.key === 'Enter' || e.key === ' ' ? toggleMobileMenu() : null}
+    ></div>
     <nav class="mobile-menu">
       {#each menuItems as item}
         <button 
