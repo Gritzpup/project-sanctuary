@@ -80,18 +80,13 @@
     }
   }
 
-  // Force grid layout aggressively
+  // Trigger chart resize when state manager is ready
   $: {
-    if (typeof window !== 'undefined' && stateManager?.tradingState) {
-      // Force it multiple times
-      for (let i = 0; i < 5; i++) {
-        setTimeout(() => {
-          const panelsRow = document.querySelector('.main-panels-row');
-          if (panelsRow) {
-            (panelsRow as HTMLElement).style.cssText = 'display: grid; grid-template-columns: 2fr 1fr; gap: 20px;';
-          }
-        }, i * 100);
-      }
+    if (typeof window !== 'undefined' && stateManager?.tradingState && chartComponent) {
+      // Just trigger a single chart resize
+      setTimeout(() => {
+        updateLayout();
+      }, 200);
     }
   }
 
@@ -100,6 +95,18 @@
     if (stateManager && chartComponent) {
       stateManager.setChartComponent(chartComponent);
     }
+  }
+
+  // Function to trigger chart resize when layout changes
+  function updateLayout() {
+    // Just trigger chart resize without forcing CSS - let CSS media queries handle layout
+    setTimeout(() => {
+      if (chartComponent && chartComponent.resizeChart) {
+        chartComponent.resizeChart();
+      }
+      // Trigger a window resize event to force chart redraw
+      window.dispatchEvent(new Event('resize'));
+    }, 100);
   }
 
   onMount(() => {
@@ -116,9 +123,13 @@
       backendState = state;
     });
     
+    // Add resize listener for responsive layout
+    window.addEventListener('resize', updateLayout);
+    
     return () => {
       unsubscribeTradingState();
       unsubscribeBackendState();
+      window.removeEventListener('resize', updateLayout);
       stateManager.destroy();
     };
   });

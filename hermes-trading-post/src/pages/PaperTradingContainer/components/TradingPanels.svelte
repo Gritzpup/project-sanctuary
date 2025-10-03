@@ -105,8 +105,10 @@
   .chart-container {
     width: 100%;
     min-width: 0;
-    height: 600px;
+    height: 500px; /* Default height */
     order: 1;
+    overflow: hidden;
+    position: relative;
   }
 
   .strategy-container {
@@ -123,6 +125,7 @@
     .main-panels-row {
       display: grid;
       grid-template-columns: 2fr 1fr;
+      gap: 20px;
     }
 
     .main-panels-row {
@@ -130,7 +133,7 @@
     }
 
     .chart-container {
-      height: 100%;
+      height: 100%; /* Full height on desktop in grid */
       order: unset;
     }
 
@@ -138,6 +141,18 @@
       height: 100%;
       order: unset;
       margin-top: unset;
+    }
+  }
+
+  /* Mobile-specific adjustments */
+  @media (max-width: 768px) {
+    .chart-container {
+      height: 800px; /* 2x taller for mobile screens */
+      min-height: 600px;
+    }
+    
+    .strategy-container {
+      min-height: 200px;
     }
   }
 
