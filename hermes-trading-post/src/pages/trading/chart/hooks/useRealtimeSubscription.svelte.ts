@@ -83,8 +83,10 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         open: price,
         high: price,
         low: price,
-        close: price
-      };
+        close: price,
+        // Preserve volume data if available, otherwise use 0
+        volume: fullCandleData?.volume || 0
+      } as any;
       
       // Add to dataStore
       const updatedCandles = [...candles, newCandle];
@@ -138,9 +140,9 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         high: Math.max(currentCandle.high, price),
         low: Math.min(currentCandle.low, price),
         close: price,
-        // 🔥 FIX: Include volume from WebSocket data
-        ...(fullCandleData?.volume !== undefined && { volume: fullCandleData.volume } as any)
-      };
+        // Preserve volume from WebSocket data or keep existing volume
+        volume: fullCandleData?.volume !== undefined ? fullCandleData.volume : (currentCandle as any).volume || 0
+      } as any;
       
       updatedCandles[updatedCandles.length - 1] = updatedCandle;
       dataStore.setCandles(updatedCandles);
