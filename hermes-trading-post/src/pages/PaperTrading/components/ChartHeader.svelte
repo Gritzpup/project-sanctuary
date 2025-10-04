@@ -8,6 +8,7 @@
   export let botTabs: any[] = [];
   export let activeBotInstance: any = null;
   export let selectedGranularity = '1m';
+  export let selectedPeriod = '1H';
 </script>
 
 <ChartHeaderContainer 
@@ -18,6 +19,7 @@
   {botTabs}
   {activeBotInstance}
   {selectedGranularity}
+  {selectedPeriod}
   on:pairChange
   on:botSelect
   on:granularityChange

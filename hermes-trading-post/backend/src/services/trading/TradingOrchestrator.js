@@ -3,6 +3,7 @@ import { strategyRegistry } from '../../strategies/StrategyRegistry.js';
 import { TradeExecutor } from './TradeExecutor.js';
 import { PositionManager } from './PositionManager.js';
 import { TradingStateRepository } from '../persistence/TradingStateRepository.js';
+import { TradingLogger } from '../logging/TradingLogger.js';
 
 export class TradingOrchestrator extends EventEmitter {
   constructor(botId = null) {
@@ -20,6 +21,7 @@ export class TradingOrchestrator extends EventEmitter {
     this.tradeExecutor = new TradeExecutor();
     this.positionManager = new PositionManager();
     this.stateRepository = new TradingStateRepository(botId);
+    this.logger = new TradingLogger(botId);
     
     // Trading state
     this.balance = {
@@ -163,25 +165,66 @@ export class TradingOrchestrator extends EventEmitter {
       return;
     }
     this._lastPriceUpdate = now;
+
+    // Log trading status periodically
+    await this.logger.logTradingStatus(this);
+    
+    // STATE VALIDATION: Ensure runtime state matches saved state (rate limited)
+    if (this.balance.btc === 0 && this.positionManager.getPositions().length === 0) {
+      if (!this._lastStateReload || (now - this._lastStateReload) > 10000) {
+        console.log('⚠️ RUNTIME STATE EMPTY - Forcing state reload');
+        this._lastStateReload = now;
+        await this.loadState();
+      }
+    }
     
     // Always update current price for accurate displays
     const prevPrice = this.currentPrice;
     this.currentPrice = price;
     
-    // 🔥 CRITICAL: Always check for profitable sells, regardless of bot status
+    // 🔥 CRITICAL: Always check for profitable sells, regardless of bot status  
     if (this.positionManager && this.positionManager.getPositions().length > 0) {
       try {
-        const averageEntryPrice = this.positionManager.getAverageEntryPrice();
-        const profitPercent = ((price - averageEntryPrice) / averageEntryPrice) * 100;
-        const profitTarget = 0.4; // 0.4% profit target
+        const positions = this.positionManager.getPositions();
+        // Use the same profit target as the strategy calculation for consistency
+        const strategyConfig = this.strategy?.config || this.strategyConfig || {
+          profitTarget: 0.4,
+          profitTargetPercent: 0.4
+        };
+        const profitTarget = strategyConfig?.profitTarget || strategyConfig?.profitTargetPercent || 0.4; // Default 0.4%
         
-        if (profitPercent >= profitTarget) {
-          console.log(`🎯 Profit target reached: ${profitPercent.toFixed(2)}% - executing sell`);
-          await this.executeSellSignal({ reason: `Profit target reached: ${profitPercent.toFixed(2)}%` }, price);
+        // GRID TRADING: Check if ANY position is profitable enough to sell
+        let mostProfitablePosition = null;
+        let highestProfitPercent = -Infinity;
+        
+        for (const position of positions) {
+          const profitPercent = ((price - position.entryPrice) / position.entryPrice) * 100;
+          if (profitPercent > highestProfitPercent) {
+            highestProfitPercent = profitPercent;
+            mostProfitablePosition = position;
+          }
+        }
+        
+        // Debug the most profitable position
+        console.log(`🧪 GRID SELL CHECK:`, {
+          currentPrice: price.toFixed(2),
+          totalPositions: positions.length,
+          mostProfitableEntry: mostProfitablePosition?.entryPrice?.toFixed(2),
+          highestProfitPercent: highestProfitPercent.toFixed(4),
+          profitTarget,
+          readyToSell: highestProfitPercent >= profitTarget,
+          sellTriggerPrice: mostProfitablePosition ? (mostProfitablePosition.entryPrice * (1 + profitTarget / 100)).toFixed(2) : 'N/A'
+        });
+        
+        if (mostProfitablePosition && highestProfitPercent >= profitTarget) {
+          console.log(`🎯 GRID SELL TRIGGER: Position #${mostProfitablePosition.id} profit: ${highestProfitPercent.toFixed(2)}% >= ${profitTarget}% - executing sell`);
+          await this.executeSellSignal({ reason: `Grid sell: ${highestProfitPercent.toFixed(2)}% profit` }, price);
           return; // Exit early after sell
+        } else {
+          console.log(`💡 GRID DEBUG: No position ready to sell (best: ${highestProfitPercent.toFixed(2)}% < target: ${profitTarget}%)`);
         }
       } catch (error) {
-        console.error('Error in profit-based sell check:', error);
+        console.error('Error in grid-based sell check:', error);
       }
     }
     
@@ -238,9 +281,13 @@ export class TradingOrchestrator extends EventEmitter {
       
       this.positionManager.addPosition(position);
       this.strategy.addPosition(position);
-      this.trades.push(this.createTradeRecord('buy', positionSize, price, signal.reason));
+      const tradeRecord = this.createTradeRecord('buy', positionSize, price, signal.reason);
+      this.trades.push(tradeRecord);
       
       console.log(`🟢 BUY executed: ${positionSize.toFixed(6)} BTC at $${price.toFixed(2)} (${signal.reason})`);
+      
+      // Log the trade execution
+      await this.logger.logTradeExecution(tradeRecord, 'BUY', position);
       
       await this.saveState();
       this.broadcastStatus();
@@ -248,19 +295,36 @@ export class TradingOrchestrator extends EventEmitter {
   }
 
   async executeSellSignal(signal, price) {
-    const totalBtc = this.positionManager.getTotalBtc();
+    const positions = this.positionManager.getPositions();
     
-    if (totalBtc > 0) {
-      const saleValue = totalBtc * price;
+    if (positions.length > 0) {
+      // GRID TRADING: Sell only the most profitable position (highest profit margin)
+      let mostProfitablePosition = null;
+      let highestProfitPercent = -Infinity;
       
-      // Calculate the cost basis from all buy positions
-      const totalCostBasis = this.positionManager.getTotalCostBasis();
-      const profit = saleValue - totalCostBasis;
+      for (const position of positions) {
+        const profitPercent = ((price - position.entryPrice) / position.entryPrice) * 100;
+        if (profitPercent > highestProfitPercent) {
+          highestProfitPercent = profitPercent;
+          mostProfitablePosition = position;
+        }
+      }
+      
+      if (!mostProfitablePosition || highestProfitPercent < 0.4) {
+        console.log(`💡 No profitable position found to sell (best: ${highestProfitPercent.toFixed(2)}%)`);
+        return;
+      }
+      
+      // Sell only this one position
+      const positionSize = mostProfitablePosition.size;
+      const saleValue = positionSize * price;
+      const costBasis = mostProfitablePosition.entryPrice * positionSize;
+      const profit = saleValue - costBasis;
       const fees = saleValue * 0.001; // 0.1% trading fees
       const netProfit = profit - fees;
       
-      // Execute the sale
-      await this.tradeExecutor.executeSell(totalBtc, price, signal.reason);
+      // Execute the sale for this single position
+      await this.tradeExecutor.executeSell(positionSize, price, signal.reason);
       
       // Update trading statistics
       this.statistics.totalFees += fees;
@@ -279,9 +343,9 @@ export class TradingOrchestrator extends EventEmitter {
         this.balance.btcVault += btcVaultAllocation / price; // Convert to BTC
         
         // Add cost basis back + rebalance amount for trading growth
-        this.balance.usd += totalCostBasis + tradingRebalance;
+        this.balance.usd += costBasis + tradingRebalance;
         
-        console.log(`💰 PROFITABLE SELL: Profit $${netProfit.toFixed(2)} allocated optimally`);
+        console.log(`💰 GRID SELL: Position #${mostProfitablePosition.id} sold for $${netProfit.toFixed(2)} profit (${highestProfitPercent.toFixed(2)}%)`);
         console.log(`  - USDC Vault (60%): +$${usdcVaultAllocation.toFixed(2)}`);
         console.log(`  - BTC Vault (20%): +${(btcVaultAllocation / price).toFixed(6)} BTC`);
         console.log(`  - Trading Rebalance (20%): +$${tradingRebalance.toFixed(2)}`);
@@ -290,23 +354,32 @@ export class TradingOrchestrator extends EventEmitter {
         this.statistics.totalRebalance += tradingRebalance;
         
       } else {
-        // Losing trade
+        // Losing trade (shouldn't happen with profit check above)
         this.statistics.losingTrades++;
         this.balance.usd += saleValue;
-        console.log(`📉 LOSING SELL: Loss $${Math.abs(netProfit).toFixed(2)}`);
+        console.log(`📉 GRID SELL: Position #${mostProfitablePosition.id} sold at loss $${Math.abs(netProfit).toFixed(2)}`);
       }
       
-      this.balance.btc = 0;
+      // Update BTC balance (subtract only the sold position)
+      this.balance.btc -= positionSize;
       
-      this.positionManager.clearAllPositions();
-      this.strategy.clearAllPositions();
+      // Remove only the sold position (not all positions!)
+      this.positionManager.removePosition(mostProfitablePosition);
+      // Only remove from strategy if it exists
+      if (this.strategy && this.strategy.removePosition) {
+        this.strategy.removePosition(mostProfitablePosition.id);
+      }
       
-      const tradeRecord = this.createTradeRecord('sell', totalBtc, price, signal.reason);
+      const tradeRecord = this.createTradeRecord('sell', positionSize, price, signal.reason);
       tradeRecord.profit = netProfit;
-      tradeRecord.costBasis = totalCostBasis;
+      tradeRecord.costBasis = costBasis;
+      tradeRecord.positionId = mostProfitablePosition.id;
       this.trades.push(tradeRecord);
       
-      console.log(`🔴 SELL executed: ${totalBtc.toFixed(6)} BTC at $${price.toFixed(2)} (${signal.reason})`);
+      console.log(`🔴 GRID SELL executed: ${positionSize.toFixed(6)} BTC at $${price.toFixed(2)} (${positions.length - 1} positions remaining)`);
+      
+      // Log the trade execution with profit details
+      await this.logger.logTradeExecution(tradeRecord, 'SELL', mostProfitablePosition);
       
       await this.saveState();
       this.broadcastStatus();
@@ -417,8 +490,8 @@ export class TradingOrchestrator extends EventEmitter {
       const strategyConfig = this.strategy?.config || {
         initialDropPercent: 0.02,   // Ultra aggressive: 0.02% drop for first buy
         levelDropPercent: 0.02,     // Ultra aggressive: 0.02% additional drop per level
-        profitTarget: 0.5,          // Optimized: 0.5% profit target (covers fees + vault + rebalance)
-        profitTargetPercent: 0.5,   // Optimized: 0.5% profit target (covers fees + vault + rebalance)
+        profitTarget: 0.4,          // FIXED: 0.4% profit target (matches actual sell trigger)
+        profitTargetPercent: 0.4,   // FIXED: 0.4% profit target (matches actual sell trigger)
         maxLevels: 15               // Increase levels to accommodate more frequent buys
       };
       
@@ -484,7 +557,8 @@ export class TradingOrchestrator extends EventEmitter {
         positionsCount,
         hasBtcBalance,
         btcBalance: this.balance.btc,
-        hasPositions: positionsCount > 0 || hasBtcBalance
+        hasPositions: positionsCount > 0 || hasBtcBalance,
+        hasStrategy: !!this.strategy
       });
       
       // Calculate sell trigger if we have BTC balance (even without explicit positions)
@@ -492,43 +566,65 @@ export class TradingOrchestrator extends EventEmitter {
         let profitPercent = 0;
         let averageEntryPrice = 0; // Declare at higher scope so it's accessible for price calculation
         
-        if (this.strategy && this.strategy.calculateProfitPercent) {
+        // CRITICAL FIX: Always calculate from actual positions data first
+        if (savedPositions.length > 0) {
+          // Use position data - this is the most reliable source
+          const totalCostBasis = savedPositions.reduce((sum, pos) => sum + (pos.entryPrice * pos.size), 0);
+          const totalBtc = savedPositions.reduce((sum, pos) => sum + pos.size, 0);
+          averageEntryPrice = totalBtc > 0 ? totalCostBasis / totalBtc : 0;
+          
+          console.log(`📊 Position calculation: totalCostBasis=$${totalCostBasis.toFixed(2)}, totalBtc=${totalBtc.toFixed(6)}, avgEntry=$${averageEntryPrice.toFixed(2)}`);
+        } else if (hasBtcBalance && this.trades.length > 0) {
+          // Calculate from recent buy trades if no explicit positions
+          const buyTrades = this.trades.filter(t => t.side === 'buy' || t.type === 'buy');
+          console.log(`📊 Calculating from trade history: ${buyTrades.length} buy trades found out of ${this.trades.length} total trades`);
+          
+          if (buyTrades.length > 0) {
+            const totalCost = buyTrades.reduce((sum, t) => sum + (t.price * (t.amount || t.quantity || 0)), 0);
+            const totalAmount = buyTrades.reduce((sum, t) => sum + (t.amount || t.quantity || 0), 0);
+            averageEntryPrice = totalAmount > 0 ? totalCost / totalAmount : 0;
+            
+            console.log(`📊 Trade calculation: totalCost=$${totalCost.toFixed(2)}, totalAmount=${totalAmount.toFixed(6)}, avgEntry=$${averageEntryPrice.toFixed(2)}`);
+          }
+        }
+        
+        // Calculate profit percentage from our reliable average entry price
+        profitPercent = averageEntryPrice > 0 ? ((this.currentPrice - averageEntryPrice) / averageEntryPrice) * 100 : 0;
+        
+        // Only try strategy fallback if positions calculation failed
+        if (averageEntryPrice === 0 && this.strategy && this.strategy.calculateProfitPercent) {
           profitPercent = this.strategy.calculateProfitPercent(this.currentPrice);
           // Try to get average entry price from strategy if available
           if (this.strategy.getAverageEntryPrice) {
             averageEntryPrice = this.strategy.getAverageEntryPrice();
           }
-        } else {
-          // Calculate from saved data
-          
-          if (savedPositions.length > 0) {
-            // Use position data
-            const totalCostBasis = savedPositions.reduce((sum, pos) => sum + (pos.entryPrice * pos.size), 0);
-            const totalBtc = savedPositions.reduce((sum, pos) => sum + pos.size, 0);
-            averageEntryPrice = totalBtc > 0 ? totalCostBasis / totalBtc : 0;
-          } else if (hasBtcBalance && this.trades.length > 0) {
-            // Calculate from recent buy trades if no explicit positions
-            const buyTrades = this.trades.filter(t => t.side === 'buy' || t.type === 'buy');
-            console.log(`📊 Calculating from trade history: ${buyTrades.length} buy trades found out of ${this.trades.length} total trades`);
-            
-            if (buyTrades.length > 0) {
-              const totalCost = buyTrades.reduce((sum, t) => sum + (t.price * (t.amount || t.quantity || 0)), 0);
-              const totalAmount = buyTrades.reduce((sum, t) => sum + (t.amount || t.quantity || 0), 0);
-              averageEntryPrice = totalAmount > 0 ? totalCost / totalAmount : 0;
-              
-              console.log(`📊 Trade calculation: totalCost=$${totalCost.toFixed(2)}, totalAmount=${totalAmount.toFixed(6)}, avgEntry=$${averageEntryPrice.toFixed(2)}`);
-            }
-          }
-          
-          profitPercent = averageEntryPrice > 0 ? ((this.currentPrice - averageEntryPrice) / averageEntryPrice) * 100 : 0;
-          
-          // Removed excessive logging to prevent memory leak
         }
         
         const profitTarget = strategyConfig?.profitTarget || strategyConfig?.profitTargetPercent || 0.4; // Default 0.4%
         
-        // Calculate the actual sell trigger price
-        nextSellPrice = averageEntryPrice > 0 ? averageEntryPrice * (1 + profitTarget / 100) : null;
+        // GRID TRADING FIX: Calculate sell trigger based on the LOWEST sell trigger (most profitable position)
+        // This ensures we sell individual positions when they become profitable, not wait for average
+        if (savedPositions.length > 0) {
+          let lowestSellTrigger = Infinity;
+          for (const position of savedPositions) {
+            const sellTrigger = position.entryPrice * (1 + profitTarget / 100);
+            if (sellTrigger < lowestSellTrigger) {
+              lowestSellTrigger = sellTrigger;
+            }
+          }
+          nextSellPrice = lowestSellTrigger < Infinity ? lowestSellTrigger : null;
+        } else {
+          // Fallback to average if no positions (shouldn't happen)
+          nextSellPrice = averageEntryPrice > 0 ? averageEntryPrice * (1 + profitTarget / 100) : null;
+        }
+        
+        console.log('📊 FIXED Sell price calculation:', {
+          averageEntryPrice: averageEntryPrice.toFixed(2),
+          profitTarget,
+          nextSellPrice: nextSellPrice ? nextSellPrice.toFixed(2) : 'null',
+          lowestEntryPrice: savedPositions.length > 0 ? Math.min(...savedPositions.map(p => p.entryPrice)).toFixed(2) : 'N/A',
+          positionsCount: savedPositions.length
+        });
         
         // Calculate progress percentage (how close we are to triggering the sell)
         // If profitPercent >= profitTarget, we're ready to trigger (0% distance remaining)
@@ -653,9 +749,18 @@ export class TradingOrchestrator extends EventEmitter {
           console.log(`🔄 Migrated to include trading statistics for bot ${this.botId}`);
         }
         
-        Object.assign(this, state);
+        // CRITICAL FIX: Instead of Object.assign, selectively restore properties to avoid overwriting instances
+        this.isRunning = state.isRunning || false;
+        this.isPaused = state.isPaused || false;
+        this.currentPrice = state.currentPrice || 0;
+        this.balance = { ...state.balance };
+        this.trades = [...(state.trades || [])];
+        this.statistics = { ...state.statistics };
+        this.chartData = { ...state.chartData };
+        this.selectedStrategyType = state.selectedStrategyType || 'reverse-descending-grid';
+        this.strategyConfig = state.strategyConfig || null;
         
-        // CRITICAL FIX: Restore positions to PositionManager after Object.assign
+        // Restore positions to PositionManager (this is the critical part)
         if (state.positions && Array.isArray(state.positions)) {
           // Clear any existing positions and restore from saved state
           this.positionManager.clearAllPositions();
@@ -665,10 +770,7 @@ export class TradingOrchestrator extends EventEmitter {
           console.log(`🔄 Restored ${state.positions.length} positions to PositionManager`);
         }
         
-        // Note: Strategy recreation removed to prevent crashes
-        // Profit-based selling will work regardless of strategy status
-        
-        console.log(`✅ State loaded for bot ${this.botId}`);
+        console.log(`✅ State loaded for bot ${this.botId}: ${state.positions?.length || 0} positions, ${state.balance?.btc || 0} BTC`);
         
         // Save the migrated state
         await this.saveState();
@@ -696,5 +798,10 @@ export class TradingOrchestrator extends EventEmitter {
     // Cleanup resources
     this.stopTrading();
     this.clients.clear();
+    
+    // Clean old logs
+    if (this.logger) {
+      this.logger.cleanOldLogs();
+    }
   }
 }

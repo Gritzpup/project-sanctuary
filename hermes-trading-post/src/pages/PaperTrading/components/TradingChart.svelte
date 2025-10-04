@@ -190,6 +190,7 @@
     <ChartHeader 
       {selectedPair}
       {selectedGranularity}
+      {selectedPeriod}
       currentPrice={latestPrice || currentPrice || 0}
       priceChange24h={live24hChange || priceChange24h || 0}
       priceChangePercent24h={live24hPercent || priceChangePercent24h || 0}
@@ -228,7 +229,9 @@
     {isRunning}
     {isPaused}
     {tradingData}
+    {selectedGranularity}
     on:periodChange={handlePeriodChange}
+    on:granularityChange={handleGranularityChange}
     on:speedChange={handleSpeedChange}
     on:dateChange={handleDateChange}
     on:play={handlePlay}

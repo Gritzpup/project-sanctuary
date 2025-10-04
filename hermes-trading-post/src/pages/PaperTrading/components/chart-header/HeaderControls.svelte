@@ -1,9 +1,11 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { PAIR_OPTIONS, GRANULARITY_OPTIONS, type PairOption, type GranularityOption } from './ChartHeaderTypes';
+  import { isCompatible } from '../../../../lib/chart/TimeframeCompatibility';
   
   export let selectedPair: string = 'BTC-USD';
   export let selectedGranularity: string = '1m';
+  export let selectedPeriod: string = '1H';
   
   const dispatch = createEventDispatcher();
 
@@ -22,6 +24,11 @@
   function handleSeparatorClick() {
     // Could add functionality here if needed for header separator
     console.log('Header separator clicked');
+  }
+
+  // Check if a granularity is compatible with current period
+  function isGranularityCompatible(granularity: string): boolean {
+    return isCompatible(granularity, selectedPeriod);
   }
 </script>
 
@@ -52,6 +59,7 @@
       <button 
         class="btn-base btn-sm btn-timeframe"
         class:active={selectedGranularity === option.value}
+        class:incompatible={!isGranularityCompatible(option.value)}
         on:click={() => handleGranularityChange(option.value)}
       >
         {option.label}
@@ -166,6 +174,21 @@
     background: rgba(74, 0, 224, 0.2);
     border-color: rgba(74, 0, 224, 0.5);
     color: white;
+  }
+
+  /* Incompatible combinations - darkened */
+  .btn-timeframe.incompatible:not(.active) {
+    opacity: 0.4;
+    background: var(--bg-primary);
+    border-color: var(--border-primary);
+    color: #666;
+  }
+
+  .btn-timeframe.incompatible:not(.active):hover {
+    opacity: 0.6;
+    background: var(--bg-primary);
+    border-color: var(--border-primary);
+    color: #888;
   }
 
   /* Mobile adjustments */

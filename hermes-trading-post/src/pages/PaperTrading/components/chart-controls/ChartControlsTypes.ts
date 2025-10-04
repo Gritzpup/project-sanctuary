@@ -4,6 +4,8 @@ export interface ChartControlsProps {
   selectedTestDateString: string;
   isRunning: boolean;
   isPaused: boolean;
+  tradingData: { totalReturn?: number } | null;
+  selectedGranularity: string;
 }
 
 export interface PeriodChangeEvent {

@@ -1,18 +1,28 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { PERIODS, type Period } from './ChartControlsTypes';
+  import { EXTENDED_PERIODS, type ExtendedPeriod } from '../../../../lib/chart/TimeframeCompatibility';
+  import { isCompatible, getBestGranularityForPeriod } from '../../../../lib/chart/TimeframeCompatibility';
   
   export let selectedPeriod: string = '1H';
+  export let selectedGranularity: string = '1m';
   
   const dispatch = createEventDispatcher();
 
-  function handlePeriodChange(period: Period) {
+  function handlePeriodChange(period: ExtendedPeriod) {
+    // Find the best compatible granularity for this period
+    const bestGranularity = getBestGranularityForPeriod(period);
+    
     dispatch('periodChange', { period });
+    
+    // If current granularity is not compatible, switch to the best one
+    if (!isCompatible(selectedGranularity, period)) {
+      dispatch('granularityChange', { granularity: bestGranularity });
+    }
   }
 </script>
 
 <div class="period-buttons">
-  {#each PERIODS as period}
+  {#each EXTENDED_PERIODS as period}
     <button 
       class="btn-base btn-sm btn-timeframe"
       class:active={selectedPeriod === period}
@@ -56,11 +66,13 @@
     font-weight: 600;
   }
 
+
   .btn-timeframe:hover {
     background: rgba(74, 0, 224, 0.2);
     border-color: rgba(74, 0, 224, 0.5);
     color: white;
   }
+
   
   /* Mobile adjustments - match header button mobile styles */
   @media (max-width: 768px) {

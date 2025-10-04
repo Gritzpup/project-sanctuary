@@ -12,6 +12,7 @@
   export let isRunning: boolean = false;
   export let isPaused: boolean = false;
   export let tradingData: { totalReturn?: number } | null = null;
+  export let selectedGranularity: string = '1m';
   
   const dispatch = createEventDispatcher();
   
@@ -53,7 +54,9 @@
         <!-- Row 1: Period Buttons -->
         <TimeframeControls 
           {selectedPeriod}
+          {selectedGranularity}
           on:periodChange={forwardEvent}
+          on:granularityChange={forwardEvent}
         />
         
         <!-- Row 2: Chart Stats -->

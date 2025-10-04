@@ -7,6 +7,7 @@
   export let isRunning = false;
   export let isPaused = false;
   export let tradingData = null;
+  export let selectedGranularity = '1m';
 </script>
 
 <ChartControlsContainer 
@@ -16,7 +17,9 @@
   {isRunning}
   {isPaused}
   {tradingData}
+  {selectedGranularity}
   on:periodChange
+  on:granularityChange
   on:speedChange
   on:dateChange
   on:play

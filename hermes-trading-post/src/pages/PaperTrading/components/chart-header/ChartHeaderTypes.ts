@@ -28,9 +28,10 @@ export const GRANULARITY_OPTIONS: GranularityOption[] = [
   { value: '1m', label: '1m' },
   { value: '5m', label: '5m' },
   { value: '15m', label: '15m' },
+  { value: '30m', label: '30m' },
   { value: '1h', label: '1H' },
-  { value: '6h', label: '6h' },
-  { value: '1D', label: '1D' }
+  { value: '4h', label: '4H' },
+  { value: '1d', label: '1D' }
 ];
 
 export interface BotTab {

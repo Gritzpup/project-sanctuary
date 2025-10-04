@@ -13,6 +13,7 @@
   export let botTabs: any[] = [];
   export let activeBotInstance: any = null;
   export let selectedGranularity: string = '1m';
+  export let selectedPeriod: string = '1H';
   
   const dispatch = createEventDispatcher();
   
@@ -61,6 +62,7 @@
       <HeaderControls 
         {selectedPair}
         {selectedGranularity}
+        {selectedPeriod}
         on:pairChange={forwardEvent}
         on:granularityChange={forwardEvent}
         on:zoomReset={forwardEvent}
