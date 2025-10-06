@@ -101,6 +101,21 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       
       ChartDebug.log(`Time calculation: ${config.timeframe} + ${config.granularity} = ${candleCount} candles × ${granularitySeconds}s = ${timeRange}s range`);
       
+      // Debug for 5m+1H combination
+      if (config.granularity === '5m' && config.timeframe === '1H') {
+        const debugInfo = {
+          pair: config.pair,
+          granularity: config.granularity,
+          timeframe: config.timeframe,
+          expectedCandles: candleCount,
+          granularitySeconds: granularitySeconds,
+          timeRange: `${timeRange} seconds (${timeRange / 60} minutes)`,
+          now: `${now} (${new Date(now * 1000).toISOString()})`,
+          start: `${startTime} (${new Date(startTime * 1000).toISOString()})`
+        };
+        console.log('🔍 5m+1H Data Loading Debug:', debugInfo);
+      }
+      
       // Consolidated debug for 3M/1d (reduce multiple log calls)
       if (config.timeframe === '3M' && config.granularity === '1d') {
         const debugInfo = {
