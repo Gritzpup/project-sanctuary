@@ -97,7 +97,11 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       const candleCount = getCandleCount(config.granularity, config.timeframe);
       const granularitySeconds = getGranularitySeconds(config.granularity);
       const timeRange = candleCount * granularitySeconds;
-      const startTime = now - timeRange;
+      
+      // 🔧 FIX: Request extra candles to account for incomplete current candle and ensure we get enough data
+      const extraCandlesBuffer = 3; // Request 3 extra candles to ensure we get the expected count
+      const extendedTimeRange = (candleCount + extraCandlesBuffer) * granularitySeconds;
+      const startTime = now - extendedTimeRange;
       
       ChartDebug.log(`Time calculation: ${config.timeframe} + ${config.granularity} = ${candleCount} candles × ${granularitySeconds}s = ${timeRange}s range`);
       
@@ -108,12 +112,14 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
           granularity: config.granularity,
           timeframe: config.timeframe,
           expectedCandles: candleCount,
+          extraBuffer: extraCandlesBuffer,
           granularitySeconds: granularitySeconds,
-          timeRange: `${timeRange} seconds (${timeRange / 60} minutes)`,
+          originalTimeRange: `${timeRange} seconds (${timeRange / 60} minutes)`,
+          extendedTimeRange: `${extendedTimeRange} seconds (${extendedTimeRange / 60} minutes)`,
           now: `${now} (${new Date(now * 1000).toISOString()})`,
           start: `${startTime} (${new Date(startTime * 1000).toISOString()})`
         };
-        console.log('🔍 5m+1H Data Loading Debug:', debugInfo);
+        console.log('🔍 5m+1H Data Loading Debug (with buffer):', debugInfo);
       }
       
       // Consolidated debug for 3M/1d (reduce multiple log calls)
