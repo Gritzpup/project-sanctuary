@@ -23,14 +23,40 @@
   .articles-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 20px;
+    gap: var(--space-xl);
   }
 
   .loading-message,
   .no-articles {
     grid-column: 1 / -1;
     text-align: center;
-    padding: 40px;
-    color: #758696;
+    padding: var(--space-xxl);
+    color: var(--text-secondary);
+    font-size: var(--font-size-md);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .articles-grid {
+      grid-template-columns: 1fr;
+      gap: var(--space-lg);
+    }
+    
+    .loading-message,
+    .no-articles {
+      padding: var(--space-xl);
+      font-size: var(--font-size-sm);
+    }
+  }
+
+  /* Tablet responsive */
+  @media (max-width: 1024px) and (min-width: 769px) {
+    .articles-grid {
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: var(--space-lg);
+    }
   }
 </style>

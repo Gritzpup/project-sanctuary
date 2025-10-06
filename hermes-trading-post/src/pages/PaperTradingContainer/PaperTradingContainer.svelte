@@ -198,8 +198,8 @@
   .dashboard-layout {
     display: flex;
     min-height: 100vh;
-    background: #0a0a0a;
-    color: #d1d4dc;
+    background: var(--bg-main);
+    color: var(--text-primary);
   }
 
   .dashboard-content {
@@ -208,7 +208,7 @@
     flex-direction: column;
     margin-left: 250px;
     width: calc(100% - 250px);
-    transition: all 0.3s ease;
+    transition: all var(--transition-slow);
   }
 
   .dashboard-content.expanded {
@@ -219,13 +219,13 @@
   .content-wrapper {
     flex: 1;
     overflow-y: auto;
-    padding: 20px;
+    padding: var(--space-xl);
   }
 
   .paper-trading-grid {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--space-xl);
   }
 
   /* Mobile responsive layout */
@@ -238,11 +238,11 @@
     }
     
     .content-wrapper {
-      padding: 25px 10px;
+      padding: var(--space-lg) var(--space-sm);
     }
     
     .paper-trading-grid {
-      gap: 5px;
+      gap: var(--space-xs);
     }
   }
 
@@ -259,7 +259,7 @@
     }
     
     .content-wrapper {
-      padding: 15px;
+      padding: var(--space-lg);
     }
   }
 </style>

@@ -19,9 +19,9 @@
 
 <style>
   .header {
-    padding: 20px;
-    background: #0f0f0f;
-    border-bottom: 1px solid rgba(74, 0, 224, 0.3);
+    padding: var(--space-xl);
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-primary);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -29,33 +29,62 @@
 
   .header h1 {
     margin: 0;
-    font-size: 24px;
-    color: #a78bfa;
+    font-size: var(--font-size-xl);
+    color: var(--color-primary);
+    font-weight: var(--font-weight-semibold);
   }
 
   .header-stats {
     display: flex;
-    gap: 30px;
+    gap: var(--space-xl);
   }
 
   .stat-item {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: var(--space-xs);
   }
 
   .stat-label {
-    font-size: 12px;
-    color: #758696;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
     text-transform: uppercase;
+    font-weight: var(--font-weight-medium);
+    letter-spacing: 0.5px;
   }
 
   .stat-value {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    font-family: var(--font-family-mono, 'Courier New', monospace);
   }
 
   .stat-value.price {
-    color: #26a69a;
+    color: var(--color-success);
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .header {
+      flex-direction: column;
+      gap: var(--space-md);
+      align-items: flex-start;
+      padding: var(--space-lg) var(--space-sm);
+    }
+    
+    .header h1 {
+      font-size: var(--font-size-lg);
+    }
+    
+    .header-stats {
+      gap: var(--space-md);
+      width: 100%;
+      justify-content: space-between;
+    }
+    
+    .stat-value {
+      font-size: var(--font-size-md);
+    }
   }
 </style>

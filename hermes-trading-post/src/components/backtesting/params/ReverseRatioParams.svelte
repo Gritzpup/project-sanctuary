@@ -167,9 +167,9 @@
 
 <style>
   .param-group {
-    margin-bottom: 30px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid rgba(74, 0, 224, 0.2);
+    margin-bottom: var(--space-xxl);
+    padding-bottom: var(--space-xl);
+    border-bottom: 1px solid var(--border-primary);
   }
   
   .param-group:last-child {
@@ -177,110 +177,138 @@
   }
   
   .param-group-title {
-    margin: 0 0 15px 0;
-    color: #a78bfa;
-    font-size: 16px;
-    font-weight: 600;
+    margin: 0 0 var(--space-md) 0;
+    color: var(--color-primary);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
   }
   
   .config-section {
-    margin-bottom: 20px;
+    margin-bottom: var(--space-xl);
   }
   
   label {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    font-size: 14px;
-    color: #d1d4dc;
+    gap: var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    font-weight: var(--font-weight-medium);
   }
   
   input[type="number"],
   select {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 6px;
-    color: #d1d4dc;
-    padding: 10px 12px;
-    font-size: 14px;
-    transition: all 0.2s;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--font-size-sm);
+    transition: all var(--transition-normal);
   }
   
   input[type="number"]:focus,
   select:focus {
     outline: none;
-    border-color: rgba(74, 0, 224, 0.6);
-    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--border-primary-hover);
+    background: var(--bg-primary);
   }
   
   .input-hint {
-    font-size: 11px;
-    color: #888;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
     font-style: italic;
   }
   
   .price-preview {
-    font-size: 12px;
-    color: #a78bfa;
-    background: rgba(167, 139, 250, 0.1);
-    padding: 5px 10px;
-    border-radius: 4px;
-    margin-top: 5px;
+    font-size: var(--font-size-xs);
+    color: var(--color-primary);
+    background: var(--bg-primary-active);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    margin-top: var(--space-xs);
+    font-family: var(--font-family-mono, 'Courier New', monospace);
   }
   
   .position-size-warning {
-    color: #ffa726;
-    font-size: 12px;
-    font-weight: 600;
+    color: var(--color-warning);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
   }
   
   .position-preview {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(74, 0, 224, 0.2);
-    border-radius: 8px;
-    padding: 15px;
-    margin-top: 15px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md);
+    margin-top: var(--space-md);
   }
   
   .position-preview h5 {
-    margin: 0 0 10px 0;
-    color: #a78bfa;
-    font-size: 14px;
+    margin: 0 0 var(--space-sm) 0;
+    color: var(--color-primary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
   }
   
   .preview-table {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-sm);
   }
   
   .preview-row {
     display: flex;
     align-items: center;
-    font-size: 13px;
+    font-size: var(--font-size-xs);
+    font-family: var(--font-family-mono, 'Courier New', monospace);
   }
   
   .preview-row.total {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(74, 0, 224, 0.2);
-    font-weight: 600;
+    margin-top: var(--space-sm);
+    padding-top: var(--space-sm);
+    border-top: 1px solid var(--border-primary);
+    font-weight: var(--font-weight-semibold);
   }
   
   .preview-level {
     flex: 0 0 80px;
-    color: #888;
+    color: var(--text-secondary);
   }
   
   .preview-amount {
     flex: 0 0 100px;
-    color: #d1d4dc;
+    color: var(--text-primary);
     text-align: right;
   }
   
   .preview-percent {
     flex: 0 0 80px;
-    color: #888;
+    color: var(--text-secondary);
     text-align: right;
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .param-group {
+      margin-bottom: var(--space-xl);
+      padding-bottom: var(--space-lg);
+    }
+    
+    .config-section {
+      margin-bottom: var(--space-lg);
+    }
+    
+    .preview-level {
+      flex: 0 0 70px;
+    }
+    
+    .preview-amount {
+      flex: 0 0 90px;
+    }
+    
+    .preview-percent {
+      flex: 0 0 70px;
+    }
   }
 </style>

@@ -14,6 +14,7 @@
 {#if totalPages > 1}
   <div class="pagination">
     <button 
+      class="btn-base btn-md btn-secondary"
       on:click={previousPage} 
       disabled={currentPage === 1}
     >
@@ -25,6 +26,7 @@
     </span>
     
     <button 
+      class="btn-base btn-md btn-secondary"
       on:click={nextPage} 
       disabled={currentPage === totalPages}
     >
@@ -38,33 +40,41 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 20px;
-    margin-top: 30px;
-    padding: 20px;
+    gap: var(--space-xl);
+    margin-top: var(--space-xxl);
+    padding: var(--space-xl);
   }
 
-  .pagination button {
-    padding: 8px 16px;
-    background: rgba(74, 0, 224, 0.2);
-    border: 1px solid rgba(74, 0, 224, 0.4);
-    border-radius: 4px;
-    color: #a78bfa;
-    cursor: pointer;
-    transition: all 0.2s;
+  .pagination .btn-base {
+    min-width: 80px;
   }
 
-  .pagination button:hover:not(:disabled) {
-    background: rgba(74, 0, 224, 0.3);
-    border-color: rgba(74, 0, 224, 0.6);
-  }
-
-  .pagination button:disabled {
+  .pagination .btn-base:disabled {
     opacity: 0.3;
     cursor: not-allowed;
   }
 
   .page-info {
-    color: #9ca3af;
-    font-size: 14px;
+    color: var(--text-accent);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    font-family: var(--font-family-mono, 'Courier New', monospace);
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .pagination {
+      gap: var(--space-md);
+      padding: var(--space-lg);
+    }
+    
+    .pagination button {
+      min-width: 70px;
+      font-size: var(--font-size-xs);
+    }
+    
+    .page-info {
+      font-size: var(--font-size-xs);
+    }
   }
 </style>

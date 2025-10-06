@@ -67,19 +67,19 @@
   .trading-controls {
     margin-top: auto;
     padding-top: 0;
-    border-top: 1px solid rgba(74, 0, 224, 0.2);
+    border-top: 1px solid var(--border-secondary);
   }
 
   /* Desktop spacing adjustments */
   @media (min-width: 769px) {
     .trading-controls {
-      padding-top: 8px;
+      padding-top: var(--space-sm);
     }
   }
 
   .main-controls {
     display: flex;
-    gap: 10px;
+    gap: var(--space-sm);
     align-items: center;
     width: 100%;
   }
@@ -87,17 +87,17 @@
   .main-controls .btn-base {
     flex: 1;
     height: 32px;
-    border-radius: 4px;
-    font-weight: 500;
-    font-size: 13px;
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-medium);
+    font-size: var(--font-size-xs);
     background: var(--bg-primary);
-    color: #c4b5fd;
+    color: var(--text-accent);
     border: 1px solid var(--border-primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    transition: all 0.2s ease;
+    gap: var(--space-xs);
+    transition: all var(--transition-normal);
   }
 
   .main-controls .btn-md:first-child {
@@ -105,7 +105,7 @@
   }
 
   .btn-icon {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     line-height: 1;
     display: inline-flex;
     align-items: center;
@@ -113,19 +113,19 @@
 
   /* Add consistent spacing between icons and text */
   .btn-icon {
-    margin-right: 4px;
+    margin-right: var(--space-xs);
   }
 
   /* Reset other properties for text icons */
   .btn-icon:not(.spinner) {
-    font-size: 11px;
-    margin-right: 4px;
+    font-size: var(--font-size-xs);
+    margin-right: var(--space-xs);
     padding: 0;
     width: auto;
     height: auto;
   }
   
-  /* Success button (Start/Resume) - Subtle green theme */
+  /* Success button (Start/Resume) - Better styling */
   .main-controls .btn-success {
     background: rgba(34, 197, 94, 0.1);
     color: #22c55e;
@@ -145,7 +145,7 @@
     color: #15803d;
   }
   
-  /* Error button (Reset) - Subtle red theme */
+  /* Error button (Reset) - Better styling */
   .main-controls .btn-error {
     background: rgba(239, 68, 68, 0.1);
     color: #ef4444;
@@ -165,7 +165,7 @@
     color: #b91c1c;
   }
   
-  /* Trading button - Amber/yellow theme */
+  /* Trading button - Better styling */
   .main-controls .btn-trading {
     background: rgba(251, 191, 36, 0.1);
     color: #fbbf24;

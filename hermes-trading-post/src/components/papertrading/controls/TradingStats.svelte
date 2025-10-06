@@ -70,7 +70,7 @@
   .control-group {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-sm);
     margin-bottom: 0;
     margin-top: 0;
   }
@@ -78,16 +78,16 @@
   /* Desktop spacing */
   @media (min-width: 769px) {
     .control-group {
-      gap: 12px;
+      gap: var(--space-md);
     }
   }
 
   .control-group label {
     font-size: 13px;
-    color: #888;
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
   }
 
   .stats-panel {
@@ -100,59 +100,59 @@
   .stats-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 2px 4px;
+    gap: 2px var(--space-xs);
     margin: 0;
   }
 
   .stat-item {
-    font-size: 14px;
+    font-size: var(--font-size-sm);
     line-height: 1.2;
-    color: #888;
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     display: block;
     margin: 0;
-    padding: 1px 0 1px 4px;
+    padding: 1px 0 1px var(--space-xs);
   }
 
   .stat-value {
-    font-size: 14px;
-    font-weight: 500;
-    color: #d1d4dc;
-    font-family: 'Courier New', monospace;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    font-family: var(--font-family-mono, 'Courier New', monospace);
     display: inline;
   }
 
   .stat-value.profit {
-    color: #26a69a;
+    color: var(--color-success);
   }
 
   .stat-value.loss {
-    color: #ef4444;
+    color: var(--color-error);
   }
 
   .stat-value.buy-trigger {
-    color: #26a69a;
-    font-weight: 600;
+    color: var(--color-success);
+    font-weight: var(--font-weight-semibold);
   }
 
   .stat-value.sell-trigger {
-    color: #ef4444;
-    font-weight: 600;
+    color: var(--color-error);
+    font-weight: var(--font-weight-semibold);
   }
 
   .price-small {
-    font-size: 13px;
-    font-weight: 400;
-    font-family: 'Courier New', monospace;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-normal);
+    font-family: var(--font-family-mono, 'Courier New', monospace);
   }
 
   .buy-price {
-    color: #26a69a;
+    color: var(--color-success);
   }
 
   .sell-price {
-    color: #ef4444;
+    color: var(--color-error);
   }
 </style>
