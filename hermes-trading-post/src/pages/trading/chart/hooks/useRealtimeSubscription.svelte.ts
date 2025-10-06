@@ -28,7 +28,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   const { onPriceUpdate, onNewCandle, onReconnect, onError } = options;
   
   // Temporary flag to disable new auto-scroll logic if it causes issues
-  const ENABLE_SMALL_DATASET_AUTO_SCROLL = false; // DISABLED to fix freezing issue
+  const ENABLE_SMALL_DATASET_AUTO_SCROLL = false; // DISABLED - causing chart to freeze
 
   /**
    * Maintains optimal candle count visible in the chart (60 for normal, 12 for small datasets)
