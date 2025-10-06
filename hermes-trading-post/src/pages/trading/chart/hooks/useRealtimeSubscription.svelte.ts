@@ -7,7 +7,9 @@
 
 import { dataStore } from '../stores/dataStore.svelte';
 import { statusStore } from '../stores/statusStore.svelte';
+import { chartStore } from '../stores/chartStore.svelte';
 import { ChartDebug } from '../utils/debug';
+import { getCandleCount } from '../../../../lib/chart/TimeframeCompatibility';
 import type { ISeriesApi, CandlestickData } from 'lightweight-charts';
 
 export interface RealtimeSubscriptionConfig {
@@ -26,7 +28,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   const { onPriceUpdate, onNewCandle, onReconnect, onError } = options;
 
   /**
-   * Maintains exactly 60 candles visible in the chart
+   * Maintains optimal candle count visible in the chart (60 for normal, 12 for small datasets)
    */
   function maintainCandleZoom(chartSeries: ISeriesApi<'Candlestick'>, candles: CandlestickData[]) {
     if (!chartSeries || candles.length === 0) return;
@@ -38,9 +40,37 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
       if (!chart || !chart.timeScale) return;
       
-      // For small datasets like 5m+1H, DON'T maintain zoom - let chart handle it naturally
-      if (candles.length <= 20) {
-        ChartDebug.log(`Skipping zoom maintenance for small dataset: ${candles.length} candles`);
+      // For small datasets (like 5m+1H = 12 candles), maintain original candle count
+      if (candles.length <= 30) {
+        // Determine expected count dynamically based on current chart configuration
+        const expectedCandleCount = getCandleCount(chartStore.config.granularity, chartStore.config.timeframe) || 12;
+        
+        if (candles.length > expectedCandleCount) {
+          // Show only the most recent candles to maintain the window
+          const startIndex = candles.length - expectedCandleCount;
+          const visibleCandles = candles.slice(startIndex);
+          
+          if (visibleCandles.length > 1) {
+            const firstVisibleTime = visibleCandles[0].time as number;
+            const timeSpan = currentTime - firstVisibleTime;
+            const buffer = timeSpan * 0.05; // 5% buffer
+            
+            chart.timeScale().setVisibleRange({
+              from: (firstVisibleTime - buffer) as any,
+              to: (currentTime + buffer) as any
+            });
+            
+            console.log(`🎯 Maintained ${expectedCandleCount}-candle window: showing candles ${startIndex + 1}-${candles.length} of ${candles.length} total`);
+          }
+        } else {
+          // Still building up to expected count, show all with padding
+          chart.timeScale().setVisibleLogicalRange({
+            from: -2,
+            to: expectedCandleCount + 2
+          });
+          
+          console.log(`🔄 Building to ${expectedCandleCount} candles: currently showing ${candles.length}`);
+        }
         return;
       }
       
