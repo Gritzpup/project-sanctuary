@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coinbase API Granularity Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-result {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .success { border-left: 4px solid #00ff88; }
+        .error { border-left: 4px solid #ff8888; }
+        .warning { border-left: 4px solid #ffff88; }
+        .info { border-left: 4px solid #8888ff; }
+        .granularity-test {
+            display: grid;
+            grid-template-columns: 80px 120px 80px 100px auto;
+            gap: 15px;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #333;
+        }
+        .granularity-test.header {
+            background: #2a2a2a;
+            font-weight: bold;
+            border-bottom: 2px solid #555;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-success { background: #00ff88; }
+        .status-error { background: #ff8888; }
+        .status-warning { background: #ffff88; }
+        .status-testing { background: #8888ff; animation: pulse 1s infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #333;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover { background: #555; }
+        button:disabled { background: #222; cursor: not-allowed; }
+        .summary {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .code-block {
+            background: #111;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Coinbase API Granularity Validation</h1>
+        <p>This tool tests all granularity values against the Coinbase Exchange API to determine which ones are actually supported.</p>
+        
+        <div class="controls">
+            <button onclick="testAllGranularities()" id="testBtn">Test All Granularities</button>
+            <button onclick="clearResults()">Clear Results</button>
+            <button onclick="generateUpdatedConfig()" id="generateBtn" disabled>Generate Updated Config</button>
+        </div>
+        
+        <div class="summary" id="summary" style="display: none;">
+            <h3>📊 Test Summary</h3>
+            <div id="summaryContent"></div>
+        </div>
+        
+        <div class="test-result info">
+            <h3>📋 Granularities to Test</h3>
+            <div class="granularity-test header">
+                <div>Status</div>
+                <div>Granularity</div>
+                <div>Seconds</div>
+                <div>HTTP Code</div>
+                <div>Result</div>
+            </div>
+            <div id="testResults"></div>
+        </div>
+        
+        <div id="configOutput" style="display: none;">
+            <div class="test-result success">
+                <h3>✅ Updated Configuration</h3>
+                <div class="code-block" id="updatedConfig"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Current granularities from the codebase
+        const CURRENT_GRANULARITIES = {
+            '1m': 60,        // 1 minute
+            '5m': 300,       // 5 minutes
+            '15m': 900,      // 15 minutes
+            '30m': 1800,     // 30 minutes
+            '1h': 3600,      // 1 hour
+            '2h': 7200,      // 2 hours
+            '4h': 14400,     // 4 hours
+            '6h': 21600,     // 6 hours
+            '12h': 43200,    // 12 hours
+            '1d': 86400      // 1 day
+        };
+        
+        // Additional granularities to test (based on common trading intervals)
+        const ADDITIONAL_GRANULARITIES = {
+            '3m': 180,       // 3 minutes
+            '10m': 600,      // 10 minutes
+            '20m': 1200,     // 20 minutes
+            '45m': 2700,     // 45 minutes
+            '3h': 10800,     // 3 hours
+            '8h': 28800,     // 8 hours
+            '1w': 604800,    // 1 week
+        };
+        
+        const ALL_GRANULARITIES = { ...CURRENT_GRANULARITIES, ...ADDITIONAL_GRANULARITIES };
+        
+        let testResults = {};
+        let testButton = document.getElementById('testBtn');
+        let generateButton = document.getElementById('generateBtn');
+        let summary = document.getElementById('summary');
+        let summaryContent = document.getElementById('summaryContent');
+        let testResultsDiv = document.getElementById('testResults');
+        let configOutput = document.getElementById('configOutput');
+        let updatedConfig = document.getElementById('updatedConfig');
+        
+        async function testGranularity(name, seconds) {
+            const endTime = Math.floor(Date.now() / 1000);
+            const startTime = endTime - (10 * seconds); // Get 10 periods worth of data
+            
+            try {
+                const url = `https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=${seconds}&start=${startTime}&end=${endTime}`;
+                const response = await fetch(url);
+                
+                const result = {
+                    name,
+                    seconds,
+                    status: response.status,
+                    success: response.ok,
+                    data: null,
+                    error: null
+                };
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    result.data = data;
+                    result.candleCount = data.length;
+                } else {
+                    const errorText = await response.text();
+                    result.error = errorText;
+                }
+                
+                return result;
+            } catch (error) {
+                return {
+                    name,
+                    seconds,
+                    status: 0,
+                    success: false,
+                    data: null,
+                    error: error.message,
+                    candleCount: 0
+                };
+            }
+        }
+        
+        async function testAllGranularities() {
+            testButton.disabled = true;
+            testButton.textContent = 'Testing...';
+            generateButton.disabled = true;
+            testResults = {};
+            
+            // Initialize results display
+            const granularities = Object.entries(ALL_GRANULARITIES);
+            testResultsDiv.innerHTML = granularities.map(([name, seconds]) => 
+                `<div class="granularity-test" id="test-${name}">
+                    <div><span class="status-indicator status-testing"></span></div>
+                    <div><strong>${name}</strong></div>
+                    <div>${seconds}s</div>
+                    <div>Testing...</div>
+                    <div>Waiting...</div>
+                </div>`
+            ).join('');
+            
+            // Test each granularity
+            for (const [name, seconds] of granularities) {
+                const testRow = document.getElementById(`test-${name}`);
+                const result = await testGranularity(name, seconds);
+                testResults[name] = result;
+                
+                // Update the row
+                const statusClass = result.success ? 'status-success' : 'status-error';
+                const statusText = result.success ? '✅' : '❌';
+                const resultText = result.success ? 
+                    `${result.candleCount} candles` : 
+                    `Error: ${result.error || 'HTTP ' + result.status}`;
+                
+                testRow.innerHTML = `
+                    <div><span class="status-indicator ${statusClass}"></span></div>
+                    <div><strong>${name}</strong></div>
+                    <div>${seconds}s</div>
+                    <div>${result.status}</div>
+                    <div>${resultText}</div>
+                `;
+                
+                // Small delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            // Show summary
+            showSummary();
+            testButton.disabled = false;
+            testButton.textContent = 'Test All Granularities';
+            generateButton.disabled = false;
+        }
+        
+        function showSummary() {
+            const successful = Object.values(testResults).filter(r => r.success);
+            const failed = Object.values(testResults).filter(r => !r.success);
+            const currentSupported = successful.filter(r => CURRENT_GRANULARITIES[r.name]);
+            const currentUnsupported = failed.filter(r => CURRENT_GRANULARITIES[r.name]);
+            const newSupported = successful.filter(r => ADDITIONAL_GRANULARITIES[r.name]);
+            
+            summaryContent.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div>
+                        <strong>✅ Supported by API:</strong><br>
+                        ${successful.map(r => r.name).join(', ')}
+                    </div>
+                    <div>
+                        <strong>❌ Not Supported:</strong><br>
+                        ${failed.map(r => r.name).join(', ') || 'None'}
+                    </div>
+                    <div>
+                        <strong>🔍 Current in Code:</strong><br>
+                        Supported: ${currentSupported.map(r => r.name).join(', ')}<br>
+                        <span style="color: #ff8888;">Unsupported: ${currentUnsupported.map(r => r.name).join(', ') || 'None'}</span>
+                    </div>
+                    <div>
+                        <strong>🆕 New Options:</strong><br>
+                        ${newSupported.map(r => r.name).join(', ') || 'None found'}
+                    </div>
+                </div>
+                
+                ${currentUnsupported.length > 0 ? 
+                    `<div style="background: #5f1a1a; padding: 10px; border-radius: 5px; margin-top: 15px;">
+                        <strong>⚠️ Issues Found:</strong> ${currentUnsupported.length} granularities in the current code are not supported by the Coinbase API!
+                    </div>` : 
+                    `<div style="background: #1a5f3f; padding: 10px; border-radius: 5px; margin-top: 15px;">
+                        <strong>✅ All Clear:</strong> All current granularities are supported by the API.
+                    </div>`
+                }
+            `;
+            
+            summary.style.display = 'block';
+        }
+        
+        function generateUpdatedConfig() {
+            const supported = Object.values(testResults)
+                .filter(r => r.success)
+                .sort((a, b) => a.seconds - b.seconds);
+                
+            const config = `// ✅ VALIDATED COINBASE API GRANULARITIES
+// Tested on ${new Date().toLocaleDateString()} - All confirmed working
+
+export const GRANULARITY_TO_SECONDS: Record<string, number> = {
+${supported.map(r => `  '${r.name}': ${r.seconds.toString().padStart(6)}, // ${getDisplayName(r.name, r.seconds)}`).join('\n')}
+};
+
+export const GRANULARITY_DISPLAY_NAMES: Record<string, string> = {
+${supported.map(r => `  '${r.name}': '${getDisplayName(r.name, r.seconds)}',`).join('\n')}
+};
+
+// ❌ UNSUPPORTED BY COINBASE API (removed):
+${Object.values(testResults).filter(r => !r.success).map(r => `// '${r.name}': ${r.seconds} // ${getDisplayName(r.name, r.seconds)} - HTTP ${r.status}`).join('\n')}`;
+
+            updatedConfig.textContent = config;
+            configOutput.style.display = 'block';
+            
+            // Scroll to results
+            configOutput.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function getDisplayName(name, seconds) {
+            const minutes = seconds / 60;
+            const hours = seconds / 3600;
+            const days = seconds / 86400;
+            
+            if (days >= 1) return `${days} Day${days > 1 ? 's' : ''}`;
+            if (hours >= 1) return `${hours} Hour${hours > 1 ? 's' : ''}`;
+            return `${minutes} Minute${minutes > 1 ? 's' : ''}`;
+        }
+        
+        function clearResults() {
+            testResultsDiv.innerHTML = '';
+            summary.style.display = 'none';
+            configOutput.style.display = 'none';
+            testResults = {};
+            generateButton.disabled = true;
+        }
+        
+        // Auto-populate the test list on load
+        window.onload = () => {
+            const granularities = Object.entries(ALL_GRANULARITIES);
+            testResultsDiv.innerHTML = granularities.map(([name, seconds]) => 
+                `<div class="granularity-test">
+                    <div><span class="status-indicator" style="background: #666;"></span></div>
+                    <div><strong>${name}</strong></div>
+                    <div>${seconds}s</div>
+                    <div>-</div>
+                    <div>Ready to test</div>
+                </div>`
+            ).join('');
+        };
+    </script>
+</body>
+</html>
