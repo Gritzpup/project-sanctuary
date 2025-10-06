@@ -111,6 +111,17 @@ export class ChartAPIService {
         // Single request is sufficient
         ChartDebug.log(`Fetching from Coinbase API: ${pair} ${granularity} (${granularitySeconds}s)`);
         
+        // Debug for 5m granularity API calls
+        if (granularity === '5m') {
+          console.log('🔍 5m API Request:', {
+            pair,
+            granularity: `${granularity} (${granularitySeconds}s)`,
+            start: start ? `${start} (${new Date(start * 1000).toISOString()})` : 'undefined',
+            end: end ? `${end} (${new Date(end * 1000).toISOString()})` : 'undefined',
+            expectedCandles: expectedCandles
+          });
+        }
+        
         if (granularity === '1d' || granularity === '1D') {
           ChartDebug.critical(`[PERF] Starting Coinbase API call at ${performance.now() - fetchStartTime}ms`);
         }
@@ -123,6 +134,16 @@ export class ChartAPIService {
           end?.toString()
         );
         const apiEndTime = performance.now();
+        
+        // Debug for 5m granularity API response
+        if (granularity === '5m') {
+          console.log('🔍 5m API Response:', {
+            expectedCandles,
+            receivedCandles: allCandles.length,
+            firstCandle: allCandles.length > 0 ? new Date(allCandles[0].time * 1000).toISOString() : 'none',
+            lastCandle: allCandles.length > 0 ? new Date(allCandles[allCandles.length - 1].time * 1000).toISOString() : 'none'
+          });
+        }
         
         if (granularity === '1d' || granularity === '1D') {
           ChartDebug.critical(`[PERF] Coinbase API call took ${apiEndTime - apiStartTime}ms`);

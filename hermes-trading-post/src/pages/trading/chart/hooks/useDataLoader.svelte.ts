@@ -140,6 +140,17 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       
       const candles = dataStore.candles;
       
+      // Debug actual results for 5m+1H combination
+      if (config.granularity === '5m' && config.timeframe === '1H') {
+        console.log('🔍 5m+1H Data Loading Results:', {
+          expectedCandles: candleCount,
+          actualCandles: candles.length,
+          firstCandle: candles.length > 0 ? new Date((candles[0].time as number) * 1000).toISOString() : 'none',
+          lastCandle: candles.length > 0 ? new Date((candles[candles.length - 1].time as number) * 1000).toISOString() : 'none',
+          timeSpan: candles.length > 1 ? `${((candles[candles.length - 1].time as number) - (candles[0].time as number)) / 60} minutes` : 'single candle'
+        });
+      }
+      
       // Performance analysis for 3M/1d
       if (config.timeframe === '3M' && config.granularity === '1d') {
         if (candles.length > 0) {

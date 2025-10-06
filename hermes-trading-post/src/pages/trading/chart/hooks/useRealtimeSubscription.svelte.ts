@@ -26,6 +26,9 @@ export interface UseRealtimeSubscriptionOptions {
 
 export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions = {}) {
   const { onPriceUpdate, onNewCandle, onReconnect, onError } = options;
+  
+  // Temporary flag to disable new auto-scroll logic if it causes issues
+  const ENABLE_SMALL_DATASET_AUTO_SCROLL = false; // DISABLED to fix freezing issue
 
   /**
    * Maintains optimal candle count visible in the chart (60 for normal, 12 for small datasets)
@@ -41,35 +44,49 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       if (!chart || !chart.timeScale) return;
       
       // For small datasets (like 5m+1H = 12 candles), maintain original candle count
-      if (candles.length <= 30) {
-        // Determine expected count dynamically based on current chart configuration
-        const expectedCandleCount = getCandleCount(chartStore.config.granularity, chartStore.config.timeframe) || 12;
-        
-        if (candles.length > expectedCandleCount) {
-          // Show only the most recent candles to maintain the window
-          const startIndex = candles.length - expectedCandleCount;
-          const visibleCandles = candles.slice(startIndex);
+      if (candles.length <= 30 && ENABLE_SMALL_DATASET_AUTO_SCROLL) {
+        try {
+          // Safely determine expected count with fallback
+          let expectedCandleCount = 12; // Default for 5m+1H
           
-          if (visibleCandles.length > 1) {
-            const firstVisibleTime = visibleCandles[0].time as number;
-            const timeSpan = currentTime - firstVisibleTime;
-            const buffer = timeSpan * 0.05; // 5% buffer
+          try {
+            if (chartStore?.config?.granularity && chartStore?.config?.timeframe) {
+              expectedCandleCount = getCandleCount(chartStore.config.granularity, chartStore.config.timeframe) || 12;
+            }
+          } catch (configError) {
+            console.warn('Could not access chart config, using default candle count:', configError);
+          }
+          
+          if (candles.length > expectedCandleCount) {
+            // Show only the most recent candles to maintain the window
+            const startIndex = candles.length - expectedCandleCount;
+            const visibleCandles = candles.slice(startIndex);
             
-            chart.timeScale().setVisibleRange({
-              from: (firstVisibleTime - buffer) as any,
-              to: (currentTime + buffer) as any
+            if (visibleCandles.length > 1) {
+              const firstVisibleTime = visibleCandles[0].time as number;
+              const timeSpan = currentTime - firstVisibleTime;
+              const buffer = timeSpan * 0.05; // 5% buffer
+              
+              chart.timeScale().setVisibleRange({
+                from: (firstVisibleTime - buffer) as any,
+                to: (currentTime + buffer) as any
+              });
+              
+              console.log(`🎯 Maintained ${expectedCandleCount}-candle window: showing candles ${startIndex + 1}-${candles.length} of ${candles.length} total`);
+            }
+          } else {
+            // Still building up to expected count, show all with padding
+            chart.timeScale().setVisibleLogicalRange({
+              from: -2,
+              to: expectedCandleCount + 2
             });
             
-            console.log(`🎯 Maintained ${expectedCandleCount}-candle window: showing candles ${startIndex + 1}-${candles.length} of ${candles.length} total`);
+            console.log(`🔄 Building to ${expectedCandleCount} candles: currently showing ${candles.length}`);
           }
-        } else {
-          // Still building up to expected count, show all with padding
-          chart.timeScale().setVisibleLogicalRange({
-            from: -2,
-            to: expectedCandleCount + 2
-          });
-          
-          console.log(`🔄 Building to ${expectedCandleCount} candles: currently showing ${candles.length}`);
+        } catch (smallDatasetError) {
+          console.error('Error in small dataset zoom maintenance:', smallDatasetError);
+          // Fall back to not maintaining zoom to prevent freezing
+          ChartDebug.log(`Skipping zoom maintenance due to error: ${smallDatasetError.message}`);
         }
         return;
       }
