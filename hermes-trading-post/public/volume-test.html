@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volume Data Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #ffffff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background: #1a5f3f; color: #00ff88; }
+        .error { background: #5f1a1a; color: #ff8888; }
+        .warning { background: #5f5f1a; color: #ffff88; }
+        .info { background: #1a1a5f; color: #8888ff; }
+        .data-section {
+            background: #1a1a1a;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        .candle-item {
+            background: #2a2a2a;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 4px solid #666;
+        }
+        .volume-present { border-left-color: #00ff88; }
+        .volume-missing { border-left-color: #ff8888; }
+        .volume-zero { border-left-color: #ffff88; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #333;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover { background: #555; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .success-stat { color: #00ff88; }
+        .error-stat { color: #ff8888; }
+        .warning-stat { color: #ffff88; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔊 Volume Data Test & Debug</h1>
+        <p>This tool tests volume data integrity in both historical and real-time candles.</p>
+        
+        <div class="controls">
+            <button onclick="testHistoricalVolume()">Test Historical Volume</button>
+            <button onclick="testRealtimeVolume()">Test Real-time Volume</button>
+            <button onclick="clearResults()">Clear Results</button>
+        </div>
+        
+        <div id="status" class="status info">Ready to test...</div>
+        
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-card">
+                <div>Historical Candles</div>
+                <div id="historicalCount" class="stat-value">0</div>
+            </div>
+            <div class="stat-card">
+                <div>With Volume Data</div>
+                <div id="volumeCount" class="stat-value success-stat">0</div>
+            </div>
+            <div class="stat-card">
+                <div>Missing Volume</div>
+                <div id="missingCount" class="stat-value error-stat">0</div>
+            </div>
+            <div class="stat-card">
+                <div>Zero Volume</div>
+                <div id="zeroCount" class="stat-value warning-stat">0</div>
+            </div>
+        </div>
+        
+        <div id="results"></div>
+        
+        <div class="data-section" id="realtimeSection" style="display: none;">
+            <h3>🔴 Real-time Volume Monitoring</h3>
+            <div id="realtimeData"></div>
+            <button onclick="stopRealtime()">Stop Monitoring</button>
+        </div>
+    </div>
+
+    <script>
+        let statusElement = document.getElementById('status');
+        let resultsElement = document.getElementById('results');
+        let statsElement = document.getElementById('stats');
+        let realtimeSection = document.getElementById('realtimeSection');
+        let realtimeData = document.getElementById('realtimeData');
+        let realtimeInterval = null;
+        
+        function updateStatus(message, type = 'info') {
+            statusElement.textContent = message;
+            statusElement.className = `status ${type}`;
+        }
+        
+        function updateStats(historical, withVolume, missing, zero) {
+            document.getElementById('historicalCount').textContent = historical;
+            document.getElementById('volumeCount').textContent = withVolume;
+            document.getElementById('missingCount').textContent = missing;
+            document.getElementById('zeroCount').textContent = zero;
+            statsElement.style.display = 'grid';
+        }
+        
+        async function testHistoricalVolume() {
+            updateStatus('Testing historical volume data...', 'info');
+            
+            try {
+                // Get last 50 candles
+                const endTime = Math.floor(Date.now() / 1000);
+                const startTime = endTime - (50 * 60); // 50 minutes ago
+                
+                const response = await fetch(`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=60&start=${startTime}&end=${endTime}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const candles = await response.json();
+                
+                if (!candles || candles.length === 0) {
+                    updateStatus('No historical candles received', 'warning');
+                    return;
+                }
+                
+                // Analyze volume data
+                let withVolume = 0;
+                let missingVolume = 0;
+                let zeroVolume = 0;
+                
+                const candleAnalysis = candles.reverse().map((candle, index) => {
+                    const [timestamp, low, high, open, close, volume] = candle;
+                    const hasVolume = volume !== undefined && volume !== null;
+                    const isZero = volume === 0;
+                    
+                    if (!hasVolume) {
+                        missingVolume++;
+                    } else if (isZero) {
+                        zeroVolume++;
+                    } else {
+                        withVolume++;
+                    }
+                    
+                    return {
+                        index: index + 1,
+                        time: new Date(timestamp * 1000).toLocaleString(),
+                        timestamp,
+                        open,
+                        high,
+                        low,
+                        close,
+                        volume,
+                        hasVolume,
+                        isZero,
+                        status: !hasVolume ? 'missing' : isZero ? 'zero' : 'present'
+                    };
+                });
+                
+                updateStats(candles.length, withVolume, missingVolume, zeroVolume);
+                
+                // Display results
+                const resultsHtml = `
+                    <div class="data-section">
+                        <h3>📊 Historical Volume Analysis</h3>
+                        <div>
+                            ${candleAnalysis.slice(-10).map(candle => `
+                                <div class="candle-item volume-${candle.status}">
+                                    <strong>#${candle.index}</strong> ${candle.time}<br>
+                                    OHLC: $${candle.open} | $${candle.high} | $${candle.low} | $${candle.close}<br>
+                                    Volume: ${candle.hasVolume ? candle.volume.toFixed(6) : 'MISSING'} ${candle.isZero ? '(ZERO)' : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                        <p>Showing last 10 candles. Total analyzed: ${candles.length}</p>
+                    </div>
+                `;
+                
+                resultsElement.innerHTML = resultsHtml;
+                
+                if (missingVolume > 0) {
+                    updateStatus(`⚠️ Found ${missingVolume} candles missing volume data!`, 'error');
+                } else if (zeroVolume > withVolume) {
+                    updateStatus(`⚠️ Found ${zeroVolume} candles with zero volume`, 'warning');
+                } else {
+                    updateStatus(`✅ Volume data looks good! ${withVolume}/${candles.length} candles have volume`, 'success');
+                }
+                
+            } catch (error) {
+                updateStatus(`❌ Error testing historical volume: ${error.message}`, 'error');
+                console.error('Historical volume test failed:', error);
+            }
+        }
+        
+        function testRealtimeVolume() {
+            updateStatus('Starting real-time volume monitoring...', 'info');
+            realtimeSection.style.display = 'block';
+            
+            let updateCount = 0;
+            let volumeUpdates = [];
+            
+            // Simulate real-time updates (replace with actual WebSocket in real implementation)
+            realtimeInterval = setInterval(async () => {
+                try {
+                    // Get latest ticker data
+                    const response = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker');
+                    const ticker = await response.json();
+                    
+                    updateCount++;
+                    const now = new Date();
+                    
+                    volumeUpdates.unshift({
+                        time: now.toLocaleTimeString(),
+                        price: parseFloat(ticker.price),
+                        volume24h: parseFloat(ticker.volume_24h),
+                        size: parseFloat(ticker.size || '0'),
+                        bid: parseFloat(ticker.bid),
+                        ask: parseFloat(ticker.ask)
+                    });
+                    
+                    // Keep only last 10 updates
+                    volumeUpdates = volumeUpdates.slice(0, 10);
+                    
+                    const realtimeHtml = `
+                        <div>
+                            <p><strong>Updates received:</strong> ${updateCount}</p>
+                            ${volumeUpdates.map((update, index) => `
+                                <div class="candle-item ${index === 0 ? 'volume-present' : ''}">
+                                    <strong>${update.time}</strong><br>
+                                    Price: $${update.price.toLocaleString()}<br>
+                                    24h Volume: ${update.volume24h.toFixed(2)} BTC<br>
+                                    Last Size: ${update.size} BTC<br>
+                                    Spread: $${update.bid} - $${update.ask}
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                    
+                    realtimeData.innerHTML = realtimeHtml;
+                    updateStatus(`📡 Real-time monitoring active (${updateCount} updates)`, 'success');
+                    
+                } catch (error) {
+                    updateStatus(`❌ Real-time error: ${error.message}`, 'error');
+                    console.error('Real-time test error:', error);
+                }
+            }, 2000); // Update every 2 seconds
+        }
+        
+        function stopRealtime() {
+            if (realtimeInterval) {
+                clearInterval(realtimeInterval);
+                realtimeInterval = null;
+            }
+            realtimeSection.style.display = 'none';
+            updateStatus('Real-time monitoring stopped', 'info');
+        }
+        
+        function clearResults() {
+            resultsElement.innerHTML = '';
+            realtimeData.innerHTML = '';
+            statsElement.style.display = 'none';
+            realtimeSection.style.display = 'none';
+            stopRealtime();
+            updateStatus('Results cleared', 'info');
+        }
+        
+        // Auto-start historical test
+        window.onload = () => {
+            updateStatus('🔊 Volume Test Tool Ready', 'info');
+        };
+        
+        // Cleanup on page unload
+        window.onbeforeunload = () => {
+            stopRealtime();
+        };
+    </script>
+</body>
+</html>

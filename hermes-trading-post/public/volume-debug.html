@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volume Debug Tool</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #ffffff;
+        }
+        .log {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .status {
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .connected { color: #00ff00; }
+        .disconnected { color: #ff0000; }
+        .error { color: #ff0000; }
+        .warning { color: #ffaa00; }
+        .info { color: #00aaff; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #333;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #555;
+        }
+        .volume-data {
+            background: #2a2a2a;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Volume Data Debug Tool</h1>
+    <div class="status" id="status">Status: <span class="disconnected">Not Connected</span></div>
+    
+    <div>
+        <button onclick="testApiConnection()">Test API Connection</button>
+        <button onclick="testWebSocketConnection()">Test WebSocket Connection</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+    
+    <div class="log" id="log"></div>
+    
+    <div id="volumeData" class="volume-data" style="display: none;">
+        <h3>Latest Volume Data:</h3>
+        <div id="volumeDisplay"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        let logElement = document.getElementById('log');
+        let statusElement = document.getElementById('status');
+        let volumeDataElement = document.getElementById('volumeData');
+        let volumeDisplayElement = document.getElementById('volumeDisplay');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = `[${timestamp}] ${message}`;
+            logElement.appendChild(div);
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        function updateStatus(message, connected = false) {
+            statusElement.innerHTML = `Status: <span class="${connected ? 'connected' : 'disconnected'}">${message}</span>`;
+        }
+        
+        async function testApiConnection() {
+            log('Testing Coinbase API connection...', 'info');
+            try {
+                const response = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=60&start=' + Math.floor((Date.now() - 300000) / 1000) + '&end=' + Math.floor(Date.now() / 1000));
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ API Connection Success - Got ${data.length} candles`, 'connected');
+                    
+                    if (data.length > 0) {
+                        const latestCandle = data[data.length - 1];
+                        const volume = latestCandle[5];
+                        log(`Latest volume from API: ${volume.toFixed(2)}`, 'info');
+                        
+                        volumeDataElement.style.display = 'block';
+                        volumeDisplayElement.innerHTML = `
+                            <strong>API Data:</strong><br>
+                            Time: ${new Date(latestCandle[0] * 1000).toLocaleString()}<br>
+                            Volume: ${volume.toFixed(2)}<br>
+                            Open: ${latestCandle[3]}<br>
+                            High: ${latestCandle[2]}<br>
+                            Low: ${latestCandle[1]}<br>
+                            Close: ${latestCandle[4]}
+                        `;
+                    }
+                } else {
+                    log(`❌ API Connection Failed - HTTP ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ API Connection Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testWebSocketConnection() {
+            log('Testing WebSocket connection...', 'info');
+            
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            
+            try {
+                // Test with Coinbase WebSocket
+                ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+                
+                ws.onopen = function() {
+                    log('✅ WebSocket Connected', 'connected');
+                    updateStatus('WebSocket Connected', true);
+                    
+                    // Subscribe to ticker data for volume updates
+                    const subscription = {
+                        type: 'subscribe',
+                        product_ids: ['BTC-USD'],
+                        channels: ['ticker']
+                    };
+                    
+                    ws.send(JSON.stringify(subscription));
+                    log('📡 Subscribed to BTC-USD ticker channel', 'info');
+                };
+                
+                ws.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.type === 'ticker' && data.product_id === 'BTC-USD') {
+                            const volume24h = parseFloat(data.volume_24h);
+                            const price = parseFloat(data.price);
+                            const time = data.time;
+                            
+                            log(`📊 Ticker Update - Price: ${price}, 24h Volume: ${volume24h.toFixed(2)}`, 'info');
+                            
+                            volumeDataElement.style.display = 'block';
+                            volumeDisplayElement.innerHTML = `
+                                <strong>WebSocket Ticker Data:</strong><br>
+                                Time: ${new Date(time).toLocaleString()}<br>
+                                Price: $${price}<br>
+                                24h Volume: ${volume24h.toFixed(2)} BTC<br>
+                                Best Bid: ${data.best_bid}<br>
+                                Best Ask: ${data.best_ask}
+                            `;
+                        } else if (data.type === 'subscriptions') {
+                            log(`✅ Subscription confirmed: ${JSON.stringify(data.channels)}`, 'connected');
+                        }
+                    } catch (error) {
+                        log(`⚠️ Error parsing WebSocket message: ${error.message}`, 'warning');
+                    }
+                };
+                
+                ws.onerror = function(error) {
+                    log(`❌ WebSocket Error: ${error}`, 'error');
+                    updateStatus('WebSocket Error', false);
+                };
+                
+                ws.onclose = function(event) {
+                    log(`🔌 WebSocket Closed - Code: ${event.code}, Reason: ${event.reason}`, 'warning');
+                    updateStatus('WebSocket Disconnected', false);
+                };
+                
+            } catch (error) {
+                log(`❌ WebSocket Connection Failed: ${error.message}`, 'error');
+                updateStatus('WebSocket Failed', false);
+            }
+        }
+        
+        function clearLogs() {
+            logElement.innerHTML = '';
+            volumeDataElement.style.display = 'none';
+        }
+        
+        // Auto-start API test on page load
+        window.onload = function() {
+            log('🚀 Volume Debug Tool Started', 'info');
+            testApiConnection();
+        };
+        
+        // Cleanup on page unload
+        window.onbeforeunload = function() {
+            if (ws) {
+                ws.close();
+            }
+        };
+    </script>
+</body>
+</html>

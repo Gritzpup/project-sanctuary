@@ -7,16 +7,21 @@ import type { CandlestickData, Time } from 'lightweight-charts';
 import { webSocketManager } from '../api/webSocketManager';
 import { indexedDBCache } from '../cache/indexedDB';
 import { CoinbaseAPI } from '../api/coinbaseApi';
-import type { TickerData } from '../../types/coinbase';
+import type { TickerData, CandleData } from '../../types/coinbase';
+
+// Extend CandlestickData to include volume
+interface CandlestickDataWithVolume extends CandlestickData {
+  volume?: number;
+}
 
 export interface CandleUpdate {
   symbol: string;
-  candle: CandlestickData;
+  candle: CandlestickDataWithVolume;
   isNewCandle: boolean;
 }
 
 class RealtimeCandleAggregator {
-  private currentCandles: Map<string, CandlestickData> = new Map();
+  private currentCandles: Map<string, CandlestickDataWithVolume> = new Map();
   private listeners: Set<(update: CandleUpdate) => void> = new Set();
   private intervals: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private lastPrices: Map<string, number> = new Map();
@@ -74,12 +79,13 @@ class RealtimeCandleAggregator {
     }
 
     // Create new candle
-    const newCandle: CandlestickData = {
+    const newCandle: CandlestickDataWithVolume = {
       time: time as Time,
       open: this.lastPrices.get(symbol) || price,
       high: price,
       low: price,
-      close: price
+      close: price,
+      volume: 0 // Initialize volume to 0 for real-time candles
     };
 
     this.currentCandles.set(symbol, newCandle);
@@ -191,11 +197,12 @@ class RealtimeCandleAggregator {
           const currentCandle = this.currentCandles.get(symbol);
           
           if (currentCandle && currentCandle.time === candleTime) {
-            // Update with accurate OHLC from API
+            // Update with accurate OHLCV from API
             currentCandle.open = targetCandle.open;
             currentCandle.high = targetCandle.high;
             currentCandle.low = targetCandle.low;
             currentCandle.close = targetCandle.close;
+            currentCandle.volume = targetCandle.volume; // Include volume data
             
             // Notify listeners of the update
             this.notifyListeners({
@@ -274,16 +281,16 @@ class RealtimeCandleAggregator {
     }
   }
 
-  private async saveCandle(symbol: string, candle: CandlestickData) {
+  private async saveCandle(symbol: string, candle: CandlestickDataWithVolume) {
     try {
-      // Convert CandlestickData to CandleData (add volume field)
+      // Convert CandlestickDataWithVolume to CandleData
       const candleData = {
         time: candle.time as number,
         open: candle.open,
         high: candle.high,
         low: candle.low,
         close: candle.close,
-        volume: 0 // Default volume since real-time ticker doesn't provide it
+        volume: candle.volume || 0 // Use volume from candle if available, default to 0
       };
       
       // Get existing candles from cache (cache expects timestamps in seconds, not milliseconds)
