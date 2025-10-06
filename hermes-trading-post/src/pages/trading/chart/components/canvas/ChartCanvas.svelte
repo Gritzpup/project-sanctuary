@@ -85,10 +85,8 @@
       
       const { width: newWidth, height: newHeight } = entries[0].contentRect;
       
-      chart.applyOptions({
-        width: Math.floor(newWidth),
-        height: Math.floor(newHeight),
-      });
+      // Only resize dimensions, don't reapply all chart options which resets timeScale
+      chart.resize(Math.floor(newWidth), Math.floor(newHeight));
     });
     
     resizeObserver.observe(container);
@@ -97,10 +95,8 @@
     setTimeout(() => {
       if (chart && container) {
         const rect = container.getBoundingClientRect();
-        chart.applyOptions({
-          width: Math.floor(rect.width),
-          height: Math.floor(rect.height),
-        });
+        // Only resize dimensions, don't reapply all chart options which resets timeScale
+        chart.resize(Math.floor(rect.width), Math.floor(rect.height));
       }
     }, 100);
   }
@@ -126,9 +122,14 @@
     dataManager.updateChartData();
     dataManager.updateVolumeData();
     
-    // Set the chart to show exactly 60 candles after data updates
+    // Use appropriate positioning based on dataset size
     setTimeout(() => {
-      show60Candles();
+      const candles = dataStore.candles;
+      if (candles.length <= 20) {
+        fitContent();
+      } else {
+        show60Candles();
+      }
     }, 100);
   }
   
@@ -150,21 +151,22 @@
     
     const candles = dataStore.candles;
     
-    // For small datasets like 5m+1H, position candles across 2/3 of chart width  
+    // For small datasets like 5m+1H, position candles with large right gap  
     if (candles.length <= 20 && candles.length > 0) {
       const firstTime = candles[0].time as number;
       const lastTime = candles[candles.length - 1].time as number;
       const dataRange = lastTime - firstTime;
       
-      // Extend range so data fills 2/3 of chart width, leaving 1/3 for future
-      const extendedRange = dataRange * 1.5;
+      // Use a much larger right gap to account for automatic positioning
+      const rightGap = dataRange * 1.5; // 150% gap instead of 30%
       
-      chart.timeScale().setVisibleRange({
-        from: firstTime as any,
-        to: (firstTime + extendedRange) as any
+      // Try using logical range instead of time range
+      chart.timeScale().setVisibleLogicalRange({
+        from: -2, // Show 2 bars to the left
+        to: candles.length + 5 // Show 5 bars beyond the last candle for gap
       });
       
-      console.log(`ChartCanvas: Positioned ${candles.length} candles across 2/3 chart width`);
+      console.log(`ChartCanvas: Applied large right gap for ${candles.length} candles`);
     } else {
       // For normal datasets, use standard fitContent
       chart.timeScale().fitContent();

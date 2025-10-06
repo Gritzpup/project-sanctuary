@@ -223,12 +223,13 @@
         const lastTime = candles[candles.length - 1].time as number;
         const dataRange = lastTime - firstTime;
         
-        // Extend the range so candles fill 2/3 of chart, leaving 1/3 for future data
-        const extendedRange = dataRange * 1.5; // 1.5x to spread data across 2/3 width
+        // Extend the range so candles fill most of chart, with proper right gap
+        const extendedRange = dataRange * 1.2; // Spread data wider
+        const rightGap = dataRange * 0.3; // Add gap after last candle
         
         chart.timeScale().setVisibleRange({
           from: firstTime as any,
-          to: (firstTime + extendedRange) as any
+          to: (lastTime + rightGap) as any
         });
         
         console.log(`5m chart positioned: ${candles.length} candles across 2/3 width`);
@@ -274,8 +275,16 @@
       console.error('ChartCore: ChartCanvas not available for show60Candles');
       return;
     }
-    console.log('ChartCore: Forwarding show60Candles to ChartCanvas');
-    chartCanvas.show60Candles();
+    
+    // Check dataset size and use appropriate positioning
+    const candles = dataStore.candles;
+    if (candles.length <= 20) {
+      console.log('ChartCore: Small dataset detected, using fitContent with right gap');
+      chartCanvas.fitContent();
+    } else {
+      console.log('ChartCore: Normal dataset, using 60 candle view');
+      chartCanvas.show60Candles();
+    }
   }
 </script>
 

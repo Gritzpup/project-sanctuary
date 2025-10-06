@@ -32,11 +32,20 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     if (!chartSeries || candles.length === 0) return;
     
     try {
-      // Always maintain exactly 60 candles visible
-      const maxCandles = 60;
       const currentTime = candles[candles.length - 1].time as number;
       
-      // Get the last 60 candles to calculate proper time range
+      // Get chart instance from series
+      const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
+      if (!chart || !chart.timeScale) return;
+      
+      // For small datasets like 5m+1H, DON'T maintain zoom - let chart handle it naturally
+      if (candles.length <= 20) {
+        ChartDebug.log(`Skipping zoom maintenance for small dataset: ${candles.length} candles`);
+        return;
+      }
+      
+      // For normal datasets, maintain exactly 60 candles visible
+      const maxCandles = 60;
       const startIndex = Math.max(0, candles.length - maxCandles);
       const visibleCandles = candles.slice(startIndex);
       
@@ -45,16 +54,12 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         const timeSpan = currentTime - firstVisibleTime;
         const buffer = timeSpan * 0.05; // 5% buffer
         
-        // Get chart instance from series
-        const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
-        if (chart && chart.timeScale) {
-          chart.timeScale().setVisibleRange({
-            from: (firstVisibleTime - buffer) as any,
-            to: (currentTime + buffer) as any
-          });
-          
-          ChartDebug.log(`Maintained 60 candle zoom: showing ${visibleCandles.length} candles`);
-        }
+        chart.timeScale().setVisibleRange({
+          from: (firstVisibleTime - buffer) as any,
+          to: (currentTime + buffer) as any
+        });
+        
+        ChartDebug.log(`Maintained 60 candle zoom: showing ${visibleCandles.length} candles`);
       }
     } catch (error) {
       ChartDebug.error('Error maintaining candle zoom:', error);
