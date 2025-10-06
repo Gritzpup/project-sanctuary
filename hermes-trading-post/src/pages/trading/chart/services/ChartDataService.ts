@@ -176,6 +176,19 @@ export class ChartDataService {
   }
 
   private transformToChartData(candles: Candle[]): CandlestickData[] {
+    // Debug for 5m data
+    if (this.currentGranularity === '5m') {
+      console.log('🔍 5m transformToChartData:', {
+        inputCandles: candles.length,
+        granularity: this.currentGranularity
+      });
+      
+      const invalidCandles = candles.filter(candle => !this.isValidCandle(candle));
+      if (invalidCandles.length > 0) {
+        console.log('❌ Invalid 5m candles found:', invalidCandles.length, invalidCandles);
+      }
+    }
+    
     const transformed = candles
       .filter(candle => this.isValidCandle(candle))
       .map(candle => ({
@@ -187,6 +200,14 @@ export class ChartDataService {
         volume: candle.volume  // Include volume data
       } as any)) // Cast to any to include volume
       .sort((a, b) => (a.time as number) - (b.time as number));
+      
+    // Debug for 5m data
+    if (this.currentGranularity === '5m') {
+      console.log('🔍 5m transformToChartData result:', {
+        outputCandles: transformed.length,
+        droppedCandles: candles.length - transformed.length
+      });
+    }
       
     
     return transformed;
