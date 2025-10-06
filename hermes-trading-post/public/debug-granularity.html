@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Granularity Debug</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .error { background: #ffebee; }
+        .success { background: #e8f5e8; }
+    </style>
+</head>
+<body>
+    <h1>Granularity Control Debug</h1>
+    <div id="output"></div>
+    
+    <script>
+        // Redirect console.log to both console and page
+        const output = document.getElementById('output');
+        const originalLog = console.log;
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const div = document.createElement('div');
+            div.className = 'debug';
+            div.textContent = args.join(' ');
+            output.appendChild(div);
+        };
+
+        // Test constants
+        const VALID_GRANULARITIES = {
+            '1H': ['1m', '5m', '15m'],
+            '6H': ['1m', '5m', '15m', '1h'],
+            '1D': ['5m', '15m', '1h', '6h'],
+            '1W': ['1h', '6h', '1d'],
+            '1M': ['1h', '6h', '1d'],
+            '3M': ['6h', '1d'],
+            '1Y': ['1d']
+        };
+
+        console.log('🧪 GRANULARITY LOGIC TEST');
+        console.log('=========================');
+        
+        const testTimeframe = '1H';
+        const validGranularities = VALID_GRANULARITIES[testTimeframe] || [];
+        
+        console.log(`Testing timeframe: ${testTimeframe}`);
+        console.log(`Valid granularities: ${JSON.stringify(validGranularities)}`);
+        
+        const testGranularities = ['1m', '5m', '15m', '1h', '6h', '1d'];
+        testGranularities.forEach(g => {
+            const isValid = validGranularities.includes(g);
+            console.log(`${g}: ${isValid ? 'VALID ✅' : 'INVALID ❌'}`);
+        });
+
+        // Check if main app debug data is available
+        setInterval(() => {
+            if (window.debugGranularity) {
+                console.log('🎯 LIVE APP DATA FOUND:');
+                console.log(JSON.stringify(window.debugGranularity, null, 2));
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

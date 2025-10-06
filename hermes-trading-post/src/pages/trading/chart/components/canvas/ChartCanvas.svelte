@@ -146,7 +146,27 @@
   }
   
   export function fitContent() {
-    if (chart) {
+    if (!chart) return;
+    
+    const candles = dataStore.candles;
+    
+    // For small datasets like 5m+1H, position candles across 2/3 of chart width  
+    if (candles.length <= 20 && candles.length > 0) {
+      const firstTime = candles[0].time as number;
+      const lastTime = candles[candles.length - 1].time as number;
+      const dataRange = lastTime - firstTime;
+      
+      // Extend range so data fills 2/3 of chart width, leaving 1/3 for future
+      const extendedRange = dataRange * 1.5;
+      
+      chart.timeScale().setVisibleRange({
+        from: firstTime as any,
+        to: (firstTime + extendedRange) as any
+      });
+      
+      console.log(`ChartCanvas: Positioned ${candles.length} candles across 2/3 chart width`);
+    } else {
+      // For normal datasets, use standard fitContent
       chart.timeScale().fitContent();
     }
   }

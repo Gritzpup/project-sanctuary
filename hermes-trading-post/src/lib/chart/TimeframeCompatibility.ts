@@ -22,7 +22,7 @@ export interface CompatibilityMatrix {
 
 // Define optimal candle counts for different chart views
 const OPTIMAL_CANDLE_RANGES = {
-  minimum: 20,    // Minimum for meaningful analysis
+  minimum: 10,    // Minimum for meaningful analysis (reduced for 1H+5m = 12 candles)
   ideal: 60,      // Ideal for most trading views
   maximum: 200,   // Maximum before chart becomes cluttered
   extended: 500   // Extended for long-term analysis
@@ -34,9 +34,8 @@ function calculateCandleCount(granularity: string, period: string): number {
     '1m': 1,
     '5m': 5,
     '15m': 15,
-    '30m': 30,
     '1h': 60,
-    '4h': 240,
+    '6h': 360,
     '1d': 1440
   };
 
@@ -102,7 +101,8 @@ function getCompatibility(candleCount: number): { compatible: boolean; isOptimal
 
 // Build the complete compatibility matrix
 function buildCompatibilityMatrix(): CompatibilityMatrix {
-  const granularities = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
+  // ✅ Only use API-validated granularities
+  const granularities = ['1m', '5m', '15m', '1h', '6h', '1d'];
   const periods = ['1H', '4H', '1D', '5D', '1M', '3M', '6M', '1Y'];
   
   const matrix: CompatibilityMatrix = {};
@@ -169,7 +169,7 @@ export function getRecommendedGranularities(period: string): string[] {
     }
   }
   
-  const granularityOrder = ['1m', '5m', '15m', '30m', '1h', '4h', '6h', '12h', '1D'];
+  const granularityOrder = ['1m', '5m', '15m', '1h', '6h', '1d'];
   return granularities.sort((a, b) => granularityOrder.indexOf(a) - granularityOrder.indexOf(b));
 }
 
@@ -234,6 +234,6 @@ export function getAutoSuggestion(
 export const EXTENDED_PERIODS = ['1H', '4H', '1D', '5D', '1M', '3M', '6M', '1Y'] as const;
 export type ExtendedPeriod = typeof EXTENDED_PERIODS[number];
 
-// Enhanced granularity options
-export const ENHANCED_GRANULARITIES = ['1m', '5m', '15m', '30m', '1h', '4h', '6h', '1D'] as const;
+// ✅ Enhanced granularity options (API-validated only)
+export const ENHANCED_GRANULARITIES = ['1m', '5m', '15m', '1h', '6h', '1d'] as const;
 export type EnhancedGranularity = typeof ENHANCED_GRANULARITIES[number];

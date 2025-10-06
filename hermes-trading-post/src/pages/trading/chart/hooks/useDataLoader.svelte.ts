@@ -11,6 +11,7 @@ import { statusStore } from '../stores/statusStore.svelte';
 import { ChartDebug } from '../utils/debug';
 import { perfTest } from '../utils/performanceTest';
 import { getGranularitySeconds } from '../utils/granularityHelpers';
+import { getCandleCount } from '../../../../lib/chart/TimeframeCompatibility';
 import type { IChartApi, ISeriesApi, CandlestickData } from 'lightweight-charts';
 
 export interface DataLoaderConfig {
@@ -92,17 +93,22 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
     try {
       const now = Math.floor(Date.now() / 1000);
       
-      // Calculate time range based on period
-      const periodSeconds = getPeriodSeconds(config.timeframe);
-      const startTime = now - periodSeconds;
+      // ✅ Calculate time range using granularity + period combination
+      const candleCount = getCandleCount(config.granularity, config.timeframe);
+      const granularitySeconds = getGranularitySeconds(config.granularity);
+      const timeRange = candleCount * granularitySeconds;
+      const startTime = now - timeRange;
+      
+      ChartDebug.log(`Time calculation: ${config.timeframe} + ${config.granularity} = ${candleCount} candles × ${granularitySeconds}s = ${timeRange}s range`);
       
       // Consolidated debug for 3M/1d (reduce multiple log calls)
       if (config.timeframe === '3M' && config.granularity === '1d') {
         const debugInfo = {
-          period: `${config.timeframe} = ${periodSeconds} seconds = ${periodSeconds / 86400} days`,
+          period: `${config.timeframe} + ${config.granularity} = ${candleCount} candles`,
+          timeRange: `${timeRange} seconds = ${timeRange / 86400} days`,
           now: `${now} (${new Date(now * 1000).toISOString()})`,
           start: `${startTime} (${new Date(startTime * 1000).toISOString()})`,
-          expectedCandles: Math.ceil(periodSeconds / 86400)
+          expectedCandles: candleCount
         };
         ChartDebug.critical('Loading 3M/1d data:', debugInfo);
       }
@@ -131,7 +137,7 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
             to: new Date((now + 30) * 1000).toISOString(),
             visibleDays: visibleDays.toFixed(1),
             actualCandles: candles.length,
-            expectedCandles: Math.ceil(periodSeconds / 86400),
+            expectedCandles: candleCount,
             dataSpan: `${actualDays.toFixed(1)} days`
           });
         }

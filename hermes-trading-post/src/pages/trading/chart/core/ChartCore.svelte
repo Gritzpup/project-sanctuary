@@ -73,6 +73,49 @@
       timeframe: period
     });
   }
+
+  // Reload data when granularity or period changes (after initial mount)
+  $: if (isInitialized && (granularity || period)) {
+    reloadDataForNewTimeframe();
+  }
+
+  async function reloadDataForNewTimeframe() {
+    try {
+      console.log(`Reloading data for ${granularity} + ${period}`);
+      statusStore.setLoading('Updating timeframe...');
+      
+      // Unsubscribe from current real-time updates
+      realtimeSubscription.unsubscribeFromRealtime();
+      
+      // Reload data with new timeframe
+      await dataLoader.loadData({
+        pair,
+        granularity,
+        timeframe: period,
+        chart: chartCanvas?.getChart(),
+        series: chartCanvas?.getSeries()
+      });
+      
+      // Apply proper positioning for small datasets
+      setTimeout(() => {
+        if (chartCanvas) {
+          chartCanvas.fitContent();
+        }
+      }, 100);
+      
+      // Resubscribe to real-time updates with new granularity
+      realtimeSubscription.subscribeToRealtime({
+        pair,
+        granularity
+      }, chartCanvas?.getSeries(), chartCanvas?.getVolumeSeries());
+      
+      statusStore.setReady();
+      console.log(`Data reloaded for ${granularity} + ${period}`);
+    } catch (error) {
+      console.error('Failed to reload data for new timeframe:', error);
+      statusStore.setError('Failed to update timeframe');
+    }
+  }
   
   async function handleChartReady(chart: IChartApi) {
     
@@ -167,7 +210,33 @@
   }
   
   export function fitContent() {
-    chartCanvas?.fitContent();
+    const chart = chartCanvas?.getChart();
+    if (!chart) return;
+    
+    const candleCount = getCandleCount(granularity, period) || 60;
+    
+    if (candleCount <= 20) {
+      // For small datasets like 5m+1H (12 candles), spread across 2/3 of chart width
+      const candles = dataStore.candles;
+      if (candles.length > 0) {
+        const firstTime = candles[0].time as number;
+        const lastTime = candles[candles.length - 1].time as number;
+        const dataRange = lastTime - firstTime;
+        
+        // Extend the range so candles fill 2/3 of chart, leaving 1/3 for future data
+        const extendedRange = dataRange * 1.5; // 1.5x to spread data across 2/3 width
+        
+        chart.timeScale().setVisibleRange({
+          from: firstTime as any,
+          to: (firstTime + extendedRange) as any
+        });
+        
+        console.log(`5m chart positioned: ${candles.length} candles across 2/3 width`);
+      }
+    } else {
+      // For normal datasets, use default fitContent
+      chartCanvas?.fitContent();
+    }
   }
 
   export function scrollToCurrentCandle() {

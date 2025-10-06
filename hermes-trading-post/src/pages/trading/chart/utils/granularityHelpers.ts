@@ -5,20 +5,22 @@
  * This eliminates duplicate code across ChartCore, ChartInfo, and ChartAPIService.
  */
 
-// Granularity to seconds mapping - the single source of truth
+// ✅ VALIDATED Coinbase API Granularities - the single source of truth
 export const GRANULARITY_SECONDS = {
   '1m': 60,
   '5m': 300,
   '15m': 900,
-  '30m': 1800,
   '1h': 3600,
-  '2h': 7200,
-  '4h': 14400,
   '6h': 21600,
-  '12h': 43200,
   '1d': 86400,
   '1D': 86400  // Handle uppercase
 } as const;
+
+// ❌ UNSUPPORTED by Coinbase API (removed):
+// '30m': 1800,   // HTTP 400
+// '2h': 7200,    // HTTP 400  
+// '4h': 14400,   // HTTP 400
+// '12h': 43200,  // HTTP 400
 
 // Type for valid granularities
 export type Granularity = keyof typeof GRANULARITY_SECONDS;
