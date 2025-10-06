@@ -29,7 +29,7 @@ export interface ManagerState {
 export class BackendAPIService {
   private static instance: BackendAPIService;
   private apiClient: UnifiedAPIClient;
-  private baseURL = 'http://localhost:4827';
+  private baseURL = 'http://localhost:4828';
 
   private constructor() {
     this.apiClient = UnifiedAPIClient.getInstance();

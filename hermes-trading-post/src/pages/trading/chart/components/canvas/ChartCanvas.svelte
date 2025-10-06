@@ -26,6 +26,7 @@
   let initCalled: boolean = false;
   let containerExists: boolean = false;
   let chartCreated: boolean = false;
+  let lastCandleCount: number = 0; // Track last candle count to prevent redundant positioning
   
   onMount(() => {
     initializeChart();
@@ -104,6 +105,11 @@
   }
   
   function cleanup() {
+    if (positioningTimeout) {
+      clearTimeout(positioningTimeout);
+      positioningTimeout = null;
+    }
+    
     if (resizeObserver) {
       resizeObserver.disconnect();
       resizeObserver = null;
@@ -116,23 +122,49 @@
     
     candleSeries = null;
     volumeSeries = null;
-    
   }
   
-  // Reactive updates
+  // Reactive updates with debounced positioning
+  let positioningTimeout: NodeJS.Timeout | null = null;
+  
   $: if (chart && dataStore.candles.length > 0) {
     dataManager.updateChartData();
     dataManager.updateVolumeData();
     
-    // Use appropriate positioning based on dataset size
-    setTimeout(() => {
-      const candles = dataStore.candles;
-      if (candles.length <= 20) {
+    // Only apply positioning if candle count changed
+    const currentCandleCount = dataStore.candles.length;
+    if (currentCandleCount !== lastCandleCount) {
+      lastCandleCount = currentCandleCount;
+      
+      // Debounce positioning to prevent race conditions
+      if (positioningTimeout) {
+        clearTimeout(positioningTimeout);
+      }
+      
+      positioningTimeout = setTimeout(() => {
+        applyOptimalPositioning();
+        positioningTimeout = null;
+      }, 200);
+    }
+  }
+  
+  function applyOptimalPositioning() {
+    if (!chart) return;
+    
+    const candles = dataStore.candles;
+    if (candles.length === 0) return;
+    
+    try {
+      if (candles.length <= 30) {
+        console.log(`🎯 ChartCanvas: Applying fitContent for SMALL dataset (${candles.length} candles)`);
         fitContent();
       } else {
+        console.log(`ChartCanvas: Applying 60 candle view for normal dataset (${candles.length} candles)`);
         show60Candles();
       }
-    }, 100);
+    } catch (error) {
+      console.error('Error applying chart positioning:', error);
+    }
   }
   
   // Export functions for parent component
@@ -200,27 +232,55 @@
     
     const candles = dataStore.candles;
     
-    // For small datasets like 5m+1H, show exactly 20 candles
-    if (candles.length <= 20 && candles.length > 0) {
-      const candlesToShow = 20;
-      const rightGapBars = 5;
+    // For small datasets, spread them across the full chart width
+    if (candles.length <= 30 && candles.length > 0) {
+      console.log(`🔍 ChartCanvas: Applying WIDE SPACING for ${candles.length} candles`);
       
-      // If we don't have enough candles, fetch more historical data
-      if (candles.length < candlesToShow) {
-        console.log(`Need ${candlesToShow - candles.length} more historical candles`);
-        fetchAdditionalHistoricalData(candlesToShow - candles.length);
-        return; // Exit early, will re-run after data loads
-      }
+      // Get actual chart dimensions
+      const chartWidth = chart.options().width || container?.clientWidth || 800;
+      const chartHeight = chart.options().height || container?.clientHeight || 400;
       
-      // Show exactly 20 candles with right gap
-      chart.timeScale().setVisibleLogicalRange({
-        from: candles.length - candlesToShow, // Start 20 candles back from the end
-        to: candles.length + rightGapBars // Keep same right gap
+      // Calculate very wide bar spacing to ensure visibility
+      const availableWidth = chartWidth * 0.85; // Use 85% of chart width, leave margins
+      const minBarSpacing = 25; // Minimum 25px per candle
+      const maxBarSpacing = 80; // Maximum 80px per candle for readability
+      let optimalBarSpacing = Math.floor(availableWidth / candles.length);
+      
+      // Ensure we're within reasonable bounds
+      optimalBarSpacing = Math.max(minBarSpacing, Math.min(maxBarSpacing, optimalBarSpacing));
+      
+      console.log(`🔍 ChartCanvas: Dimensions ${chartWidth}x${chartHeight}, Available: ${availableWidth}px, Target spacing: ${optimalBarSpacing}px`);
+      
+      // Force apply wider bar spacing with aggressive settings
+      chart.timeScale().applyOptions({
+        barSpacing: optimalBarSpacing,
+        minBarSpacing: 1, // Remove minimum constraint
+        rightOffset: Math.max(2, Math.floor(chartWidth * 0.05)), // 5% margin
+        leftOffset: Math.max(2, Math.floor(chartWidth * 0.05)),  // 5% margin
+        shiftVisibleRangeOnNewBar: false, // Prevent auto-scrolling
+        rightBarStaysOnScroll: false // Allow full control
       });
       
-      console.log(`ChartCanvas: Showing ${candlesToShow} candles with right gap`);
+      // Force visible range to show all candles evenly distributed
+      const totalLogicalWidth = candles.length + 4; // Add padding
+      chart.timeScale().setVisibleLogicalRange({
+        from: -2, // Left padding
+        to: candles.length + 2 // Right padding
+      });
+      
+      console.log(`✅ ChartCanvas: FORCED wide spacing - ${optimalBarSpacing}px per candle, logical range: -2 to ${candles.length + 2}`);
+      
+      // Double-check and force again after a brief delay to override any competing updates
+      setTimeout(() => {
+        if (chart) {
+          chart.timeScale().applyOptions({ barSpacing: optimalBarSpacing });
+          console.log(`🔄 ChartCanvas: RE-APPLIED bar spacing: ${optimalBarSpacing}px`);
+        }
+      }, 100);
+      
     } else {
       // For normal datasets, use standard fitContent
+      console.log(`ChartCanvas: Using standard fitContent for ${candles.length} candles`);
       chart.timeScale().fitContent();
     }
   }

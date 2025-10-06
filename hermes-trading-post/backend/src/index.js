@@ -11,7 +11,7 @@ import tradingRoutes from './routes/trading.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 4827; // Fixed port for development
+const PORT = process.env.PORT || 4828; // Fixed port for development (changed to avoid conflict)
 const HOST = process.env.HOST || '0.0.0.0'; // Listen on all interfaces
 
 app.use(cors());

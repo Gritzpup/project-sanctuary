@@ -67,7 +67,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   }
 
   /**
-   * Update live candle with new price data and corresponding volume
+   * Update live candle with new price data (volume handled by VolumePlugin)
    */
   function updateLiveCandleWithPrice(price: number, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any, fullCandleData?: any) {
     if (!chartSeries) return;
@@ -93,40 +93,13 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         volume: fullCandleData?.volume || 0
       } as any;
       
-      // Add to dataStore
+      // Add to dataStore - this will trigger VolumePlugin update
       const updatedCandles = [...candles, newCandle];
       dataStore.setCandles(updatedCandles);
       
-      // Update chart
+      // Update chart series only (volume handled by plugin)
       chartSeries.setData(updatedCandles);
       statusStore.setNewCandle();
-      
-      // Update volume series if available
-      if (volumeSeries) {
-        
-        // 🔥 FIX: Use real volume from WebSocket data
-        const volume = fullCandleData?.volume || (newCandle as any).volume || 0;
-        
-        // 🔥 FIX: Use volume-based coloring instead of price-based
-        // Compare to previous candle volume to determine color
-        let isVolumeUp = true; // Default for new candles
-        if (candles.length > 0) {
-          const prevVolume = candles[candles.length - 1].volume || 0;
-          isVolumeUp = volume >= prevVolume;
-        }
-        
-        const volumeBar = {
-          time: newCandle.time,
-          value: volume,
-          color: isVolumeUp ? '#26a69a80' : '#ef535080'
-        };
-        
-        try {
-          volumeSeries.update(volumeBar);
-        } catch (error) {
-          console.error('Error adding new volume bar:', error);
-        }
-      }
       
       // Maintain 60 candle zoom level after new candle creation
       maintainCandleZoom(chartSeries, updatedCandles);
@@ -150,38 +123,13 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       } as any;
       
       updatedCandles[updatedCandles.length - 1] = updatedCandle;
+      
+      // Update dataStore - this will trigger VolumePlugin update
       dataStore.setCandles(updatedCandles);
       
-      // Update chart with live candle
+      // Update chart with live candle (volume handled by plugin)
       chartSeries.update(updatedCandle);
       statusStore.setPriceUpdate();
-      
-      // Update volume series for current candle if available
-      if (volumeSeries) {
-        // 🔥 FIX: Use real volume from WebSocket data
-        const volume = fullCandleData?.volume || (updatedCandle as any).volume || 0;
-        
-        // 🔥 FIX: Use volume-based coloring instead of price-based
-        // Compare to previous candle volume to determine color
-        let isVolumeUp = true; // Default
-        if (updatedCandles.length > 1) {
-          const prevIndex = updatedCandles.length - 2;
-          const prevVolume = updatedCandles[prevIndex].volume || 0;
-          isVolumeUp = volume >= prevVolume;
-        }
-        
-        const volumeBar = {
-          time: updatedCandle.time,
-          value: volume,
-          color: isVolumeUp ? '#26a69a80' : '#ef535080'
-        };
-        
-        try {
-          volumeSeries.update(volumeBar);
-        } catch (error) {
-          console.error('Error updating volume bar:', error);
-        }
-      }
       
       // Ensure status stays ready during price updates
       if (statusStore.status !== 'ready') {
@@ -201,12 +149,13 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   function subscribeToRealtime(config: RealtimeSubscriptionConfig, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any) {
     const { pair, granularity } = config;
     
-    // Use dataStore to connect to backend WebSocket instead of Coinbase directly
+    // Use dataStore to connect to backend WebSocket - single source of truth
     dataStore.subscribeToRealtime(
       pair,
       granularity,
       (candleData) => {
-        updateLiveCandleWithPrice(candleData.close, chartSeries, volumeSeries, candleData);
+        // Only update candle price, volume is handled by VolumePlugin
+        updateLiveCandleWithPrice(candleData.close, chartSeries, null, candleData);
         statusStore.setPriceUpdate();
       },
       () => {
@@ -218,30 +167,8 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       }
     );
     
-    
-    // Also keep Coinbase for price updates but don't use it for status
-    import('../../../../services/api/coinbaseWebSocket').then(({ coinbaseWebSocket }) => {
-      
-      // Don't update status based on Coinbase - only use backend WebSocket for status
-      coinbaseWebSocket.subscribeTicker('BTC-USD');
-      
-      // Subscribe to ticker updates as backup price source
-      const unsubscribe = coinbaseWebSocket.subscribe((tickerData) => {
-        if (tickerData.product_id === 'BTC-USD' && tickerData.price) {
-          updateLiveCandleWithPrice(parseFloat(tickerData.price), chartSeries, volumeSeries);
-          // Update status to show we're receiving real-time data
-          statusStore.setReady();
-        }
-      });
-      
-      // Store unsubscribe function for cleanup
-      dataStore.realtimeUnsubscribe = unsubscribe;
-    }).catch((error) => {
-      ChartDebug.error('Failed to load Coinbase WebSocket:', error);
-      if (onError) {
-        onError('Failed to load backup price feed');
-      }
-    });
+    // Note: Removed dual WebSocket subscription to avoid conflicts
+    // VolumePlugin will handle volume updates through dataStore
   }
 
   /**

@@ -26,7 +26,7 @@ export default defineConfig({
         }
       },
       '/api/trading': {
-        target: 'http://localhost:4827',
+        target: 'http://localhost:4828',
         changeOrigin: true
       }
     }

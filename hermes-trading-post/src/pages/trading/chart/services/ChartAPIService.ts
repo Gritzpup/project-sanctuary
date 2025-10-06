@@ -7,7 +7,7 @@ import { Logger } from '../../../../utils/Logger';
 
 export class ChartAPIService {
   private coinbaseApi: CoinbaseAPI;
-  private wsUrl: string = 'ws://localhost:4827'; // Backend WebSocket for status/data sync
+  private wsUrl: string = 'ws://localhost:4828'; // Backend WebSocket for status/data sync
   private ws: WebSocket | null = null;
   private wsReconnectTimeout: NodeJS.Timeout | null = null;
   private wsSubscriptions: Map<string, (data: WebSocketCandle) => void> = new Map();

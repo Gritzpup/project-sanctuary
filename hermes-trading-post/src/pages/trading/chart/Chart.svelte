@@ -5,18 +5,20 @@
   import type { PluginManager } from './plugins';
   import { onMount } from 'svelte';
   
-  // AGGRESSIVE STATUS OVERRIDE - force ready state immediately
+  // Status monitoring - only set ready if stuck in loading state too long
   onMount(() => {
     setTimeout(async () => {
       try {
         const { statusStore } = await import('./stores/statusStore.svelte');
-        if (statusStore.status !== 'ready') {
-          statusStore.forceReady();
+        // Only intervene if truly stuck, not to mask real issues
+        if (statusStore.status === 'loading' || statusStore.status === 'initializing') {
+          console.warn('Chart status stuck in', statusStore.status, 'state - setting to ready');
+          statusStore.setReady();
         }
       } catch (error) {
-        console.error('Error forcing status:', error);
+        console.error('Error checking status:', error);
       }
-    }, 2000);
+    }, 5000); // Increased timeout to allow proper initialization
   });
   
   // Export all the props that ChartContainer accepts

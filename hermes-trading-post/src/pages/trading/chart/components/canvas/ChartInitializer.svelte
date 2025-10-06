@@ -8,8 +8,8 @@
   export let width: number | undefined = undefined;
   export let height: number | undefined = undefined;
   
-  // Check if we have a small dataset (5m chart case)
-  $: isSmallDataset = dataStore.candles.length <= 20 && dataStore.candles.length > 0;
+  // Check if we have a small dataset (5m chart case) - be more aggressive about detection
+  $: isSmallDataset = dataStore.candles.length <= 30 && dataStore.candles.length > 0;
 
   // Reactive chart options based on store
   $: chartOptions = {
@@ -53,7 +53,7 @@
       shiftVisibleRangeOnNewBar: !isSmallDataset, // Disable auto-scrolling for small datasets
       rightOffset: isSmallDataset ? 0 : 12, // No forced offset for small datasets
       leftOffset: 0,
-      barSpacing: 12,
+      barSpacing: isSmallDataset ? 50 : 12, // Much wider spacing for small datasets to stretch across chart
       minBarSpacing: 0.5,
     },
     crosshair: {

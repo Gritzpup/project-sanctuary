@@ -10,7 +10,7 @@ export function getWebSocketURL(port: number, path: string = ''): string {
 }
 
 export function getBackendWebSocketURL(path: string = ''): string {
-  return getWebSocketURL(4827, path);
+  return getWebSocketURL(4828, path);
 }
 
 export function getChartWebSocketURL(path: string = ''): string {

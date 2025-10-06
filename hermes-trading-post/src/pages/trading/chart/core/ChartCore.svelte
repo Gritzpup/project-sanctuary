@@ -103,11 +103,11 @@
         }
       }, 100);
       
-      // Resubscribe to real-time updates with new granularity
+      // Resubscribe to real-time updates with new granularity (no volume series - handled by VolumePlugin)
       realtimeSubscription.subscribeToRealtime({
         pair,
         granularity
-      }, chartCanvas?.getSeries(), chartCanvas?.getVolumeSeries());
+      }, chartCanvas?.getSeries(), null);
       
       statusStore.setReady();
       console.log(`Data reloaded for ${granularity} + ${period}`);
@@ -165,11 +165,11 @@
       // Check for data gaps and fill them
       await dataLoader.checkAndFillDataGaps(chartCanvas?.getChart(), chartCanvas?.getSeries());
       
-      // Subscribe to real-time updates
+      // Subscribe to real-time updates (no volume series - handled by VolumePlugin)
       realtimeSubscription.subscribeToRealtime({
         pair,
         granularity
-      }, chartCanvas?.getSeries(), chartCanvas?.getVolumeSeries());
+      }, chartCanvas?.getSeries(), null);
       
       // Set status to ready after data loads and chart is updated
       setTimeout(() => {
@@ -210,34 +210,8 @@
   }
   
   export function fitContent() {
-    const chart = chartCanvas?.getChart();
-    if (!chart) return;
-    
-    const candleCount = getCandleCount(granularity, period) || 60;
-    
-    if (candleCount <= 20) {
-      // For small datasets like 5m+1H (12 candles), spread across 2/3 of chart width
-      const candles = dataStore.candles;
-      if (candles.length > 0) {
-        const firstTime = candles[0].time as number;
-        const lastTime = candles[candles.length - 1].time as number;
-        const dataRange = lastTime - firstTime;
-        
-        // Extend the range so candles fill most of chart, with proper right gap
-        const extendedRange = dataRange * 1.2; // Spread data wider
-        const rightGap = dataRange * 0.3; // Add gap after last candle
-        
-        chart.timeScale().setVisibleRange({
-          from: firstTime as any,
-          to: (lastTime + rightGap) as any
-        });
-        
-        console.log(`5m chart positioned: ${candles.length} candles across 2/3 width`);
-      }
-    } else {
-      // For normal datasets, use default fitContent
-      chartCanvas?.fitContent();
-    }
+    // Always delegate to ChartCanvas.fitContent() which has the proper logic
+    chartCanvas?.fitContent();
   }
 
   export function scrollToCurrentCandle() {
@@ -278,11 +252,11 @@
     
     // Check dataset size and use appropriate positioning
     const candles = dataStore.candles;
-    if (candles.length <= 20) {
-      console.log('ChartCore: Small dataset detected, using fitContent with right gap');
+    if (candles.length <= 30) {
+      console.log(`🎯 ChartCore: SMALL dataset detected (${candles.length} candles), using fitContent with wide spacing`);
       chartCanvas.fitContent();
     } else {
-      console.log('ChartCore: Normal dataset, using 60 candle view');
+      console.log(`ChartCore: Normal dataset (${candles.length} candles), using 60 candle view`);
       chartCanvas.show60Candles();
     }
   }
