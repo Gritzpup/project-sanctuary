@@ -26,35 +26,7 @@
 </div>
 
 <style>
-  .panel {
-    background: rgba(22, 33, 62, 0.3);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 8px;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  
-  .panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 20px;
-    background: rgba(0, 0, 0, 0.3);
-    border-bottom: 1px solid rgba(74, 0, 224, 0.2);
-  }
-  
-  .panel-header h2 {
-    font-size: 16px;
-    margin: 0;
-    color: #a78bfa;
-  }
-  
-  .panel-content {
-    flex: 1;
-    padding: 20px;
-    overflow: visible;
-  }
+  /* Uses global .panel and .panel-header styles from layout-system.css */
   
   .stats-panel {
     height: auto;
@@ -64,11 +36,24 @@
   .market-stat {
     display: flex;
     justify-content: space-between;
-    padding: 10px 0;
-    border-bottom: 1px solid rgba(74, 0, 224, 0.1);
+    align-items: center;
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: var(--font-size-sm);
   }
   
   .market-stat:last-child {
     border-bottom: none;
+  }
+
+  .market-stat span:first-child {
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .market-stat span:last-child {
+    color: var(--text-primary);
+    font-weight: var(--font-weight-semibold);
+    font-family: var(--font-family-mono, 'Courier New', monospace);
   }
 </style>

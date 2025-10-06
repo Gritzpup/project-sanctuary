@@ -121,11 +121,9 @@
     display: flex;
     height: 100vh;
     min-height: 600px;
-    background: #0a0a0a;
-    color: #d1d4dc;
+    background: var(--bg-main);
+    color: var(--text-primary);
   }
-
-  /* Scrollbar styles are now centralized in design-system-consolidated.css */
   
   .dashboard-content {
     flex: 1;
@@ -133,7 +131,7 @@
     flex-direction: column;
     margin-left: 250px;
     width: calc(100% - 250px);
-    transition: all 0.3s ease;
+    transition: all var(--transition-slow);
     overflow: hidden;
   }
   
@@ -142,21 +140,44 @@
     width: calc(100% - 80px);
   }
   
-  /* Dashboard Grid */
   .dashboard-grid {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    padding: 20px;
+    gap: var(--space-xl);
+    padding: var(--space-xl);
     overflow: auto;
-    min-height: 0; /* Allow flexbox to shrink properly */
+    min-height: 0;
   }
   
   .bottom-panels {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
-    flex: 0 0 auto; /* Don't grow */
+    gap: var(--space-xl);
+    flex: 0 0 auto;
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .dashboard-content {
+      margin-left: 0;
+      width: 100%;
+      padding-top: 60px; /* Account for mobile header */
+    }
+    
+    .dashboard-content.expanded {
+      margin-left: 0;
+      width: 100%;
+    }
+    
+    .dashboard-grid {
+      gap: var(--space-lg);
+      padding: var(--space-lg);
+    }
+    
+    .bottom-panels {
+      grid-template-columns: 1fr;
+      gap: var(--space-lg);
+    }
   }
 </style>

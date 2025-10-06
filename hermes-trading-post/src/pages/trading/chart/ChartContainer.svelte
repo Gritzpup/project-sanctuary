@@ -298,8 +298,8 @@
     flex-direction: column;
     width: 100%;
     height: 100%;
-    background: var(--chart-bg, #1a1a1a);
-    color: var(--chart-text, #d1d4dc);
+    background: var(--bg-main);
+    color: var(--text-primary);
     min-width: 0;
     max-width: 100%;
     box-sizing: border-box;
@@ -309,9 +309,9 @@
   
   .chart-header {
     flex-shrink: 0;
-    padding: 10px;
-    background: var(--header-bg, rgba(0, 0, 0, 0.2));
-    border-bottom: 1px solid var(--border-color, #333);
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-primary);
   }
   
   .chart-body {
@@ -332,43 +332,24 @@
     width: 100%;
     height: 100%;
     position: relative;
-    background: var(--pane-bg, rgba(0, 0, 0, 0.1));
+    background: var(--bg-surface);
   }
   
   .pane-label {
     position: absolute;
-    top: 5px;
-    left: 10px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--label-color, #999);
+    top: var(--space-xs);
+    left: var(--space-sm);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-  }
-  
-  /* Theme variables */
-  :global(.dark) .chart-container {
-    --chart-bg: #1a1a1a;
-    --chart-text: #d1d4dc;
-    --header-bg: rgba(0, 0, 0, 0.2);
-    --border-color: #333;
-    --pane-bg: rgba(0, 0, 0, 0.1);
-    --label-color: #999;
-  }
-  
-  :global(.light) .chart-container {
-    --chart-bg: #ffffff;
-    --chart-text: #191919;
-    --header-bg: rgba(0, 0, 0, 0.05);
-    --border-color: #e1e1e1;
-    --pane-bg: rgba(0, 0, 0, 0.02);
-    --label-color: #666;
   }
   
   /* Responsive */
   @media (max-width: 768px) {
     .chart-header {
-      padding: 8px;
+      padding: var(--space-xs);
     }
   }
 </style>

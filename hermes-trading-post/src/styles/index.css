@@ -12,9 +12,9 @@
 @import './layout-system.css';
 
 /* ===================================== */
-/* 3. SIDEBAR COMPONENT */
+/* 3. SIDEBAR COMPONENT - Now component-scoped in CollapsibleSidebar.svelte */
 /* ===================================== */
-@import './sidebar.css';
+/* Sidebar styles moved to component scope for better encapsulation */
 
 /* ===================================== */
 /* 4. UTILITY SYSTEM (Helper classes) */

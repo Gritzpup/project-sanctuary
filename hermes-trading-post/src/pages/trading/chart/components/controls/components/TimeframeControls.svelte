@@ -44,57 +44,47 @@
   .control-group {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-sm);
   }
 
   .control-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-secondary, #666);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
   .button-group {
     display: flex;
-    gap: 4px;
+    gap: var(--space-xs);
   }
 
   .control-button {
-    padding: 6px 12px;
-    border: 1px solid var(--border-color, #ddd);
-    background: var(--button-bg, white);
-    color: #c4b5fd;
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 4px;
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--border-primary);
+    background: var(--bg-surface);
+    color: var(--text-accent);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all var(--transition-normal);
     position: relative;
     overflow: hidden;
   }
 
   .control-button:hover:not(:disabled) {
-    background: rgba(74, 0, 224, 0.2);
-    border-color: rgba(74, 0, 224, 0.5);
-    color: white;
+    background: var(--bg-primary);
+    border-color: var(--border-primary-hover);
+    color: var(--text-primary);
   }
 
   .control-button.active {
-    background: rgba(74, 0, 224, 0.4);
-    color: white;
-    border-color: rgba(74, 0, 224, 0.7);
-    box-shadow: inset 0 2px 4px rgba(74, 0, 224, 0.5);
-    font-weight: 600;
-  }
-
-  /* Dark theme support */
-  :global(.dark) .control-button {
-    --button-bg: #2a2a2a;
-    --button-hover-bg: #3a3a3a;
-    --border-color: #444;
-    --border-hover-color: #666;
-    --primary-color: #4f46e5;
-    --text-primary: #e0e0e0;
+    background: var(--bg-primary-active);
+    color: var(--text-primary);
+    border-color: var(--border-primary-active);
+    box-shadow: inset 0 2px 4px var(--color-primary);
+    font-weight: var(--font-weight-semibold);
   }
 </style>

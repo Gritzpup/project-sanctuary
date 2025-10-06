@@ -22,60 +22,84 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 30px;
-    background: #0f0f0f;
-    border-bottom: 1px solid rgba(74, 0, 224, 0.2);
+    padding: var(--space-xl) var(--space-2xl);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-secondary);
   }
   
   .header-bar h1 {
-    font-size: 24px;
-    color: #a78bfa;
+    font-size: var(--font-size-3xl);
+    color: var(--text-accent);
     margin: 0;
+    font-weight: var(--font-weight-semibold);
   }
   
   .header-stats {
     display: flex;
-    gap: 30px;
+    gap: var(--space-2xl);
   }
   
   .stat-item {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
+    gap: var(--space-xs);
   }
   
   .stat-label {
-    font-size: 12px;
-    color: #6b7280;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
     text-transform: uppercase;
+    font-weight: var(--font-weight-medium);
   }
   
   .stat-value {
-    font-size: 18px;
-    font-weight: bold;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
   }
   
   .stat-value.price {
-    color: #26a69a;
+    color: var(--color-success);
   }
   
   .stat-value.status {
-    font-size: 14px;
+    font-size: var(--font-size-sm);
+    text-transform: capitalize;
   }
   
   .stat-value.connected {
-    color: #10b981;
+    color: var(--color-success);
   }
   
   .stat-value.disconnected {
-    color: #f59e0b;
+    color: var(--color-warning);
   }
   
   .stat-value.error {
-    color: #ef4444;
+    color: var(--color-error);
   }
   
   .stat-value.loading {
-    color: #6b7280;
+    color: var(--text-muted);
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .header-bar {
+      padding: var(--space-lg);
+    }
+    
+    .header-bar h1 {
+      font-size: var(--font-size-xl);
+    }
+    
+    .header-stats {
+      gap: var(--space-lg);
+    }
+    
+    .stat-value {
+      font-size: var(--font-size-lg);
+    }
   }
 </style>

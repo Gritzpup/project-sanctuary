@@ -11,6 +11,25 @@
   padding: 0;
 }
 
+html {
+  /* Modern CSS containment for performance */
+  contain: layout style;
+  
+  /* Improve text rendering */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  
+  /* Improve scroll performance */
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -19,6 +38,9 @@ body {
   color: #d1d4dc;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  
+  /* CSS containment for better performance */
+  contain: layout style;
 }
 
 /* ===================================== */

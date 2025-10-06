@@ -118,9 +118,161 @@
 </aside>
 
 <style>
-  /* All sidebar styles are now centralized in sidebar.css */
-  /* Only component-specific mobile overrides remain here */
-  
+  /* Desktop Sidebar Styles - Component Scoped */
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    width: 250px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-primary);
+    display: flex;
+    flex-direction: column;
+    transition: width var(--transition-slow);
+    z-index: var(--z-modal);
+  }
+
+  .sidebar.collapsed {
+    width: 80px;
+  }
+
+  .sidebar-header {
+    padding: var(--space-xl);
+    border-bottom: 1px solid var(--border-secondary);
+  }
+
+  .sidebar-title {
+    font-size: var(--font-size-xl);
+    color: var(--text-accent);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    padding: var(--space-xl) 0;
+  }
+
+  .nav-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-xl);
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .nav-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .nav-item.active {
+    background: var(--bg-primary);
+    color: var(--text-accent);
+    border-left: 3px solid var(--color-primary);
+  }
+
+  .sidebar.collapsed .nav-item.active {
+    border-left: none;
+    border-bottom: 2px solid var(--color-primary);
+  }
+
+  .nav-icon {
+    font-size: var(--font-size-lg);
+    width: 24px;
+    text-align: center;
+  }
+
+  .nav-label {
+    white-space: nowrap;
+  }
+
+  .sidebar-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-xl);
+    border-top: 1px solid var(--border-secondary);
+    gap: var(--space-sm);
+  }
+
+  .settings-btn {
+    width: 40px;
+    height: 40px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-normal);
+    font-size: var(--font-size-lg);
+  }
+
+  .settings-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .toggle-btn {
+    width: 40px;
+    height: 40px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    color: var(--text-accent);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-normal);
+  }
+
+  .toggle-btn:hover {
+    background: var(--bg-primary-hover);
+  }
+
+  /* Collapsed Sidebar Styles */
+  .sidebar.collapsed .sidebar-footer {
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-md);
+  }
+
+  .sidebar.collapsed .nav-item {
+    justify-content: center;
+    padding: var(--space-md) 0;
+  }
+
+  .sidebar.collapsed .nav-icon {
+    margin: 0;
+  }
+
+  .sidebar.collapsed .sidebar-header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .sidebar.collapsed .sidebar-title {
+    text-align: center;
+  }
+
+  /* Mobile Header Styles */
   .mobile-header {
     display: none;
     position: fixed;
@@ -170,6 +322,53 @@
     background: var(--text-accent);
     border-radius: var(--radius-sm);
     transition: all var(--transition-normal);
+  }
+
+  .mobile-menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: var(--z-dropdown);
+  }
+
+  .mobile-menu {
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    background: var(--bg-main);
+    border-bottom: 1px solid var(--border-primary);
+    z-index: var(--z-modal);
+    padding: var(--space-lg);
+  }
+
+  .mobile-nav-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    font-size: var(--font-size-sm);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-xs);
+  }
+
+  .mobile-nav-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .mobile-nav-item.active {
+    background: var(--bg-primary);
+    color: var(--text-accent);
   }
 
   /* Mobile responsive */
