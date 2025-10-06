@@ -6,6 +6,8 @@
   import { chartStore } from '../../stores/chartStore.svelte';
   import { dataStore } from '../../stores/dataStore.svelte';
   import { statusStore } from '../../stores/statusStore.svelte';
+  import { CoinbaseAPI } from '../../../../../services/api/coinbaseApi';
+  import { getGranularitySeconds } from '../../utils/granularityHelpers';
   
   export let width: number | undefined = undefined;
   export let height: number | undefined = undefined;
@@ -146,27 +148,77 @@
     return volumeSeries;
   }
   
+  // Fetch additional historical candles via Coinbase API
+  async function fetchAdditionalHistoricalData(additionalCandles: number) {
+    try {
+      const currentCandles = dataStore.candles;
+      if (currentCandles.length === 0) return;
+      
+      const coinbaseApi = new CoinbaseAPI();
+      const granularityStr = chartStore.config.granularity;
+      const granularitySeconds = getGranularitySeconds(granularityStr);
+      
+      // Calculate start time for additional historical data
+      const firstCandleTime = currentCandles[0].time as number;
+      const startTime = firstCandleTime - (additionalCandles * granularitySeconds);
+      const endTime = firstCandleTime - 1; // End just before first existing candle
+      
+      console.log(`Fetching ${additionalCandles} additional candles from ${new Date(startTime * 1000)} to ${new Date(endTime * 1000)}`);
+      
+      // Fetch historical data
+      const historicalData = await coinbaseApi.getCandles(
+        'BTC-USD',
+        granularitySeconds,
+        startTime.toString(),
+        endTime.toString()
+      );
+      
+      if (historicalData && historicalData.length > 0) {
+        // Convert to chart format and prepend to existing data
+        const formattedCandles = historicalData.map(candle => ({
+          time: candle.time as any,
+          open: candle.open,
+          high: candle.high,
+          low: candle.low,
+          close: candle.close,
+          volume: candle.volume || 0
+        }));
+        
+        // Merge with existing data (prepend historical data)
+        const mergedCandles = [...formattedCandles, ...currentCandles];
+        dataStore.setCandles(mergedCandles);
+        
+        console.log(`Added ${formattedCandles.length} historical candles. Total: ${mergedCandles.length}`);
+      }
+    } catch (error) {
+      console.error('Failed to fetch additional historical data:', error);
+    }
+  }
+  
   export function fitContent() {
     if (!chart) return;
     
     const candles = dataStore.candles;
     
-    // For small datasets like 5m+1H, position candles with large right gap  
+    // For small datasets like 5m+1H, show exactly 20 candles
     if (candles.length <= 20 && candles.length > 0) {
-      const firstTime = candles[0].time as number;
-      const lastTime = candles[candles.length - 1].time as number;
-      const dataRange = lastTime - firstTime;
+      const candlesToShow = 20;
+      const rightGapBars = 5;
       
-      // Use a much larger right gap to account for automatic positioning
-      const rightGap = dataRange * 1.5; // 150% gap instead of 30%
+      // If we don't have enough candles, fetch more historical data
+      if (candles.length < candlesToShow) {
+        console.log(`Need ${candlesToShow - candles.length} more historical candles`);
+        fetchAdditionalHistoricalData(candlesToShow - candles.length);
+        return; // Exit early, will re-run after data loads
+      }
       
-      // Try using logical range instead of time range
+      // Show exactly 20 candles with right gap
       chart.timeScale().setVisibleLogicalRange({
-        from: -2, // Show 2 bars to the left
-        to: candles.length + 5 // Show 5 bars beyond the last candle for gap
+        from: candles.length - candlesToShow, // Start 20 candles back from the end
+        to: candles.length + rightGapBars // Keep same right gap
       });
       
-      console.log(`ChartCanvas: Applied large right gap for ${candles.length} candles`);
+      console.log(`ChartCanvas: Showing ${candlesToShow} candles with right gap`);
     } else {
       // For normal datasets, use standard fitContent
       chart.timeScale().fitContent();
