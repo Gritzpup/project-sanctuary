@@ -2,7 +2,7 @@
 
 import axios from 'axios';
 
-const API_URL = 'http://localhost:4827/api/trading';
+const API_URL = 'http://localhost:4828/api/trading';
 
 async function testBotManager() {
   try {

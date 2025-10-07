@@ -59,7 +59,7 @@ class TradingBackendService {
   private backendUrl: string;
 
   constructor() {
-    const backendPort = import.meta.env.VITE_BACKEND_PORT || '4827';
+    const backendPort = import.meta.env.VITE_BACKEND_PORT || '4828';
     this.backendUrl = `ws://localhost:${backendPort}`;
     
     console.log('🚀 TradingBackendService constructor called, connecting to:', this.backendUrl);
@@ -396,7 +396,7 @@ class TradingBackendService {
 
   async fetchStatus(): Promise<any> {
     try {
-      const backendPort = import.meta.env.VITE_BACKEND_PORT || '4827';
+      const backendPort = import.meta.env.VITE_BACKEND_PORT || '4828';
       const response = await fetch(`http://localhost:${backendPort}/api/trading/status`);
       const status = await response.json();
       this.updateStateFromBackend(status);

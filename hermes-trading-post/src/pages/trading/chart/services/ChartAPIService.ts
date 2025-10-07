@@ -213,12 +213,17 @@ export class ChartAPIService {
     // Store callbacks for reconnection
     this.onReconnectCallback = onReconnect || null;
     
-    // Connect to our backend WebSocket
-    this.connectWebSocket(onError);
-    
-    // Store the subscription
+    // Store the subscription first
     const subscriptionKey = `${pair}:${granularity}`;
     this.wsSubscriptions.set(subscriptionKey, onMessage);
+    
+    // Connect to our backend WebSocket (will reuse existing if available)
+    this.connectWebSocket(onError);
+    
+    // If WebSocket is already open, send subscription immediately
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.sendSubscription(pair, granularity);
+    }
     
     // Import and update status store
     import('../stores/statusStore.svelte').then(({ statusStore }) => {
@@ -231,21 +236,39 @@ export class ChartAPIService {
         console.log(`🔌 Unsubscribed from chart WebSocket for ${pair}:${granularity}`);
         this.wsSubscriptions.delete(subscriptionKey);
         
-        // If no more subscriptions, close WebSocket
+        // Send unsubscription to backend
+        this.sendUnsubscription(pair, granularity);
+        
+        // Delay closing WebSocket to allow for quick resubscriptions
         if (this.wsSubscriptions.size === 0 && this.ws) {
-          this.ws.close();
-          this.ws = null;
-          
-          // Update status store
-          import('../stores/statusStore.svelte').then(({ statusStore }) => {
-            statusStore.setWebSocketConnected(false);
-          }).catch(console.error);
+          setTimeout(() => {
+            // Double check that no new subscriptions were added
+            if (this.wsSubscriptions.size === 0 && this.ws) {
+              this.ws.close();
+              this.ws = null;
+              
+              // Update status store
+              import('../stores/statusStore.svelte').then(({ statusStore }) => {
+                statusStore.setWebSocketConnected(false);
+              }).catch(console.error);
+            }
+          }, 100); // 100ms delay to allow for granularity switches
         }
       }
     };
   }
 
   private connectWebSocket(onError?: (error: Error) => void) {
+    // Don't create a new WebSocket if one is already connected
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      return;
+    }
+    
+    // If there's a WebSocket in connecting state, wait for it
+    if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+      return;
+    }
+    
     try {
       this.ws = new WebSocket(this.wsUrl);
 

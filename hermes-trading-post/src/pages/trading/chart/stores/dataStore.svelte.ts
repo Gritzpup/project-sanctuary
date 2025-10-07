@@ -197,8 +197,12 @@ class DataStore {
     onUpdate?: (candle: CandlestickData) => void,
     onReconnect?: () => void
   ) {
-    // Unsubscribe from previous
-    this.unsubscribeFromRealtime();
+    // Only unsubscribe if we have an active subscription
+    // ChartDataService.subscribeToRealtime() will handle its own cleanup
+    if (this.realtimeUnsubscribe) {
+      this.realtimeUnsubscribe();
+      this.realtimeUnsubscribe = null;
+    }
 
     this.realtimeUnsubscribe = this.dataService.subscribeToRealtime(
       (update: WebSocketCandle) => {

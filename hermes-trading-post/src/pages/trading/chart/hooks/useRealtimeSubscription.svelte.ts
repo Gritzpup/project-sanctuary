@@ -126,16 +126,18 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     const candles = dataStore.candles;
     if (candles.length === 0) return;
     
-    // Get current 5-minute timestamp
+    // Get current candle timestamp based on granularity
     const now = Date.now();
-    const current5MinuteTime = Math.floor(now / 300000) * 300; // Round down to 5-minute in seconds
+    const config = chartStore?.config;
+    const granularitySeconds = config?.granularity === '5m' ? 300 : 60; // 5 minutes or 1 minute
+    const currentCandleTime = Math.floor(now / (granularitySeconds * 1000)) * granularitySeconds; // Round down to granularity boundary
     const lastCandle = candles[candles.length - 1];
     const lastCandleTime = lastCandle.time as number;
     
-    if (current5MinuteTime > lastCandleTime) {
+    if (currentCandleTime > lastCandleTime) {
       // New candle needed
       const newCandle: CandlestickData = {
-        time: current5MinuteTime as any,
+        time: currentCandleTime as any,
         open: price,
         high: price,
         low: price,
@@ -152,25 +154,44 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       chartSeries.setData(updatedCandles);
       statusStore.setNewCandle();
       
-      // Auto-scroll chart to show the new candle
+      // Simple auto-scroll for all charts including 5m
+      console.log(`🔄 New candle added: ${new Date(currentCandleTime * 1000).toLocaleTimeString()} (${updatedCandles.length} total)`);
+      
       if (updatedCandles.length > 1) {
         try {
           const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
           if (chart && chart.timeScale) {
-            // For 5m charts, maintain exactly 12 candles visible
-            if (updatedCandles.length >= 12) {
+            const config = chartStore?.config;
+            
+            if (config?.granularity === '5m' && config?.timeframe === '1H') {
+              // For 5m+1H: Update the compressed view to include new candle
+              setTimeout(() => {
+                const firstCandle = updatedCandles[0];
+                const lastCandle = updatedCandles[updatedCandles.length - 1];
+                const dataStart = firstCandle.time as number;
+                const dataEnd = lastCandle.time as number;
+                const rightBuffer = 300; // 5 minutes right gap
+                
+                chart.timeScale().setVisibleRange({
+                  from: dataStart as any,
+                  to: (dataEnd + rightBuffer) as any
+                });
+                
+                console.log(`🔄 5m chart updated compressed view with new candle`);
+              }, 100);
+            } else if (updatedCandles.length >= 12) {
+              // Normal auto-scroll for other charts
               const recentCandles = updatedCandles.slice(-12);
               const firstCandle = recentCandles[0];
               const lastCandle = recentCandles[recentCandles.length - 1];
-              const timeSpan = (lastCandle.time as number) - (firstCandle.time as number);
-              const buffer = 300 * 0.1; // 5m granularity buffer
+              const buffer = 300 * 0.1;
               
               chart.timeScale().setVisibleRange({
                 from: ((firstCandle.time as number) - buffer) as any,
                 to: ((lastCandle.time as number) + buffer) as any
               });
               
-              console.log(`🔄 Auto-scrolled chart to show new candle: ${new Date((lastCandle.time as number) * 1000).toISOString()}`);
+              console.log(`🔄 Normal chart auto-scrolled to show new candle`);
             }
           }
         } catch (error) {

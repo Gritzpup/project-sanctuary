@@ -3,7 +3,7 @@
 // Monitor script to check trading execution
 import WebSocket from 'ws';
 
-const ws = new WebSocket('ws://localhost:4827');
+const ws = new WebSocket('ws://localhost:4828');
 
 let startTime = Date.now();
 let priceHistory = [];

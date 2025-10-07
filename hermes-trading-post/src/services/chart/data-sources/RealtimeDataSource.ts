@@ -54,7 +54,7 @@ export class RealtimeDataSource {
 
   private connect(): void {
     try {
-      this.websocket = new WebSocket('ws://localhost:4827');
+      this.websocket = new WebSocket('ws://localhost:4828');
       
       this.websocket.onopen = () => {
         console.log('🟢 Realtime data WebSocket connected');

@@ -61,7 +61,7 @@ npm run dev
 
 ## Configuration
 
-- Default port: 4827
+- Default port: 4828
 - Set custom port with `PORT` environment variable
 - CORS enabled for frontend communication
 

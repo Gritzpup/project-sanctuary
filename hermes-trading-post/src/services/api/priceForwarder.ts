@@ -21,7 +21,7 @@ class PriceForwarder {
         
         try {
             // Connect directly to backend WebSocket server
-            const wsUrl = `ws://localhost:4827/ws`;
+            const wsUrl = `ws://localhost:4828/ws`;
             this.ws = new WebSocket(wsUrl);
             
             this.ws.addEventListener('open', () => {

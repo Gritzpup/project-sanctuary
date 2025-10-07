@@ -81,7 +81,7 @@ export class PaperTradingOrchestrator {
 
   private connectToBackend() {
     try {
-      this.backendWs = new WebSocket('ws://localhost:4827');
+      this.backendWs = new WebSocket('ws://localhost:4828');
       
       this.backendWs.onopen = () => {
         console.log('🟢 Connected to backend WebSocket');
