@@ -10,7 +10,7 @@ import { dataStore } from '../stores/dataStore.svelte';
 import { statusStore } from '../stores/statusStore.svelte';
 import { ChartDebug } from '../utils/debug';
 import { perfTest } from '../utils/performanceTest';
-import { getGranularitySeconds } from '../utils/granularityHelpers';
+import { getGranularitySeconds, alignTimeToGranularity } from '../utils/granularityHelpers';
 import { getCandleCount } from '../../../../lib/chart/TimeframeCompatibility';
 import type { IChartApi, ISeriesApi, CandlestickData } from 'lightweight-charts';
 
@@ -97,9 +97,13 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       const candleCount = getCandleCount(config.granularity, config.timeframe);
       const granularitySeconds = getGranularitySeconds(config.granularity);
       const timeRange = candleCount * granularitySeconds;
-      const startTime = now - timeRange;
+      
+      // Align to granularity boundaries to ensure we get complete candles
+      const alignedNow = alignTimeToGranularity(now, config.granularity);
+      const startTime = alignedNow - timeRange;
       
       console.log(`🎯 Loading ${config.granularity}+${config.timeframe}: ${candleCount} candles over ${timeRange}s`);
+      console.log(`⏰ Time alignment: ${now} -> ${alignedNow} (${alignedNow - now}s offset)`);
       
       ChartDebug.log(`Time calculation: ${config.timeframe} + ${config.granularity} = ${candleCount} candles × ${granularitySeconds}s = ${timeRange}s range`);
       
@@ -113,6 +117,7 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
           granularitySeconds: granularitySeconds,
           timeRange: `${timeRange} seconds (${timeRange / 60} minutes)`,
           now: `${now} (${new Date(now * 1000).toISOString()})`,
+          alignedNow: `${alignedNow} (${new Date(alignedNow * 1000).toISOString()})`,
           start: `${startTime} (${new Date(startTime * 1000).toISOString()})`
         };
         console.log(`🔍 ${config.granularity}+1H Data Loading Debug:`, debugInfo);
@@ -136,7 +141,7 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         config.pair,
         config.granularity,
         startTime,
-        now
+        alignedNow
       );
       perfTest.measure('DataStore loadData', 'dataStore-loadData-start');
       
@@ -173,22 +178,13 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       
       // Update chart with loaded data if series is provided
       if (config.series && candles.length > 0) {
-        // Always use exactly the expected number of candles for precise chart dynamics
-        let chartCandles = candles;
-        if (candles.length > candleCount) {
-          // Take the most recent candles to match expected count exactly
-          chartCandles = candles.slice(-candleCount);
-          console.log(`📊 Trimmed to exactly ${chartCandles.length} candles (from ${candles.length} total) for ${config.granularity}/${config.timeframe}`);
-        } else if (candles.length < candleCount) {
-          console.log(`📊 Got ${candles.length} candles (expected ${candleCount}) for ${config.granularity}/${config.timeframe}`);
-        } else {
-          console.log(`📊 Perfect: Got exactly ${candles.length} candles for ${config.granularity}/${config.timeframe}`);
-        }
+        // Use all available candles to match volume data
+        console.log(`📊 Setting ${candles.length} candles on price series for ${config.granularity}/${config.timeframe}`);
         
-        config.series.setData(chartCandles);
+        config.series.setData(candles);
         
         // Let all charts use default fitting behavior - no special 5m overrides
-        if (config.chart && chartCandles.length > 0) {
+        if (config.chart && candles.length > 0) {
           // All other charts fit content naturally
           setTimeout(() => {
             config.chart!.timeScale().fitContent();
@@ -199,10 +195,10 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         if ((config.granularity === '5m' || config.granularity === '15m') && config.timeframe === '1H') {
           console.log(`🔍 ${config.granularity}+1H Candles being set on chart:`, {
             totalFetched: candles.length,
-            candlesShown: chartCandles.length,
+            candlesShown: candles.length,
             expectedCandles: candleCount,
-            firstCandle: chartCandles[0] ? new Date((chartCandles[0].time as number) * 1000).toISOString() : 'none',
-            lastCandle: chartCandles[chartCandles.length - 1] ? new Date((chartCandles[chartCandles.length - 1].time as number) * 1000).toISOString() : 'none'
+            firstCandle: candles[0] ? new Date((candles[0].time as number) * 1000).toISOString() : 'none',
+            lastCandle: candles[candles.length - 1] ? new Date((candles[candles.length - 1].time as number) * 1000).toISOString() : 'none'
           });
         }
       }
