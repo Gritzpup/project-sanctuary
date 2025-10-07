@@ -128,7 +128,6 @@
   }
   
   input[type="number"],
-  input[type="text"],
   select {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(74, 0, 224, 0.3);
@@ -140,7 +139,6 @@
   }
   
   input[type="number"]:focus,
-  input[type="text"]:focus,
   select:focus {
     outline: none;
     border-color: rgba(74, 0, 224, 0.6);

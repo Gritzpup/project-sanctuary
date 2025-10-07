@@ -3,19 +3,41 @@
  * All application events should be defined here for type safety
  */
 
+import type { SupportedTradingPair, SupportedGranularity, TradeData } from './Trading';
+
+// Chart marker type
+export interface ChartMarker {
+  time: number;
+  position: 'belowBar' | 'aboveBar' | 'inBar';
+  color: string;
+  shape: 'arrowUp' | 'arrowDown' | 'circle' | 'square';
+  text?: string;
+  size?: 'small' | 'normal' | 'large';
+}
+
+// Chart data point
+export interface ChartDataPoint {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
 // Chart Events
 export interface ChartEvents {
-  'chart:pairChange': { pair: string };
-  'chart:granularityChange': { granularity: string };
+  'chart:pairChange': { pair: SupportedTradingPair };
+  'chart:granularityChange': { granularity: SupportedGranularity };
   'chart:periodChange': { period: string };
   'chart:speedChange': { speed: string };
   'chart:dateChange': { date: string };
-  'chart:zoomReset': {};
-  'chart:play': {};
-  'chart:pause': {};
-  'chart:stop': {};
-  'chart:markersUpdated': { markers: any[] };
-  'chart:dataLoaded': { data: any[] };
+  'chart:zoomReset': Record<string, never>;
+  'chart:play': Record<string, never>;
+  'chart:pause': Record<string, never>;
+  'chart:stop': Record<string, never>;
+  'chart:markersUpdated': { markers: ChartMarker[] };
+  'chart:dataLoaded': { data: ChartDataPoint[] };
 }
 
 // Trading Events

@@ -3,6 +3,7 @@ import { createValidationResult, combineValidationResults } from './ValidationTy
 import { NumberValidator } from './NumberValidator';
 import { StringValidator } from './StringValidator';
 import { DateValidator } from './DateValidator';
+import type { SupportedTradingPair, SupportedGranularity, SupportedStrategy } from '../../types/Trading';
 
 export class TradingValidator {
   private static readonly SUPPORTED_PAIRS = [
@@ -20,7 +21,7 @@ export class TradingValidator {
   ];
 
   public static validateTradingPair(
-    value: any,
+    value: unknown,
     options: TradingValidationOptions = {}
   ): ValidationResult {
     const errors: string[] = [];
@@ -44,7 +45,7 @@ export class TradingValidator {
   }
 
   public static validateGranularity(
-    value: any,
+    value: unknown,
     options: TradingValidationOptions = {}
   ): ValidationResult {
     const errors: string[] = [];

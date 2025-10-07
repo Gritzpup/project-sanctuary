@@ -52,6 +52,9 @@
       class="header-row-2" 
       bind:this={headerRow2}
       on:mousedown={mobileHeaderDragHandler?.handleHeaderDragStart}
+      role="toolbar"
+      aria-label="Chart header controls"
+      tabindex="0"
       on:mousemove={mobileHeaderDragHandler?.handleHeaderDragMove}
       on:mouseup={mobileHeaderDragHandler?.handleHeaderDragEnd}
       on:mouseleave={mobileHeaderDragHandler?.handleHeaderDragEnd}

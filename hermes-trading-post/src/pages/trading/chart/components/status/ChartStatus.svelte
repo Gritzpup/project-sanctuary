@@ -60,11 +60,25 @@
   function toggleHistory() {
     showHistory = !showHistory;
   }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleHistory();
+    }
+  }
   
 </script>
 
 <div class="chart-status {positionClass} {sizeClasses[size]}" class:transitioning={isTransitioning}>
-  <div class="status-indicator" on:click={toggleHistory} role="button" tabindex="0">
+  <div 
+    class="status-indicator" 
+    on:click={toggleHistory}
+    on:keydown={handleKeydown}
+    role="button" 
+    tabindex="0"
+    aria-label="Toggle status history"
+  >
     <span 
       class="status-light" 
       style="background-color: {statusColor}"

@@ -49,8 +49,8 @@
 
 <div class="filters-panel">
   <div class="filter-group">
-    <label>Category</label>
-    <select bind:value={selectedCategory} on:change={handleFilterChange}>
+    <label for="category-select">Category</label>
+    <select id="category-select" bind:value={selectedCategory} on:change={handleFilterChange}>
       {#each categories as category}
         <option value={category.value}>{category.label}</option>
       {/each}
@@ -58,8 +58,8 @@
   </div>
   
   <div class="filter-group">
-    <label>Sentiment</label>
-    <select bind:value={selectedSentiment} on:change={handleFilterChange}>
+    <label for="sentiment-select">Sentiment</label>
+    <select id="sentiment-select" bind:value={selectedSentiment} on:change={handleFilterChange}>
       {#each sentiments as sentiment}
         <option value={sentiment.value}>{sentiment.label}</option>
       {/each}
@@ -67,8 +67,8 @@
   </div>
   
   <div class="filter-group">
-    <label>Timeframe</label>
-    <select bind:value={selectedTimeframe} on:change={handleFilterChange}>
+    <label for="timeframe-select">Timeframe</label>
+    <select id="timeframe-select" bind:value={selectedTimeframe} on:change={handleFilterChange}>
       {#each timeframes as timeframe}
         <option value={timeframe.value}>{timeframe.label}</option>
       {/each}
@@ -76,8 +76,9 @@
   </div>
   
   <div class="filter-group">
-    <label>Search</label>
-    <input 
+    <label for="search-input">Search</label>
+    <input
+      id="search-input" 
       type="text" 
       placeholder="Search news..."
       bind:value={searchQuery}

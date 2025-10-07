@@ -178,18 +178,22 @@
     </div>
     
     {#if showDividers && index < panes.length - 1}
-      <div 
+      <button 
         class="pane-divider"
         class:resizable
         on:mousedown={(e) => handleResizeStart(e, index)}
-        role="separator"
-        aria-orientation="horizontal"
-        aria-label="Resize pane"
+        on:keydown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleResizeStart(e, index);
+          }
+        }}
+        aria-label="Chart pane resizer"
       >
         {#if resizable}
           <div class="divider-handle"></div>
         {/if}
-      </div>
+      </button>
     {/if}
   {/each}
 </div>
@@ -218,6 +222,10 @@
     background: var(--divider-color, #333);
     position: relative;
     flex-shrink: 0;
+    border: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
   }
   
   .pane-divider.resizable {

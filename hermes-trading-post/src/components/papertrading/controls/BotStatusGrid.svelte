@@ -38,7 +38,7 @@
 </script>
 
 <div class="control-group">
-  <label>Bot Status</label>
+  <h4 class="control-label">Bot Status</h4>
   <div class="bot-status-row">
     {#each Array(6) as _, i (reactiveKey + i)}
       {@const botIndex = i + 1}
@@ -79,12 +79,13 @@
     }
   }
 
-  .control-group label {
+  .control-group .control-label {
     font-size: 13px;
     color: #888;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     font-weight: 500;
+    margin: 0 0 8px 0;
   }
 
   .bot-status-row {

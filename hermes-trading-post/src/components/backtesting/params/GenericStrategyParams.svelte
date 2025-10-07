@@ -213,8 +213,7 @@
     color: #d1d4dc;
   }
   
-  input[type="number"],
-  select {
+  input[type="number"] {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(74, 0, 224, 0.3);
     border-radius: 6px;
@@ -224,8 +223,7 @@
     transition: all 0.2s;
   }
   
-  input[type="number"]:focus,
-  select:focus {
+  input[type="number"]:focus {
     outline: none;
     border-color: rgba(74, 0, 224, 0.6);
     background: rgba(255, 255, 255, 0.08);

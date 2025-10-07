@@ -284,9 +284,6 @@
     transition: all 0.3s ease;
   }
   
-  .price-item.new-candle .price-value {
-    animation: priceFlash 1s ease;
-  }
   
   @keyframes priceFlash {
     0%, 100% { 

@@ -24,14 +24,14 @@
   export let granularity: string = '1m';
   export let period: string = '1H';
   export let showControls: boolean = true;
-  export let showStatus: boolean = true;
+  export const showStatus: boolean = true;
   export let showInfo: boolean = true;
   export let showDebug: boolean = false;
   export let enablePlugins: boolean = true;
   export let defaultPlugins: string[] = ['volume'];
   export let multiPane: boolean = false;
   export let onReady: ((chart: IChartApi, pluginManager: PluginManager | null) => void) | undefined = undefined;
-  export let onGranularityChange: ((granularity: string) => void) | undefined = undefined;
+  export const onGranularityChange: ((granularity: string) => void) | undefined = undefined;
   export let onPairChange: ((pair: string) => void) | undefined = undefined;
   
   let chartCore: ChartCore;

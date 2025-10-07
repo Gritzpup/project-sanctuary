@@ -5,7 +5,6 @@
   
   export let chart: IChartApi | null = null;
   export let candleSeries: ISeriesApi<'Candlestick'> | null = null;
-  export let volumeSeries: ISeriesApi<'Histogram'> | null = null;
   
   export function setupSeries() {
     if (!chart) {

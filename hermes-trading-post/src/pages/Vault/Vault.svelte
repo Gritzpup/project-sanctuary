@@ -10,7 +10,7 @@
   import { type VaultData, type BotVault } from '../../services/state/vaultService';
   
   export let currentPrice: number = 0;
-  export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
+  export const connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   export let sidebarCollapsed = false;
 
   const dispatch = createEventDispatcher();

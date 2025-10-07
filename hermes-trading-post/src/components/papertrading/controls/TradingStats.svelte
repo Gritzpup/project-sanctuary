@@ -2,10 +2,8 @@
   export let balance: number;
   export let startingBalance: number;
   export let totalTrades: number;
-  export let totalReturn: number;
   export let totalFees: number;
   export let totalRebates: number;
-  export let totalRebalance: number;
   export let positions: any[];
   export let currentPrice: number;
   export let btcBalance: number;
@@ -44,7 +42,7 @@
 </script>
 
 <div class="control-group">
-  <label>Trading Stats</label>
+  <h4 class="control-label">Trading Stats</h4>
   <div class="stats-panel">
     <div class="stats-grid">
       <div class="stat-item">Start: <span class="stat-value">${startingBalance.toLocaleString()}</span></div>
@@ -82,7 +80,7 @@
     }
   }
 
-  .control-group label {
+  .control-group .control-label {
     font-size: 13px;
     color: var(--text-secondary);
     text-transform: uppercase;

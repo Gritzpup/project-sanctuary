@@ -4,16 +4,16 @@
   import type { IChartApi, ISeriesApi } from 'lightweight-charts';
   import type { CandleData } from '../types/coinbase';
 
-  // Export props for compatibility with existing usage
+  // Export props for compatibility with existing usage - external reference only
   export let selectedGranularity: string = '1m';
   export let selectedPeriod: string = '1H';
-  export let chartInstance: IChartApi | null = null;
-  export let candleSeriesInstance: ISeriesApi<'Candlestick'> | null = null;
-  export let currentPrice: number = 0;
+  export const chartInstance: IChartApi | null = null;
+  export const candleSeriesInstance: ISeriesApi<'Candlestick'> | null = null;
+  export const currentPrice: number = 0;
   export let granularity: string = '1m';
   export let period: string = '1H';
-  export let trades: Array<{timestamp: number, type: string, price: number}> = [];
-  export let status: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
+  export const trades: Array<{timestamp: number, type: string, price: number}> = [];
+  export const status: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   export let onGranularityChange: ((g: string) => void) | undefined = undefined;
 
   // Sync granularity props - use one-way binding to avoid cycles

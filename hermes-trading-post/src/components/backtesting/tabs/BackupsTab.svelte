@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   
-  export let savedBackups: Array<any> = [];
+  export const savedBackups: Array<any> = [];
   
   const dispatch = createEventDispatcher();
 </script>

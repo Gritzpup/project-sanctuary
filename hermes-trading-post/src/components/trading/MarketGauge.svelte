@@ -13,6 +13,16 @@
       return 90; // Center
     }
     
+    if (positions.length === 0 && recentHigh > 0 && recentLow > 0) {
+      // Use recent high/low for market position when no positions
+      const range = recentHigh - recentLow;
+      if (range > 0) {
+        const position = (currentPrice - recentLow) / range;
+        return 30 + position * 120; // Map 0-1 to 30-150 degrees
+      }
+      return 90; // Center if no range
+    }
+    
     if (positions.length === 0) {
       return 90; // No positions, center
     }

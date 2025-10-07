@@ -10,6 +10,13 @@
   function toggleExpanded() {
     expanded = !expanded;
   }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleExpanded();
+    }
+  }
   
   // Reactive debug data
   $: debugData = {
@@ -50,7 +57,15 @@
 
 {#if show}
   <div class="chart-debug" class:expanded>
-    <div class="debug-header" on:click={toggleExpanded} role="button" tabindex="0">
+    <div 
+      class="debug-header" 
+      on:click={toggleExpanded}
+      on:keydown={handleKeydown}
+      role="button" 
+      tabindex="0"
+      aria-label="Toggle debug panel"
+      aria-expanded={expanded}
+    >
       <span class="debug-icon">🐛</span>
       <span class="debug-title">Chart Debug</span>
       <span class="toggle-icon">{expanded ? '▼' : '▶'}</span>

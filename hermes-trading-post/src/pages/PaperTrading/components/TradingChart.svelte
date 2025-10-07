@@ -31,8 +31,8 @@
   
   
   // Forward test progress state
-  let forwardTestProgress = 0;
-  let isForwardTestRunning = false;
+  let forwardTestProgress = $state(0);
+  let isForwardTestRunning = $state(false);
   let forwardTestInterval: number | null = null;
   
   // Create reactive variable for latest price

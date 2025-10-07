@@ -34,6 +34,13 @@
       });
     }
   }
+
+  function handleSeparatorKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleSeparatorClick();
+    }
+  }
 </script>
 
 <div class="chart-controls">
@@ -42,6 +49,9 @@
       class="controls-grid" 
       bind:this={controlsGrid}
       on:mousedown={mobileDragHandler?.handleDragStart}
+      role="toolbar"
+      aria-label="Chart controls"
+      tabindex="0"
       on:mousemove={mobileDragHandler?.handleDragMove}
       on:mouseup={mobileDragHandler?.handleDragEnd}
       on:mouseleave={mobileDragHandler?.handleDragEnd}
@@ -81,7 +91,13 @@
       <!-- Dual Separator with clickable center -->
       <div class="controls-separator">
         <div class="separator-line left-line"></div>
-        <div class="separator-control" on:click={handleSeparatorClick}></div>
+        <button 
+          class="separator-control" 
+          on:click={handleSeparatorClick}
+          on:keydown={handleSeparatorKeydown}
+          aria-label="Center chart controls"
+          title="Click to center the chart controls"
+        ></button>
         <div class="separator-line right-line"></div>
       </div>
       
@@ -150,6 +166,8 @@
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
+    border: none;
+    padding: 0;
   }
 
   .separator-control:hover {

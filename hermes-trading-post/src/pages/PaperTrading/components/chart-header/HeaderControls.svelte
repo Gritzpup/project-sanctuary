@@ -26,6 +26,13 @@
     console.log('Header separator clicked');
   }
 
+  function handleSeparatorKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleSeparatorClick();
+    }
+  }
+
   // Check if a granularity is compatible with current period
   function isGranularityCompatible(granularity: string): boolean {
     return isCompatible(granularity, selectedPeriod);
@@ -50,7 +57,13 @@
   
   <div class="timeframe-separator">
     <div class="separator-line left-line"></div>
-    <div class="separator-control" on:click={handleSeparatorClick}></div>
+    <button 
+      class="separator-control" 
+      on:click={handleSeparatorClick}
+      on:keydown={handleSeparatorKeydown}
+      aria-label="Chart separator control"
+      title="Chart separator control"
+    ></button>
     <div class="separator-line right-line"></div>
   </div>
   
@@ -134,6 +147,8 @@
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
+    border: none;
+    padding: 0;
   }
 
   .separator-control:hover {
