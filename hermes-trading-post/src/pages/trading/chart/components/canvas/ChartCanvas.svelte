@@ -8,26 +8,51 @@
   import { statusStore } from '../../stores/statusStore.svelte';
   import { CoinbaseAPI } from '../../../../../services/api/coinbaseApi';
   import { getGranularitySeconds } from '../../utils/granularityHelpers';
+  import { useHistoricalDataLoader } from '../../hooks/useHistoricalDataLoader.svelte';
   
-  export let width: number | undefined = undefined;
-  export let height: number | undefined = undefined;
-  export let onChartReady: ((chart: IChartApi) => void) | undefined = undefined;
+  // Props using Svelte 5 runes syntax
+  const {
+    width = undefined,
+    height = undefined,
+    onChartReady = undefined
+  }: {
+    width?: number;
+    height?: number;
+    onChartReady?: (chart: IChartApi) => void;
+  } = $props();
   
-  let container: HTMLDivElement;
-  let chart: IChartApi | null = null;
-  let candleSeries: ISeriesApi<'Candlestick'> | null = null;
-  let volumeSeries: ISeriesApi<'Histogram'> | null = null;
+  let container: HTMLDivElement = $state();
+  let chart: IChartApi | null = $state(null);
+  let candleSeries: ISeriesApi<'Candlestick'> | null = $state(null);
+  let volumeSeries: ISeriesApi<'Histogram'> | null = $state(null);
   let resizeObserver: ResizeObserver | null = null;
   
   let chartInitializer: ChartInitializer;
   let dataManager: ChartDataManager;
   
+  // Historical data loader
+  let historicalDataLoader: ReturnType<typeof useHistoricalDataLoader>;
+  
   // Debug state
-  let initCalled: boolean = false;
-  let containerExists: boolean = false;
-  let chartCreated: boolean = false;
+  let initCalled: boolean = $state(false);
+  let containerExists: boolean = $state(false);
+  let chartCreated: boolean = $state(false);
   let lastCandleCount: number = 0; // Track last candle count to prevent redundant positioning
   
+  // Simple reactive update when dataStore changes
+  $effect(() => {
+    // Only update if we have chart, series, and data
+    if (chart && candleSeries && dataStore.candles.length > 0) {
+      console.log(`📊 [ChartCanvas] Setting ${dataStore.candles.length} candles on chart`);
+      dataManager?.updateChartData();
+      
+      // Apply positioning after data is updated
+      setTimeout(() => {
+        applyOptimalPositioning();
+      }, 100);
+    }
+  });
+
   onMount(() => {
     initializeChart();
     setupResizeObserver();
@@ -72,6 +97,15 @@
     dataManager.updateChartData();
     dataManager.updateVolumeData();
     
+    // Initialize historical data loader
+    historicalDataLoader = useHistoricalDataLoader({
+      chart,
+      candleSeries,
+      loadThreshold: 0.1, // Load more data when scrolled to within 10% of the beginning
+      loadAmount: 300, // Load 300 additional candles at a time
+      debounceMs: 500 // Debounce scrolling events by 500ms
+    });
+    
     // Notify parent component
     if (onChartReady) {
       onChartReady(chart);
@@ -115,6 +149,12 @@
       resizeObserver = null;
     }
     
+    // Clean up historical data loader
+    if (historicalDataLoader) {
+      historicalDataLoader.cleanup();
+      historicalDataLoader = null;
+    }
+    
     if (chart) {
       chart.remove();
       chart = null;
@@ -126,33 +166,9 @@
   
   // Reactive updates with debounced positioning
   let positioningTimeout: NodeJS.Timeout | null = null;
-  let isApplyingPositioning = false; // Prevent infinite positioning loops
+  let isApplyingPositioning = $state(false); // Prevent infinite positioning loops
   
-  $: if (chart && dataStore.candles.length > 0) {
-    dataManager.updateChartData();
-    dataManager.updateVolumeData();
-    
-    // Only apply positioning if candle count changed AND not 1m chart
-    const currentCandleCount = dataStore.candles.length;
-    const currentGranularity = chartStore.config.granularity;
-    
-    if (currentCandleCount !== lastCandleCount && currentGranularity !== '1m') {
-      lastCandleCount = currentCandleCount;
-      
-      // Debounce positioning to prevent race conditions
-      if (positioningTimeout) {
-        clearTimeout(positioningTimeout);
-      }
-      
-      positioningTimeout = setTimeout(() => {
-        applyOptimalPositioning();
-        positioningTimeout = null;
-      }, 200);
-    } else if (currentGranularity === '1m') {
-      // For 1m charts, just update the lastCandleCount without positioning
-      lastCandleCount = currentCandleCount;
-    }
-  }
+  // Removed complex reactive logic that was causing conflicts
   
   function applyOptimalPositioning() {
     if (!chart || isApplyingPositioning) return;
@@ -160,10 +176,15 @@
     const candles = dataStore.candles;
     if (candles.length === 0) return;
     
+    const currentGranularity = chartStore.config.granularity;
     isApplyingPositioning = true;
     
     try {
-      if (candles.length <= 30) {
+      // For 1m charts, prioritize 60-candle view when we have enough data
+      if (currentGranularity === '1m' && candles.length >= 60) {
+        console.log(`🎯 ChartCanvas: 1m chart with ${candles.length} candles - applying 60 candle view`);
+        show60Candles();
+      } else if (candles.length <= 30) {
         console.log(`🎯 ChartCanvas: Applying fitContent for SMALL dataset (${candles.length} candles)`);
         fitContent();
       } else {
@@ -193,52 +214,6 @@
     return volumeSeries;
   }
   
-  // Fetch additional historical candles via Coinbase API
-  async function fetchAdditionalHistoricalData(additionalCandles: number) {
-    try {
-      const currentCandles = dataStore.candles;
-      if (currentCandles.length === 0) return;
-      
-      const coinbaseApi = new CoinbaseAPI();
-      const granularityStr = chartStore.config.granularity;
-      const granularitySeconds = getGranularitySeconds(granularityStr);
-      
-      // Calculate start time for additional historical data
-      const firstCandleTime = currentCandles[0].time as number;
-      const startTime = firstCandleTime - (additionalCandles * granularitySeconds);
-      const endTime = firstCandleTime - 1; // End just before first existing candle
-      
-      console.log(`Fetching ${additionalCandles} additional candles from ${new Date(startTime * 1000)} to ${new Date(endTime * 1000)}`);
-      
-      // Fetch historical data
-      const historicalData = await coinbaseApi.getCandles(
-        'BTC-USD',
-        granularitySeconds,
-        startTime.toString(),
-        endTime.toString()
-      );
-      
-      if (historicalData && historicalData.length > 0) {
-        // Convert to chart format and prepend to existing data
-        const formattedCandles = historicalData.map(candle => ({
-          time: candle.time as any,
-          open: candle.open,
-          high: candle.high,
-          low: candle.low,
-          close: candle.close,
-          volume: candle.volume || 0
-        }));
-        
-        // Merge with existing data (prepend historical data)
-        const mergedCandles = [...formattedCandles, ...currentCandles];
-        dataStore.setCandles(mergedCandles);
-        
-        console.log(`Added ${formattedCandles.length} historical candles. Total: ${mergedCandles.length}`);
-      }
-    } catch (error) {
-      console.error('Failed to fetch additional historical data:', error);
-    }
-  }
   
   export function fitContent() {
     if (!chart) return;
@@ -246,10 +221,10 @@
     const candles = dataStore.candles;
     const currentGranularity = chartStore.config.granularity;
     
-    // Always use standard fitContent for 1m charts - no special logic
+    // For 1m charts, show only 1H timeframe (60 candles)
     if (currentGranularity === '1m') {
-      console.log(`ChartCanvas: 1m chart - using standard fitContent only`);
-      chart.timeScale().fitContent();
+      console.log(`ChartCanvas: 1m chart with ${candles.length} candles - showing 1H timeframe`);
+      show60Candles();
       return;
     }
     
@@ -312,20 +287,23 @@
   export function show60Candles() {
     if (chart && candleSeries) {
       try {
-        // Get the data from the series
         const data = dataStore.candles;
-        if (data.length >= 60) {
-          // Calculate optimal bar spacing to show ~60 candles
-          const chartWidth = chart.options().width;
-          const optimalBarSpacing = Math.max(8, Math.floor(chartWidth / 60 * 0.9));
+        if (data.length > 0) {
+          // For 1H timeframe, show only the most recent 60 candles (1 hour of 1m data)
+          const candlesToShow = 60;
+          const startIndex = Math.max(0, data.length - candlesToShow);
+          const endIndex = data.length - 1;
           
-          // Just adjust bar spacing, let auto-scroll handle the rest
-          chart.timeScale().applyOptions({
-            barSpacing: optimalBarSpacing
+          console.log(`🎯 ChartCanvas: show60Candles - showing recent ${candlesToShow} candles (${startIndex} to ${endIndex}) out of ${data.length} total`);
+          
+          // Set visible range to show only the last 60 candles for 1H timeframe
+          // Add some extra space on the right for future price action (like other trading charts)
+          chart.timeScale().setVisibleLogicalRange({
+            from: startIndex,
+            to: endIndex + 10 // Add 10 candles worth of space on the right
           });
           
-          // Scroll to show the most recent data
-          chart.timeScale().scrollToRealTime();
+          console.log(`✅ ChartCanvas: Set visible range ${startIndex} to ${endIndex} for 1H timeframe`);
         }
       } catch (error) {
         console.error('Error setting 60 candle view:', error);
@@ -372,6 +350,14 @@
     console.log('ChartCanvas: Clearing all markers from chart');
     candleSeries.setMarkers([]);
     console.log('✅ ChartCanvas: All markers cleared from chart');
+  }
+
+  export async function loadMoreHistoricalData(): Promise<boolean> {
+    if (historicalDataLoader) {
+      return await historicalDataLoader.loadMoreHistoricalData();
+    }
+    console.warn('Historical data loader not initialized');
+    return false;
   }
 </script>
 

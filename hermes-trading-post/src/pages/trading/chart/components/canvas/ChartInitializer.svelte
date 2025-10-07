@@ -4,15 +4,22 @@
   import { dataStore } from '../../stores/dataStore.svelte';
   import { CHART_COLORS } from '../../utils/constants';
   
-  export let container: HTMLDivElement;
-  export let width: number | undefined = undefined;
-  export let height: number | undefined = undefined;
+  // Props using Svelte 5 runes syntax
+  const {
+    container,
+    width = undefined,
+    height = undefined
+  }: {
+    container: HTMLDivElement;
+    width?: number;
+    height?: number;
+  } = $props();
   
   // Check if we have a small dataset (5m chart case) - but never for 1m charts
-  $: isSmallDataset = dataStore.candles.length <= 30 && dataStore.candles.length > 0 && chartStore.config.granularity !== '1m';
+  const isSmallDataset = $derived(dataStore.candles.length <= 30 && dataStore.candles.length > 0 && chartStore.config.granularity !== '1m');
 
   // Reactive chart options based on store
-  $: chartOptions = {
+  const chartOptions = $derived({
     layout: {
       background: { 
         color: CHART_COLORS[chartStore.config.theme.toUpperCase()].background 
@@ -51,9 +58,9 @@
       rightBarStaysOnScroll: !isSmallDataset, // Disable for small datasets
       borderVisible: true,
       shiftVisibleRangeOnNewBar: !isSmallDataset, // Disable auto-scrolling for small datasets
-      rightOffset: isSmallDataset ? 0 : 12, // No forced offset for small datasets
+      rightOffset: isSmallDataset ? 0 : 12, // Default offset
       leftOffset: 0,
-      barSpacing: isSmallDataset ? 50 : 12, // Much wider spacing for small datasets to stretch across chart
+      barSpacing: isSmallDataset ? 50 : 6, // Smaller default spacing
       minBarSpacing: 0.5,
     },
     crosshair: {
@@ -84,7 +91,7 @@
       mouseWheel: true,
       pinch: true,
     },
-  };
+  });
   
   export function createChartInstance(): IChartApi | null {
     if (!container) {

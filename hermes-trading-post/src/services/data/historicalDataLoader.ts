@@ -28,12 +28,12 @@ export class HistoricalDataLoader {
   
   // Progressive loading configuration
   private readonly loadStrategy = {
-    '1m': { initialDays: 1, maxDays: 7, chunkDays: 1 },
-    '5m': { initialDays: 7, maxDays: 30, chunkDays: 7 },
-    '15m': { initialDays: 30, maxDays: 90, chunkDays: 30 },
-    '1h': { initialDays: 3, maxDays: 365, chunkDays: 30 },
-    '6h': { initialDays: 180, maxDays: 730, chunkDays: 90 },
-    '1d': { initialDays: 365, maxDays: 7300, chunkDays: 180 } // 20 years
+    '1m': { initialDays: 1, maxDays: 1825, chunkDays: 30 }, // 5 years of 1m data
+    '5m': { initialDays: 7, maxDays: 1825, chunkDays: 30 }, // 5 years of 5m data
+    '15m': { initialDays: 30, maxDays: 1825, chunkDays: 30 }, // 5 years of 15m data
+    '1h': { initialDays: 3, maxDays: 1825, chunkDays: 30 }, // 5 years of 1h data
+    '6h': { initialDays: 180, maxDays: 1825, chunkDays: 90 }, // 5 years of 6h data
+    '1d': { initialDays: 365, maxDays: 7300, chunkDays: 180 } // 20 years of daily data
   };
 
   constructor(api: CoinbaseAPI, cache: IndexedDBCache) {
