@@ -7,10 +7,48 @@
 import { Strategy } from '../base/Strategy';
 import type { CandleData, Position, Signal, StrategyConfig } from '../base/StrategyTypes';
 import { BackendAPIService } from '../../services/api/BackendAPIService';
+import { logger } from '../../services/core/LoggingService';
+
+// Specific strategy configurations
+export interface ReverseRatioConfig {
+  initialDropPercent: number;
+  levelDropPercent: number;
+  profitTarget: number;
+  maxLevels: number;
+  basePositionPercent: number;
+}
+
+export interface GridTradingConfig {
+  gridSize: number;
+  gridLevels: number;
+  baseOrderSize: number;
+}
+
+export interface RSIMeanReversionConfig {
+  rsiPeriod: number;
+  oversoldLevel: number;
+  overboughtLevel: number;
+  positionSize: number;
+}
+
+export interface ScalpingConfig {
+  spreadThreshold: number;
+  minProfit: number;
+  maxHoldTime: number;
+  positionSize: number;
+}
+
+// Union type for all possible backend configurations
+export type BackendConfigType = 
+  | ReverseRatioConfig 
+  | GridTradingConfig 
+  | RSIMeanReversionConfig 
+  | ScalpingConfig 
+  | Record<string, never>; // For strategies without specific config
 
 export interface BackendStrategyConfig extends StrategyConfig {
   strategyType: string; // The backend strategy identifier
-  backendConfig: Record<string, any>; // Config to send to backend
+  backendConfig: BackendConfigType; // Typed config to send to backend
 }
 
 /**
@@ -20,7 +58,7 @@ export interface BackendStrategyConfig extends StrategyConfig {
 export class BackendStrategyAdapter extends Strategy {
   private backendAPI: BackendAPIService;
   private strategyType: string;
-  private backendConfig: Record<string, any>;
+  private backendConfig: BackendConfigType;
   private lastCandles: CandleData[] = [];
   
   constructor(config: BackendStrategyConfig) {
@@ -62,7 +100,7 @@ export class BackendStrategyAdapter extends Strategy {
       
       return null;
     } catch (error) {
-      console.warn('Backend strategy analysis failed:', error);
+      logger.strategy.error(this.strategyType, 'Backend strategy analysis failed', error as Error);
       return null;
     }
   }
@@ -70,11 +108,11 @@ export class BackendStrategyAdapter extends Strategy {
   /**
    * Get strategy state from backend
    */
-  async getStrategyState(): Promise<any> {
+  async getStrategyState(): Promise<unknown> {
     try {
       return await this.backendAPI.getStrategyState(this.strategyType);
     } catch (error) {
-      console.warn('Failed to get backend strategy state:', error);
+      logger.strategy.error(this.strategyType, 'Failed to get backend strategy state', error as Error);
       return {};
     }
   }
@@ -82,13 +120,13 @@ export class BackendStrategyAdapter extends Strategy {
   /**
    * Update strategy configuration on backend
    */
-  async updateConfig(newConfig: Record<string, any>): Promise<void> {
+  async updateConfig(newConfig: Partial<BackendConfigType>): Promise<void> {
     this.backendConfig = { ...this.backendConfig, ...newConfig };
     
     try {
       await this.backendAPI.updateStrategyConfig(this.strategyType, this.backendConfig);
     } catch (error) {
-      console.warn('Failed to update backend strategy config:', error);
+      logger.strategy.error(this.strategyType, 'Failed to update backend strategy config', error as Error);
     }
   }
   
@@ -101,7 +139,7 @@ export class BackendStrategyAdapter extends Strategy {
     try {
       await this.backendAPI.resetStrategy(this.strategyType);
     } catch (error) {
-      console.warn('Failed to reset backend strategy:', error);
+      logger.strategy.error(this.strategyType, 'Failed to reset backend strategy', error as Error);
     }
   }
   
@@ -113,7 +151,7 @@ export class BackendStrategyAdapter extends Strategy {
     try {
       return await backendAPI.getAvailableStrategies();
     } catch (error) {
-      console.warn('Failed to get available strategies:', error);
+      logger.strategy.error('BackendStrategyAdapter', 'Failed to get available strategies', error as Error);
       return [];
     }
   }
@@ -121,7 +159,7 @@ export class BackendStrategyAdapter extends Strategy {
   /**
    * Create a backend strategy adapter for a specific strategy type
    */
-  static create(strategyType: string, config: Record<string, any> = {}): BackendStrategyAdapter {
+  static create(strategyType: string, config: BackendConfigType = {}): BackendStrategyAdapter {
     return new BackendStrategyAdapter({
       strategyType,
       backendConfig: config,
@@ -138,7 +176,7 @@ export class BackendStrategyFactory {
   /**
    * Create a Reverse Descending Grid strategy adapter
    */
-  static createReverseRatio(config: Record<string, any> = {}): BackendStrategyAdapter {
+  static createReverseRatio(config: Partial<ReverseRatioConfig> = {}): BackendStrategyAdapter {
     return BackendStrategyAdapter.create('reverse-descending-grid', {
       initialDropPercent: 0.1,
       levelDropPercent: 0.1,
@@ -152,7 +190,7 @@ export class BackendStrategyFactory {
   /**
    * Create a Grid Trading strategy adapter
    */
-  static createGridTrading(config: Record<string, any> = {}): BackendStrategyAdapter {
+  static createGridTrading(config: Partial<GridTradingConfig> = {}): BackendStrategyAdapter {
     return BackendStrategyAdapter.create('grid-trading', {
       gridSize: 0.5,
       gridLevels: 10,
@@ -164,7 +202,7 @@ export class BackendStrategyFactory {
   /**
    * Create an RSI Mean Reversion strategy adapter
    */
-  static createRSIMeanReversion(config: Record<string, any> = {}): BackendStrategyAdapter {
+  static createRSIMeanReversion(config: Partial<RSIMeanReversionConfig> = {}): BackendStrategyAdapter {
     return BackendStrategyAdapter.create('rsi-mean-reversion', {
       rsiPeriod: 14,
       oversoldThreshold: 30,
@@ -176,7 +214,7 @@ export class BackendStrategyFactory {
   /**
    * Create a Micro Scalping strategy adapter
    */
-  static createMicroScalping(config: Record<string, any> = {}): BackendStrategyAdapter {
+  static createMicroScalping(config: Partial<ScalpingConfig> = {}): BackendStrategyAdapter {
     return BackendStrategyAdapter.create('micro-scalping', {
       profitTarget: 0.2,
       stopLoss: 0.1,
@@ -188,7 +226,7 @@ export class BackendStrategyFactory {
   /**
    * Create an Ultra Micro Scalping strategy adapter
    */
-  static createUltraMicroScalping(config: Record<string, any> = {}): BackendStrategyAdapter {
+  static createUltraMicroScalping(config: Partial<ScalpingConfig> = {}): BackendStrategyAdapter {
     return BackendStrategyAdapter.create('ultra-micro-scalping', {
       profitTarget: 0.1,
       stopLoss: 0.05,

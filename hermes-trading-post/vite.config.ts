@@ -8,6 +8,10 @@ export default defineConfig({
     host: true, // Allow external connections
     port: 5173,
     historyApiFallback: true,
+    hmr: {
+      port: 5173,
+      host: 'localhost'
+    },
     proxy: {
       '/api/coinbase': {
         target: 'https://api.exchange.coinbase.com',
