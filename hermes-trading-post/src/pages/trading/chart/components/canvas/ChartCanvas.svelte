@@ -257,8 +257,8 @@
         minBarSpacing: 1, // Remove minimum constraint
         rightOffset: Math.max(2, Math.floor(chartWidth * 0.05)), // 5% margin
         leftOffset: Math.max(2, Math.floor(chartWidth * 0.05)),  // 5% margin
-        shiftVisibleRangeOnNewBar: false, // Prevent auto-scrolling
-        rightBarStaysOnScroll: false // Allow full control
+        shiftVisibleRangeOnNewBar: true, // Allow auto-scrolling for real-time data
+        rightBarStaysOnScroll: true // Keep latest bar visible
       });
       
       // Force visible range to show all candles evenly distributed
