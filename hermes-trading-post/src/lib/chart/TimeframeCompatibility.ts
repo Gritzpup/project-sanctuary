@@ -22,7 +22,7 @@ export interface CompatibilityMatrix {
 
 // Define optimal candle counts for different chart views
 const OPTIMAL_CANDLE_RANGES = {
-  minimum: 10,    // Minimum for meaningful analysis (reduced for 1H+5m = 12 candles)
+  minimum: 4,     // Minimum for meaningful analysis (reduced for 1H+15m = 4 candles)
   ideal: 60,      // Ideal for most trading views
   maximum: 200,   // Maximum before chart becomes cluttered
   extended: 500   // Extended for long-term analysis

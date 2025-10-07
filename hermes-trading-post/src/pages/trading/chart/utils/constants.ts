@@ -57,7 +57,7 @@ export const GRANULARITY_DISPLAY_NAMES: Record<string, string> = {
 
 // ✅ Validated trading intervals for each timeframe (using only supported granularities)
 export const RECOMMENDED_GRANULARITIES: Record<string, string[]> = {
-  '1H': ['1m', '5m'],                    // 60-12 candles
+  '1H': ['1m', '5m', '15m'],            // 60-12-4 candles
   '6H': ['5m', '15m'],                  // 72-24 candles  
   '1D': ['15m', '1h'],                  // 96-24 candles
   '1W': ['1h', '6h'],                   // 168-28 candles

@@ -103,8 +103,8 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       
       ChartDebug.log(`Time calculation: ${config.timeframe} + ${config.granularity} = ${candleCount} candles × ${granularitySeconds}s = ${timeRange}s range`);
       
-      // Debug for 5m+1H combination
-      if (config.granularity === '5m' && config.timeframe === '1H') {
+      // Debug for 5m+1H and 15m+1H combinations
+      if ((config.granularity === '5m' || config.granularity === '15m') && config.timeframe === '1H') {
         const debugInfo = {
           pair: config.pair,
           granularity: config.granularity,
@@ -115,7 +115,7 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
           now: `${now} (${new Date(now * 1000).toISOString()})`,
           start: `${startTime} (${new Date(startTime * 1000).toISOString()})`
         };
-        console.log('🔍 5m+1H Data Loading Debug:', debugInfo);
+        console.log(`🔍 ${config.granularity}+1H Data Loading Debug:`, debugInfo);
       }
       
       // Consolidated debug for 3M/1d (reduce multiple log calls)
@@ -142,9 +142,9 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       
       const candles = dataStore.candles;
       
-      // Debug actual results for 5m+1H combination
-      if (config.granularity === '5m' && config.timeframe === '1H') {
-        console.log('🔍 5m+1H Data Loading Results:', {
+      // Debug actual results for 5m+1H and 15m+1H combinations
+      if ((config.granularity === '5m' || config.granularity === '15m') && config.timeframe === '1H') {
+        console.log(`🔍 ${config.granularity}+1H Data Loading Results:`, {
           expectedCandles: candleCount,
           actualCandles: candles.length,
           firstCandle: candles.length > 0 ? new Date((candles[0].time as number) * 1000).toISOString() : 'none',
@@ -187,38 +187,17 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         
         config.series.setData(chartCandles);
         
-        // For 5m+1H: Shrink chart to show exactly 1 hour compressed
-        if (config.chart && chartCandles.length > 0 && config.granularity === '5m' && config.timeframe === '1H') {
-          setTimeout(() => {
-            try {
-              const lastCandle = chartCandles[chartCandles.length - 1];
-              const firstCandle = chartCandles[0];
-              const dataStart = firstCandle.time as number;
-              const dataEnd = lastCandle.time as number;
-              
-              // Add small buffer to compress the view and create right gap
-              const rightBuffer = 300; // 5 minutes
-              
-              config.chart!.timeScale().setVisibleRange({
-                from: dataStart as any,
-                to: (dataEnd + rightBuffer) as any
-              });
-              
-              console.log(`📏 5m chart: Compressed ${chartCandles.length} candles: ${new Date(dataStart * 1000).toLocaleTimeString()} to ${new Date(dataEnd * 1000).toLocaleTimeString()}`);
-            } catch (error) {
-              console.error('Error setting 5m chart range:', error);
-            }
-          }, 100);
-        } else if (config.chart && chartCandles.length > 0) {
+        // Let all charts use default fitting behavior - no special 5m overrides
+        if (config.chart && chartCandles.length > 0) {
           // All other charts fit content naturally
           setTimeout(() => {
             config.chart!.timeScale().fitContent();
           }, 100);
         }
         
-        // For 5m+1H debug exactly what we're setting
-        if (config.granularity === '5m' && config.timeframe === '1H') {
-          console.log('🔍 5m+1H Candles being set on chart:', {
+        // For 5m+1H and 15m+1H debug exactly what we're setting
+        if ((config.granularity === '5m' || config.granularity === '15m') && config.timeframe === '1H') {
+          console.log(`🔍 ${config.granularity}+1H Candles being set on chart:`, {
             totalFetched: candles.length,
             candlesShown: chartCandles.length,
             expectedCandles: candleCount,
