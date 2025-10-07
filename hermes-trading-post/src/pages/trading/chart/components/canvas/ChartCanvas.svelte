@@ -126,6 +126,7 @@
   
   // Reactive updates with debounced positioning
   let positioningTimeout: NodeJS.Timeout | null = null;
+  let isApplyingPositioning = false; // Prevent infinite positioning loops
   
   $: if (chart && dataStore.candles.length > 0) {
     dataManager.updateChartData();
@@ -154,10 +155,12 @@
   }
   
   function applyOptimalPositioning() {
-    if (!chart) return;
+    if (!chart || isApplyingPositioning) return;
     
     const candles = dataStore.candles;
     if (candles.length === 0) return;
+    
+    isApplyingPositioning = true;
     
     try {
       if (candles.length <= 30) {
@@ -169,6 +172,11 @@
       }
     } catch (error) {
       console.error('Error applying chart positioning:', error);
+    } finally {
+      // Reset flag after a delay to allow other positioning calls
+      setTimeout(() => {
+        isApplyingPositioning = false;
+      }, 500);
     }
   }
   
@@ -254,35 +262,25 @@
       const chartWidth = chart.options().width || container?.clientWidth || 800;
       const chartHeight = chart.options().height || container?.clientHeight || 400;
       
-      // Calculate very wide bar spacing to ensure visibility
-      const availableWidth = chartWidth * 0.85; // Use 85% of chart width, leave margins
-      const minBarSpacing = 25; // Minimum 25px per candle
-      const maxBarSpacing = 80; // Maximum 80px per candle for readability
-      let optimalBarSpacing = Math.floor(availableWidth / candles.length);
+      // Calculate smaller bar spacing and shift left by one candle width
+      const rightGapPercent = 0.20; // 20% gap on right side  
+      const availableWidth = chartWidth * (1 - rightGapPercent);
+      let optimalBarSpacing = Math.floor(availableWidth / (candles.length + 1)); // +1 for spacing
       
-      // Ensure we're within reasonable bounds
-      optimalBarSpacing = Math.max(minBarSpacing, Math.min(maxBarSpacing, optimalBarSpacing));
+      console.log(`🔍 ChartCanvas: Fitting ${candles.length} candles with ${optimalBarSpacing}px spacing, shifted left`);
       
-      console.log(`🔍 ChartCanvas: Dimensions ${chartWidth}x${chartHeight}, Available: ${availableWidth}px, Target spacing: ${optimalBarSpacing}px`);
-      
-      // Force apply wider bar spacing with aggressive settings
       chart.timeScale().applyOptions({
         barSpacing: optimalBarSpacing,
-        minBarSpacing: 1, // Remove minimum constraint
-        rightOffset: Math.max(2, Math.floor(chartWidth * 0.05)), // 5% margin
-        leftOffset: Math.max(2, Math.floor(chartWidth * 0.05)),  // 5% margin
-        shiftVisibleRangeOnNewBar: true, // Allow auto-scrolling for real-time data
-        rightBarStaysOnScroll: true // Keep latest bar visible
+        rightOffset: Math.floor(chartWidth * rightGapPercent),
+        leftOffset: 0
       });
       
-      // Force visible range to show all candles evenly distributed
-      const totalLogicalWidth = candles.length + 4; // Add padding
       chart.timeScale().setVisibleLogicalRange({
-        from: -2, // Left padding
-        to: candles.length + 2 // Right padding
+        from: 0, // Start from first candle
+        to: candles.length + 2 // Show all candles plus right space
       });
       
-      console.log(`✅ ChartCanvas: FORCED wide spacing - ${optimalBarSpacing}px per candle, logical range: -2 to ${candles.length + 2}`);
+      console.log(`✅ ChartCanvas: Set ${candles.length} candles, spacing: ${optimalBarSpacing}px, range: 0 to ${candles.length + 2}`);
       
       // Double-check and force again after a brief delay to override any competing updates
       setTimeout(() => {
