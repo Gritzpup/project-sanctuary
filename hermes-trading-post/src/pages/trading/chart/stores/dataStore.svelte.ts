@@ -62,6 +62,8 @@ class DataStore {
   ): Promise<void> {
     const loadStartTime = performance.now();
     
+    console.log(`🔄 [DataStore] Loading data: ${pair}/${granularity} from ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
+    
     try {
       if (granularity === '1d' || granularity === '1D') {
         ChartDebug.critical(`[PERF] dataStore.loadData started`);
@@ -81,6 +83,7 @@ class DataStore {
         ChartDebug.critical(`[PERF] fetchHistoricalData took ${fetchEnd - fetchStart}ms`);
       }
       
+      console.log(`✅ [DataStore] Data loaded successfully: ${data.length} candles for ${pair}/${granularity}`);
       this.setCandles(data);
       this.updateStats();
       
@@ -98,7 +101,7 @@ class DataStore {
         ChartDebug.critical(`[PERF] dataStore.loadData completed in ${performance.now() - loadStartTime}ms`);
       }
     } catch (error) {
-      console.error('[DataStore] Error loading data:', error);
+      console.error(`❌ [DataStore] Error loading data for ${pair}/${granularity}:`, error);
       ChartDebug.error('Error loading data:', error);
       throw error;
     }

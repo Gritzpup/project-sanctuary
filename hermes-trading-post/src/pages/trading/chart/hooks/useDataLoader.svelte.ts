@@ -99,6 +99,8 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       const timeRange = candleCount * granularitySeconds;
       const startTime = now - timeRange;
       
+      console.log(`🎯 Loading ${config.granularity}+${config.timeframe}: ${candleCount} candles over ${timeRange}s`);
+      
       ChartDebug.log(`Time calculation: ${config.timeframe} + ${config.granularity} = ${candleCount} candles × ${granularitySeconds}s = ${timeRange}s range`);
       
       // Debug for 5m+1H combination
@@ -171,8 +173,59 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       
       // Update chart with loaded data if series is provided
       if (config.series && candles.length > 0) {
-        ChartDebug.log(`Setting ${candles.length} candles on chart series`);
-        config.series.setData(candles);
+        // Always use exactly the expected number of candles for precise chart dynamics
+        let chartCandles = candles;
+        if (candles.length > candleCount) {
+          // Take the most recent candles to match expected count exactly
+          chartCandles = candles.slice(-candleCount);
+          console.log(`📊 Trimmed to exactly ${chartCandles.length} candles (from ${candles.length} total) for ${config.granularity}/${config.timeframe}`);
+        } else if (candles.length < candleCount) {
+          console.log(`📊 Got ${candles.length} candles (expected ${candleCount}) for ${config.granularity}/${config.timeframe}`);
+        } else {
+          console.log(`📊 Perfect: Got exactly ${candles.length} candles for ${config.granularity}/${config.timeframe}`);
+        }
+        
+        config.series.setData(chartCandles);
+        
+        // For 5m+1H: Shrink chart to show exactly 1 hour compressed
+        if (config.chart && chartCandles.length > 0 && config.granularity === '5m' && config.timeframe === '1H') {
+          setTimeout(() => {
+            try {
+              const lastCandle = chartCandles[chartCandles.length - 1];
+              const firstCandle = chartCandles[0];
+              const dataStart = firstCandle.time as number;
+              const dataEnd = lastCandle.time as number;
+              
+              // Add small buffer to compress the view and create right gap
+              const rightBuffer = 300; // 5 minutes
+              
+              config.chart!.timeScale().setVisibleRange({
+                from: dataStart as any,
+                to: (dataEnd + rightBuffer) as any
+              });
+              
+              console.log(`📏 5m chart: Compressed ${chartCandles.length} candles: ${new Date(dataStart * 1000).toLocaleTimeString()} to ${new Date(dataEnd * 1000).toLocaleTimeString()}`);
+            } catch (error) {
+              console.error('Error setting 5m chart range:', error);
+            }
+          }, 100);
+        } else if (config.chart && chartCandles.length > 0) {
+          // All other charts fit content naturally
+          setTimeout(() => {
+            config.chart!.timeScale().fitContent();
+          }, 100);
+        }
+        
+        // For 5m+1H debug exactly what we're setting
+        if (config.granularity === '5m' && config.timeframe === '1H') {
+          console.log('🔍 5m+1H Candles being set on chart:', {
+            totalFetched: candles.length,
+            candlesShown: chartCandles.length,
+            expectedCandles: candleCount,
+            firstCandle: chartCandles[0] ? new Date((chartCandles[0].time as number) * 1000).toISOString() : 'none',
+            lastCandle: chartCandles[chartCandles.length - 1] ? new Date((chartCandles[chartCandles.length - 1].time as number) * 1000).toISOString() : 'none'
+          });
+        }
       }
       
       // Set initial ready state

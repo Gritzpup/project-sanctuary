@@ -27,8 +27,8 @@ export interface UseRealtimeSubscriptionOptions {
 export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions = {}) {
   const { onPriceUpdate, onNewCandle, onReconnect, onError } = options;
   
-  // Temporary flag to disable new auto-scroll logic if it causes issues
-  const ENABLE_SMALL_DATASET_AUTO_SCROLL = false; // DISABLED - causing chart to freeze
+  // Disable aggressive auto-scroll to prevent snapping
+  const ENABLE_SMALL_DATASET_AUTO_SCROLL = false; // DISABLED - causing snapping behavior
 
   /**
    * Maintains optimal candle count visible in the chart (60 for normal, 12 for small datasets)
@@ -57,31 +57,35 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
             console.warn('Could not access chart config, using default candle count:', configError);
           }
           
-          if (candles.length > expectedCandleCount) {
-            // Show only the most recent candles to maintain the window
-            const startIndex = candles.length - expectedCandleCount;
+          if (candles.length >= expectedCandleCount) {
+            // Show the most recent candles to maintain the window
+            const startIndex = Math.max(0, candles.length - expectedCandleCount);
             const visibleCandles = candles.slice(startIndex);
             
             if (visibleCandles.length > 1) {
               const firstVisibleTime = visibleCandles[0].time as number;
               const timeSpan = currentTime - firstVisibleTime;
-              const buffer = timeSpan * 0.05; // 5% buffer
+              const buffer = timeSpan * 0.1; // 10% buffer for better visibility
               
-              chart.timeScale().setVisibleRange({
-                from: (firstVisibleTime - buffer) as any,
-                to: (currentTime + buffer) as any
-              });
-              
-              console.log(`🎯 Maintained ${expectedCandleCount}-candle window: showing candles ${startIndex + 1}-${candles.length} of ${candles.length} total`);
+              // Ensure we don't set invalid time ranges
+              if (firstVisibleTime > 0 && currentTime > firstVisibleTime) {
+                chart.timeScale().setVisibleRange({
+                  from: (firstVisibleTime - buffer) as any,
+                  to: (currentTime + buffer) as any
+                });
+                
+                console.log(`🎯 Auto-scrolled to show ${expectedCandleCount} candles: ${startIndex + 1}-${candles.length} of ${candles.length}`);
+              }
             }
           } else {
-            // Still building up to expected count, show all with padding
+            // Still building up to expected count, show all with minimal padding
+            const padding = 1;
             chart.timeScale().setVisibleLogicalRange({
-              from: -2,
-              to: expectedCandleCount + 2
+              from: -padding,
+              to: Math.max(expectedCandleCount, candles.length) + padding
             });
             
-            console.log(`🔄 Building to ${expectedCandleCount} candles: currently showing ${candles.length}`);
+            console.log(`🔄 Building dataset: showing ${candles.length}/${expectedCandleCount} candles`);
           }
         } catch (smallDatasetError) {
           console.error('Error in small dataset zoom maintenance:', smallDatasetError);
@@ -122,16 +126,16 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     const candles = dataStore.candles;
     if (candles.length === 0) return;
     
-    // Get current minute timestamp
+    // Get current 5-minute timestamp
     const now = Date.now();
-    const currentMinute = Math.floor(now / 60000) * 60; // Round down to minute in seconds
+    const current5MinuteTime = Math.floor(now / 300000) * 300; // Round down to 5-minute in seconds
     const lastCandle = candles[candles.length - 1];
     const lastCandleTime = lastCandle.time as number;
     
-    if (currentMinute > lastCandleTime) {
+    if (current5MinuteTime > lastCandleTime) {
       // New candle needed
       const newCandle: CandlestickData = {
-        time: currentMinute as any,
+        time: current5MinuteTime as any,
         open: price,
         high: price,
         low: price,
@@ -148,8 +152,31 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       chartSeries.setData(updatedCandles);
       statusStore.setNewCandle();
       
-      // Maintain 60 candle zoom level after new candle creation
-      maintainCandleZoom(chartSeries, updatedCandles);
+      // Auto-scroll chart to show the new candle
+      if (updatedCandles.length > 1) {
+        try {
+          const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
+          if (chart && chart.timeScale) {
+            // For 5m charts, maintain exactly 12 candles visible
+            if (updatedCandles.length >= 12) {
+              const recentCandles = updatedCandles.slice(-12);
+              const firstCandle = recentCandles[0];
+              const lastCandle = recentCandles[recentCandles.length - 1];
+              const timeSpan = (lastCandle.time as number) - (firstCandle.time as number);
+              const buffer = 300 * 0.1; // 5m granularity buffer
+              
+              chart.timeScale().setVisibleRange({
+                from: ((firstCandle.time as number) - buffer) as any,
+                to: ((lastCandle.time as number) + buffer) as any
+              });
+              
+              console.log(`🔄 Auto-scrolled chart to show new candle: ${new Date((lastCandle.time as number) * 1000).toISOString()}`);
+            }
+          }
+        } catch (error) {
+          console.error('Error auto-scrolling chart:', error);
+        }
+      }
       
       // Call new candle callback
       if (onNewCandle) {
@@ -177,6 +204,9 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // Update chart with live candle (volume handled by plugin)
       chartSeries.update(updatedCandle);
       statusStore.setPriceUpdate();
+      
+      // Disabled aggressive auto-scroll during price updates to prevent freezing
+      // TODO: Implement throttled auto-scroll
       
       // Ensure status stays ready during price updates
       if (statusStore.status !== 'ready') {
