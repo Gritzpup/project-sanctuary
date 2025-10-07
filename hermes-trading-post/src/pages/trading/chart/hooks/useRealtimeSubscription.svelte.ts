@@ -44,7 +44,11 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       if (!chart || !chart.timeScale) return;
       
       // For small datasets (like 5m+1H = 12 candles), maintain original candle count
-      if (candles.length <= 30 && ENABLE_SMALL_DATASET_AUTO_SCROLL) {
+      // But never apply this to 1m charts to prevent positioning issues
+      const config = chartStore?.config;
+      const currentGranularity = config?.granularity;
+      
+      if (candles.length <= 30 && ENABLE_SMALL_DATASET_AUTO_SCROLL && currentGranularity !== '1m') {
         try {
           // Safely determine expected count with fallback
           let expectedCandleCount = 12; // Default for 5m+1H
@@ -163,36 +167,9 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
           if (chart && chart.timeScale) {
             const config = chartStore?.config;
             
-            if (config?.granularity === '5m' && config?.timeframe === '1H') {
-              // For 5m+1H: Update the compressed view to include new candle
-              setTimeout(() => {
-                const firstCandle = updatedCandles[0];
-                const lastCandle = updatedCandles[updatedCandles.length - 1];
-                const dataStart = firstCandle.time as number;
-                const dataEnd = lastCandle.time as number;
-                const rightBuffer = 300; // 5 minutes right gap
-                
-                chart.timeScale().setVisibleRange({
-                  from: dataStart as any,
-                  to: (dataEnd + rightBuffer) as any
-                });
-                
-                console.log(`🔄 5m chart updated compressed view with new candle`);
-              }, 100);
-            } else if (updatedCandles.length >= 12) {
-              // Normal auto-scroll for other charts
-              const recentCandles = updatedCandles.slice(-12);
-              const firstCandle = recentCandles[0];
-              const lastCandle = recentCandles[recentCandles.length - 1];
-              const buffer = 300 * 0.1;
-              
-              chart.timeScale().setVisibleRange({
-                from: ((firstCandle.time as number) - buffer) as any,
-                to: ((lastCandle.time as number) + buffer) as any
-              });
-              
-              console.log(`🔄 Normal chart auto-scrolled to show new candle`);
-            }
+            // Auto-scroll for ALL charts when new candles are added
+            chart.timeScale().scrollToPosition(2, false); // Keep 2 candles of space on the right
+            console.log(`🔄 Chart scrolled to show new candle at fixed position (${config?.granularity})`);
           }
         } catch (error) {
           console.error('Error auto-scrolling chart:', error);
@@ -226,8 +203,18 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       chartSeries.update(updatedCandle);
       statusStore.setPriceUpdate();
       
-      // Disabled aggressive auto-scroll during price updates to prevent freezing
-      // TODO: Implement throttled auto-scroll
+      // Auto-scroll for 5m charts during price updates (since new candles are infrequent)
+      const config = chartStore?.config;
+      if (config?.granularity === '5m') {
+        try {
+          const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
+          if (chart && chart.timeScale) {
+            chart.timeScale().scrollToPosition(2, false); // Keep newest candle at fixed right position
+          }
+        } catch (error) {
+          console.error('Error auto-scrolling 5m chart during price update:', error);
+        }
+      }
       
       // Ensure status stays ready during price updates
       if (statusStore.status !== 'ready') {

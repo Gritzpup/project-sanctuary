@@ -8,8 +8,8 @@
   export let width: number | undefined = undefined;
   export let height: number | undefined = undefined;
   
-  // Check if we have a small dataset (5m chart case) - be more aggressive about detection
-  $: isSmallDataset = dataStore.candles.length <= 30 && dataStore.candles.length > 0;
+  // Check if we have a small dataset (5m chart case) - but never for 1m charts
+  $: isSmallDataset = dataStore.candles.length <= 30 && dataStore.candles.length > 0 && chartStore.config.granularity !== '1m';
 
   // Reactive chart options based on store
   $: chartOptions = {

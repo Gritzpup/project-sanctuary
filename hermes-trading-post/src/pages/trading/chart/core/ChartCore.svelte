@@ -96,10 +96,27 @@
         series: chartCanvas?.getSeries()
       });
       
-      // Apply proper positioning for small datasets
+      // Apply proper positioning for new timeframe
       setTimeout(() => {
         if (chartCanvas) {
-          chartCanvas.fitContent();
+          if (granularity === '1m') {
+            // For 1m charts, reset all chart positioning options to default state
+            const chart = chartCanvas.getChart();
+            if (chart) {
+              chart.timeScale().applyOptions({
+                barSpacing: 12,
+                rightOffset: 12,
+                leftOffset: 0,
+                shiftVisibleRangeOnNewBar: true,
+                rightBarStaysOnScroll: true
+              });
+              // Use standard fitContent after resetting options
+              chart.timeScale().fitContent();
+              console.log(`🔄 1m chart: Reset to default positioning options`);
+            }
+          } else {
+            chartCanvas.fitContent();
+          }
         }
       }, 100);
       

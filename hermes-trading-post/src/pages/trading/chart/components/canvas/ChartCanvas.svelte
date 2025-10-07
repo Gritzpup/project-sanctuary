@@ -131,9 +131,11 @@
     dataManager.updateChartData();
     dataManager.updateVolumeData();
     
-    // Only apply positioning if candle count changed
+    // Only apply positioning if candle count changed AND not 1m chart
     const currentCandleCount = dataStore.candles.length;
-    if (currentCandleCount !== lastCandleCount) {
+    const currentGranularity = chartStore.config.granularity;
+    
+    if (currentCandleCount !== lastCandleCount && currentGranularity !== '1m') {
       lastCandleCount = currentCandleCount;
       
       // Debounce positioning to prevent race conditions
@@ -145,6 +147,9 @@
         applyOptimalPositioning();
         positioningTimeout = null;
       }, 200);
+    } else if (currentGranularity === '1m') {
+      // For 1m charts, just update the lastCandleCount without positioning
+      lastCandleCount = currentCandleCount;
     }
   }
   
@@ -231,10 +236,19 @@
     if (!chart) return;
     
     const candles = dataStore.candles;
+    const currentGranularity = chartStore.config.granularity;
     
-    // For small datasets, spread them across the full chart width
+    // Always use standard fitContent for 1m charts - no special logic
+    if (currentGranularity === '1m') {
+      console.log(`ChartCanvas: 1m chart - using standard fitContent only`);
+      chart.timeScale().fitContent();
+      return;
+    }
+    
+    // For small datasets (non-1m charts), use wide spacing
     if (candles.length <= 30 && candles.length > 0) {
-      console.log(`🔍 ChartCanvas: Applying WIDE SPACING for ${candles.length} candles`);
+      
+      console.log(`🔍 ChartCanvas: Applying WIDE SPACING for ${candles.length} candles (${currentGranularity})`);
       
       // Get actual chart dimensions
       const chartWidth = chart.options().width || container?.clientWidth || 800;
@@ -306,7 +320,6 @@
           // Calculate optimal bar spacing to show ~60 candles
           const chartWidth = chart.options().width;
           const optimalBarSpacing = Math.max(8, Math.floor(chartWidth / 60 * 0.9));
-          
           
           // Just adjust bar spacing, let auto-scroll handle the rest
           chart.timeScale().applyOptions({
