@@ -100,16 +100,23 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
 
   // Data management
   protected subscribeToData(): void {
+    console.log(`🔔 [SeriesPlugin:${this.config.id}] subscribeToData called`);
+    
     // Subscribe to data updates from dataStore
     const dataStore = this.getDataStore();
+    console.log(`🔔 [SeriesPlugin:${this.config.id}] Got dataStore, has ${dataStore.candles?.length || 0} candles`);
     
     // Initial data load
+    console.log(`🔔 [SeriesPlugin:${this.config.id}] Calling initial refreshData...`);
     this.refreshData();
     
     // Subscribe to real-time updates
+    console.log(`🔔 [SeriesPlugin:${this.config.id}] Subscribing to data updates...`);
     this.dataUnsubscribe = dataStore.onDataUpdate(() => {
+      console.log(`🔔 [SeriesPlugin:${this.config.id}] Data update received, calling refreshData...`);
       this.refreshData();
     });
+    console.log(`🔔 [SeriesPlugin:${this.config.id}] Data subscription complete`);
   }
 
   protected unsubscribeFromData(): void {
@@ -121,11 +128,22 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
   }
 
   protected refreshData(): void {
-    if (!this.series) return;
+    console.log(`🔄 [SeriesPlugin:${this.config.id}] refreshData called`);
     
+    if (!this.series) {
+      console.log(`❌ [SeriesPlugin:${this.config.id}] No series available for refresh`);
+      return;
+    }
+    
+    console.log(`🔄 [SeriesPlugin:${this.config.id}] Getting data...`);
     const data = this.getData();
+    
     if (data && data.length > 0) {
+      console.log(`🔄 [SeriesPlugin:${this.config.id}] Setting ${data.length} data points on series`);
       this.series.setData(data);
+      console.log(`✅ [SeriesPlugin:${this.config.id}] Data updated successfully`);
+    } else {
+      console.log(`⚠️ [SeriesPlugin:${this.config.id}] No data to set (length: ${data?.length || 0})`);
     }
   }
 

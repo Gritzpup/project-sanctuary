@@ -1,5 +1,6 @@
 import { WebSocket } from 'ws';
 import { EventEmitter } from 'events';
+import { redisCandleStorage } from './redis/RedisCandleStorage.js';
 
 /**
  * Coinbase WebSocket client for real-time market data
@@ -17,6 +18,58 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     
     // Candle aggregation
     this.candleAggregators = new Map(); // key: "pair:granularity", value: aggregator
+    
+    // Redis storage integration
+    this.redisStorageEnabled = true;
+    this.initializeRedisStorage();
+  }
+
+  /**
+   * Initialize Redis storage for candle data
+   */
+  async initializeRedisStorage() {
+    if (!this.redisStorageEnabled) return;
+    
+    try {
+      await redisCandleStorage.connect();
+      console.log('✅ Redis storage initialized for WebSocket candle data');
+    } catch (error) {
+      console.error('❌ Failed to initialize Redis storage:', error.message);
+      this.redisStorageEnabled = false;
+    }
+  }
+
+  /**
+   * Store completed candle in Redis
+   */
+  async storeCandle(productId, granularitySeconds, candle) {
+    if (!this.redisStorageEnabled) return;
+    
+    try {
+      // Convert granularity seconds to string format
+      const granularityMap = {
+        60: '1m',
+        300: '5m',
+        900: '15m',
+        1800: '30m',
+        3600: '1h',
+        14400: '4h',
+        21600: '6h',
+        43200: '12h',
+        86400: '1d'
+      };
+      
+      const granularityStr = granularityMap[granularitySeconds] || `${granularitySeconds}s`;
+      
+      await redisCandleStorage.storeCandles(productId, granularityStr, [candle]);
+      console.log(`💾 Stored ${productId} ${granularityStr} candle in Redis:`, {
+        time: new Date(candle.time * 1000).toISOString(),
+        price: candle.close,
+        volume: candle.volume
+      });
+    } catch (error) {
+      console.error('❌ Failed to store candle in Redis:', error.message);
+    }
   }
 
   /**
@@ -216,10 +269,15 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     };
 
     // Update all relevant candle aggregators
-    this.candleAggregators.forEach((aggregator, key) => {
+    this.candleAggregators.forEach(async (aggregator, key) => {
       if (key.startsWith(match.product_id + ':')) {
         const candle = aggregator.addTrade(trade);
         if (candle) {
+          // Store completed candles in Redis
+          if (candle.type === 'complete') {
+            await this.storeCandle(match.product_id, aggregator.granularity, candle);
+          }
+          
           // Emit completed or updated candle
           this.emit('candle', {
             ...candle,

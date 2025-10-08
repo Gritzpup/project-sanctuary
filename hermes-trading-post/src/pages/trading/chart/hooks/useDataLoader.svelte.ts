@@ -78,6 +78,7 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
    * Load initial chart data
    */
   async function loadData(config: DataLoaderConfig): Promise<void> {
+    console.log('🚨 [DEBUG] loadData called with config:', config);
     const loadStartTime = performance.now();
     perfTest.reset();
     perfTest.mark('loadData-start');
@@ -93,19 +94,19 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
     try {
       const now = Math.floor(Date.now() / 1000);
       
-      // ✅ Calculate time range using granularity + period combination
+      // ✅ Request ALL available data from database, not just recent timeframe
       const candleCount = getCandleCount(config.granularity, config.timeframe);
       const granularitySeconds = getGranularitySeconds(config.granularity);
-      const timeRange = candleCount * granularitySeconds;
       
       // Align to granularity boundaries to ensure we get complete candles
       const alignedNow = alignTimeToGranularity(now, config.granularity);
-      const startTime = alignedNow - timeRange;
       
-      console.log(`🎯 Loading ${config.granularity}+${config.timeframe}: ${candleCount} candles over ${timeRange}s`);
+      // Start from the beginning of our historical data instead of just the timeframe
+      const startTime = 0; // Request from epoch to get ALL database data
+      
+      console.log(`🎯 Loading ALL ${config.granularity} data from database for ${config.timeframe} display`);
       console.log(`⏰ Time alignment: ${now} -> ${alignedNow} (${alignedNow - now}s offset)`);
-      
-      ChartDebug.log(`Time calculation: ${config.timeframe} + ${config.granularity} = ${candleCount} candles × ${granularitySeconds}s = ${timeRange}s range`);
+      console.log(`📅 Requesting data from ${startTime} to ${alignedNow}`);
       
       // Debug for 5m+1H and 15m+1H combinations
       if ((config.granularity === '5m' || config.granularity === '15m') && config.timeframe === '1H') {
@@ -141,7 +142,8 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         config.pair,
         config.granularity,
         startTime,
-        alignedNow
+        alignedNow,
+        50000 // Request all available candles from database
       );
       perfTest.measure('DataStore loadData', 'dataStore-loadData-start');
       
@@ -183,12 +185,14 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         
         config.series.setData(candles);
         
-        // Let all charts use default fitting behavior - no special 5m overrides
+        // Always fit content properly after setting data
         if (config.chart && candles.length > 0) {
-          // All other charts fit content naturally
           setTimeout(() => {
+            console.log(`🔧 Fitting chart content for ${candles.length} candles`);
             config.chart!.timeScale().fitContent();
-          }, 100);
+            // Additional positioning to ensure candles are visible
+            config.chart!.timeScale().scrollToRealTime();
+          }, 200); // Increased timeout for better reliability
         }
         
         // For 5m+1H and 15m+1H debug exactly what we're setting

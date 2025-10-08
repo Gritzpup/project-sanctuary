@@ -9,7 +9,7 @@ export class ChartDataManager {
   private dataByGranularity: Map<string, CandleData[]> = new Map();
   private currentData: CandleData[] = [];
   private visibleRange: { start: number; end: number } | null = null;
-  private maxCandles = 1440; // Maximum candles to keep for 1m view (24 hours)
+  private maxCandles = 100000; // Support large datasets for historical analysis (5 years of data)
   
   constructor() {
     this.dataByGranularity = new Map();

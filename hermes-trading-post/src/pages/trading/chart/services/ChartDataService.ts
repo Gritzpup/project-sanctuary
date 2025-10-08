@@ -6,6 +6,7 @@ import { ChartCacheService } from './ChartCacheService';
 import { RealtimeCandleAggregator } from '../utils/RealtimeCandleAggregator';
 import { ChartDebug } from '../utils/debug';
 import { perfTest } from '../utils/performanceTest';
+import { getGranularitySeconds } from '../utils/granularityHelpers';
 
 export class ChartDataService {
   private apiService: ChartAPIService;
@@ -116,6 +117,51 @@ export class ChartDataService {
     const dataEnd = Math.ceil(visibleTo + buffer);
 
     return this.fetchHistoricalData(dataStart, dataEnd);
+  }
+
+  async fetchAdditionalHistoricalData(
+    currentCandles: CandlestickData[],
+    additionalCandleCount: number = 300
+  ): Promise<CandlestickData[]> {
+    if (currentCandles.length === 0) {
+      ChartDebug.warn('No current candles available for historical data fetching');
+      return [];
+    }
+
+    const granularitySeconds = getGranularitySeconds(this.currentGranularity);
+    const firstCandleTime = currentCandles[0].time as number;
+    
+    // Calculate the time range for additional historical data
+    const additionalTimespan = additionalCandleCount * granularitySeconds;
+    const endTime = firstCandleTime - 1; // End just before first existing candle
+    const startTime = endTime - additionalTimespan;
+
+    ChartDebug.log(`Fetching ${additionalCandleCount} additional historical candles`, {
+      currentFirstCandle: new Date(firstCandleTime * 1000).toISOString(),
+      requestedRange: {
+        start: new Date(startTime * 1000).toISOString(),
+        end: new Date(endTime * 1000).toISOString()
+      },
+      granularity: this.currentGranularity
+    });
+
+    try {
+      // Fetch historical data
+      const historicalData = await this.fetchHistoricalData(startTime, endTime, true);
+      
+      // Filter out any duplicates with existing data
+      const existingTimes = new Set(currentCandles.map(c => c.time));
+      const newHistoricalData = historicalData.filter(candle => !existingTimes.has(candle.time));
+      
+      ChartDebug.log(`Fetched ${historicalData.length} historical candles, ${newHistoricalData.length} are new`, {
+        duplicatesFiltered: historicalData.length - newHistoricalData.length
+      });
+
+      return newHistoricalData;
+    } catch (error) {
+      ChartDebug.error('Error fetching additional historical data:', error);
+      return [];
+    }
   }
 
   subscribeToRealtime(

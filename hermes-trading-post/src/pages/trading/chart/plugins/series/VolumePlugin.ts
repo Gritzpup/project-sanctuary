@@ -50,6 +50,8 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   }
 
   protected async setupSeries(): Promise<void> {
+    console.log(`🔄 [VolumePlugin] setupSeries called`);
+    
     // Apply custom settings
     const settings = this.settings as VolumePluginSettings;
     
@@ -77,9 +79,29 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   }
 
   protected getData(): HistogramData[] {
+    try {
+      const dataStore = this.getDataStore();
+      const candles = dataStore.candles;
+      
+      console.log(`🔄 [VolumePlugin] getData called with ${candles.length} candles`);
+      
+      if (candles.length === 0) {
+        console.log(`⚠️ [VolumePlugin] No candles available yet`);
+        return [];
+      }
+      
+      if (candles.length > 0) {
+        console.log(`🔄 [VolumePlugin] Sample candle volume:`, candles[candles.length - 1].volume);
+        console.log(`🔄 [VolumePlugin] First candle:`, candles[0]);
+        console.log(`🔄 [VolumePlugin] Last candle:`, candles[candles.length - 1]);
+      }
+    } catch (error) {
+      console.error(`❌ [VolumePlugin] Error getting dataStore:`, error);
+      return [];
+    }
+    
     const dataStore = this.getDataStore();
     const candles = dataStore.candles;
-    
     
     this.volumeData = candles.map((candle, index) => {
       const settings = this.settings as VolumePluginSettings;
@@ -93,15 +115,8 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         isVolumeUp = volume >= prevVolume;
       }
       
-      // Convert volume to billions for display
+      // Use real volume data only - no scaling for now to see raw data
       let displayVolume = volume;
-      if (volume >= 1e9) {
-        displayVolume = volume / 1e9;
-      } else if (volume >= 1e6) {
-        displayVolume = volume / 1e6;
-      } else if (volume >= 1e3) {
-        displayVolume = volume / 1e3;
-      }
       
       return {
         time: candle.time,

@@ -60,7 +60,7 @@
       shiftVisibleRangeOnNewBar: !isSmallDataset, // Disable auto-scrolling for small datasets
       rightOffset: isSmallDataset ? 0 : 12, // Default offset
       leftOffset: 0,
-      barSpacing: isSmallDataset ? 50 : 6, // Smaller default spacing
+      barSpacing: isSmallDataset ? 50 : 13, // Close to 60-candle view (800px/60 ≈ 13px)
       minBarSpacing: 0.5,
     },
     crosshair: {

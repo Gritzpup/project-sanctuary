@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { TradingService } from './services/tradingService.js';
 import { BotManager } from './services/botManager.js';
 import { coinbaseWebSocket } from './services/coinbaseWebSocket.js';
+import { historicalDataService } from './services/HistoricalDataService.js';
 import tradingRoutes from './routes/trading.js';
 
 dotenv.config();
@@ -111,6 +112,10 @@ setTimeout(monitorMemoryUsage, 10000);
 // Use async IIFE to handle async initialization
 (async () => {
   await botManager.initializeDefaultBots();
+  
+  // Initialize Historical Data Service (fetch historical candles)
+  console.log('🚀 Initializing Historical Data Service...');
+  await historicalDataService.initialize('BTC-USD', '1m');
   
   // Initialize Coinbase WebSocket
   await coinbaseWebSocket.connect();

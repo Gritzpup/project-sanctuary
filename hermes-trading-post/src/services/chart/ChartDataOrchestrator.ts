@@ -38,7 +38,7 @@ export class ChartDataOrchestrator {
   private visibleRange: { start: number; end: number } | null = null;
   private currentData: CandleData[] = [];
   private autoUpdateRange = true;
-  private maxCandles = 1440; // 24 hours for 1m view
+  private maxCandles = 100000; // Support large datasets for historical analysis (5 years of data)
   
   // Loading state
   private loadingPromises = new Map<string, Promise<void>>();

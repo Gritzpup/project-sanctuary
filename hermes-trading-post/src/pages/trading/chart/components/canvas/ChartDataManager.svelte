@@ -3,8 +3,14 @@
   import { dataStore } from '../../stores/dataStore.svelte';
   import { CHART_COLORS } from '../../utils/constants';
   
-  export let chart: IChartApi | null = null;
-  export let candleSeries: ISeriesApi<'Candlestick'> | null = null;
+  // Props using Svelte 5 runes syntax  
+  let {
+    chart = $bindable(null),
+    candleSeries = $bindable(null)
+  }: {
+    chart: IChartApi | null;
+    candleSeries: ISeriesApi<'Candlestick'> | null;
+  } = $props();
   
   export function setupSeries() {
     if (!chart) {
@@ -35,6 +41,10 @@
   
   export function updateChartData() {
     if (!candleSeries || !dataStore.candles.length) {
+      console.log('🔍 updateChartData skipped:', { 
+        hasCandleSeries: !!candleSeries, 
+        candleCount: dataStore.candles.length 
+      });
       return;
     }
     
@@ -47,9 +57,29 @@
         close: candle.close,
       }));
       
-      candleSeries.setData(formattedCandles);
+      // Sort by time and remove duplicates
+      const sortedCandles = formattedCandles
+        .sort((a, b) => (a.time as number) - (b.time as number))
+        .filter((candle, index, array) => {
+          // Keep only the first occurrence of each timestamp
+          return index === 0 || candle.time !== array[index - 1].time;
+        });
+      
+      console.log(`📊 [ChartDataManager] Setting ${sortedCandles.length} candles (from ${formattedCandles.length}) on chart series`);
+      
+      // Set the data on the chart series
+      candleSeries.setData(sortedCandles);
+      
+      // Simple chart positioning after data is set
+      setTimeout(() => {
+        const chart = (candleSeries as any)?._chart || (candleSeries as any)?.chart;
+        if (chart && formattedCandles.length > 1) {
+          chart.timeScale().fitContent();
+          console.log(`✅ [ChartDataManager] Chart updated with ${formattedCandles.length} candles`);
+        }
+      }, 100);
     } catch (error) {
-      console.error('❌ Error updating chart data:', error);
+      console.error('❌ [ChartDataManager] Error updating chart data:', error);
     }
   }
   

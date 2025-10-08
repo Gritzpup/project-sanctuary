@@ -4,6 +4,7 @@
   import MobileDragHandler from './MobileDragHandler.svelte';
   import TimeframeControls from './TimeframeControls.svelte';
   import PlaybackControls from './PlaybackControls.svelte';
+  import HistoricalDataButton from '../../../trading/chart/components/controls/HistoricalDataButton.svelte';
   import type { ChartControlsProps } from './ChartControlsTypes';
   
   export let selectedPeriod: string = '1H';
@@ -114,6 +115,9 @@
           on:pause={forwardEvent}
           on:stop={forwardEvent}
         />
+        
+        <!-- Historical Data Loading -->
+        <HistoricalDataButton />
       </div>
     </div>
   </MobileDragHandler>

@@ -6,6 +6,7 @@
   import { statusStore } from '../stores/statusStore.svelte';
   import { performanceStore } from '../stores/performanceStore.svelte';
   import { PluginManager } from '../plugins/base/PluginManager';
+  import { VolumePlugin } from '../plugins/series/VolumePlugin';
   import ChartCanvas from '../components/canvas/ChartCanvas.svelte';
   import { ChartDebug } from '../utils/debug';
   import { perfTest } from '../utils/performanceTest';
@@ -99,32 +100,31 @@
       // Apply proper positioning for new timeframe
       setTimeout(() => {
         if (chartCanvas) {
-          if (granularity === '1m') {
-            // For 1m charts, reset all chart positioning options to default state
-            const chart = chartCanvas.getChart();
-            if (chart) {
-              chart.timeScale().applyOptions({
-                barSpacing: 12,
-                rightOffset: 12,
-                leftOffset: 0,
-                shiftVisibleRangeOnNewBar: true,
-                rightBarStaysOnScroll: true
-              });
-              // Use standard fitContent after resetting options
-              chart.timeScale().fitContent();
-              console.log(`🔄 1m chart: Reset to default positioning options`);
-            }
-          } else {
-            chartCanvas.fitContent();
+          const chart = chartCanvas.getChart();
+          if (chart) {
+            // Reset chart positioning options for all granularities
+            chart.timeScale().applyOptions({
+              barSpacing: 12,
+              rightOffset: 12,
+              leftOffset: 0,
+              shiftVisibleRangeOnNewBar: true,
+              rightBarStaysOnScroll: true
+            });
+            
+            // Fit content and scroll to real time
+            chart.timeScale().fitContent();
+            chart.timeScale().scrollToRealTime();
+            console.log(`🔄 Chart positioned for ${granularity}: ${dataStore.candles.length} candles`);
           }
         }
-      }, 100);
+      }, 200); // Increased timeout for reliability
       
-      // Resubscribe to real-time updates with new granularity (no volume series - handled by VolumePlugin)
+      // Re-enable real-time updates after timeframe change
       realtimeSubscription.subscribeToRealtime({
         pair,
         granularity
       }, chartCanvas?.getSeries(), null);
+      console.log(`🟢 [ChartCore] Real-time subscription restarted after timeframe change`);
       
       statusStore.setReady();
       console.log(`Data reloaded for ${granularity} + ${period}`);
@@ -135,18 +135,55 @@
   }
   
   async function handleChartReady(chart: IChartApi) {
+    console.log(`🚀 [ChartCore] handleChartReady called, enablePlugins: ${enablePlugins}`);
     
     // Initialize plugin manager if plugins are enabled
     if (enablePlugins) {
       pluginManager = new PluginManager();
       
-      await pluginManager.setContext({
-        chart,
-        dataStore,
-        chartStore,
-        statusStore
-      });
+      // Register VolumePlugin
+      try {
+        console.log(`🔄 [ChartCore] Creating VolumePlugin...`);
+        const volumePlugin = new VolumePlugin({
+          upColor: '#26a69a80',
+          downColor: '#ef535080',
+          opacity: 0.5
+        });
+        
+        console.log(`🔄 [ChartCore] Registering VolumePlugin...`);
+        await pluginManager.register(volumePlugin);
+        
+        console.log(`🔄 [ChartCore] Setting plugin context...`);
+        await pluginManager.setContext({
+          chart,
+          dataStore,
+          chartStore,
+          statusStore
+        });
+        
+        console.log(`🟢 [ChartCore] VolumePlugin registered and initialized successfully`);
+        console.log(`🔄 [ChartCore] Current dataStore candle count: ${dataStore.candles.length}`);
+        
+        // Temporary visual indicator that VolumePlugin is loaded
+        setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            (window as any).volumePluginLoaded = true;
+            console.log(`🧪 [ChartCore] Volume plugin status set on window object`);
+          }
+        }, 100);
+        
+        // Test if the plugin is receiving data
+        setTimeout(() => {
+          console.log(`🧪 [ChartCore] VolumePlugin test - candles available: ${dataStore.candles.length}`);
+          const volumeSeries = volumePlugin.getSeries();
+          console.log(`🧪 [ChartCore] VolumePlugin series created: ${!!volumeSeries}`);
+        }, 1000);
+      } catch (error) {
+        console.error(`❌ [ChartCore] Failed to register VolumePlugin:`, error);
+      }
     }
+    
+    // Chart event listeners removed - CandleCounter handles its own counting
     
     // Notify parent component that chart is ready
     if (onReady) {
@@ -179,14 +216,25 @@
         series: chartCanvas?.getSeries()
       });
       
+      // Ensure chart is properly positioned after initial data load
+      setTimeout(() => {
+        const chart = chartCanvas?.getChart();
+        if (chart && dataStore.candles.length > 0) {
+          console.log(`🎯 Initial positioning: ${dataStore.candles.length} candles loaded`);
+          chart.timeScale().fitContent();
+          chart.timeScale().scrollToRealTime();
+        }
+      }, 300);
+      
       // Check for data gaps and fill them
       await dataLoader.checkAndFillDataGaps(chartCanvas?.getChart(), chartCanvas?.getSeries());
       
-      // Subscribe to real-time updates (no volume series - handled by VolumePlugin)
+      // Enable real-time updates after initial data load
       realtimeSubscription.subscribeToRealtime({
         pair,
         granularity
       }, chartCanvas?.getSeries(), null);
+      console.log(`🟢 [ChartCore] Real-time subscription enabled after initial data load`);
       
       // Set status to ready after data loads and chart is updated
       setTimeout(() => {

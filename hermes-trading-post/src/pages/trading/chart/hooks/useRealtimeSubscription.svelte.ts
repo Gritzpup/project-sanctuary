@@ -128,7 +128,12 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     if (!chartSeries) return;
     
     const candles = dataStore.candles;
-    if (candles.length === 0) return;
+    if (candles.length === 0) {
+      console.warn('⚠️ [Realtime] No historical candles available, skipping real-time update');
+      return;
+    }
+    
+    console.log(`🔴 [Realtime] Updating with price ${price}, current candle count: ${candles.length}`);
     
     // Get current candle timestamp based on granularity
     const now = Date.now();
@@ -140,6 +145,13 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     
     if (currentCandleTime > lastCandleTime) {
       // New candle needed
+      console.log(`🆕 [Realtime] Creating new candle with volume:`, {
+        price,
+        volume: fullCandleData?.volume,
+        hasVolumeData: !!fullCandleData?.volume,
+        fullCandleData
+      });
+      
       const newCandle: CandlestickData = {
         time: currentCandleTime as any,
         open: price,
@@ -150,8 +162,11 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         volume: fullCandleData?.volume || 0
       } as any;
       
+      console.log(`🆕 [Realtime] New candle created:`, newCandle);
+      
       // Add to dataStore - this will trigger VolumePlugin update
       const updatedCandles = [...candles, newCandle];
+      console.log(`🆕 [Realtime] Updating dataStore with ${updatedCandles.length} candles (was ${candles.length})`);
       dataStore.setCandles(updatedCandles);
       
       // Update chart series only (volume handled by plugin)
@@ -182,6 +197,13 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       }
     } else {
       // Update current candle
+      console.log(`🔄 [Realtime] Updating existing candle with volume:`, {
+        price,
+        volume: fullCandleData?.volume,
+        hasVolumeData: !!fullCandleData?.volume,
+        existingVolume: (candles[candles.length - 1] as any)?.volume
+      });
+      
       const updatedCandles = [...candles];
       const currentCandle = updatedCandles[updatedCandles.length - 1];
       
@@ -194,9 +216,16 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         volume: fullCandleData?.volume !== undefined ? fullCandleData.volume : (currentCandle as any).volume || 0
       } as any;
       
+      console.log(`🔄 [Realtime] Updated candle:`, {
+        time: updatedCandle.time,
+        close: updatedCandle.close,
+        volume: updatedCandle.volume
+      });
+      
       updatedCandles[updatedCandles.length - 1] = updatedCandle;
       
       // Update dataStore - this will trigger VolumePlugin update
+      console.log(`🔄 [Realtime] Updating dataStore with updated candle`);
       dataStore.setCandles(updatedCandles);
       
       // Update chart with live candle (volume handled by plugin)

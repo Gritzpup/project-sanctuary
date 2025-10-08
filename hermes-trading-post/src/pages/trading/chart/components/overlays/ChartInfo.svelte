@@ -140,6 +140,13 @@
   
   {#if showCandleCount}
     <div class="info-item">
+      <span class="info-label">DB:</span>
+      <span class="info-value">
+        {formatNumber(dataStore.stats.totalCount)}
+      </span>
+      <span class="loading-status status-{dataStore.stats.loadingStatus}"></span>
+    </div>
+    <div class="info-item">
       <span class="info-label">Candles:</span>
       <span class="info-value">
         <CandleCounter updateInterval={2000} showAnimation={true} />
@@ -352,6 +359,51 @@
     font-weight: 600;
   }
   
+  /* Loading Status Indicator */
+  .loading-status {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-left: 6px;
+    transition: all 0.3s ease;
+  }
+  
+  .status-idle {
+    background-color: #666;
+  }
+  
+  .status-fetching {
+    background-color: #ffa500;
+    animation: pulse 1s infinite;
+  }
+  
+  .status-storing {
+    background-color: #4caf50;
+    animation: pulse 0.8s infinite;
+  }
+  
+  .status-error {
+    background-color: #f44336;
+    animation: pulse 1.5s infinite;
+  }
+  
+  .status-rate-limited {
+    background-color: #ff5722;
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.5;
+      transform: scale(1.2);
+    }
+  }
+
   /* WebSocket Status Light */
   
   /* Dark theme adjustments */

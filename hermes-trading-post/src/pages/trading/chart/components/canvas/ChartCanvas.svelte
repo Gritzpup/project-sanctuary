@@ -46,10 +46,11 @@
       console.log(`📊 [ChartCanvas] Setting ${dataStore.candles.length} candles on chart`);
       dataManager?.updateChartData();
       
-      // Apply positioning after data is updated
-      setTimeout(() => {
+      // Only apply positioning if candle count actually changed
+      if (dataStore.candles.length !== lastCandleCount) {
+        lastCandleCount = dataStore.candles.length;
         applyOptimalPositioning();
-      }, 100);
+      }
     }
   });
 
@@ -194,10 +195,10 @@
     } catch (error) {
       console.error('Error applying chart positioning:', error);
     } finally {
-      // Reset flag after a delay to allow other positioning calls
+      // Reset flag quickly to allow other positioning calls
       setTimeout(() => {
         isApplyingPositioning = false;
-      }, 500);
+      }, 50);
     }
   }
   
@@ -289,21 +290,27 @@
       try {
         const data = dataStore.candles;
         if (data.length > 0) {
-          // For 1H timeframe, show only the most recent 60 candles (1 hour of 1m data)
-          const candlesToShow = 60;
-          const startIndex = Math.max(0, data.length - candlesToShow);
-          const endIndex = data.length - 1;
+          console.log(`🎯 ChartCanvas: show60Candles - configuring for ${data.length} total candles`);
           
-          console.log(`🎯 ChartCanvas: show60Candles - showing recent ${candlesToShow} candles (${startIndex} to ${endIndex}) out of ${data.length} total`);
+          // Calculate barSpacing to show approximately 60 candles
+          const chartWidth = chart.options().width || container?.clientWidth || 800;
+          const targetCandles = 60;
+          const rightOffsetSpace = 50; // Reserve space for right offset
+          const availableWidth = chartWidth - rightOffsetSpace;
+          const optimalBarSpacing = Math.max(8, Math.floor(availableWidth / targetCandles));
           
-          // Set visible range to show only the last 60 candles for 1H timeframe
-          // Add some extra space on the right for future price action (like other trading charts)
-          chart.timeScale().setVisibleLogicalRange({
-            from: startIndex,
-            to: endIndex + 10 // Add 10 candles worth of space on the right
+          console.log(`🎯 ChartCanvas: chartWidth: ${chartWidth}, optimalBarSpacing: ${optimalBarSpacing} for ${targetCandles} candles`);
+          
+          // Apply the settings to show ~60 candles with proper spacing
+          chart.timeScale().applyOptions({
+            barSpacing: optimalBarSpacing,
+            rightOffset: 12
           });
           
-          console.log(`✅ ChartCanvas: Set visible range ${startIndex} to ${endIndex} for 1H timeframe`);
+          // Scroll to show most recent data
+          chart.timeScale().scrollToRealTime();
+          
+          console.log(`✅ ChartCanvas: Applied barSpacing: ${optimalBarSpacing}px with rightOffset: 12`);
         }
       } catch (error) {
         console.error('Error setting 60 candle view:', error);

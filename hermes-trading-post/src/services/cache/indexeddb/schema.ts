@@ -46,12 +46,12 @@ export interface CacheConfig {
 export const DEFAULT_CONFIG: CacheConfig = {
   // Cache limits to prevent excessive storage - AGGRESSIVE LIMITS
   MAX_CANDLES_PER_GRANULARITY: {
-    '1m': 2880,     // 2 days of 1-minute candles
-    '5m': 2016,     // 7 days of 5-minute candles
-    '15m': 2880,    // 30 days of 15-minute candles
-    '1h': 2160,     // 90 days of hourly candles
-    '6h': 1460,     // 1 year of 6-hour candles
-    '1d': 2200,     // 6 years of daily candles
+    '1m': 2628000,  // 5 years of 1-minute candles (5 * 365 * 24 * 60)
+    '5m': 525600,   // 5 years of 5-minute candles (5 * 365 * 24 * 12)
+    '15m': 175200,  // 5 years of 15-minute candles (5 * 365 * 24 * 4)
+    '1h': 43800,    // 5 years of hourly candles (5 * 365 * 24)
+    '6h': 7300,     // 5 years of 6-hour candles (5 * 365 * 4)
+    '1d': 1825,     // 5 years of daily candles (5 * 365)
     '1D': 2200      // 6 years of daily candles
   },
   TTL_RECENT: 3600000,  // 1 hour in ms
