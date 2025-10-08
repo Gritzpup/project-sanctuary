@@ -294,14 +294,14 @@
           
           // Calculate barSpacing to show approximately 60 candles
           const chartWidth = chart.options().width || container?.clientWidth || 800;
-          const targetCandles = 60;
+          const targetCandles = Math.min(60, data.length); // Don't exceed available data
           const rightOffsetSpace = 50; // Reserve space for right offset
           const availableWidth = chartWidth - rightOffsetSpace;
           const optimalBarSpacing = Math.max(8, Math.floor(availableWidth / targetCandles));
           
-          console.log(`🎯 ChartCanvas: chartWidth: ${chartWidth}, optimalBarSpacing: ${optimalBarSpacing} for ${targetCandles} candles`);
+          console.log(`🎯 ChartCanvas: chartWidth: ${chartWidth}, optimalBarSpacing: ${optimalBarSpacing} for ${targetCandles} candles (of ${data.length} total)`);
           
-          // Apply the settings to show ~60 candles with proper spacing
+          // Apply the settings to show candles with proper spacing
           chart.timeScale().applyOptions({
             barSpacing: optimalBarSpacing,
             rightOffset: 12
@@ -310,7 +310,7 @@
           // Scroll to show most recent data
           chart.timeScale().scrollToRealTime();
           
-          console.log(`✅ ChartCanvas: Applied barSpacing: ${optimalBarSpacing}px with rightOffset: 12`);
+          console.log(`✅ ChartCanvas: Applied barSpacing: ${optimalBarSpacing}px with rightOffset: 12 for ${targetCandles} candles`);
         }
       } catch (error) {
         console.error('Error setting 60 candle view:', error);

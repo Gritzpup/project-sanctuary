@@ -78,7 +78,6 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
    * Load initial chart data
    */
   async function loadData(config: DataLoaderConfig): Promise<void> {
-    console.log('🚨 [DEBUG] loadData called with config:', config);
     const loadStartTime = performance.now();
     perfTest.reset();
     perfTest.mark('loadData-start');
@@ -101,10 +100,13 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       // Align to granularity boundaries to ensure we get complete candles
       const alignedNow = alignTimeToGranularity(now, config.granularity);
       
-      // Start from the beginning of our historical data instead of just the timeframe
-      const startTime = 0; // Request from epoch to get ALL database data
+      // Calculate appropriate start time based on timeframe
+      // For 60-candle view, request more data than needed to ensure continuity
+      const timeRange = getPeriodSeconds(config.timeframe);
+      const requestMultiplier = 3; // Request 3x the timeframe to ensure enough data
+      const startTime = alignedNow - (timeRange * requestMultiplier);
       
-      console.log(`🎯 Loading ALL ${config.granularity} data from database for ${config.timeframe} display`);
+      console.log(`🎯 Loading ${config.granularity} data from database for ${config.timeframe} display (${requestMultiplier}x timeframe)`);
       console.log(`⏰ Time alignment: ${now} -> ${alignedNow} (${alignedNow - now}s offset)`);
       console.log(`📅 Requesting data from ${startTime} to ${alignedNow}`);
       
