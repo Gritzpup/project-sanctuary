@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Remove Element</title>
+</head>
+<body>
+    <script>
+        // Function to remove element by XPath
+        function removeElementByXPath(xpath) {
+            const result = document.evaluate(
+                xpath,
+                document,
+                null,
+                XPathResult.FIRST_ORDERED_NODE_TYPE,
+                null
+            );
+            
+            if (result.singleNodeValue) {
+                result.singleNodeValue.remove();
+                console.log('Element removed successfully');
+                return true;
+            } else {
+                console.log('Element not found');
+                return false;
+            }
+        }
+
+        // Wait for page to load, then remove the element
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                removeElementByXPath('/html/body/div/main/div/main/div/div/div[1]/div[1]/div/div[3]/div/div[3]/div[2]/div/span');
+            }, 1000);
+        });
+
+        // Also try removing on DOMContentLoaded
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                removeElementByXPath('/html/body/div/main/div/main/div/div/div[1]/div[1]/div/div[3]/div/div[3]/div[2]/div/span');
+            }, 2000);
+        });
+
+        // Continuously check and remove if it appears (for dynamic content)
+        setInterval(function() {
+            removeElementByXPath('/html/body/div/main/div/main/div/div/div[1]/div[1]/div/div[3]/div/div[3]/div[2]/div/span');
+        }, 3000);
+    </script>
+</body>
+</html>

@@ -118,7 +118,31 @@ setTimeout(monitorMemoryUsage, 10000);
   await historicalDataService.initialize('BTC-USD', '1m');
   
   // Initialize Coinbase WebSocket
-  await coinbaseWebSocket.connect();
+  console.log('🔌 Attempting to connect to Coinbase WebSocket...');
+  try {
+    await coinbaseWebSocket.connect();
+    console.log('✅ Coinbase WebSocket connection initiated successfully');
+  } catch (error) {
+    console.error('❌ Failed to connect to Coinbase WebSocket:', error);
+  }
+  
+  // Auto-subscribe to all granularities for continuous candle updates
+  console.log('🔄 Setting up continuous candle aggregation for all granularities...');
+  const granularities = ['60', '300', '900', '3600', '21600', '86400']; // 1m, 5m, 15m, 1h, 6h, 1d
+  const granularityStrings = ['1m', '5m', '15m', '1h', '6h', '1d'];
+  
+  granularities.forEach((granularitySeconds, index) => {
+    const granularityStr = granularityStrings[index];
+    const mappingKey = `BTC-USD:${granularitySeconds}`;
+    
+    // Set up granularity mapping
+    granularityMappings.set(mappingKey, granularityStr);
+    granularityMappingTimes.set(mappingKey, Date.now());
+    
+    // Subscribe to real-time data
+    coinbaseWebSocket.subscribeMatches('BTC-USD', granularitySeconds);
+    console.log(`📡 Auto-subscribed to BTC-USD ${granularityStr} (${granularitySeconds}s) for continuous updates`);
+  });
   
   // Set up Coinbase WebSocket event handlers
   coinbaseWebSocket.on('candle', (candleData) => {

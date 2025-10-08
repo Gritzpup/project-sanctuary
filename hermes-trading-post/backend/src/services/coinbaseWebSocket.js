@@ -1,6 +1,7 @@
 import { WebSocket } from 'ws';
 import { EventEmitter } from 'events';
 import { redisCandleStorage } from './redis/RedisCandleStorage.js';
+import { coinbaseAPI } from './CoinbaseAPIService.js';
 
 /**
  * Coinbase WebSocket client for real-time market data
@@ -36,6 +37,67 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     } catch (error) {
       console.error('❌ Failed to initialize Redis storage:', error.message);
       this.redisStorageEnabled = false;
+    }
+  }
+
+  /**
+   * Handle gap detection by fetching missing data from API
+   */
+  async handleGapDetection(gapInfo) {
+    const { productId, granularity, lastCandleTime, newCandleTime, missedCandles, gapSeconds } = gapInfo;
+    
+    if (missedCandles < 1) return; // No significant gap
+    
+    console.log(`🔄 Attempting to backfill ${missedCandles} missing candles for ${productId}`);
+    
+    try {
+      // Convert granularity to string format for API
+      const granularityMap = {
+        60: '1m',
+        300: '5m', 
+        900: '15m',
+        1800: '30m',
+        3600: '1h',
+        14400: '4h',
+        21600: '6h',
+        43200: '12h',
+        86400: '1d'
+      };
+      
+      const granularityStr = granularityMap[granularity] || `${granularity}s`;
+      
+      // Fetch missing candles from Coinbase API
+      const startTime = new Date((lastCandleTime + granularity) * 1000).toISOString();
+      const endTime = new Date(newCandleTime * 1000).toISOString();
+      
+      console.log(`📥 Fetching gap data from ${startTime} to ${endTime}`);
+      
+      const missingCandles = await coinbaseAPI.getCandles(
+        productId,
+        granularity,
+        startTime,
+        endTime
+      );
+      
+      if (missingCandles && missingCandles.length > 0) {
+        // Store the fetched candles in Redis
+        await redisCandleStorage.storeCandles(productId, granularityStr, missingCandles);
+        
+        console.log(`✅ Backfilled ${missingCandles.length} missing candles for ${productId}`);
+        
+        // Emit event for frontend to refresh data
+        this.emit('gap_filled', {
+          productId,
+          granularity: granularityStr,
+          candlesFilled: missingCandles.length,
+          timeRange: { start: startTime, end: endTime }
+        });
+      } else {
+        console.log(`⚠️ No data available from API for gap in ${productId}`);
+      }
+      
+    } catch (error) {
+      console.error(`❌ Failed to backfill gap for ${productId}:`, error.message);
     }
   }
 
@@ -175,7 +237,14 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     // Initialize candle aggregator for this product/granularity
     const aggregatorKey = `${productId}:${granularity}`;
     if (!this.candleAggregators.has(aggregatorKey)) {
-      this.candleAggregators.set(aggregatorKey, new CandleAggregator(productId, parseInt(granularity)));
+      const aggregator = new CandleAggregator(productId, parseInt(granularity));
+      
+      // Listen for gap detection events from the aggregator
+      aggregator.on('gap_detected', async (gapInfo) => {
+        await this.handleGapDetection(gapInfo);
+      });
+      
+      this.candleAggregators.set(aggregatorKey, aggregator);
     }
     
     if (this.isConnected) {
@@ -362,8 +431,9 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 /**
  * Aggregates trades into candles with volume
  */
-class CandleAggregator {
+class CandleAggregator extends EventEmitter {
   constructor(productId, granularitySeconds) {
+    super();
     this.productId = productId;
     this.granularity = granularitySeconds;
     this.currentCandle = null;
@@ -380,6 +450,27 @@ class CandleAggregator {
     if (!this.currentCandle || this.currentCandle.time !== candleTime) {
       // If we have a previous candle and it's complete, emit it
       const completedCandle = this.currentCandle && this.currentCandle.time < candleTime ? {...this.currentCandle} : null;
+      
+      // Check for gaps when creating a new candle
+      if (completedCandle) {
+        const expectedNextCandleTime = completedCandle.time + this.granularity;
+        const gapSize = candleTime - expectedNextCandleTime;
+        
+        if (gapSize > 0) {
+          const missedCandles = Math.floor(gapSize / this.granularity);
+          console.log(`🔍 Gap detected: ${missedCandles} missing candles between ${new Date(completedCandle.time * 1000).toISOString()} and ${new Date(candleTime * 1000).toISOString()}`);
+          
+          // Emit gap detection event
+          this.emit('gap_detected', {
+            productId: this.productId,
+            granularity: this.granularity,
+            lastCandleTime: completedCandle.time,
+            newCandleTime: candleTime,
+            missedCandles: missedCandles,
+            gapSeconds: gapSize
+          });
+        }
+      }
       
       // Start new candle
       this.currentCandle = {

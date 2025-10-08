@@ -125,7 +125,15 @@ export class HistoricalDataService {
     
     const granularitySeconds = coinbaseAPI.granularityToSeconds(granularity);
     const now = Math.floor(Date.now() / 1000);
-    const startTime = now - (hoursBack * 60 * 60);
+    
+    // Respect Coinbase API limits: max 300 candles per request
+    const maxCandles = 300;
+    const maxHours = Math.floor((maxCandles * granularitySeconds) / 3600);
+    const requestHours = Math.min(hoursBack, maxHours);
+    
+    console.log(`📊 API limit check: max ${maxCandles} candles = ${maxHours}h, requesting ${requestHours}h`);
+    
+    const startTime = now - (requestHours * 60 * 60);
 
     try {
       const start = new Date(startTime * 1000).toISOString();

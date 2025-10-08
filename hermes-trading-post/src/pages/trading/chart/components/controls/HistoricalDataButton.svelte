@@ -67,18 +67,6 @@
   $: totalCandles = dataStore.candles.length;
 </script>
 
-<div class="historical-data-controls">
-  
-  
-  <div class="candle-info">
-    <span class="candle-count" title="Total candles loaded">{totalCandles.toLocaleString()} candles</span>
-    {#if loadedCount > 0}
-      <span class="loaded-count" title="Additional historical candles loaded">
-        (+{loadedCount.toLocaleString()})
-      </span>
-    {/if}
-  </div>
-</div>
 
 <style>
   .historical-data-controls {

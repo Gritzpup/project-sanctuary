@@ -1,6 +1,7 @@
 <script lang="ts">
   import { type IChartApi, type ISeriesApi } from 'lightweight-charts';
   import { dataStore } from '../../stores/dataStore.svelte';
+  import { chartStore } from '../../stores/chartStore.svelte';
   import { CHART_COLORS } from '../../utils/constants';
   
   // Props using Svelte 5 runes syntax  
@@ -70,12 +71,12 @@
       // Set the data on the chart series
       candleSeries.setData(sortedCandles);
       
-      // Simple chart positioning after data is set
+      // Simple positioning after data is set
       setTimeout(() => {
         const chart = (candleSeries as any)?._chart || (candleSeries as any)?.chart;
         if (chart && formattedCandles.length > 1) {
           chart.timeScale().fitContent();
-          console.log(`✅ [ChartDataManager] Chart updated with ${formattedCandles.length} candles`);
+          console.log(`📊 [ChartDataManager] Chart updated with ${formattedCandles.length} candles`);
         }
       }, 100);
     } catch (error) {

@@ -140,7 +140,17 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
     
     if (data && data.length > 0) {
       console.log(`🔄 [SeriesPlugin:${this.config.id}] Setting ${data.length} data points on series`);
-      this.series.setData(data);
+      
+      // Sort and deduplicate data before setting on series
+      const sortedData = data
+        .sort((a, b) => (a.time as number) - (b.time as number))
+        .filter((item, index, array) => {
+          // Keep only the first occurrence of each timestamp
+          return index === 0 || item.time !== array[index - 1].time;
+        });
+      
+      console.log(`🔄 [SeriesPlugin:${this.config.id}] Setting ${sortedData.length} sorted/deduped data points (from ${data.length})`);
+      this.series.setData(sortedData);
       console.log(`✅ [SeriesPlugin:${this.config.id}] Data updated successfully`);
     } else {
       console.log(`⚠️ [SeriesPlugin:${this.config.id}] No data to set (length: ${data?.length || 0})`);

@@ -1,0 +1,10 @@
+/* Hide the unwanted element using CSS selector */
+body > div > main > div > main > div > div > div:first-child > div:first-child > div > div:nth-child(3) > div > div:nth-child(3) > div:nth-child(2) > div > span {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}

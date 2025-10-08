@@ -10,6 +10,7 @@ import { statusStore } from '../stores/statusStore.svelte';
 import { chartStore } from '../stores/chartStore.svelte';
 import { ChartDebug } from '../utils/debug';
 import { getCandleCount } from '../../../../lib/chart/TimeframeCompatibility';
+import { getGranularitySeconds } from '../utils/granularityHelpers';
 import type { ISeriesApi, CandlestickData } from 'lightweight-charts';
 
 export interface RealtimeSubscriptionConfig {
@@ -62,8 +63,15 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
           }
           
           if (candles.length >= expectedCandleCount) {
-            // Show the most recent candles to maintain the window
-            const startIndex = Math.max(0, candles.length - expectedCandleCount);
+            // For short timeframes like 1H, show expected candles + 1 for live candle
+            const timeframe = chartStore?.config?.timeframe;
+            const granularity = chartStore?.config?.granularity;
+            const candleLimit = timeframe === '1H' ? expectedCandleCount + 1 : expectedCandleCount;
+            
+            console.log(`🔄 [Realtime] Windowing ${granularity}/${timeframe}: ${candles.length} total → ${candleLimit} visible (expected: ${expectedCandleCount})`);
+            
+            // Show the most recent candles to maintain the window  
+            const startIndex = Math.max(0, candles.length - candleLimit);
             const visibleCandles = candles.slice(startIndex);
             
             if (visibleCandles.length > 1) {
@@ -138,7 +146,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     // Get current candle timestamp based on granularity
     const now = Date.now();
     const config = chartStore?.config;
-    const granularitySeconds = config?.granularity === '5m' ? 300 : 60; // 5 minutes or 1 minute
+    const granularitySeconds = getGranularitySeconds(config?.granularity || '1m');
     const currentCandleTime = Math.floor(now / (granularitySeconds * 1000)) * granularitySeconds; // Round down to granularity boundary
     const lastCandle = candles[candles.length - 1];
     const lastCandleTime = lastCandle.time as number;

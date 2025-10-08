@@ -315,15 +315,8 @@
       return;
     }
     
-    // Check dataset size and use appropriate positioning
-    const candles = dataStore.candles;
-    if (candles.length <= 30) {
-      console.log(`🎯 ChartCore: SMALL dataset detected (${candles.length} candles), using fitContent with wide spacing`);
-      chartCanvas.fitContent();
-    } else {
-      console.log(`ChartCore: Normal dataset (${candles.length} candles), using 60 candle view`);
-      chartCanvas.show60Candles();
-    }
+    console.log(`📊 ChartCore: Simple delegation to ChartCanvas show60Candles`);
+    chartCanvas.show60Candles();
   }
 </script>
 

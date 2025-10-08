@@ -91,9 +91,40 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       }
       
       if (candles.length > 0) {
+        // Check volume data in detail
+        const candlesWithVolume = candles.filter(c => c.volume && c.volume > 0);
+        console.log(`🔄 [VolumePlugin] Volume analysis: ${candlesWithVolume.length}/${candles.length} candles have volume > 0`);
         console.log(`🔄 [VolumePlugin] Sample candle volume:`, candles[candles.length - 1].volume);
         console.log(`🔄 [VolumePlugin] First candle:`, candles[0]);
         console.log(`🔄 [VolumePlugin] Last candle:`, candles[candles.length - 1]);
+        
+        // Log volume range
+        if (candlesWithVolume.length > 0) {
+          const volumes = candlesWithVolume.map(c => c.volume || 0);
+          const minVolume = Math.min(...volumes);
+          const maxVolume = Math.max(...volumes);
+          console.log(`🔄 [VolumePlugin] Volume range: ${minVolume} to ${maxVolume}`);
+          
+          // Set global debug for successful volume data
+          try {
+            document.title = `VOLUME OK - ${candlesWithVolume.length}/${candles.length} range:${minVolume.toFixed(2)}-${maxVolume.toFixed(2)}`;
+            (window as any).volumeDebug = { 
+              hasVolume: true, 
+              candlesWithVolume: candlesWithVolume.length, 
+              totalCandles: candles.length,
+              minVolume,
+              maxVolume
+            };
+          } catch (e) {}
+        } else {
+          console.log(`❌ [VolumePlugin] NO VOLUME DATA FOUND IN ANY CANDLES!`);
+          // Also log to document title for debugging
+          try {
+            document.title = `NO VOLUME DATA - ${candlesWithVolume.length}/${candles.length}`;
+            // Also try to write to a global debug object
+            (window as any).volumeDebug = { hasVolume: false, candlesWithVolume: candlesWithVolume.length, totalCandles: candles.length };
+          } catch (e) {}
+        }
       }
     } catch (error) {
       console.error(`❌ [VolumePlugin] Error getting dataStore:`, error);
@@ -115,8 +146,18 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         isVolumeUp = volume >= prevVolume;
       }
       
-      // Use real volume data only - no scaling for now to see raw data
-      let displayVolume = volume;
+      // Scale volume for better visualization (multiply by a factor to make bars visible)
+      let displayVolume = volume * 1000000; // Scale up significantly to make bars visible
+      
+      // Debug the histogram data being created
+      if (index < 3 || index >= candles.length - 3) {
+        console.log(`🔄 [VolumePlugin] Creating histogram data point ${index}:`, {
+          time: candle.time,
+          originalVolume: volume,
+          scaledVolume: displayVolume,
+          color: isVolumeUp ? settings.upColor : settings.downColor
+        });
+      }
       
       return {
         time: candle.time,

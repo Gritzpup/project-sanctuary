@@ -77,10 +77,6 @@
         <div class="progress-bar" style="width: {(selectedTestDateString && isRunning && !isPaused) ? '75%' : '0%'}"></div>
       </div>
       
-      <!-- Percentage Readout -->
-      <div class="progress-percentage">
-        {(selectedTestDateString && isRunning && !isPaused) ? '75%' : '0%'}
-      </div>
     </div>
   </div>
 </div>

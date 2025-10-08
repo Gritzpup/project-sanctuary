@@ -8,6 +8,7 @@
   import { statusStore } from '../../stores/statusStore.svelte';
   import { CoinbaseAPI } from '../../../../../services/api/coinbaseApi';
   import { getGranularitySeconds } from '../../utils/granularityHelpers';
+  import { getCandleCount } from '../../../../../lib/chart/TimeframeCompatibility';
   import { useHistoricalDataLoader } from '../../hooks/useHistoricalDataLoader.svelte';
   
   // Props using Svelte 5 runes syntax
@@ -39,6 +40,10 @@
   let chartCreated: boolean = $state(false);
   let lastCandleCount: number = 0; // Track last candle count to prevent redundant positioning
   
+  // Track user interaction to prevent auto-repositioning
+  let userHasInteracted = $state(false);
+  let lastUserInteraction = 0;
+  
   // Simple reactive update when dataStore changes
   $effect(() => {
     // Only update if we have chart, series, and data
@@ -46,10 +51,17 @@
       console.log(`📊 [ChartCanvas] Setting ${dataStore.candles.length} candles on chart`);
       dataManager?.updateChartData();
       
-      // Only apply positioning if candle count actually changed
+      // Only apply positioning if candle count actually changed AND user hasn't recently interacted
       if (dataStore.candles.length !== lastCandleCount) {
         lastCandleCount = dataStore.candles.length;
-        applyOptimalPositioning();
+        
+        // Don't auto-position if user has interacted in the last 10 seconds
+        const timeSinceInteraction = Date.now() - lastUserInteraction;
+        if (!userHasInteracted || timeSinceInteraction > 10000) {
+          applyOptimalPositioning();
+        } else {
+          console.log(`📊 ChartCanvas: Skipping auto-positioning - user interacted ${(timeSinceInteraction/1000).toFixed(1)}s ago`);
+        }
       }
     }
   });
@@ -57,6 +69,7 @@
   onMount(() => {
     initializeChart();
     setupResizeObserver();
+    setupUserInteractionTracking();
   });
   
   onDestroy(() => {
@@ -139,6 +152,26 @@
     }, 100);
   }
   
+  function setupUserInteractionTracking() {
+    if (!chart || !container) return;
+    
+    const markUserInteraction = () => {
+      userHasInteracted = true;
+      lastUserInteraction = Date.now();
+      console.log(`📊 ChartCanvas: User interaction detected`);
+    };
+    
+    // Track mouse events on the chart
+    container.addEventListener('mousedown', markUserInteraction);
+    container.addEventListener('wheel', markUserInteraction);
+    container.addEventListener('touchstart', markUserInteraction);
+    
+    // Track chart-specific zoom/pan events
+    chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+      markUserInteraction();
+    });
+  }
+  
   function cleanup() {
     if (positioningTimeout) {
       clearTimeout(positioningTimeout);
@@ -148,6 +181,13 @@
     if (resizeObserver) {
       resizeObserver.disconnect();
       resizeObserver = null;
+    }
+    
+    // Clean up user interaction event listeners
+    if (container) {
+      container.removeEventListener('mousedown', () => {});
+      container.removeEventListener('wheel', () => {});
+      container.removeEventListener('touchstart', () => {});
     }
     
     // Clean up historical data loader
@@ -178,24 +218,60 @@
     if (candles.length === 0) return;
     
     const currentGranularity = chartStore.config.granularity;
+    const currentTimeframe = chartStore.config.timeframe;
     isApplyingPositioning = true;
     
     try {
-      // For 1m charts, prioritize 60-candle view when we have enough data
-      if (currentGranularity === '1m' && candles.length >= 60) {
-        console.log(`🎯 ChartCanvas: 1m chart with ${candles.length} candles - applying 60 candle view`);
-        show60Candles();
-      } else if (candles.length <= 30) {
-        console.log(`🎯 ChartCanvas: Applying fitContent for SMALL dataset (${candles.length} candles)`);
-        fitContent();
+      // Calculate expected candles for this timeframe
+      const expectedCandles = getCandleCount(currentGranularity, currentTimeframe);
+      
+      console.log(`📊 ChartCanvas: Positioning ${candles.length} candles for ${currentGranularity}/${currentTimeframe} (expected: ${expectedCandles})`);
+      
+      // If user has interacted, be much less aggressive with positioning
+      const timeSinceInteraction = Date.now() - lastUserInteraction;
+      const recentlyInteracted = userHasInteracted && timeSinceInteraction < 30000; // 30 seconds
+      
+      if (recentlyInteracted) {
+        // Just ensure data is available, don't force repositioning
+        console.log(`📊 ChartCanvas: User recently interacted (${(timeSinceInteraction/1000).toFixed(1)}s ago) - minimal positioning`);
+        // Only update data, preserve user's view
+        return;
+      }
+      
+      // For timeframes that should show specific candle counts, limit the view
+      if (currentTimeframe === '1H' && expectedCandles > 0) {
+        // Show only the most recent candles that fit the timeframe
+        const showCandles = Math.min(candles.length, expectedCandles + 5); // +5 buffer for live candle
+        const startIndex = Math.max(0, candles.length - showCandles);
+        
+        console.log(`🎯 ChartCanvas: Showing last ${showCandles} candles (${startIndex} to ${candles.length-1})`);
+        
+        // Set visible range to show only the recent candles
+        chart.timeScale().setVisibleLogicalRange({
+          from: startIndex,
+          to: candles.length - 1
+        });
+        
+        // Apply appropriate bar spacing
+        const chartWidth = chart.options().width || container?.clientWidth || 800;
+        const barSpacing = Math.max(8, Math.floor(chartWidth / showCandles));
+        chart.timeScale().applyOptions({
+          barSpacing: barSpacing,
+          rightOffset: 12
+        });
       } else {
-        console.log(`ChartCanvas: Applying 60 candle view for normal dataset (${candles.length} candles)`);
-        show60Candles();
+        // For other timeframes, use standard fitContent
+        console.log(`📊 ChartCanvas: Using standard fitContent for ${currentGranularity}/${currentTimeframe}`);
+        chart.timeScale().fitContent();
+      }
+      
+      // Only scroll to real-time if user hasn't interacted recently
+      if (!recentlyInteracted) {
+        chart.timeScale().scrollToRealTime();
       }
     } catch (error) {
       console.error('Error applying chart positioning:', error);
     } finally {
-      // Reset flag quickly to allow other positioning calls
       setTimeout(() => {
         isApplyingPositioning = false;
       }, 50);
@@ -219,58 +295,8 @@
   export function fitContent() {
     if (!chart) return;
     
-    const candles = dataStore.candles;
-    const currentGranularity = chartStore.config.granularity;
-    
-    // For 1m charts, show only 1H timeframe (60 candles)
-    if (currentGranularity === '1m') {
-      console.log(`ChartCanvas: 1m chart with ${candles.length} candles - showing 1H timeframe`);
-      show60Candles();
-      return;
-    }
-    
-    // For small datasets (non-1m charts), use wide spacing
-    if (candles.length <= 30 && candles.length > 0) {
-      
-      console.log(`🔍 ChartCanvas: Applying WIDE SPACING for ${candles.length} candles (${currentGranularity})`);
-      
-      // Get actual chart dimensions
-      const chartWidth = chart.options().width || container?.clientWidth || 800;
-      const chartHeight = chart.options().height || container?.clientHeight || 400;
-      
-      // Calculate smaller bar spacing and shift left by one candle width
-      const rightGapPercent = 0.20; // 20% gap on right side  
-      const availableWidth = chartWidth * (1 - rightGapPercent);
-      let optimalBarSpacing = Math.floor(availableWidth / (candles.length + 1)); // +1 for spacing
-      
-      console.log(`🔍 ChartCanvas: Fitting ${candles.length} candles with ${optimalBarSpacing}px spacing, shifted left`);
-      
-      chart.timeScale().applyOptions({
-        barSpacing: optimalBarSpacing,
-        rightOffset: Math.floor(chartWidth * rightGapPercent),
-        leftOffset: 0
-      });
-      
-      chart.timeScale().setVisibleLogicalRange({
-        from: 0, // Start from first candle
-        to: candles.length + 2 // Show all candles plus right space
-      });
-      
-      console.log(`✅ ChartCanvas: Set ${candles.length} candles, spacing: ${optimalBarSpacing}px, range: 0 to ${candles.length + 2}`);
-      
-      // Double-check and force again after a brief delay to override any competing updates
-      setTimeout(() => {
-        if (chart) {
-          chart.timeScale().applyOptions({ barSpacing: optimalBarSpacing });
-          console.log(`🔄 ChartCanvas: RE-APPLIED bar spacing: ${optimalBarSpacing}px`);
-        }
-      }, 100);
-      
-    } else {
-      // For normal datasets, use standard fitContent
-      console.log(`ChartCanvas: Using standard fitContent for ${candles.length} candles`);
-      chart.timeScale().fitContent();
-    }
+    console.log(`📊 ChartCanvas: Simple fitContent for ${dataStore.candles.length} candles`);
+    chart.timeScale().fitContent();
   }
 
   export function scrollToCurrentCandle() {
@@ -286,36 +312,34 @@
   }
 
   export function show60Candles() {
-    if (chart && candleSeries) {
-      try {
-        const data = dataStore.candles;
-        if (data.length > 0) {
-          console.log(`🎯 ChartCanvas: show60Candles - configuring for ${data.length} total candles`);
-          
-          // Calculate barSpacing to show approximately 60 candles
-          const chartWidth = chart.options().width || container?.clientWidth || 800;
-          const targetCandles = Math.min(60, data.length); // Don't exceed available data
-          const rightOffsetSpace = 50; // Reserve space for right offset
-          const availableWidth = chartWidth - rightOffsetSpace;
-          const optimalBarSpacing = Math.max(8, Math.floor(availableWidth / targetCandles));
-          
-          console.log(`🎯 ChartCanvas: chartWidth: ${chartWidth}, optimalBarSpacing: ${optimalBarSpacing} for ${targetCandles} candles (of ${data.length} total)`);
-          
-          // Apply the settings to show candles with proper spacing
-          chart.timeScale().applyOptions({
-            barSpacing: optimalBarSpacing,
-            rightOffset: 12
-          });
-          
-          // Scroll to show most recent data
-          chart.timeScale().scrollToRealTime();
-          
-          console.log(`✅ ChartCanvas: Applied barSpacing: ${optimalBarSpacing}px with rightOffset: 12 for ${targetCandles} candles`);
-        }
-      } catch (error) {
-        console.error('Error setting 60 candle view:', error);
+    if (!chart) return;
+    
+    const candles = dataStore.candles;
+    const currentGranularity = chartStore.config.granularity;
+    const currentTimeframe = chartStore.config.timeframe;
+    
+    console.log(`📊 ChartCanvas: show60Candles for ${candles.length} candles (${currentGranularity}/${currentTimeframe})`);
+    
+    // For 1H timeframe, show timeframe-appropriate candles
+    if (currentTimeframe === '1H') {
+      const expectedCandles = getCandleCount(currentGranularity, currentTimeframe);
+      const showCandles = Math.min(candles.length, expectedCandles + 5);
+      
+      if (showCandles < candles.length) {
+        const startIndex = Math.max(0, candles.length - showCandles);
+        chart.timeScale().setVisibleLogicalRange({
+          from: startIndex,
+          to: candles.length - 1
+        });
+        console.log(`🎯 ChartCanvas: Limited view to ${showCandles} recent candles`);
+      } else {
+        chart.timeScale().fitContent();
       }
+    } else {
+      chart.timeScale().fitContent();
     }
+    
+    chart.timeScale().scrollToRealTime();
   }
 
   export function addMarker(marker: any) {
@@ -357,6 +381,18 @@
     console.log('ChartCanvas: Clearing all markers from chart');
     candleSeries.setMarkers([]);
     console.log('✅ ChartCanvas: All markers cleared from chart');
+  }
+
+  export function resetToDefaultView() {
+    if (!chart) return;
+    
+    console.log('📊 ChartCanvas: Manually resetting to default view');
+    // Reset user interaction tracking
+    userHasInteracted = false;
+    lastUserInteraction = 0;
+    
+    // Apply default positioning
+    applyOptimalPositioning();
   }
 
   export async function loadMoreHistoricalData(): Promise<boolean> {

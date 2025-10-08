@@ -101,12 +101,11 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       const alignedNow = alignTimeToGranularity(now, config.granularity);
       
       // Calculate appropriate start time based on timeframe
-      // For 60-candle view, request more data than needed to ensure continuity
+      // Request data for the exact timeframe period
       const timeRange = getPeriodSeconds(config.timeframe);
-      const requestMultiplier = 3; // Request 3x the timeframe to ensure enough data
-      const startTime = alignedNow - (timeRange * requestMultiplier);
+      const startTime = alignedNow - timeRange;
       
-      console.log(`🎯 Loading ${config.granularity} data from database for ${config.timeframe} display (${requestMultiplier}x timeframe)`);
+      console.log(`🎯 Loading ${config.granularity} data from database for ${config.timeframe} display`);
       console.log(`⏰ Time alignment: ${now} -> ${alignedNow} (${alignedNow - now}s offset)`);
       console.log(`📅 Requesting data from ${startTime} to ${alignedNow}`);
       
@@ -145,7 +144,7 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         config.granularity,
         startTime,
         alignedNow,
-        50000 // Request all available candles from database
+        candleCount * 2 // Request 2x expected candles to ensure we have enough
       );
       perfTest.measure('DataStore loadData', 'dataStore-loadData-start');
       
@@ -187,14 +186,19 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         
         config.series.setData(candles);
         
-        // Always fit content properly after setting data
+        // Positioning after setting data - let ChartCanvas handle it
         if (config.chart && candles.length > 0) {
           setTimeout(() => {
-            console.log(`🔧 Fitting chart content for ${candles.length} candles`);
-            config.chart!.timeScale().fitContent();
-            // Additional positioning to ensure candles are visible
-            config.chart!.timeScale().scrollToRealTime();
-          }, 200); // Increased timeout for better reliability
+            console.log(`📊 useDataLoader: Positioning ${candles.length} candles for ${config.granularity}/${config.timeframe}`);
+            // For 1H timeframes, scroll to real-time but don't override chart positioning
+            if (config.timeframe === '1H') {
+              config.chart!.timeScale().scrollToRealTime();
+              console.log(`🎯 useDataLoader: 1H timeframe - scrolled to real-time, ChartCanvas will handle view`);
+            } else {
+              config.chart!.timeScale().fitContent();
+              config.chart!.timeScale().scrollToRealTime();
+            }
+          }, 200);
         }
         
         // For 5m+1H and 15m+1H debug exactly what we're setting
