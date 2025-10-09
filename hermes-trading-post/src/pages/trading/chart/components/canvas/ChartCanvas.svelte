@@ -213,58 +213,50 @@
   
   function applyOptimalPositioning() {
     if (!chart || isApplyingPositioning) return;
-    
+
     const candles = dataStore.candles;
     if (candles.length === 0) return;
-    
+
     const currentGranularity = chartStore.config.granularity;
     const currentTimeframe = chartStore.config.timeframe;
     isApplyingPositioning = true;
-    
+
     try {
-      // Calculate expected candles for this timeframe
-      const expectedCandles = getCandleCount(currentGranularity, currentTimeframe);
-      
-      console.log(`📊 ChartCanvas: Positioning ${candles.length} candles for ${currentGranularity}/${currentTimeframe} (expected: ${expectedCandles})`);
-      
       // If user has interacted, be much less aggressive with positioning
       const timeSinceInteraction = Date.now() - lastUserInteraction;
       const recentlyInteracted = userHasInteracted && timeSinceInteraction < 30000; // 30 seconds
-      
+
       if (recentlyInteracted) {
         // Just ensure data is available, don't force repositioning
         console.log(`📊 ChartCanvas: User recently interacted (${(timeSinceInteraction/1000).toFixed(1)}s ago) - minimal positioning`);
         // Only update data, preserve user's view
         return;
       }
-      
-      // For timeframes that should show specific candle counts, limit the view
-      if (currentTimeframe === '1H' && expectedCandles > 0) {
-        // Show only the most recent candles that fit the timeframe
-        const showCandles = Math.min(candles.length, expectedCandles + 5); // +5 buffer for live candle
-        const startIndex = Math.max(0, candles.length - showCandles);
-        
-        console.log(`🎯 ChartCanvas: Showing last ${showCandles} candles (${startIndex} to ${candles.length-1})`);
-        
-        // Set visible range to show only the recent candles
-        chart.timeScale().setVisibleLogicalRange({
-          from: startIndex,
-          to: candles.length - 1
-        });
-        
-        // Apply appropriate bar spacing
-        const chartWidth = chart.options().width || container?.clientWidth || 800;
-        const barSpacing = Math.max(8, Math.floor(chartWidth / showCandles));
-        chart.timeScale().applyOptions({
-          barSpacing: barSpacing,
-          rightOffset: 12
-        });
-      } else {
-        // For other timeframes, use standard fitContent
-        console.log(`📊 ChartCanvas: Using standard fitContent for ${currentGranularity}/${currentTimeframe}`);
-        chart.timeScale().fitContent();
-      }
-      
+
+      // ALWAYS show exactly 60 candles for normal timeframes
+      const STANDARD_VISIBLE_CANDLES = 60;
+      const showCandles = Math.min(candles.length, STANDARD_VISIBLE_CANDLES);
+      const startIndex = Math.max(0, candles.length - showCandles);
+
+      console.log(`📊 ChartCanvas: Showing exactly ${showCandles} candles from index ${startIndex} to ${candles.length-1} (${currentGranularity}/${currentTimeframe})`);
+
+      // Set visible logical range to show exactly 60 candles
+      chart.timeScale().setVisibleLogicalRange({
+        from: startIndex,
+        to: candles.length + 2 // +2 for right padding
+      });
+
+      // Calculate appropriate bar spacing for exactly 60 candles
+      const chartWidth = chart.options().width || container?.clientWidth || 800;
+      const barSpacing = Math.floor(chartWidth / (showCandles + 5)); // +5 for padding
+
+      chart.timeScale().applyOptions({
+        barSpacing: Math.max(6, barSpacing), // Minimum 6px per bar
+        rightOffset: 3 // Keep 3 candles of space on the right
+      });
+
+      console.log(`🎯 ChartCanvas: Applied 60-candle view with ${barSpacing}px bar spacing`);
+
       // Only scroll to real-time if user hasn't interacted recently
       if (!recentlyInteracted) {
         chart.timeScale().scrollToRealTime();
@@ -313,32 +305,37 @@
 
   export function show60Candles() {
     if (!chart) return;
-    
+
     const candles = dataStore.candles;
-    const currentGranularity = chartStore.config.granularity;
-    const currentTimeframe = chartStore.config.timeframe;
-    
-    console.log(`📊 ChartCanvas: show60Candles for ${candles.length} candles (${currentGranularity}/${currentTimeframe})`);
-    
-    // For 1H timeframe, show timeframe-appropriate candles
-    if (currentTimeframe === '1H') {
-      const expectedCandles = getCandleCount(currentGranularity, currentTimeframe);
-      const showCandles = Math.min(candles.length, expectedCandles + 5);
-      
-      if (showCandles < candles.length) {
-        const startIndex = Math.max(0, candles.length - showCandles);
-        chart.timeScale().setVisibleLogicalRange({
-          from: startIndex,
-          to: candles.length - 1
-        });
-        console.log(`🎯 ChartCanvas: Limited view to ${showCandles} recent candles`);
-      } else {
-        chart.timeScale().fitContent();
-      }
+    const VISIBLE_CANDLES = 60;
+
+    console.log(`📊 ChartCanvas: show60Candles - displaying exactly ${VISIBLE_CANDLES} of ${candles.length} total candles`);
+
+    if (candles.length > VISIBLE_CANDLES) {
+      // Show only the most recent 60 candles
+      const startIndex = candles.length - VISIBLE_CANDLES;
+
+      chart.timeScale().setVisibleLogicalRange({
+        from: startIndex,
+        to: candles.length + 2 // +2 for right padding
+      });
+
+      // Calculate appropriate bar spacing
+      const chartWidth = chart.options().width || container?.clientWidth || 800;
+      const barSpacing = Math.floor(chartWidth / (VISIBLE_CANDLES + 5));
+
+      chart.timeScale().applyOptions({
+        barSpacing: Math.max(6, barSpacing),
+        rightOffset: 3
+      });
+
+      console.log(`🎯 ChartCanvas: Showing candles ${startIndex} to ${candles.length-1} (exactly 60 candles)`);
     } else {
+      // If we have fewer than 60 candles, show all
       chart.timeScale().fitContent();
+      console.log(`🎯 ChartCanvas: Showing all ${candles.length} candles (less than 60)`);
     }
-    
+
     chart.timeScale().scrollToRealTime();
   }
 

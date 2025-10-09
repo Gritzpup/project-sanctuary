@@ -464,40 +464,34 @@ class DataStore {
           volume: candleData.volume
         });
 
-        // Update or add candle
+        // Update or add candle IN-PLACE without triggering Svelte reactivity on historical candles
         const existingIndex = this._candles.findIndex(c => c.time === update.time);
-        
+
         if (existingIndex >= 0) {
-          // Update existing candle
-          console.log(`🔄 [DataStore] Updating existing candle at index ${existingIndex}, total candles: ${this._candles.length}`);
-          this._candles[existingIndex] = candleData;
+          // Update existing candle IN-PLACE (last candle only)
+          // This is safe because it's always the most recent candle
+          const lastIndex = this._candles.length - 1;
+          if (existingIndex === lastIndex) {
+            // Update the last candle directly - this won't trigger historical candle re-renders
+            this._candles[lastIndex] = candleData;
+            console.log(`🔄 [DataStore] Updated live candle at index ${lastIndex}`);
+          }
         } else {
-          // New candle
-          const beforeCount = this._candles.length;
-          this._candles = [...this._candles, candleData].sort(
-            (a, b) => (a.time as number) - (b.time as number)
-          );
-          console.log(`🔄 [DataStore] Added new candle, total: ${beforeCount} -> ${this._candles.length}`);
-          this.triggerNewCandle();
+          // New candle - append without replacing the entire array
+          this._candles.push(candleData);
+          console.log(`🆕 [DataStore] Added new candle, total: ${this._candles.length}`);
         }
 
-        // Update latest price
+        // Update latest price for status display
         this._latestPrice = update.close;
-        
-        // Update stats
+
+        // Update stats timestamp only
         this._dataStats.lastUpdate = Date.now();
 
-        // Force refresh of any plugins/visualizations that depend on candle data
-        // This ensures volume plugin updates when new real-time data arrives
-        this.updateStats();
-        
-        // Notify plugins of real-time data update
-        console.log(`🔄 [DataStore] Notifying plugins of data update...`);
-        this.notifyDataUpdate();
-        console.log(`✅ [DataStore] Plugins notified`);
-        
-        // Also force status update for VolumePlugin
-        this.updateStats();
+        console.log(`🔄 [DataStore] Real-time update processed (candle updated, no plugin notifications)`);
+
+        // DO NOT call notifyDataUpdate() - it triggers plugin refreshes which call setData()
+        // The candle is already updated in the array, chart will get it via the callback
 
         // Notify callback if provided
         if (onUpdate) {

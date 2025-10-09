@@ -2,6 +2,7 @@ import { WebSocket } from 'ws';
 import { EventEmitter } from 'events';
 import { redisCandleStorage } from './redis/RedisCandleStorage.js';
 import { coinbaseAPI } from './CoinbaseAPIService.js';
+import { MultiGranularityAggregator } from './MultiGranularityAggregator.js';
 
 /**
  * Coinbase WebSocket client for real-time market data
@@ -216,11 +217,11 @@ export class CoinbaseWebSocketClient extends EventEmitter {
   }
 
   /**
-   * Subscribe to matches (trades) for real-time volume aggregation
+   * Subscribe to matches (trades) for real-time multi-granularity aggregation
    */
   subscribeMatches(productId, granularity = '60') {
     const subscriptionKey = `matches:${productId}`;
-    
+
     if (this.subscriptions.has(subscriptionKey)) {
       console.log(`Already subscribed to matches for ${productId}`);
       return;
@@ -233,20 +234,21 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     };
 
     this.subscriptions.set(subscriptionKey, subscription);
-    
-    // Initialize candle aggregator for this product/granularity
-    const aggregatorKey = `${productId}:${granularity}`;
+
+    // Initialize MULTI-GRANULARITY aggregator for this product (all timeframes at once)
+    const aggregatorKey = productId; // Key by product only, since it handles all granularities
     if (!this.candleAggregators.has(aggregatorKey)) {
-      const aggregator = new CandleAggregator(productId, parseInt(granularity));
-      
+      const aggregator = new MultiGranularityAggregator(productId);
+
       // Listen for gap detection events from the aggregator
       aggregator.on('gap_detected', async (gapInfo) => {
         await this.handleGapDetection(gapInfo);
       });
-      
+
       this.candleAggregators.set(aggregatorKey, aggregator);
+      console.log(`📊 Initialized multi-granularity aggregator for ${productId}`);
     }
-    
+
     if (this.isConnected) {
       console.log(`📡 Subscribing to matches for ${productId}`);
       this.ws.send(JSON.stringify(subscription));
@@ -278,8 +280,8 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
     // Clean up aggregator if it was matches
     if (channel === 'matches') {
-      const aggregatorKeys = Array.from(this.candleAggregators.keys()).filter(key => key.startsWith(productId + ':'));
-      aggregatorKeys.forEach(key => this.candleAggregators.delete(key));
+      // Multi-granularity aggregators are keyed by productId only
+      this.candleAggregators.delete(productId);
     }
   }
 
@@ -326,7 +328,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
   }
 
   /**
-   * Handle match (trade) messages for volume aggregation
+   * Handle match (trade) messages for multi-granularity aggregation
    */
   handleMatch(match) {
     const trade = {
@@ -337,25 +339,31 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       side: match.side
     };
 
-    // Update all relevant candle aggregators
-    this.candleAggregators.forEach(async (aggregator, key) => {
-      if (key.startsWith(match.product_id + ':')) {
-        const candle = aggregator.addTrade(trade);
-        if (candle) {
-          // Store completed candles in Redis
-          if (candle.type === 'complete') {
-            await this.storeCandle(match.product_id, aggregator.granularity, candle);
-          }
-          
-          // Emit completed or updated candle
-          this.emit('candle', {
-            ...candle,
-            product_id: match.product_id,
-            granularity: aggregator.granularity
-          });
+    // Update multi-granularity aggregator
+    const aggregator = this.candleAggregators.get(match.product_id);
+    if (aggregator) {
+      // MultiGranularityAggregator.addTrade() returns array of candles for ALL granularities
+      const candles = aggregator.addTrade(trade);
+
+      // Process each granularity's candle
+      candles.forEach(async (candleData) => {
+        const { granularity, granularitySeconds, type, ...candle } = candleData;
+
+        // Store completed candles in Redis
+        if (type === 'complete') {
+          await this.storeCandle(match.product_id, granularitySeconds, candle);
         }
-      }
-    });
+
+        // Emit completed or updated candle for each granularity
+        this.emit('candle', {
+          ...candle,
+          product_id: match.product_id,
+          granularity: granularitySeconds,
+          granularityKey: granularity,
+          type
+        });
+      });
+    }
 
     // Also emit raw trade for immediate updates
     this.emit('trade', trade);
