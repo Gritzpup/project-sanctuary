@@ -171,32 +171,26 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       } as any;
       
       console.log(`🆕 [Realtime] New candle created:`, newCandle);
-      
-      // Add to dataStore - this will trigger VolumePlugin update
-      const updatedCandles = [...candles, newCandle];
-      console.log(`🆕 [Realtime] Updating dataStore with ${updatedCandles.length} candles (was ${candles.length})`);
-      dataStore.setCandles(updatedCandles);
-      
-      // Update chart series only (volume handled by plugin)
-      chartSeries.setData(updatedCandles);
+
+      // DO NOT call dataStore.setCandles() - it causes the entire database to be replaced!
+      // Just update the chart directly
+      chartSeries.update(newCandle);
       statusStore.setNewCandle();
       
       // Simple auto-scroll for all charts including 5m
-      console.log(`🔄 New candle added: ${new Date(currentCandleTime * 1000).toLocaleTimeString()} (${updatedCandles.length} total)`);
-      
-      if (updatedCandles.length > 1) {
-        try {
-          const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
-          if (chart && chart.timeScale) {
-            const config = chartStore?.config;
-            
-            // Auto-scroll for ALL charts when new candles are added
-            chart.timeScale().scrollToPosition(2, false); // Keep 2 candles of space on the right
-            console.log(`🔄 Chart scrolled to show new candle at fixed position (${config?.granularity})`);
-          }
-        } catch (error) {
-          console.error('Error auto-scrolling chart:', error);
+      console.log(`🔄 New candle added: ${new Date(currentCandleTime * 1000).toLocaleTimeString()}`);
+
+      try {
+        const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
+        if (chart && chart.timeScale) {
+          const config = chartStore?.config;
+
+          // Auto-scroll for ALL charts when new candles are added
+          chart.timeScale().scrollToPosition(2, false); // Keep 2 candles of space on the right
+          console.log(`🔄 Chart scrolled to show new candle at fixed position (${config?.granularity})`);
         }
+      } catch (error) {
+        console.error('Error auto-scrolling chart:', error);
       }
       
       // Call new candle callback
@@ -230,13 +224,8 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         volume: updatedCandle.volume
       });
       
-      updatedCandles[updatedCandles.length - 1] = updatedCandle;
-      
-      // Update dataStore - this will trigger VolumePlugin update
-      console.log(`🔄 [Realtime] Updating dataStore with updated candle`);
-      dataStore.setCandles(updatedCandles);
-      
-      // Update chart with live candle (volume handled by plugin)
+      // DO NOT call dataStore.setCandles() - it causes the entire database to be replaced!
+      // Just update the chart directly
       chartSeries.update(updatedCandle);
       statusStore.setPriceUpdate();
       
