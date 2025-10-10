@@ -86,6 +86,23 @@ export class ContinuousCandleUpdater extends EventEmitter {
   }
 
   /**
+   * Get retention period for each granularity (in seconds)
+   * Strategy: Store high frequency for recent data, low frequency for historical
+   */
+  getRetentionPeriod(granularity) {
+    const retentionDays = {
+      '1m': 7,      // Last week - high detail for recent trading
+      '5m': 30,     // Last month - medium detail for recent trends
+      '15m': 90,    // Last 3 months - pattern analysis
+      '1h': 365,    // Last year - yearly trends
+      '6h': 1825,   // 5 years - long-term macro trends
+      '1d': 3650    // 10 years - maximum historical view
+    };
+
+    return (retentionDays[granularity] || 30) * 86400; // Convert days to seconds
+  }
+
+  /**
    * Fetch the latest candles for a pair
    */
   async fetchLatestCandles(pair, granularity) {
@@ -125,6 +142,9 @@ export class ContinuousCandleUpdater extends EventEmitter {
         console.log(`✅ [CandleUpdater] Stored ${candles.length} ${pair} ${granularity} candles`);
         console.log(`📊 [CandleUpdater] Latest price: $${candles[candles.length - 1].close} at ${new Date(candles[candles.length - 1].time * 1000).toLocaleTimeString()}`);
 
+        // Clean up old data based on retention policy
+        await this.cleanupOldData(pair, granularity);
+
         // Emit database activity event
         this.emit('database_activity', {
           type: 'store_complete',
@@ -158,6 +178,37 @@ export class ContinuousCandleUpdater extends EventEmitter {
         error: error.message,
         operation: 'API_ERROR'
       });
+    }
+  }
+
+  /**
+   * Clean up old data beyond retention period
+   */
+  async cleanupOldData(pair, granularity) {
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      const retentionPeriod = this.getRetentionPeriod(granularity);
+      const cutoffTime = now - retentionPeriod;
+
+      console.log(`🧹 [CandleUpdater] Cleaning ${pair} ${granularity} data older than ${new Date(cutoffTime * 1000).toISOString()}`);
+
+      // Get metadata to see how much data we have
+      const metadata = await redisCandleStorage.getMetadata(pair, granularity);
+
+      if (!metadata) {
+        return; // No metadata, nothing to clean
+      }
+
+      // Only clean if we have data older than the retention period
+      if (metadata.firstTimestamp < cutoffTime) {
+        const deletedCount = await redisCandleStorage.deleteOldCandles(pair, granularity, cutoffTime);
+
+        if (deletedCount > 0) {
+          console.log(`🗑️ [CandleUpdater] Deleted ${deletedCount} old ${granularity} candles for ${pair}`);
+        }
+      }
+    } catch (error) {
+      console.error(`❌ [CandleUpdater] Error cleaning old data for ${pair} ${granularity}:`, error.message);
     }
   }
 

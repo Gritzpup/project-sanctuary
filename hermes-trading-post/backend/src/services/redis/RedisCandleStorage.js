@@ -430,6 +430,99 @@ class RedisCandleStorage {
   }
 
   /**
+   * Delete old candles beyond a cutoff time
+   */
+  async deleteOldCandles(pair, granularity, cutoffTime) {
+    if (!this.isConnected) {
+      await this.connect();
+    }
+
+    const lockKey = generateLockKey('cleanup', pair, granularity);
+
+    try {
+      // Acquire lock for cleanup operation
+      const lockAcquired = await this.redis.set(lockKey, '1', 'EX', 30, 'NX');
+      if (!lockAcquired) {
+        console.warn('⚠️ RedisCandleStorage: Could not acquire lock for cleanup', { pair, granularity });
+        return 0;
+      }
+
+      let totalDeleted = 0;
+      const startDay = Math.floor(cutoffTime / 86400) * 86400;
+      const cutoffDay = startDay;
+
+      // Delete all days before the cutoff
+      // Go back 10 years from cutoff to ensure we catch all old data
+      const oldestDay = cutoffDay - (10 * 365 * 86400);
+
+      console.log(`🗑️ [RedisCandleStorage] Deleting ${pair} ${granularity} data from ${new Date(oldestDay * 1000).toISOString()} to ${new Date(cutoffDay * 1000).toISOString()}`);
+
+      for (let dayTimestamp = oldestDay; dayTimestamp < cutoffDay; dayTimestamp += 86400) {
+        const key = generateCandleKey(pair, granularity, dayTimestamp);
+        const dataKey = `${key}:data`;
+
+        // Check if key exists before deleting
+        const exists = await this.redis.exists(key);
+        if (exists) {
+          // Delete both the sorted set and the hash
+          await this.redis.del(key);
+          await this.redis.del(dataKey);
+          totalDeleted++;
+        }
+      }
+
+      // Also clean up old candles within the cutoff day
+      const cutoffDayKey = generateCandleKey(pair, granularity, cutoffDay);
+      const oldTimestamps = await this.redis.zrangebyscore(cutoffDayKey, '-inf', cutoffTime);
+
+      if (oldTimestamps.length > 0) {
+        // Delete old timestamps from the sorted set
+        await this.redis.zremrangebyscore(cutoffDayKey, '-inf', cutoffTime);
+
+        // Delete old data from the hash
+        const dataKey = `${cutoffDayKey}:data`;
+        await this.redis.hdel(dataKey, ...oldTimestamps);
+
+        console.log(`🗑️ [RedisCandleStorage] Deleted ${oldTimestamps.length} old candles from ${new Date(cutoffDay * 1000).toISOString()}`);
+      }
+
+      // Update metadata after cleanup
+      const remainingCandles = await this.redis.zcard(cutoffDayKey);
+      if (remainingCandles > 0) {
+        const firstTimestamp = await this.redis.zrange(cutoffDayKey, 0, 0, 'WITHSCORES');
+        if (firstTimestamp.length > 0) {
+          await this.updateMetadataAfterCleanup(pair, granularity, parseInt(firstTimestamp[1]));
+        }
+      }
+
+      console.log(`✅ [RedisCandleStorage] Cleanup complete: deleted ${totalDeleted} day buckets + ${oldTimestamps.length} individual candles`);
+
+      return totalDeleted;
+
+    } finally {
+      // Release lock
+      await this.redis.del(lockKey);
+    }
+  }
+
+  /**
+   * Update metadata after cleanup operation
+   */
+  async updateMetadataAfterCleanup(pair, granularity, newFirstTimestamp) {
+    const metadataKey = generateMetadataKey(pair, granularity);
+    const existing = await this.getMetadata(pair, granularity);
+
+    if (existing) {
+      await this.redis.hset(metadataKey, {
+        firstTimestamp: newFirstTimestamp.toString(),
+        lastUpdated: Date.now().toString()
+      });
+
+      console.log(`📝 [RedisCandleStorage] Updated metadata: new first timestamp = ${new Date(newFirstTimestamp * 1000).toISOString()}`);
+    }
+  }
+
+  /**
    * Get storage statistics
    */
   async getStorageStats() {
