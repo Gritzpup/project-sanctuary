@@ -59,19 +59,24 @@ export abstract class Plugin {
 
   // Lifecycle methods
   async initialize(context: PluginContext): Promise<void> {
+    console.log(`🔌 [Plugin:${this.id}] Starting initialization...`);
+
     if (this._initialized) {
       ChartDebug.warn(`Plugin ${this.id} already initialized`);
       return;
     }
 
     this.context = context;
-    
+    console.log(`🔌 [Plugin:${this.id}] Context set, chart exists: ${!!context.chart}, dataStore exists: ${!!context.dataStore}`);
+
     try {
       await this.onInitialize();
       this._initialized = true;
       ChartDebug.log(`Plugin ${this.id} initialized successfully`);
+      console.log(`✅ [Plugin:${this.id}] Initialization complete`);
     } catch (error) {
       ChartDebug.error(`Failed to initialize plugin ${this.id}:`, error);
+      console.error(`❌ [Plugin:${this.id}] Initialization failed:`, error);
       throw error;
     }
   }

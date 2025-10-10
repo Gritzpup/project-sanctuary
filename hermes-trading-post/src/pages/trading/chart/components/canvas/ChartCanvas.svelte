@@ -121,10 +121,14 @@
     });
     
     // Notify parent component
+    console.log(`📣 [ChartCanvas] Chart ready, calling onChartReady callback:`, !!onChartReady);
     if (onChartReady) {
       onChartReady(chart);
+      console.log(`✅ [ChartCanvas] onChartReady callback completed`);
+    } else {
+      console.warn(`⚠️ [ChartCanvas] No onChartReady callback provided!`);
     }
-    
+
     statusStore.setReady();
   }
   

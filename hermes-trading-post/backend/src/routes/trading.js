@@ -263,6 +263,39 @@ export default function tradingRoutes(botManager) {
     }
   });
 
+  // Get total candle count across ALL granularities
+  router.get('/total-candles', async (req, res) => {
+    try {
+      const { pair = 'BTC-USD' } = req.query;
+      const granularities = ['1m', '5m', '15m', '1h', '6h', '1d'];
+
+      let totalCount = 0;
+      const breakdown = {};
+
+      for (const gran of granularities) {
+        const metadata = await redisCandleStorage.getMetadata(pair, gran);
+        const count = metadata?.totalCandles || 0;
+        breakdown[gran] = count;
+        totalCount += count;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          pair,
+          totalCandles: totalCount,
+          breakdown
+        }
+      });
+    } catch (error) {
+      console.error('❌ Total candles request failed:', error.message);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
   // Populate historical data endpoint
   router.post('/populate-historical', async (req, res) => {
     try {

@@ -310,7 +310,7 @@ export class RedisChartService {
       case 'candle':
         const subscriptionKey = `${message.pair}:${message.granularity}`;
         const callback = this.wsSubscriptions.get(subscriptionKey);
-        
+
         if (callback) {
           const candleData: WebSocketCandle = {
             time: message.time,
@@ -321,8 +321,11 @@ export class RedisChartService {
             volume: message.volume || 0,
             type: message.candleType || 'update'
           };
-          
+
+          console.log(`📥 [Frontend] Received ${candleData.type} candle:`, subscriptionKey, candleData.close);
           callback(candleData);
+        } else {
+          console.warn(`⚠️ [Frontend] No callback for candle:`, subscriptionKey);
         }
         break;
         
@@ -337,7 +340,24 @@ export class RedisChartService {
       case 'error':
         ChartDebug.error('Backend WebSocket error:', message.message);
         break;
-        
+
+      case 'database_activity':
+        // Forward database activity to statusStore
+        import('../stores/statusStore.svelte').then(({ statusStore }) => {
+          const activity = message.data;
+          if (activity.type === 'fetch_start' || activity.type === 'API_FETCH') {
+            statusStore.setDatabaseActivity('fetching', 2000);
+          } else if (activity.type === 'store_complete' || activity.type === 'REDIS_STORE') {
+            statusStore.setDatabaseActivity('storing', 1500);
+            console.log(`💾 [Database] Stored ${activity.candleCount || 0} ${activity.pair} ${activity.granularity} candles`);
+          } else if (activity.type === 'error' || activity.type === 'API_ERROR') {
+            statusStore.setDatabaseActivity('error', 3000);
+          }
+        }).catch(error => {
+          console.error('Failed to update database activity:', error);
+        });
+        break;
+
       default:
         // Ignore other message types (bot management, etc.)
         break;

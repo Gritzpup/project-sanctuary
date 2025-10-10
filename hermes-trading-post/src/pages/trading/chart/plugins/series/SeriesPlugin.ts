@@ -40,12 +40,16 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
 
   protected onEnable(): void {
     if (this.series) {
+      console.log(`[SeriesPlugin:${this.config.id}] Enabling series, setting visible: true`);
       this.series.applyOptions({ visible: true });
+      // Force refresh data when enabling
+      this.refreshData();
     }
   }
 
   protected onDisable(): void {
     if (this.series) {
+      console.log(`[SeriesPlugin:${this.config.id}] Disabling series, setting visible: false`);
       this.series.applyOptions({ visible: false });
     }
   }
@@ -58,7 +62,8 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
   // Series management
   protected createSeries(): void {
     const chart = this.getChart();
-    
+    console.log(`📊 [SeriesPlugin:${this.config.id}] Creating series of type: ${this.seriesType}`);
+
     // Create series based on type
     switch (this.seriesType) {
       case 'Candlestick':
@@ -71,7 +76,16 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
         this.series = chart.addAreaSeries(this.seriesOptions) as ISeriesApi<T>;
         break;
       case 'Histogram':
+        console.log(`📊 [SeriesPlugin:${this.config.id}] Creating histogram series with options:`, this.seriesOptions);
         this.series = chart.addHistogramSeries(this.seriesOptions) as ISeriesApi<T>;
+        console.log(`✅ [SeriesPlugin:${this.config.id}] Histogram series created: ${this.series ? 'success' : 'failed'}`);
+        if (this.series) {
+          // Immediately set visible to true for histogram series
+          console.log(`📊 [SeriesPlugin:${this.config.id}] Setting histogram series to visible`);
+          this.series.applyOptions({ visible: true });
+          const options = this.series.options();
+          console.log(`📊 [SeriesPlugin:${this.config.id}] Histogram series visibility after creation: ${options.visible}`);
+        }
         break;
       case 'Bar':
         this.series = chart.addBarSeries(this.seriesOptions) as ISeriesApi<T>;

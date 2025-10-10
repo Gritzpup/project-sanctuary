@@ -7,6 +7,7 @@ import { TradingService } from './services/tradingService.js';
 import { BotManager } from './services/botManager.js';
 import { coinbaseWebSocket } from './services/coinbaseWebSocket.js';
 import { historicalDataService } from './services/HistoricalDataService.js';
+import { continuousCandleUpdater } from './services/ContinuousCandleUpdater.js';
 import tradingRoutes from './routes/trading.js';
 
 dotenv.config();
@@ -116,7 +117,30 @@ setTimeout(monitorMemoryUsage, 10000);
   // Initialize Historical Data Service (fetch historical candles)
   console.log('🚀 Initializing Historical Data Service...');
   await historicalDataService.initialize('BTC-USD', '1m');
-  
+
+  // Initialize Continuous Candle Updater for constant API updates
+  console.log('🔄 Starting Continuous Candle Updater Service...');
+  continuousCandleUpdater.startAllGranularities('BTC-USD');
+
+  // Forward database activity events to WebSocket clients
+  continuousCandleUpdater.on('database_activity', (activity) => {
+    // Broadcast to all connected clients
+    wss.clients.forEach(client => {
+      if (client.readyState === client.OPEN) {
+        client.send(JSON.stringify({
+          type: 'database_activity',
+          data: activity
+        }));
+      }
+    });
+  });
+
+  // Log database activity stats periodically
+  setInterval(() => {
+    const stats = continuousCandleUpdater.getStats();
+    console.log(`📊 [CandleUpdater Stats] Fetches: ${stats.totalFetches}, Candles: ${stats.totalCandles}, Errors: ${stats.errors}, Active: ${stats.activePairs.length}`);
+  }, 60000); // Every minute
+
   // Initialize Coinbase WebSocket
   console.log('🔌 Attempting to connect to Coinbase WebSocket...');
   try {
@@ -174,8 +198,8 @@ setTimeout(monitorMemoryUsage, 10000);
             volume: candleData.volume,
             candleType: candleData.type
           };
-          
-          
+
+          console.log(`📤 Emitting ${candleData.type} candle to client ${clientId}:`, subscriptionKey, candleData.close);
           client.send(JSON.stringify(messageToSend));
         }
       }
@@ -554,7 +578,7 @@ app.use('/api/trading', tradingRoutes(botManager));
 
 app.get('/health', (req, res) => {
   const memUsage = process.memoryUsage();
-  res.json({ 
+  res.json({
     status: 'healthy',
     uptime: process.uptime(),
     memory: {
@@ -575,6 +599,13 @@ app.get('/health', (req, res) => {
       status: botManager.getStatus()
     }
   });
+});
+
+// Debug endpoint for frontend logging
+app.post('/api/debug-log', (req, res) => {
+  const { message } = req.body;
+  console.log(`🌐 [Frontend Debug]: ${message}`);
+  res.json({ success: true });
 });
 
 server.listen(PORT, HOST, () => {
@@ -601,20 +632,24 @@ const gracefulShutdown = (signal) => {
   
   // Stop bot manager
   botManager.cleanup();
-  
+
+  // Stop continuous candle updater
+  console.log('🛑 Stopping Continuous Candle Updater...');
+  continuousCandleUpdater.stopAll();
+
   // 🔥 MEMORY LEAK FIX: Clean up all Maps and subscriptions
   console.log('🧹 Cleaning up memory...');
   chartSubscriptions.clear();
   activeSubscriptions.clear();
   granularityMappings.clear();
   granularityMappingTimes.clear();
-  
+
   // Clear the cleanup interval
   if (cleanupInterval) {
     clearInterval(cleanupInterval);
     cleanupInterval = null;
   }
-  
+
   // Disconnect Coinbase WebSocket
   coinbaseWebSocket.disconnect();
   

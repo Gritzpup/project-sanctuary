@@ -17,6 +17,7 @@ class DataStore {
   private _isNewCandle = $state<boolean>(false);
   private _dataStats = $state({
     totalCount: 0,
+    totalDatabaseCount: 0, // Total across ALL granularities
     visibleCount: 0,
     oldestTime: null as number | null,
     newestTime: null as number | null,
@@ -246,18 +247,19 @@ class DataStore {
       
       ChartDebug.log(`Data loaded: ${data.length} candles for ${pair} ${granularity}`);
       
-      // Auto-load historical data in background after initial load
-      if (data.length > 0) {
-        console.log(`🕐 Scheduling 5-year historical data load in 2 seconds...`);
-        setTimeout(() => {
-          console.log(`🚀 STARTING 5-year historical data population...`);
-          this.autoLoadHistoricalData().catch(error => {
-            console.error(`❌ Historical data loading failed:`, error);
-          });
-        }, 2000); // Wait 2 seconds then start background loading
-      } else {
-        console.log(`⚠️ No initial data loaded - skipping historical data population`);
-      }
+      // ⚠️ DISABLED: Auto-load historical data
+      // This was causing 18M+ candles to be stored for 1m granularity (5 years = 2.6M candles)
+      // TODO: Implement proper multi-granularity storage strategy:
+      // - 1m: Store last 1-2 days only (~2,880 candles)
+      // - 5m: Store last 1-2 weeks (~4,032 candles)
+      // - 15m: Store last month (~2,880 candles)
+      // - 1h: Store last 3-6 months (~4,320-8,640 candles)
+      // - 6h: Store last 1-2 years (~2,920 candles)
+      // - 1d: Store 5+ years (~1,825 candles)
+      //
+      // The backend MultiGranularityAggregator already generates all timeframes,
+      // we just need to configure appropriate retention policies per granularity
+      console.log(`📊 Historical data auto-load disabled to prevent excessive storage`);
       
       if (granularity === '1d' || granularity === '1D') {
         ChartDebug.critical(`[PERF] dataStore.loadData completed in ${performance.now() - loadStartTime}ms`);
@@ -539,18 +541,30 @@ class DataStore {
   private async updateDatabaseCount() {
     try {
       const config = this.getCurrentConfig();
-      // Use the existing dataService to get metadata which includes totalCandles
+
+      // Get total count across ALL granularities
+      const totalResponse = await fetch(`http://localhost:4828/api/trading/total-candles?pair=${config.pair}`);
+      if (totalResponse.ok) {
+        const totalData = await totalResponse.json();
+        if (totalData.success) {
+          this._dataStats.totalDatabaseCount = totalData.data.totalCandles;
+          console.log(`📊 Updated TOTAL DB count: ${totalData.data.totalCandles} candles across all granularities`);
+          console.log(`📊 Breakdown:`, totalData.data.breakdown);
+        }
+      }
+
+      // Also get count for current granularity
       const response = await this.dataService.fetchCandlesWithMetadata({
         pair: config.pair,
         granularity: config.granularity,
         limit: 1 // We only need metadata, not actual candles
       });
-      
+
       if (response && response.metadata) {
         // Use storageMetadata.totalCandles if available, otherwise metadata.totalCandles
         const dbCount = response.metadata.storageMetadata?.totalCandles || response.metadata.totalCandles || 0;
         this._dataStats.totalCount = dbCount;
-        console.log(`📊 Updated DB count from Redis: ${dbCount} total candles`);
+        console.log(`📊 Updated current granularity DB count: ${dbCount} candles`);
       }
     } catch (error) {
       console.error('Error getting database count:', error);
@@ -580,10 +594,12 @@ class DataStore {
     this._isNewCandle = false;
     this._dataStats = {
       totalCount: 0,
+      totalDatabaseCount: 0,
       visibleCount: 0,
       oldestTime: null,
       newestTime: null,
-      lastUpdate: null
+      lastUpdate: null,
+      loadingStatus: 'idle'
     };
   }
 

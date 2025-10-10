@@ -43,23 +43,59 @@
   
   // Initialize plugins
   async function initializePlugins() {
-    if (!enablePlugins || !chartCore) return;
-    
+    console.log('📦 [ChartContainer] initializePlugins called, enablePlugins:', enablePlugins, 'chartCore:', !!chartCore);
+
+    if (!enablePlugins || !chartCore) {
+      console.log('⚠️ [ChartContainer] Skipping plugin initialization - enablePlugins:', enablePlugins, 'chartCore:', !!chartCore);
+      return;
+    }
+
     pluginManager = chartCore.getPluginManager();
-    if (!pluginManager) return;
-    
+    console.log('📦 [ChartContainer] Got plugin manager:', !!pluginManager);
+
+    if (!pluginManager) {
+      console.log('❌ [ChartContainer] No plugin manager available!');
+      return;
+    }
+
     // Register default plugins
+    console.log('📦 [ChartContainer] Registering', defaultPlugins.length, 'default plugins:', defaultPlugins);
     for (const pluginName of defaultPlugins) {
+      console.log('📦 [ChartContainer] Creating plugin:', pluginName);
       const plugin = createDefaultPlugin(pluginName);
       if (plugin) {
         try {
+          console.log('📦 [ChartContainer] Registering plugin:', pluginName, 'ID:', plugin.id);
           await pluginManager.register(plugin);
-          console.log('✅ Successfully registered plugin:', pluginName);
+          console.log('✅ [ChartContainer] Successfully registered plugin:', pluginName);
+
+          // Special handling for volume plugin to ensure it's visible
+          if (pluginName === 'volume' && typeof (plugin as any).forceShow === 'function') {
+            console.log('📦 [ChartContainer] Forcing volume plugin to show');
+            setTimeout(() => {
+              (plugin as any).forceShow();
+              console.log('📦 [ChartContainer] Volume plugin force show completed');
+            }, 1000); // Give it time to initialize
+          }
+
+          // Log to backend for debugging
+          fetch('/api/debug-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: `Plugin registered: ${pluginName}` })
+          }).catch(() => {});
         } catch (error) {
-          console.error(`❌ Failed to register ${pluginName} plugin:`, error);
+          console.error(`❌ [ChartContainer] Failed to register ${pluginName} plugin:`, error);
+
+          // Log error to backend
+          fetch('/api/debug-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: `Plugin registration failed: ${pluginName} - ${error.message}` })
+          }).catch(() => {});
         }
       } else {
-        console.warn('⚠️ Failed to create plugin:', pluginName);
+        console.warn('⚠️ [ChartContainer] Failed to create plugin:', pluginName);
       }
     }
   }

@@ -15,9 +15,12 @@ class StatusStore {
   private _history = $state<StatusUpdate[]>([]);
   private _isTransitioning = $state<boolean>(false);
   private _wsConnected = $state<boolean>(false);
-  
+  private _databaseActivity = $state<string>('idle');
+  private _lastDatabaseUpdate = $state<number>(0);
+
   private statusTimeouts: Map<string, NodeJS.Timeout> = new Map();
   private transitionDuration = 300; // ms
+  private databaseActivityTimeout: NodeJS.Timeout | null = null;
 
   constructor() {
     // Auto-override stuck loading after 3 seconds
@@ -47,6 +50,14 @@ class StatusStore {
   
   get wsConnected() {
     return this._wsConnected;
+  }
+
+  get databaseActivity() {
+    return this._databaseActivity;
+  }
+
+  get lastDatabaseUpdate() {
+    return this._lastDatabaseUpdate;
   }
 
   get displayClass() {
@@ -156,12 +167,29 @@ class StatusStore {
   
   setWebSocketConnected(connected: boolean) {
     this._wsConnected = connected;
-    
+
     // Update status based on connection
     if (!connected && this._currentStatus === 'ready') {
       this.setStatus('error', 'WebSocket Disconnected');
     } else if (connected && this._currentStatus === 'error') {
       this.setReady();
+    }
+  }
+
+  setDatabaseActivity(activity: string, duration: number = 1000) {
+    this._databaseActivity = activity;
+    this._lastDatabaseUpdate = Date.now();
+
+    // Clear any existing timeout
+    if (this.databaseActivityTimeout) {
+      clearTimeout(this.databaseActivityTimeout);
+    }
+
+    // Set back to idle after duration
+    if (activity !== 'idle') {
+      this.databaseActivityTimeout = setTimeout(() => {
+        this._databaseActivity = 'idle';
+      }, duration);
     }
   }
 

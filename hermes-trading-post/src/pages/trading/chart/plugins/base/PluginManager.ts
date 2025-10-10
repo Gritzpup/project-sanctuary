@@ -18,22 +18,30 @@ export class PluginManager {
 
   // Plugin registration
   async register(plugin: Plugin): Promise<void> {
+    console.log(`📦 [PluginManager] Attempting to register plugin: ${plugin.id}`);
+
     if (this.plugins.has(plugin.id)) {
       throw new Error(`Plugin ${plugin.id} is already registered`);
     }
 
     this.plugins.set(plugin.id, plugin);
     this.initializationOrder.push(plugin.id);
+    console.log(`📦 [PluginManager] Plugin ${plugin.id} added to registry. Total plugins: ${this.plugins.size}`);
 
     // Initialize if context is available
     if (this.context) {
+      console.log(`📦 [PluginManager] Context available, initializing ${plugin.id}...`);
       try {
         await plugin.initialize(this.context);
+        console.log(`✅ [PluginManager] Plugin ${plugin.id} initialized successfully`);
       } catch (error) {
+        console.error(`❌ [PluginManager] Failed to initialize ${plugin.id}:`, error);
         this.plugins.delete(plugin.id);
         this.initializationOrder = this.initializationOrder.filter(id => id !== plugin.id);
         throw error;
       }
+    } else {
+      console.log(`⏳ [PluginManager] No context yet, ${plugin.id} will be initialized later`);
     }
 
     this.emitEvent({
@@ -87,6 +95,7 @@ export class PluginManager {
 
   // Context management
   async setContext(context: PluginContext): Promise<void> {
+    console.log(`🎯 [PluginManager] Setting context. Plugins to initialize: ${this.initializationOrder.length}`);
     this.context = context;
 
     // Initialize all registered plugins
@@ -94,10 +103,15 @@ export class PluginManager {
 
     for (const pluginId of this.initializationOrder) {
       const plugin = this.plugins.get(pluginId);
+      console.log(`🎯 [PluginManager] Processing plugin ${pluginId}: exists=${!!plugin}, initialized=${plugin?.initialized}`);
+
       if (plugin && !plugin.initialized) {
         try {
+          console.log(`🚀 [PluginManager] Initializing plugin ${pluginId}...`);
           await plugin.initialize(context);
+          console.log(`✅ [PluginManager] Plugin ${pluginId} initialized`);
         } catch (error) {
+          console.error(`❌ [PluginManager] Failed to initialize ${pluginId}:`, error);
           errors.push({ pluginId, error: error as Error });
           this.emitEvent({
             type: 'error',

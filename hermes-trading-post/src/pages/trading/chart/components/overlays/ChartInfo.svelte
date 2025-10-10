@@ -124,8 +124,20 @@
 
 <div class="chart-info {positionClass}">
   
-  <!-- Traffic light WebSocket status - moved to very left -->
+  <!-- Traffic lights for status indicators -->
   <div class="info-item">
+    <!-- Database loading status traffic light -->
+    <span class="mr-2" title="Database Activity: {statusStore.databaseActivity}">
+      <span
+        class="traffic-light-db size-medium"
+        class:status-idle={statusStore.databaseActivity === 'idle'}
+        class:status-fetching={statusStore.databaseActivity === 'fetching'}
+        class:status-storing={statusStore.databaseActivity === 'storing'}
+        class:status-error={statusStore.databaseActivity === 'error'}
+        class:status-rate-limited={statusStore.databaseActivity === 'rate-limited'}
+      ></span>
+    </span>
+    <!-- Price/WebSocket traffic light -->
     <span class="mr-4">
       <TrafficLight size="medium" flashDuration={500} tradingStatus={tradingStatus} />
     </span>
@@ -142,7 +154,7 @@
     <div class="info-item">
       <span class="info-label">DB:</span>
       <span class="info-value">
-        {formatNumber(dataStore.stats.totalCount)}
+        {formatNumber(dataStore.stats.totalDatabaseCount || dataStore.stats.totalCount)}
       </span>
       <span class="loading-status status-{dataStore.stats.loadingStatus}"></span>
     </div>
@@ -404,8 +416,59 @@
     }
   }
 
-  /* WebSocket Status Light */
-  
+  /* Database Loading Traffic Light */
+  .traffic-light-db {
+    display: inline-block;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .traffic-light-db.size-medium {
+    width: 12px;
+    height: 12px;
+  }
+
+  .traffic-light-db.status-idle {
+    background-color: #666;
+  }
+
+  .traffic-light-db.status-fetching {
+    background-color: #ffa500;
+    animation: pulse-db 0.5s ease-in-out infinite;
+    box-shadow: 0 0 12px rgba(255, 165, 0, 0.9);
+  }
+
+  .traffic-light-db.status-storing {
+    background-color: #4caf50;
+    animation: pulse-db 0.4s ease-in-out infinite;
+    box-shadow: 0 0 12px rgba(76, 175, 80, 0.9);
+  }
+
+  .traffic-light-db.status-error {
+    background-color: #f44336;
+    animation: pulse-db 1.5s ease-in-out infinite;
+    box-shadow: 0 0 8px rgba(244, 67, 54, 0.8);
+  }
+
+  .traffic-light-db.status-rate-limited {
+    background-color: #ff5722;
+    animation: pulse-db 2s ease-in-out infinite;
+    box-shadow: 0 0 8px rgba(255, 87, 34, 0.8);
+  }
+
+  @keyframes pulse-db {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.6;
+      transform: scale(1.15);
+    }
+  }
+
   /* Dark theme adjustments */
   :global(.light) .chart-info {
     background: rgba(255, 255, 255, 0.95);

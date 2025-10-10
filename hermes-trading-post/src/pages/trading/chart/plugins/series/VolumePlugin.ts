@@ -33,6 +33,7 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       version: '1.0.0',
       seriesType: 'Histogram',
       seriesOptions: {
+        visible: true,  // CRITICAL: Ensure visible from the start
         color: defaultSettings.upColor,
         title: '',
         lastValueVisible: true,
@@ -51,11 +52,45 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
 
   protected async setupSeries(): Promise<void> {
     console.log(`🔄 [VolumePlugin] setupSeries called`);
-    
+    try {
+      const chart = this.getChart();
+      console.log(`🔄 [VolumePlugin] Chart exists: ${chart ? 'yes' : 'no'}`);
+    } catch (e) {
+      console.log(`🔄 [VolumePlugin] Chart not available yet:`, e);
+    }
+    console.log(`🔄 [VolumePlugin] Series exists: ${this.series ? 'yes' : 'no'}`);
+    console.log(`🔄 [VolumePlugin] Series type: ${this.seriesType}`);
+
     // Apply custom settings
     const settings = this.settings as VolumePluginSettings;
-    
+
     if (this.series) {
+      // CRITICAL: Set the series to be visible!
+      const visibilityOptions = {
+        visible: true,
+        priceFormat: {
+          type: 'custom',
+          formatter: (price: number) => {
+            // Format volume in millions/billions
+            if (price >= 1000) {
+              return (price / 1000).toFixed(1) + 'B';
+            } else if (price >= 1) {
+              return price.toFixed(1) + 'M';
+            } else {
+              return price.toFixed(3);
+            }
+          },
+        },
+      };
+
+      console.log(`📊 [VolumePlugin] Applying visibility options:`, visibilityOptions);
+      this.series.applyOptions(visibilityOptions);
+
+      // Get current options to verify they were applied
+      const currentOptions = this.series.options();
+      console.log(`📊 [VolumePlugin] Current series options after apply:`, currentOptions);
+      console.log(`📊 [VolumePlugin] Series visible property: ${currentOptions.visible}`);
+
       this.series.priceScale().applyOptions({
         scaleMargins: settings.scaleMargins || { top: 0.8, bottom: 0 },
         visible: true,
@@ -65,16 +100,9 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         entireTextOnly: false,
       });
 
-      // Apply the custom price formatter directly to the series
-      this.series.applyOptions({
-        priceFormat: {
-          type: 'custom',
-          formatter: (price: number) => {
-            return price.toFixed(1) + 'B';
-          },
-        },
-      });
-      
+      console.log(`✅ [VolumePlugin] Series configured with visibility: ${this.series.options().visible}`);
+    } else {
+      console.error(`❌ [VolumePlugin] No series available in setupSeries!`);
     }
   }
 
@@ -82,9 +110,10 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
     try {
       const dataStore = this.getDataStore();
       const candles = dataStore.candles;
-      
+
       console.log(`🔄 [VolumePlugin] getData called with ${candles.length} candles`);
-      
+      console.log(`🔄 [VolumePlugin] Plugin enabled: ${this.enabled}, Series: ${this.series ? 'exists' : 'null'}`);
+
       if (candles.length === 0) {
         console.log(`⚠️ [VolumePlugin] No candles available yet`);
         return [];
@@ -137,32 +166,33 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
     this.volumeData = candles.map((candle, index) => {
       const settings = this.settings as VolumePluginSettings;
       let volume = candle.volume || 0;
-      
-      // 🔥 FIX: Use volume-based coloring instead of price-based
-      // Compare current volume to previous volume to determine color
-      let isVolumeUp = true; // Default for first candle
+
+      // 🔥 FIX: Use price-based coloring (green when price up, red when price down)
+      let isPriceUp = true; // Default for first candle
       if (index > 0) {
-        const prevVolume = candles[index - 1].volume || 0;
-        isVolumeUp = volume >= prevVolume;
+        const prevClose = candles[index - 1].close || 0;
+        isPriceUp = candle.close >= prevClose;
       }
-      
-      // Scale volume for better visualization (multiply by a factor to make bars visible)
-      let displayVolume = volume * 1000000; // Scale up significantly to make bars visible
-      
+
+      // Scale volume to make it visible (BTC volumes are typically 0.1-10 range)
+      // Multiply by 100 to make them more visible in the histogram
+      let displayVolume = volume * 100;
+
       // Debug the histogram data being created
       if (index < 3 || index >= candles.length - 3) {
         console.log(`🔄 [VolumePlugin] Creating histogram data point ${index}:`, {
           time: candle.time,
-          originalVolume: volume,
-          scaledVolume: displayVolume,
-          color: isVolumeUp ? settings.upColor : settings.downColor
+          volume: volume,
+          displayVolume: displayVolume,
+          close: candle.close,
+          color: isPriceUp ? settings.upColor : settings.downColor
         });
       }
-      
+
       return {
         time: candle.time,
         value: displayVolume,
-        color: isVolumeUp ? settings.upColor : settings.downColor
+        color: isPriceUp ? settings.upColor : settings.downColor
       };
     });
     
@@ -171,6 +201,27 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   }
 
   // Public methods
+  forceShow(): void {
+    console.log(`🔥 [VolumePlugin] Force show called`);
+
+    // Make sure we're enabled
+    if (!this.enabled) {
+      this.enable();
+    }
+
+    // Make sure series exists and is visible
+    if (this.series) {
+      this.series.applyOptions({ visible: true });
+      console.log(`🔥 [VolumePlugin] Series visibility set to true`);
+    } else {
+      console.error(`🔥 [VolumePlugin] No series available to show`);
+    }
+
+    // Refresh the data
+    this.refreshData();
+    console.log(`🔥 [VolumePlugin] Data refreshed`);
+  }
+
   updateColors(upColor: string, downColor: string): void {
     this.updateSettings({ upColor, downColor });
   }
