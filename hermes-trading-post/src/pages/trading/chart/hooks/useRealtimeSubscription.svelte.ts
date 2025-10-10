@@ -130,18 +130,18 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   }
 
   /**
-   * Update live candle with new price data (volume handled by VolumePlugin)
+   * Update live candle with new price data AND volume data
    */
   function updateLiveCandleWithPrice(price: number, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any, fullCandleData?: any) {
     if (!chartSeries) return;
-    
+
     const candles = dataStore.candles;
     if (candles.length === 0) {
       console.warn('⚠️ [Realtime] No historical candles available, skipping real-time update');
       return;
     }
-    
-    console.log(`🔴 [Realtime] Updating with price ${price}, current candle count: ${candles.length}`);
+
+    console.log(`🔴 [Realtime] Updating with price ${price}, volume ${fullCandleData?.volume || 0}, current candle count: ${candles.length}`);
     
     // Get current candle timestamp based on granularity
     const now = Date.now();
@@ -175,6 +175,18 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // DO NOT call dataStore.setCandles() - it causes the entire database to be replaced!
       // Just update the chart directly
       chartSeries.update(newCandle);
+
+      // Update volume series if available
+      if (volumeSeries && fullCandleData?.volume !== undefined) {
+        const volumeData = {
+          time: currentCandleTime as any,
+          value: fullCandleData.volume * 100, // Scale volume same as VolumePlugin
+          color: price >= lastCandle.close ? '#26a69a80' : '#ef535080' // Up/down color
+        };
+        console.log(`📊 [Realtime] Updating volume series with new candle:`, volumeData);
+        volumeSeries.update(volumeData);
+      }
+
       statusStore.setNewCandle();
       
       // Simple auto-scroll for all charts including 5m
@@ -227,6 +239,19 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // DO NOT call dataStore.setCandles() - it causes the entire database to be replaced!
       // Just update the chart directly
       chartSeries.update(updatedCandle);
+
+      // Update volume series if available
+      if (volumeSeries && fullCandleData?.volume !== undefined) {
+        const prevCandle = candles.length > 1 ? candles[candles.length - 2] : currentCandle;
+        const volumeData = {
+          time: currentCandle.time,
+          value: fullCandleData.volume * 100, // Scale volume same as VolumePlugin
+          color: price >= prevCandle.close ? '#26a69a80' : '#ef535080' // Up/down color
+        };
+        console.log(`📊 [Realtime] Updating volume series with existing candle:`, volumeData);
+        volumeSeries.update(volumeData);
+      }
+
       statusStore.setPriceUpdate();
       
       // Auto-scroll for 5m charts during price updates (since new candles are infrequent)
@@ -259,14 +284,14 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
    */
   function subscribeToRealtime(config: RealtimeSubscriptionConfig, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any) {
     const { pair, granularity } = config;
-    
+
     // Use dataStore to connect to backend WebSocket - single source of truth
     dataStore.subscribeToRealtime(
       pair,
       granularity,
       (candleData) => {
-        // Only update candle price, volume is handled by VolumePlugin
-        updateLiveCandleWithPrice(candleData.close, chartSeries, null, candleData);
+        // Update both price AND volume in real-time
+        updateLiveCandleWithPrice(candleData.close, chartSeries, volumeSeries, candleData);
         statusStore.setPriceUpdate();
       },
       () => {

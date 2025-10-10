@@ -81,11 +81,17 @@ class RedisCandleStorage {
     const lockKey = generateLockKey('store', pair, granularity);
     
     try {
-      // Acquire lock for this operation
-      const lockAcquired = await this.redis.set(lockKey, '1', 'EX', 30, 'NX');
+      // Acquire lock for this operation (reduced to 5 seconds to minimize blocking)
+      const lockAcquired = await this.redis.set(lockKey, '1', 'EX', 5, 'NX');
       if (!lockAcquired) {
         console.warn('⚠️ RedisCandleStorage: Could not acquire lock for storing candles', { pair, granularity });
-        return;
+        // Don't fail silently - wait briefly and retry once
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const retryLock = await this.redis.set(lockKey, '1', 'EX', 5, 'NX');
+        if (!retryLock) {
+          console.error('❌ RedisCandleStorage: Failed to acquire lock after retry, skipping write');
+          return;
+        }
       }
 
       // Group candles by day for efficient storage
@@ -98,6 +104,7 @@ class RedisCandleStorage {
         const key = generateCandleKey(pair, granularity, dayTimestamp);
         
         // Store candles as sorted set with timestamp as score
+        // Use timestamp as member key to ensure only ONE candle per timestamp
         for (const candle of dayCandles) {
           const candleData = JSON.stringify({
             o: candle.open,
@@ -106,9 +113,15 @@ class RedisCandleStorage {
             c: candle.close,
             v: candle.volume
           });
-          
-          pipeline.zadd(key, candle.time, `${candle.time}:${candleData}`);
+
+          // CRITICAL: Use timestamp as member to prevent duplicates!
+          // Redis ZADD will UPDATE the existing member if timestamp already exists
+          const member = `${candle.time}`;
+          pipeline.zadd(key, candle.time, member);
+          // Store the actual candle data in a hash using the timestamp as key
+          pipeline.hset(`${key}:data`, member, candleData);
           pipeline.expire(key, CANDLE_STORAGE_CONFIG.ttl.candles);
+          pipeline.expire(`${key}:data`, CANDLE_STORAGE_CONFIG.ttl.candles);
         }
         
         operationCount += dayCandles.length;
@@ -153,6 +166,23 @@ class RedisCandleStorage {
       await this.connect();
     }
 
+    const lockKey = generateLockKey('store', pair, granularity);
+
+    // Check if write is in progress - if so, wait briefly for it to complete
+    const writeInProgress = await this.redis.exists(lockKey);
+    if (writeInProgress) {
+      console.log(`⏳ RedisCandleStorage: Write in progress for ${pair}:${granularity}, waiting...`);
+      // Wait up to 2 seconds for write to complete
+      for (let i = 0; i < 20; i++) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const stillLocked = await this.redis.exists(lockKey);
+        if (!stillLocked) {
+          console.log(`✅ RedisCandleStorage: Write lock released, proceeding with read`);
+          break;
+        }
+      }
+    }
+
     const startDay = Math.floor(startTime / 86400) * 86400;
     const endDay = Math.floor(endTime / 86400) * 86400;
     
@@ -161,38 +191,54 @@ class RedisCandleStorage {
     // Fetch data day by day for efficient retrieval
     for (let dayTimestamp = startDay; dayTimestamp <= endDay; dayTimestamp += 86400) {
       const key = generateCandleKey(pair, granularity, dayTimestamp);
-      
-      // Get candles within the time range for this day
-      const candleData = await this.redis.zrangebyscore(
+
+      // Get timestamps within the time range for this day
+      const timestamps = await this.redis.zrangebyscore(
         key,
         startTime,
-        endTime,
-        'WITHSCORES'
+        endTime
       );
-      
+
+      if (timestamps.length === 0) continue;
+
+      // Fetch actual candle data from hash
+      const candleDataArray = await this.redis.hmget(`${key}:data`, ...timestamps);
+
       // Parse candle data
-      for (let i = 0; i < candleData.length; i += 2) {
-        const [dataStr, timestampStr] = [candleData[i], candleData[i + 1]];
-        const timestamp = parseInt(timestampStr);
-        
-        try {
-          // dataStr format is "timestamp:jsonData"
-          const colonIndex = dataStr.indexOf(':');
-          if (colonIndex === -1) {
-            console.error('❌ RedisCandleStorage: Invalid data format (no colon):', dataStr);
-            continue;
+      for (let i = 0; i < timestamps.length; i++) {
+        const timestamp = parseInt(timestamps[i]);
+        const dataStr = candleDataArray[i];
+
+        if (!dataStr) {
+          // Fallback: try old format from sorted set
+          const oldData = await this.redis.zrangebyscore(key, timestamp, timestamp);
+          if (oldData && oldData.length > 0) {
+            try {
+              const parsed = JSON.parse(oldData[0].indexOf(':') > -1 ? oldData[0].substring(oldData[0].indexOf(':') + 1) : oldData[0]);
+              allCandles.push({
+                time: timestamp,
+                open: parsed.o,
+                high: parsed.h,
+                low: parsed.l,
+                close: parsed.c,
+                volume: parsed.v || 0
+              });
+            } catch (e) {
+              console.error('❌ RedisCandleStorage: Error parsing old format:', e.message);
+            }
           }
-          
-          const candleJson = dataStr.substring(colonIndex + 1);
-          const candleData = JSON.parse(candleJson);
-          
+          continue;
+        }
+
+        try {
+          const parsed = JSON.parse(dataStr);
           allCandles.push({
             time: timestamp,
-            open: candleData.o,
-            high: candleData.h,
-            low: candleData.l,
-            close: candleData.c,
-            volume: candleData.v || 0
+            open: parsed.o,
+            high: parsed.h,
+            low: parsed.l,
+            close: parsed.c,
+            volume: parsed.v || 0
           });
         } catch (error) {
           console.error('❌ RedisCandleStorage: Error parsing candle data', error.message, dataStr);

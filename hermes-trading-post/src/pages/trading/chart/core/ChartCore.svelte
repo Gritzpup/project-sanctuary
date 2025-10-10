@@ -96,15 +96,21 @@
         series: chartCanvas?.getSeries()
       });
 
-      // CRITICAL: Refresh all plugins after data reload
-      // Add a small delay to ensure data is fully available
+      // CRITICAL: Refresh indicator plugins after data reload, but NOT volume
+      // Volume updates are handled separately by real-time subscriptions
       setTimeout(() => {
         if (pluginManager) {
-          console.log(`🔄 [ChartCore] Refreshing all plugins after data reload...`);
+          console.log(`🔄 [ChartCore] Refreshing indicator plugins after data reload...`);
           const enabledPlugins = pluginManager.getEnabled();
           for (const plugin of enabledPlugins) {
             try {
-              // Force a refresh of plugin data
+              // Skip volume plugin - it's updated by real-time subscription
+              if (plugin.id === 'volume') {
+                console.log(`⏭️ [ChartCore] Skipping volume plugin refresh (handled by real-time updates)`);
+                continue;
+              }
+
+              // Force a refresh of indicator plugin data
               if (typeof (plugin as any).refreshData === 'function') {
                 console.log(`🔄 [ChartCore] Refreshing plugin: ${plugin.id}`);
                 (plugin as any).refreshData();
@@ -139,11 +145,15 @@
       }, 200); // Increased timeout for reliability
 
       // Re-enable real-time updates after timeframe change
+      // Get volume series from plugin manager
+      const volumePlugin = pluginManager?.get('volume');
+      const volumeSeries = volumePlugin ? (volumePlugin as any).getSeries() : null;
+
       realtimeSubscription.subscribeToRealtime({
         pair,
         granularity
-      }, chartCanvas?.getSeries(), null);
-      console.log(`🟢 [ChartCore] Real-time subscription restarted after timeframe change`);
+      }, chartCanvas?.getSeries(), volumeSeries);
+      console.log(`🟢 [ChartCore] Real-time subscription restarted after timeframe change with volume series: ${!!volumeSeries}`);
 
       statusStore.setReady();
       console.log(`Data reloaded for ${granularity} + ${period}`);
@@ -216,15 +226,15 @@
       // Check for data gaps and fill them
       await dataLoader.checkAndFillDataGaps(chartCanvas?.getChart(), chartCanvas?.getSeries());
 
-      // CRITICAL: Refresh all plugins after initial data load
-      // Add a small delay to ensure data is fully available
+      // CRITICAL: Refresh ALL plugins after initial data load (including volume for first load)
+      // This is the ONLY time volume plugin gets refreshed - after this, real-time updates only
       setTimeout(() => {
         if (pluginManager) {
-          console.log(`🔄 [ChartCore] Refreshing all plugins after initial data load...`);
+          console.log(`🔄 [ChartCore] Refreshing ALL plugins after initial data load (including volume)...`);
           const enabledPlugins = pluginManager.getEnabled();
           for (const plugin of enabledPlugins) {
             try {
-              // Force a refresh of plugin data
+              // Refresh all plugins including volume on initial load
               if (typeof (plugin as any).refreshData === 'function') {
                 console.log(`🔄 [ChartCore] Refreshing plugin: ${plugin.id}`);
                 (plugin as any).refreshData();
@@ -237,11 +247,15 @@
       }, 500); // Small delay to ensure data is ready
 
       // Enable real-time updates after initial data load
+      // Get volume series from plugin manager
+      const volumePlugin = pluginManager?.get('volume');
+      const volumeSeries = volumePlugin ? (volumePlugin as any).getSeries() : null;
+
       realtimeSubscription.subscribeToRealtime({
         pair,
         granularity
-      }, chartCanvas?.getSeries(), null);
-      console.log(`🟢 [ChartCore] Real-time subscription enabled after initial data load`);
+      }, chartCanvas?.getSeries(), volumeSeries);
+      console.log(`🟢 [ChartCore] Real-time subscription enabled after initial data load with volume series: ${!!volumeSeries}`);
 
       // Set status to ready after data loads and chart is updated
       setTimeout(() => {
