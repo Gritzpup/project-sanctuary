@@ -231,11 +231,19 @@ class DataStore {
       }
       
       console.log(`✅ [DataStore] Data loaded successfully: ${data.length} candles for ${pair}/${granularity}`);
+
+      // Warn if we got very few candles (possible race condition)
+      if (data.length < 3 && maxCandles && maxCandles > 10) {
+        console.warn(`⚠️ Only ${data.length} candles loaded (expected ~${maxCandles}). This may be a race condition.`);
+      }
+
       this.setCandles(data);
       this.updateStats();
-      
-      // Get initial DB count
-      this.updateDatabaseCount();
+
+      // Delay DB count update to avoid interfering with initial render
+      setTimeout(() => {
+        this.updateDatabaseCount();
+      }, 100);
       
       // Special debug for 1d/3M combination
       if (granularity === '1d' || granularity === '1D') {
