@@ -28,6 +28,7 @@
   export let showInfo: boolean = true;
   export let showDebug: boolean = false;
   export let enablePlugins: boolean = true;
+  export let enableAutoGranularity: boolean = true; // Enable automatic granularity switching on zoom
   export let defaultPlugins: string[] = ['volume'];
   export let multiPane: boolean = false;
   export let onReady: ((chart: IChartApi, pluginManager: PluginManager | null) => void) | undefined = undefined;
@@ -281,6 +282,7 @@
       {granularity}
       {period}
       {enablePlugins}
+      {enableAutoGranularity}
       onReady={handleChartReady}
     >
       <div slot="overlays">

@@ -12,11 +12,13 @@
   import { getGranularitySeconds } from '../utils/granularityHelpers';
   import { useDataLoader } from '../hooks/useDataLoader.svelte';
   import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription.svelte';
-  
+  import { useAutoGranularity } from '../hooks/useAutoGranularity.svelte';
+
   export let pair: string = 'BTC-USD';
   export let granularity: string = '1m';
   export let period: string = '1H';
   export let enablePlugins: boolean = true;
+  export let enableAutoGranularity: boolean = true; // Enable automatic granularity switching
   export let onReady: ((chart: IChartApi) => void) | undefined = undefined;
   
   let chartCanvas: ChartCanvas;
@@ -50,7 +52,10 @@
       ChartDebug.error('Real-time subscription error:', error);
     }
   });
-  
+
+  // Auto-granularity will be initialized after chart is ready
+  let autoGranularity: any = null;
+
   // Set up chart context for child components
   const chartContext = {
     getChart: () => chartCanvas?.getChart(),
@@ -180,6 +185,18 @@
       });
 
       console.log(`🟢 [ChartCore] PluginManager initialized and ready for plugin registration`);
+    }
+
+    // Initialize auto-granularity switching after chart is ready
+    if (enableAutoGranularity) {
+      console.log(`🔄 [ChartCore] Initializing auto-granularity switching...`);
+      autoGranularity = useAutoGranularity({
+        chart,
+        candleSeries: chartCanvas?.getSeries() || null,
+        enabled: true,
+        debounceMs: 300
+      });
+      console.log(`🟢 [ChartCore] Auto-granularity switching enabled`);
     }
 
     // Notify parent component that chart is ready
