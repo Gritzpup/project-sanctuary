@@ -108,38 +108,6 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       const timeRange = getPeriodSeconds(config.timeframe);
       const startTime = alignedNow - timeRange;
       
-      console.log(`🎯 Loading ${config.granularity} data from database for ${config.timeframe} display`);
-      console.log(`⏰ Time alignment: ${now} -> ${alignedNow} (${alignedNow - now}s offset)`);
-      console.log(`📅 Requesting data from ${startTime} to ${alignedNow}`);
-      
-      // Debug for 5m+1H and 15m+1H combinations
-      if ((config.granularity === '5m' || config.granularity === '15m') && config.timeframe === '1H') {
-        const debugInfo = {
-          pair: config.pair,
-          granularity: config.granularity,
-          timeframe: config.timeframe,
-          expectedCandles: candleCount,
-          granularitySeconds: granularitySeconds,
-          timeRange: `${timeRange} seconds (${timeRange / 60} minutes)`,
-          now: `${now} (${new Date(now * 1000).toISOString()})`,
-          alignedNow: `${alignedNow} (${new Date(alignedNow * 1000).toISOString()})`,
-          start: `${startTime} (${new Date(startTime * 1000).toISOString()})`
-        };
-        console.log(`🔍 ${config.granularity}+1H Data Loading Debug:`, debugInfo);
-      }
-      
-      // Consolidated debug for 3M/1d (reduce multiple log calls)
-      if (config.timeframe === '3M' && config.granularity === '1d') {
-        const debugInfo = {
-          period: `${config.timeframe} + ${config.granularity} = ${candleCount} candles`,
-          timeRange: `${timeRange} seconds = ${timeRange / 86400} days`,
-          now: `${now} (${new Date(now * 1000).toISOString()})`,
-          start: `${startTime} (${new Date(startTime * 1000).toISOString()})`,
-          expectedCandles: candleCount
-        };
-        ChartDebug.critical('Loading 3M/1d data:', debugInfo);
-      }
-      
       // Load data
       perfTest.mark('dataStore-loadData-start');
       await dataStore.loadData(
@@ -152,67 +120,22 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       perfTest.measure('DataStore loadData', 'dataStore-loadData-start');
       
       const candles = dataStore.candles;
-      
-      // Debug actual results for 5m+1H and 15m+1H combinations
-      if ((config.granularity === '5m' || config.granularity === '15m') && config.timeframe === '1H') {
-        console.log(`🔍 ${config.granularity}+1H Data Loading Results:`, {
-          expectedCandles: candleCount,
-          actualCandles: candles.length,
-          firstCandle: candles.length > 0 ? new Date((candles[0].time as number) * 1000).toISOString() : 'none',
-          lastCandle: candles.length > 0 ? new Date((candles[candles.length - 1].time as number) * 1000).toISOString() : 'none',
-          timeSpan: candles.length > 1 ? `${((candles[candles.length - 1].time as number) - (candles[0].time as number)) / 60} minutes` : 'single candle'
-        });
-      }
-      
-      // Performance analysis for 3M/1d
-      if (config.timeframe === '3M' && config.granularity === '1d') {
-        if (candles.length > 0) {
-          const firstCandle = candles[0];
-          const lastCandle = candles[candles.length - 1];
-          const actualDays = ((lastCandle.time as number) - (firstCandle.time as number)) / 86400;
-          const visibleDays = ((now + 30) - startTime) / 86400;
-          ChartDebug.critical('3M/1d Performance Analysis:', {
-            from: new Date(startTime * 1000).toISOString(),
-            to: new Date((now + 30) * 1000).toISOString(),
-            visibleDays: visibleDays.toFixed(1),
-            actualCandles: candles.length,
-            expectedCandles: candleCount,
-            dataSpan: `${actualDays.toFixed(1)} days`
-          });
-        }
-      }
-      
+
       // Update chart with loaded data if series is provided
       if (config.series && candles.length > 0) {
-        // Use all available candles to match volume data
-        console.log(`📊 Setting ${candles.length} candles on price series for ${config.granularity}/${config.timeframe}`);
-        
         config.series.setData(candles);
-        
+
         // Positioning after setting data - let ChartCanvas handle it
         if (config.chart && candles.length > 0) {
           setTimeout(() => {
-            console.log(`📊 useDataLoader: Positioning ${candles.length} candles for ${config.granularity}/${config.timeframe}`);
             // For 1H timeframes, scroll to real-time but don't override chart positioning
             if (config.timeframe === '1H') {
               config.chart!.timeScale().scrollToRealTime();
-              console.log(`🎯 useDataLoader: 1H timeframe - scrolled to real-time, ChartCanvas will handle view`);
             } else {
               config.chart!.timeScale().fitContent();
               config.chart!.timeScale().scrollToRealTime();
             }
           }, 200);
-        }
-        
-        // For 5m+1H and 15m+1H debug exactly what we're setting
-        if ((config.granularity === '5m' || config.granularity === '15m') && config.timeframe === '1H') {
-          console.log(`🔍 ${config.granularity}+1H Candles being set on chart:`, {
-            totalFetched: candles.length,
-            candlesShown: candles.length,
-            expectedCandles: candleCount,
-            firstCandle: candles[0] ? new Date((candles[0].time as number) * 1000).toISOString() : 'none',
-            lastCandle: candles[candles.length - 1] ? new Date((candles[candles.length - 1].time as number) * 1000).toISOString() : 'none'
-          });
         }
       }
       

@@ -48,19 +48,16 @@
   $effect(() => {
     // Only update if we have chart, series, and data
     if (chart && candleSeries && dataStore.candles.length > 0) {
-      console.log(`📊 [ChartCanvas] Setting ${dataStore.candles.length} candles on chart`);
       dataManager?.updateChartData();
-      
+
       // Only apply positioning if candle count actually changed AND user hasn't recently interacted
       if (dataStore.candles.length !== lastCandleCount) {
         lastCandleCount = dataStore.candles.length;
-        
+
         // Don't auto-position if user has interacted in the last 10 seconds
         const timeSinceInteraction = Date.now() - lastUserInteraction;
         if (!userHasInteracted || timeSinceInteraction > 10000) {
           applyOptimalPositioning();
-        } else {
-          console.log(`📊 ChartCanvas: Skipping auto-positioning - user interacted ${(timeSinceInteraction/1000).toFixed(1)}s ago`);
         }
       }
     }
@@ -78,39 +75,38 @@
   
   function initializeChart() {
     if (initCalled) {
-      console.warn('⚠️ initializeChart called multiple times');
       return;
     }
-    
+
     initCalled = true;
     containerExists = !!container;
-    
+
     if (!container) {
-      console.error('❌ Container not found');
+      console.error('Container not found');
       statusStore.setError('Chart container not available');
       return;
     }
-    
+
     // Create chart instance
     chart = chartInitializer.createChartInstance();
     if (!chart) {
       statusStore.setError('Failed to create chart');
       return;
     }
-    
+
     chartCreated = true;
-    
+
     // Setup series
     const seriesCreated = dataManager.setupSeries();
     if (!seriesCreated) {
       statusStore.setError('Failed to create chart series');
       return;
     }
-    
+
     // Initial data load
     dataManager.updateChartData();
     dataManager.updateVolumeData();
-    
+
     // Initialize historical data loader
     historicalDataLoader = useHistoricalDataLoader({
       chart,
@@ -119,14 +115,10 @@
       loadAmount: 300, // Load 300 additional candles at a time
       debounceMs: 500 // Debounce scrolling events by 500ms
     });
-    
+
     // Notify parent component
-    console.log(`📣 [ChartCanvas] Chart ready, calling onChartReady callback:`, !!onChartReady);
     if (onChartReady) {
       onChartReady(chart);
-      console.log(`✅ [ChartCanvas] onChartReady callback completed`);
-    } else {
-      console.warn(`⚠️ [ChartCanvas] No onChartReady callback provided!`);
     }
 
     statusStore.setReady();
@@ -158,18 +150,17 @@
   
   function setupUserInteractionTracking() {
     if (!chart || !container) return;
-    
+
     const markUserInteraction = () => {
       userHasInteracted = true;
       lastUserInteraction = Date.now();
-      console.log(`📊 ChartCanvas: User interaction detected`);
     };
-    
+
     // Track mouse events on the chart
     container.addEventListener('mousedown', markUserInteraction);
     container.addEventListener('wheel', markUserInteraction);
     container.addEventListener('touchstart', markUserInteraction);
-    
+
     // Track chart-specific zoom/pan events
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
       markUserInteraction();
@@ -232,7 +223,6 @@
 
       if (recentlyInteracted) {
         // Just ensure data is available, don't force repositioning
-        console.log(`📊 ChartCanvas: User recently interacted (${(timeSinceInteraction/1000).toFixed(1)}s ago) - minimal positioning`);
         // Only update data, preserve user's view
         return;
       }
@@ -241,8 +231,6 @@
       const STANDARD_VISIBLE_CANDLES = 60;
       const showCandles = Math.min(candles.length, STANDARD_VISIBLE_CANDLES);
       const startIndex = Math.max(0, candles.length - showCandles);
-
-      console.log(`📊 ChartCanvas: Showing exactly ${showCandles} candles from index ${startIndex} to ${candles.length-1} (${currentGranularity}/${currentTimeframe})`);
 
       // Set visible logical range to show exactly 60 candles
       chart.timeScale().setVisibleLogicalRange({
@@ -258,8 +246,6 @@
         barSpacing: Math.max(6, barSpacing), // Minimum 6px per bar
         rightOffset: 3 // Keep 3 candles of space on the right
       });
-
-      console.log(`🎯 ChartCanvas: Applied 60-candle view with ${barSpacing}px bar spacing`);
 
       // Only scroll to real-time if user hasn't interacted recently
       if (!recentlyInteracted) {
@@ -290,8 +276,7 @@
   
   export function fitContent() {
     if (!chart) return;
-    
-    console.log(`📊 ChartCanvas: Simple fitContent for ${dataStore.candles.length} candles`);
+
     chart.timeScale().fitContent();
   }
 
@@ -300,7 +285,7 @@
       chart.timeScale().scrollToRealTime();
     }
   }
-  
+
   export function setVisibleRange(from: number, to: number) {
     if (chart) {
       chart.timeScale().setVisibleRange({ from: from as any, to: to as any });
@@ -312,8 +297,6 @@
 
     const candles = dataStore.candles;
     const VISIBLE_CANDLES = 60;
-
-    console.log(`📊 ChartCanvas: show60Candles - displaying exactly ${VISIBLE_CANDLES} of ${candles.length} total candles`);
 
     if (candles.length > VISIBLE_CANDLES) {
       // Show only the most recent 60 candles
@@ -332,12 +315,9 @@
         barSpacing: Math.max(6, barSpacing),
         rightOffset: 3
       });
-
-      console.log(`🎯 ChartCanvas: Showing candles ${startIndex} to ${candles.length-1} (exactly 60 candles)`);
     } else {
       // If we have fewer than 60 candles, show all
       chart.timeScale().fitContent();
-      console.log(`🎯 ChartCanvas: Showing all ${candles.length} candles (less than 60)`);
     }
 
     chart.timeScale().scrollToRealTime();
@@ -345,53 +325,42 @@
 
   export function addMarker(marker: any) {
     if (!candleSeries) {
-      console.log('ChartCanvas: Cannot add marker - series not ready');
       return;
     }
-    console.log('ChartCanvas: Adding single marker to candlestick series');
     candleSeries.setMarkers([marker]);
   }
 
   export function addMarkers(markers: any[]) {
     if (!candleSeries) {
-      console.log('ChartCanvas: Cannot add markers - series not ready');
       return;
     }
-    
+
     if (!markers || markers.length === 0) {
-      console.log('ChartCanvas: Clearing all markers from chart');
       candleSeries.setMarkers([]);
-      console.log('✅ ChartCanvas: All markers cleared from chart');
       return;
     }
-    
-    console.log('ChartCanvas: Adding', markers.length, 'markers to candlestick series');
+
     try {
       candleSeries.setMarkers(markers);
-      console.log('✅ ChartCanvas: Successfully added markers to chart');
     } catch (error) {
-      console.error('❌ ChartCanvas: Error setting markers:', error);
+      console.error('Error setting markers:', error);
     }
   }
 
   export function clearMarkers() {
     if (!candleSeries) {
-      console.log('ChartCanvas: Cannot clear markers - series not ready');
       return;
     }
-    console.log('ChartCanvas: Clearing all markers from chart');
     candleSeries.setMarkers([]);
-    console.log('✅ ChartCanvas: All markers cleared from chart');
   }
 
   export function resetToDefaultView() {
     if (!chart) return;
-    
-    console.log('📊 ChartCanvas: Manually resetting to default view');
+
     // Reset user interaction tracking
     userHasInteracted = false;
     lastUserInteraction = 0;
-    
+
     // Apply default positioning
     applyOptimalPositioning();
   }
@@ -400,7 +369,6 @@
     if (historicalDataLoader) {
       return await historicalDataLoader.loadMoreHistoricalData();
     }
-    console.warn('Historical data loader not initialized');
     return false;
   }
 </script>

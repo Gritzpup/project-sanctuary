@@ -51,16 +51,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   }
 
   protected async setupSeries(): Promise<void> {
-    console.log(`🔄 [VolumePlugin] setupSeries called`);
-    try {
-      const chart = this.getChart();
-      console.log(`🔄 [VolumePlugin] Chart exists: ${chart ? 'yes' : 'no'}`);
-    } catch (e) {
-      console.log(`🔄 [VolumePlugin] Chart not available yet:`, e);
-    }
-    console.log(`🔄 [VolumePlugin] Series exists: ${this.series ? 'yes' : 'no'}`);
-    console.log(`🔄 [VolumePlugin] Series type: ${this.seriesType}`);
-
     // Apply custom settings
     const settings = this.settings as VolumePluginSettings;
 
@@ -83,13 +73,7 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         },
       };
 
-      console.log(`📊 [VolumePlugin] Applying visibility options:`, visibilityOptions);
       this.series.applyOptions(visibilityOptions);
-
-      // Get current options to verify they were applied
-      const currentOptions = this.series.options();
-      console.log(`📊 [VolumePlugin] Current series options after apply:`, currentOptions);
-      console.log(`📊 [VolumePlugin] Series visible property: ${currentOptions.visible}`);
 
       this.series.priceScale().applyOptions({
         scaleMargins: settings.scaleMargins || { top: 0.85, bottom: 0 },
@@ -100,10 +84,8 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         borderVisible: false,
         entireTextOnly: false,
       });
-
-      console.log(`✅ [VolumePlugin] Series configured with visibility: ${this.series.options().visible}`);
     } else {
-      console.error(`❌ [VolumePlugin] No series available in setupSeries!`);
+      console.error('VolumePlugin: No series available in setupSeries');
     }
   }
 
@@ -111,62 +93,21 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
     try {
       const dataStore = this.getDataStore();
       const candles = dataStore.candles;
-      const chartStore = this.getChartStore();
-      const granularity = chartStore?.config?.granularity || 'unknown';
-
-      console.log(`🔄 [VolumePlugin] getData called with ${candles.length} candles [${granularity}]`);
-
-      // DEBUG: Log first and last 3 candle timestamps for 15m
-      if (granularity === '15m' && candles.length > 0) {
-        console.log(`🔍 [VolumePlugin] 15m candles - First 3:`, candles.slice(0, 3).map(c => ({ time: c.time, date: new Date((c.time as number) * 1000).toISOString() })));
-        console.log(`🔍 [VolumePlugin] 15m candles - Last 3:`, candles.slice(-3).map(c => ({ time: c.time, date: new Date((c.time as number) * 1000).toISOString() })));
-      }
-
-      console.log(`🔄 [VolumePlugin] Plugin enabled: ${this.enabled}, Series: ${this.series ? 'exists' : 'null'}`);
 
       if (candles.length === 0) {
-        console.log(`⚠️ [VolumePlugin] No candles available yet`);
         return [];
       }
-      
+
       if (candles.length > 0) {
         // Check volume data in detail
         const candlesWithVolume = candles.filter(c => c.volume && c.volume > 0);
-        console.log(`🔄 [VolumePlugin] Volume analysis: ${candlesWithVolume.length}/${candles.length} candles have volume > 0`);
-        console.log(`🔄 [VolumePlugin] Sample candle volume:`, candles[candles.length - 1].volume);
-        console.log(`🔄 [VolumePlugin] First candle:`, candles[0]);
-        console.log(`🔄 [VolumePlugin] Last candle:`, candles[candles.length - 1]);
-        
-        // Log volume range
-        if (candlesWithVolume.length > 0) {
-          const volumes = candlesWithVolume.map(c => c.volume || 0);
-          const minVolume = Math.min(...volumes);
-          const maxVolume = Math.max(...volumes);
-          console.log(`🔄 [VolumePlugin] Volume range: ${minVolume} to ${maxVolume}`);
-          
-          // Set global debug for successful volume data
-          try {
-            document.title = `VOLUME OK - ${candlesWithVolume.length}/${candles.length} range:${minVolume.toFixed(2)}-${maxVolume.toFixed(2)}`;
-            (window as any).volumeDebug = { 
-              hasVolume: true, 
-              candlesWithVolume: candlesWithVolume.length, 
-              totalCandles: candles.length,
-              minVolume,
-              maxVolume
-            };
-          } catch (e) {}
-        } else {
-          console.log(`❌ [VolumePlugin] NO VOLUME DATA FOUND IN ANY CANDLES!`);
-          // Also log to document title for debugging
-          try {
-            document.title = `NO VOLUME DATA - ${candlesWithVolume.length}/${candles.length}`;
-            // Also try to write to a global debug object
-            (window as any).volumeDebug = { hasVolume: false, candlesWithVolume: candlesWithVolume.length, totalCandles: candles.length };
-          } catch (e) {}
+
+        if (candlesWithVolume.length === 0) {
+          console.error('VolumePlugin: No volume data found in candles');
         }
       }
     } catch (error) {
-      console.error(`❌ [VolumePlugin] Error getting dataStore:`, error);
+      console.error('VolumePlugin: Error getting dataStore:', error);
       return [];
     }
     
@@ -188,17 +129,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       // Multiply by 1000 to make them more visible in the histogram
       let displayVolume = volume * 1000;
 
-      // Debug the histogram data being created
-      if (index < 3 || index >= candles.length - 3) {
-        console.log(`🔄 [VolumePlugin] Creating histogram data point ${index}:`, {
-          time: candle.time,
-          volume: volume,
-          displayVolume: displayVolume,
-          close: candle.close,
-          color: isPriceUp ? settings.upColor : settings.downColor
-        });
-      }
-
       // Safety check: ensure color is never null/undefined
       const color = isPriceUp
         ? (settings.upColor || '#26a69aCC')
@@ -217,8 +147,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
 
   // Public methods
   forceShow(): void {
-    console.log(`🔥 [VolumePlugin] Force show called`);
-
     // Make sure we're enabled
     if (!this.enabled) {
       this.enable();
@@ -227,14 +155,12 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
     // Make sure series exists and is visible
     if (this.series) {
       this.series.applyOptions({ visible: true });
-      console.log(`🔥 [VolumePlugin] Series visibility set to true`);
     } else {
-      console.error(`🔥 [VolumePlugin] No series available to show`);
+      console.error('VolumePlugin: No series available to show');
     }
 
     // Refresh the data
     this.refreshData();
-    console.log(`🔥 [VolumePlugin] Data refreshed`);
   }
 
   updateColors(upColor: string, downColor: string): void {

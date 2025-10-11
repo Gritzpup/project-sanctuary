@@ -86,7 +86,6 @@
 
   async function reloadDataForNewTimeframe() {
     try {
-      console.log(`Reloading data for ${granularity} + ${period}`);
       statusStore.setLoading('Updating timeframe...');
 
       // Unsubscribe from current real-time updates
@@ -105,17 +104,15 @@
       // Volume needs full refresh when switching granularities, not just real-time updates
       setTimeout(() => {
         if (pluginManager) {
-          console.log(`🔄 [ChartCore] Refreshing ALL plugins after granularity change...`);
           const enabledPlugins = pluginManager.getEnabled();
           for (const plugin of enabledPlugins) {
             try {
               // Refresh all plugins including volume when granularity changes
               if (typeof (plugin as any).refreshData === 'function') {
-                console.log(`🔄 [ChartCore] Refreshing plugin: ${plugin.id}`);
                 (plugin as any).refreshData();
               }
             } catch (error) {
-              console.error(`❌ [ChartCore] Failed to refresh plugin ${plugin.id}:`, error);
+              console.error(`Failed to refresh plugin ${plugin.id}:`, error);
             }
           }
         }
@@ -127,10 +124,8 @@
           // For long-term views (3M, 6M, 1Y, 5Y), show all candles. Otherwise show 60.
           const longTermPeriods = ['3M', '6M', '1Y', '5Y'];
           if (longTermPeriods.includes(period)) {
-            console.log(`🔄 Chart repositioning for ${granularity}: ${dataStore.candles.length} candles - fitting all`);
             chartCanvas.fitContent();
           } else {
-            console.log(`🔄 Chart repositioning for ${granularity}: ${dataStore.candles.length} candles - showing 60`);
             chartCanvas.show60Candles();
           }
         }
@@ -144,11 +139,9 @@
           pair,
           granularity
         }, chartCanvas?.getSeries(), volumeSeries);
-        console.log(`🟢 [ChartCore] Real-time subscription restarted after positioning with volume series: ${!!volumeSeries}`);
       }, 600); // Increased timeout to ensure positioning completes before real-time updates
 
       statusStore.setReady();
-      console.log(`Data reloaded for ${granularity} + ${period}`);
     } catch (error) {
       console.error('Failed to reload data for new timeframe:', error);
       statusStore.setError('Failed to update timeframe');
@@ -156,14 +149,11 @@
   }
   
   async function handleChartReady(chart: IChartApi) {
-    console.log(`🚀 [ChartCore] handleChartReady called, enablePlugins: ${enablePlugins}`);
-
     // Initialize plugin manager if plugins are enabled
     if (enablePlugins) {
       pluginManager = new PluginManager();
 
       // Set context for plugins (ChartContainer will register the actual plugins)
-      console.log(`🔄 [ChartCore] Setting plugin manager context...`);
       await pluginManager.setContext({
         chart,
         dataStore,
@@ -171,36 +161,28 @@
         statusStore
       });
 
-      console.log(`🟢 [ChartCore] PluginManager initialized and ready for plugin registration`);
-
       // Wait a bit for plugins to be registered by ChartContainer, then update volume series
       setTimeout(() => {
         const volumePlugin = pluginManager?.get('volume');
         const volumeSeries = volumePlugin ? (volumePlugin as any).getSeries() : null;
 
         if (volumeSeries) {
-          console.log(`🔄 [ChartCore] Volume plugin found, re-subscribing with volume series...`);
           realtimeSubscription.subscribeToRealtime({
             pair,
             granularity
           }, chartCanvas?.getSeries(), volumeSeries);
-          console.log(`✅ [ChartCore] Real-time subscription updated with volume series!`);
-        } else {
-          console.warn(`⚠️ [ChartCore] Volume plugin not found after waiting`);
         }
       }, 1500); // Wait for plugins to be registered
     }
 
     // Initialize auto-granularity switching after chart is ready
     if (enableAutoGranularity) {
-      console.log(`🔄 [ChartCore] Initializing auto-granularity switching...`);
       autoGranularity = useAutoGranularity({
         chart,
         candleSeries: chartCanvas?.getSeries() || null,
         enabled: false, // DISABLED: Interferes with manual granularity selection (e.g., 15m with few candles)
         debounceMs: 300
       });
-      console.log(`🟢 [ChartCore] Auto-granularity switching DISABLED to prevent interference`);
     }
 
     // Notify parent component that chart is ready
@@ -240,15 +222,13 @@
           // For long-term views (3M, 6M, 1Y, 5Y), show all candles. Otherwise show 60.
           const longTermPeriods = ['3M', '6M', '1Y', '5Y'];
           if (longTermPeriods.includes(period)) {
-            console.log(`🎯 Initial positioning: ${dataStore.candles.length} candles loaded - fitting all`);
             chartCanvas.fitContent();
           } else {
-            console.log(`🎯 Initial positioning: ${dataStore.candles.length} candles loaded - showing 60 candles`);
             chartCanvas.show60Candles();
           }
         }
       }, 300);
-      
+
       // Check for data gaps and fill them
       await dataLoader.checkAndFillDataGaps(chartCanvas?.getChart(), chartCanvas?.getSeries());
 
@@ -256,17 +236,15 @@
       // This is the ONLY time volume plugin gets refreshed - after this, real-time updates only
       setTimeout(() => {
         if (pluginManager) {
-          console.log(`🔄 [ChartCore] Refreshing ALL plugins after initial data load (including volume)...`);
           const enabledPlugins = pluginManager.getEnabled();
           for (const plugin of enabledPlugins) {
             try {
               // Refresh all plugins including volume on initial load
               if (typeof (plugin as any).refreshData === 'function') {
-                console.log(`🔄 [ChartCore] Refreshing plugin: ${plugin.id}`);
                 (plugin as any).refreshData();
               }
             } catch (error) {
-              console.error(`❌ [ChartCore] Failed to refresh plugin ${plugin.id}:`, error);
+              console.error(`Failed to refresh plugin ${plugin.id}:`, error);
             }
           }
         }
@@ -279,7 +257,6 @@
         pair,
         granularity
       }, chartCanvas?.getSeries(), null);
-      console.log(`🟢 [ChartCore] Real-time subscription enabled after initial data load (volume series will be added after plugin init)`);
 
       // Set status to ready after data loads and chart is updated
       setTimeout(() => {
@@ -290,7 +267,6 @@
       // Additional safety check - set status again after a longer delay if still initializing
       setTimeout(() => {
         if (statusStore.status === 'initializing' || statusStore.status === 'loading') {
-          console.log('Status still initializing after 1 second, forcing to ready');
           statusStore.setReady();
         }
       }, 1000);
@@ -364,8 +340,7 @@
       console.error('ChartCore: ChartCanvas not available for show60Candles');
       return;
     }
-    
-    console.log(`📊 ChartCore: Simple delegation to ChartCanvas show60Candles`);
+
     chartCanvas.show60Candles();
   }
 </script>

@@ -87,16 +87,25 @@ export class ContinuousCandleUpdater extends EventEmitter {
 
   /**
    * Get retention period for each granularity (in seconds)
-   * Strategy: Store high frequency for recent data, low frequency for historical
+   * Aligned with timeframe requirements:
+   * - 1H: 1m (60), 5m (12), 15m (4)
+   * - 6H: 5m (72), 15m (24), 1h (6)
+   * - 1D: 15m (96), 1h (24), 6h (4)
+   * - 5D: 1h (120), 6h (20), 1d (5)
+   * - 1M: 6h (120), 1d (30)
+   * - 3M: 1d (90)
+   * - 6M: 1d (180)
+   * - 1Y: 1d (365)
+   * - 5Y: 1d (1825)
    */
   getRetentionPeriod(granularity) {
     const retentionDays = {
-      '1m': 7,      // Last week - high detail for recent trading
-      '5m': 30,     // Last month - medium detail for recent trends
-      '15m': 90,    // Last 3 months - pattern analysis
-      '1h': 365,    // Last year - yearly trends
-      '6h': 1825,   // 5 years - long-term macro trends
-      '1d': 3650    // 10 years - maximum historical view
+      '1m': 7,      // 7 days for 1H timeframe (10,080 candles)
+      '5m': 7,      // 7 days for 1H + 6H timeframes (2,016 candles)
+      '15m': 7,     // 7 days for 1H + 6H + 1D timeframes (672 candles)
+      '1h': 7,      // 7 days for 6H + 1D + 5D timeframes (168 candles)
+      '6h': 30,     // 30 days for 1D + 5D + 1M timeframes (120 candles)
+      '1d': 1825    // 5 years for 5D + 1M + 3M + 6M + 1Y + 5Y timeframes (1825 candles)
     };
 
     return (retentionDays[granularity] || 30) * 86400; // Convert days to seconds
