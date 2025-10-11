@@ -12,14 +12,15 @@ interface UseAutoGranularityConfig {
   debounceMs?: number;
 }
 
-// Define optimal granularities based on visible time range (in seconds)
-const GRANULARITY_THRESHOLDS = [
-  { maxRange: 3600,       granularity: '1m',  timeframe: '1H'  },  // 0-1 hour: use 1m
-  { maxRange: 21600,      granularity: '5m',  timeframe: '6H'  },  // 1-6 hours: use 5m
-  { maxRange: 86400,      granularity: '15m', timeframe: '1D'  },  // 6-24 hours: use 15m
-  { maxRange: 604800,     granularity: '1h',  timeframe: '1W'  },  // 1-7 days: use 1h
-  { maxRange: 2592000,    granularity: '6h',  timeframe: '1M'  },  // 7-30 days: use 6h
-  { maxRange: Infinity,   granularity: '1d',  timeframe: '1Y'  }   // 30+ days: use 1d
+// Define optimal granularities based on number of visible candles
+// Switch granularity when user zooms to see more than ~150 candles
+const GRANULARITY_BY_CANDLE_COUNT = [
+  { maxCandles: 150,     granularity: '1m',  timeframe: '1H'  },  // < 150 candles: use 1m
+  { maxCandles: 150,     granularity: '5m',  timeframe: '6H'  },  // < 150 candles: use 5m
+  { maxCandles: 150,     granularity: '15m', timeframe: '1D'  },  // < 150 candles: use 15m
+  { maxCandles: 150,     granularity: '1h',  timeframe: '1W'  },  // < 150 candles: use 1h
+  { maxCandles: 150,     granularity: '6h',  timeframe: '1M'  },  // < 150 candles: use 6h
+  { maxCandles: Infinity, granularity: '1d',  timeframe: '1Y'  }   // > 150 candles: use 1d
 ];
 
 export function useAutoGranularity(config: UseAutoGranularityConfig) {
@@ -60,7 +61,7 @@ export function useAutoGranularity(config: UseAutoGranularityConfig) {
     const candles = dataStore.candles;
     if (candles.length === 0) return;
 
-    // Calculate visible time range in seconds
+    // Calculate number of visible candles
     const { from, to } = logicalRange;
     const fromIndex = Math.max(0, Math.floor(from));
     const toIndex = Math.min(candles.length - 1, Math.ceil(to));
@@ -69,51 +70,65 @@ export function useAutoGranularity(config: UseAutoGranularityConfig) {
       return;
     }
 
-    const firstVisibleCandle = candles[fromIndex];
-    const lastVisibleCandle = candles[toIndex];
-
-    const visibleTimeRange = lastVisibleCandle.time - firstVisibleCandle.time; // in seconds
+    const visibleCandleCount = toIndex - fromIndex;
     const currentGranularity = chartStore.config.granularity;
 
-    ChartDebug.log('Zoom change detected', {
-      visibleTimeRange: `${(visibleTimeRange / 3600).toFixed(2)} hours`,
-      visibleCandles: toIndex - fromIndex,
-      currentGranularity
-    });
+    console.log(`📊 [AutoGranularity] Zoom detected: ${visibleCandleCount} candles visible (${currentGranularity})`);
 
-    // Determine optimal granularity based on visible time range
-    const optimal = GRANULARITY_THRESHOLDS.find(t => visibleTimeRange <= t.maxRange);
+    // Determine if we need to switch granularity
+    // Switch UP (to larger granularity) if showing > 150 candles
+    // Switch DOWN (to smaller granularity) if showing < 50 candles and have smaller granularity available
+    let newGranularity = currentGranularity;
+    let newTimeframe = chartStore.config.timeframe;
 
-    if (!optimal) return;
+    const granularityOrder = ['1m', '5m', '15m', '1h', '6h', '1d'];
+    const currentIndex = granularityOrder.indexOf(currentGranularity);
 
-    const { granularity: optimalGranularity, timeframe: optimalTimeframe } = optimal;
+    if (visibleCandleCount > 150 && currentIndex < granularityOrder.length - 1) {
+      // Too many candles visible, switch to larger granularity
+      newGranularity = granularityOrder[currentIndex + 1];
+      // Update timeframe to match
+      const timeframeMap = { '1m': '1H', '5m': '6H', '15m': '1D', '1h': '1W', '6h': '1M', '1d': '1Y' };
+      newTimeframe = timeframeMap[newGranularity];
+      console.log(`🔼 [AutoGranularity] Too many candles (${visibleCandleCount}), switching UP to ${newGranularity}`);
+    } else if (visibleCandleCount < 50 && currentIndex > 0) {
+      // Too few candles visible, switch to smaller granularity
+      newGranularity = granularityOrder[currentIndex - 1];
+      const timeframeMap = { '1m': '1H', '5m': '6H', '15m': '1D', '1h': '1W', '6h': '1M', '1d': '1Y' };
+      newTimeframe = timeframeMap[newGranularity];
+      console.log(`🔽 [AutoGranularity] Too few candles (${visibleCandleCount}), switching DOWN to ${newGranularity}`);
+    }
 
-    // Only switch if granularity actually changed and we haven't just switched to it
-    if (optimalGranularity !== currentGranularity && optimalGranularity !== lastSwitchedGranularity) {
-      console.log(`🔄 [AutoGranularity] Switching from ${currentGranularity} to ${optimalGranularity} (visible range: ${(visibleTimeRange / 3600).toFixed(2)}h)`);
+    // Only switch if granularity actually changed
+    if (newGranularity !== currentGranularity && newGranularity !== lastSwitchedGranularity) {
+      console.log(`🔄 [AutoGranularity] Switching from ${currentGranularity} to ${newGranularity} (${visibleCandleCount} candles visible)`);
 
-      lastSwitchedGranularity = optimalGranularity;
+      lastSwitchedGranularity = newGranularity;
 
       // Update both granularity and timeframe
-      chartStore.setGranularity(optimalGranularity);
-      chartStore.setTimeframe(optimalTimeframe);
+      chartStore.setGranularity(newGranularity);
+      chartStore.setTimeframe(newTimeframe);
 
       // Trigger data reload with new granularity
       const pair = chartStore.config.pair;
-      const granularitySeconds = GRANULARITY_TO_SECONDS[optimalGranularity];
-      const candlesToLoad = Math.min(1000, Math.ceil(visibleTimeRange / granularitySeconds) * 2);
+      const candlesToLoad = 300; // Load consistent amount for smooth switching
 
-      ChartDebug.log(`Loading ${candlesToLoad} candles for new granularity ${optimalGranularity}`);
+      ChartDebug.log(`Loading ${candlesToLoad} candles for new granularity ${newGranularity}`);
 
       // Load data with new granularity
       dataStore.loadData({
         pair,
-        granularity: optimalGranularity,
+        granularity: newGranularity,
         maxCandles: candlesToLoad
       }).then(() => {
-        console.log(`✅ [AutoGranularity] Switched to ${optimalGranularity} successfully`);
+        console.log(`✅ [AutoGranularity] Switched to ${newGranularity} successfully`);
+        // Reset last switched to allow switching back if user zooms again
+        setTimeout(() => {
+          lastSwitchedGranularity = '';
+        }, 1000);
       }).catch(err => {
-        console.error(`❌ [AutoGranularity] Failed to load data for ${optimalGranularity}:`, err);
+        console.error(`❌ [AutoGranularity] Failed to load data for ${newGranularity}:`, err);
+        lastSwitchedGranularity = '';
       });
     }
   }
