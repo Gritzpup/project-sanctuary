@@ -194,12 +194,7 @@
       console.error('ChartCore not available for adding markers');
       return;
     }
-    
-      type: typeof chartCore,
-      hasAddMarkers: typeof chartCore.addMarkers,
-      methods: Object.getOwnPropertyNames(chartCore).filter(name => typeof chartCore[name] === 'function')
-    });
-    
+
     // Try the bulk method first
     if (typeof chartCore.addMarkers === 'function') {
       try {
