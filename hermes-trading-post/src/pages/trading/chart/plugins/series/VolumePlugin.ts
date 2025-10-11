@@ -17,11 +17,11 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   constructor(settings?: VolumePluginSettings) {
     
     const defaultSettings: VolumePluginSettings = {
-      upColor: '#26a69a80',
-      downColor: '#ef535080',
-      opacity: 0.5,
+      upColor: '#26a69aCC',  // Increased opacity from 80 to CC (80%)
+      downColor: '#ef5350CC',  // Increased opacity from 80 to CC (80%)
+      opacity: 0.8,
       scaleMargins: {
-        top: 0.8,
+        top: 0.7,  // Volume uses bottom 30% of chart (was 20%)
         bottom: 0
       }
     };
@@ -92,8 +92,8 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       console.log(`📊 [VolumePlugin] Series visible property: ${currentOptions.visible}`);
 
       this.series.priceScale().applyOptions({
-        scaleMargins: settings.scaleMargins || { top: 0.8, bottom: 0 },
-        visible: true,
+        scaleMargins: settings.scaleMargins || { top: 0.7, bottom: 0 },
+        visible: false,  // Hide price labels for volume (we don't need them)
         alignLabels: false,
         autoScale: true,
         borderVisible: false,
