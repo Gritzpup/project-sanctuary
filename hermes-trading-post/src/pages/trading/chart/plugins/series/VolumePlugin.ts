@@ -174,9 +174,9 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         isPriceUp = candle.close >= prevClose;
       }
 
-      // Scale volume to make it visible (BTC volumes are typically 0.1-10 range)
-      // Multiply by 100 to make them more visible in the histogram
-      let displayVolume = volume * 100;
+      // Scale volume to make it visible (BTC volumes are typically 0.1-100 range)
+      // Multiply by 1000 to make them more visible in the histogram
+      let displayVolume = volume * 1000;
 
       // Debug the histogram data being created
       if (index < 3 || index >= candles.length - 3) {
