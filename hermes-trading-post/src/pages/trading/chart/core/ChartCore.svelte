@@ -121,11 +121,18 @@
         }
       }, 500); // Small delay to ensure data is ready
 
-      // Apply proper positioning for new timeframe - show 60 candles
+      // Apply proper positioning for new timeframe
       setTimeout(() => {
         if (chartCanvas && dataStore.candles.length > 0) {
-          console.log(`🔄 Chart repositioning for ${granularity}: ${dataStore.candles.length} candles - showing 60`);
-          chartCanvas.show60Candles();
+          // For long-term views (3M, 6M, 1Y, 5Y), show all candles. Otherwise show 60.
+          const longTermPeriods = ['3M', '6M', '1Y', '5Y'];
+          if (longTermPeriods.includes(period)) {
+            console.log(`🔄 Chart repositioning for ${granularity}: ${dataStore.candles.length} candles - fitting all`);
+            chartCanvas.fitContent();
+          } else {
+            console.log(`🔄 Chart repositioning for ${granularity}: ${dataStore.candles.length} candles - showing 60`);
+            chartCanvas.show60Candles();
+          }
         }
 
         // Re-enable real-time updates AFTER positioning completes
@@ -227,11 +234,18 @@
         series: chartCanvas?.getSeries()
       });
       
-      // Ensure chart is properly positioned after initial data load - show 60 candles
+      // Ensure chart is properly positioned after initial data load
       setTimeout(() => {
         if (chartCanvas && dataStore.candles.length > 0) {
-          console.log(`🎯 Initial positioning: ${dataStore.candles.length} candles loaded - showing 60 candles`);
-          chartCanvas.show60Candles();
+          // For long-term views (3M, 6M, 1Y, 5Y), show all candles. Otherwise show 60.
+          const longTermPeriods = ['3M', '6M', '1Y', '5Y'];
+          if (longTermPeriods.includes(period)) {
+            console.log(`🎯 Initial positioning: ${dataStore.candles.length} candles loaded - fitting all`);
+            chartCanvas.fitContent();
+          } else {
+            console.log(`🎯 Initial positioning: ${dataStore.candles.length} candles loaded - showing 60 candles`);
+            chartCanvas.show60Candles();
+          }
         }
       }, 300);
       
