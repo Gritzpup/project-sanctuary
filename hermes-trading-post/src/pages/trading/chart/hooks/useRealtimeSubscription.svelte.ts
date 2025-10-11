@@ -188,22 +188,22 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       }
 
       statusStore.setNewCandle();
-      
+
       // Simple auto-scroll for all charts including 5m
       console.log(`🔄 New candle added: ${new Date(currentCandleTime * 1000).toLocaleTimeString()}`);
 
-      try {
-        const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
-        if (chart && chart.timeScale) {
-          const config = chartStore?.config;
-
-          // Auto-scroll for ALL charts when new candles are added
-          chart.timeScale().scrollToPosition(2, false); // Keep 2 candles of space on the right
-          console.log(`🔄 Chart scrolled to show new candle at fixed position (${config?.granularity})`);
-        }
-      } catch (error) {
-        console.error('Error auto-scrolling chart:', error);
-      }
+      // DISABLED: Auto-scroll was causing chart to snap on every candle
+      // Let the chart maintain its natural 60-candle view without forced scrolling
+      // try {
+      //   const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
+      //   if (chart && chart.timeScale) {
+      //     const config = chartStore?.config;
+      //     chart.timeScale().scrollToPosition(2, false);
+      //     console.log(`🔄 Chart scrolled to show new candle at fixed position (${config?.granularity})`);
+      //   }
+      // } catch (error) {
+      //   console.error('Error auto-scrolling chart:', error);
+      // }
       
       // Call new candle callback
       if (onNewCandle) {
@@ -253,19 +253,20 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       }
 
       statusStore.setPriceUpdate();
-      
-      // Auto-scroll for 5m charts during price updates (since new candles are infrequent)
-      const config = chartStore?.config;
-      if (config?.granularity === '5m') {
-        try {
-          const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
-          if (chart && chart.timeScale) {
-            chart.timeScale().scrollToPosition(2, false); // Keep newest candle at fixed right position
-          }
-        } catch (error) {
-          console.error('Error auto-scrolling 5m chart during price update:', error);
-        }
-      }
+
+      // DISABLED: Auto-scroll was causing chart to snap constantly
+      // Let the chart maintain its natural 60-candle view
+      // const config = chartStore?.config;
+      // if (config?.granularity === '5m') {
+      //   try {
+      //     const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
+      //     if (chart && chart.timeScale) {
+      //       chart.timeScale().scrollToPosition(2, false);
+      //     }
+      //   } catch (error) {
+      //     console.error('Error auto-scrolling 5m chart during price update:', error);
+      //   }
+      // }
       
       // Ensure status stays ready during price updates
       if (statusStore.status !== 'ready') {

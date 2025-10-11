@@ -3,7 +3,7 @@
   import { PERIOD_DISPLAY_NAMES } from '../../../utils/constants';
 
   export let currentTimeframe: string;
-  export let availableTimeframes: string[] = ['1H', '6H', '1D', '1W', '1M'];
+  export let availableTimeframes: string[] = ['1H', '6H', '1D', '1W', '1M', '5Y'];
   export let showTimeframes: boolean = true;
 
   const dispatch = createEventDispatcher();

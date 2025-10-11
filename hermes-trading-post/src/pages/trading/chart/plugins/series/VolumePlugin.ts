@@ -21,7 +21,7 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       downColor: '#ef5350CC',  // Increased opacity from 80 to CC (80%)
       opacity: 0.8,
       scaleMargins: {
-        top: 0.7,  // Volume uses bottom 30% of chart (was 20%)
+        top: 0.85,  // Volume uses bottom 15% of chart for better visibility
         bottom: 0
       }
     };
@@ -92,10 +92,11 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       console.log(`📊 [VolumePlugin] Series visible property: ${currentOptions.visible}`);
 
       this.series.priceScale().applyOptions({
-        scaleMargins: settings.scaleMargins || { top: 0.7, bottom: 0 },
+        scaleMargins: settings.scaleMargins || { top: 0.85, bottom: 0 },
         visible: false,  // Hide price labels for volume (we don't need them)
         alignLabels: false,
-        autoScale: true,
+        autoScale: true,  // CRITICAL: Auto-scale volume to always fit
+        mode: 0,  // Normal scale mode
         borderVisible: false,
         entireTextOnly: false,
       });

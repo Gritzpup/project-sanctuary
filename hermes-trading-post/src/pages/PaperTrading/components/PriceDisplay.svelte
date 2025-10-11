@@ -102,11 +102,7 @@
             class:animating={animatingDigits.has(i)}
           >
             {#key char}
-              <span 
-                class="digit-inner"
-                in:fly={{ y: priceDirection === 'up' ? 8 : -8, duration: 300, easing: quintOut }}
-                out:fly={{ y: priceDirection === 'up' ? -8 : 8, duration: 300, easing: quintOut }}
-              >
+              <span class="digit-inner">
                 {char}
               </span>
             {/key}

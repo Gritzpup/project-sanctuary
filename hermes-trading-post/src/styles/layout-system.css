@@ -42,6 +42,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  overflow: visible !important; /* Prevent any clipping animations */
 }
 
 .header h1 {
@@ -53,12 +54,14 @@
 .header-stats {
   display: flex;
   gap: var(--space-3xl);
+  overflow: visible !important; /* Prevent any clipping animations */
 }
 
 .stat-item {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+  overflow: visible !important; /* Prevent any clipping */
 }
 
 .stat-label {
@@ -71,6 +74,13 @@
 .stat-value {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
+  transition: none !important; /* Disable animation for instant price updates */
+  animation: none !important; /* Disable all animations */
+  transform: none !important; /* Disable transforms */
+  will-change: auto !important; /* Disable GPU acceleration hints */
+  display: inline-block; /* Prevent text reflow */
+  min-width: 120px; /* Fixed width to prevent layout shift */
+  overflow: visible !important; /* Prevent clipping */
 }
 
 .stat-value.price {
@@ -293,6 +303,13 @@
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
+  transition: none !important; /* Disable animation for instant price updates */
+  animation: none !important; /* Disable all animations */
+  transform: none !important; /* Disable transforms */
+  will-change: auto !important; /* Disable GPU acceleration hints */
+  display: inline-block; /* Prevent text reflow */
+  min-width: 120px; /* Fixed width to prevent layout shift */
+  overflow: visible !important; /* Prevent clipping */
 }
 
 .stat-value.positive {

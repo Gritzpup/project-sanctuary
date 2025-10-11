@@ -23,8 +23,11 @@
   let selectedPeriod = '1H';
   let autoGranularityActive = false;
 
+  console.log('🔥 [Trading.svelte] Script loading - BEFORE onMount');
+
   // Load from localStorage on mount
   onMount(() => {
+    console.log('🔥 [Trading.svelte] onMount executing...');
     try {
       const savedGranularity = localStorage.getItem('trading_granularity');
       const savedPeriod = localStorage.getItem('trading_period');

@@ -13,7 +13,7 @@
   export let showRefresh: boolean = true;
   export let showClearCache: boolean = true;
   export let showSpeed: boolean = true;
-  export let availableTimeframes: string[] = ['1H', '6H', '1D', '1W', '1M'];
+  export let availableTimeframes: string[] = ['1H', '6H', '1D', '1W', '1M', '5Y'];
   export let availableGranularities: string[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
   export let pair: string = 'BTC-USD';
   export let onPairChange: ((pair: string) => void) | undefined = undefined;

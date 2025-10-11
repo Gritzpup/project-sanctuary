@@ -121,25 +121,11 @@
         }
       }, 500); // Small delay to ensure data is ready
 
-      // Apply proper positioning for new timeframe - MUST complete before real-time updates
+      // Apply proper positioning for new timeframe - show 60 candles
       setTimeout(() => {
-        if (chartCanvas) {
-          const chart = chartCanvas.getChart();
-          if (chart) {
-            // Reset chart positioning options for all granularities
-            chart.timeScale().applyOptions({
-              barSpacing: 12,
-              rightOffset: 12,
-              leftOffset: 0,
-              shiftVisibleRangeOnNewBar: true,
-              rightBarStaysOnScroll: true
-            });
-
-            // Fit content and scroll to real time
-            chart.timeScale().fitContent();
-            chart.timeScale().scrollToRealTime();
-            console.log(`🔄 Chart positioned for ${granularity}: ${dataStore.candles.length} candles`);
-          }
+        if (chartCanvas && dataStore.candles.length > 0) {
+          console.log(`🔄 Chart repositioning for ${granularity}: ${dataStore.candles.length} candles - showing 60`);
+          chartCanvas.show60Candles();
         }
 
         // Re-enable real-time updates AFTER positioning completes
@@ -241,13 +227,11 @@
         series: chartCanvas?.getSeries()
       });
       
-      // Ensure chart is properly positioned after initial data load
+      // Ensure chart is properly positioned after initial data load - show 60 candles
       setTimeout(() => {
-        const chart = chartCanvas?.getChart();
-        if (chart && dataStore.candles.length > 0) {
-          console.log(`🎯 Initial positioning: ${dataStore.candles.length} candles loaded`);
-          chart.timeScale().fitContent();
-          chart.timeScale().scrollToRealTime();
+        if (chartCanvas && dataStore.candles.length > 0) {
+          console.log(`🎯 Initial positioning: ${dataStore.candles.length} candles loaded - showing 60 candles`);
+          chartCanvas.show60Candles();
         }
       }, 300);
       
