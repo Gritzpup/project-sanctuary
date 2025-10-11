@@ -176,10 +176,10 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // Just update the chart directly
       chartSeries.update(newCandle);
 
-      // Update volume series if available
+      // Update volume series if available - MUST use exact same time as price candle
       if (volumeSeries && fullCandleData?.volume !== undefined) {
         const volumeData = {
-          time: currentCandleTime as any,
+          time: newCandle.time, // ✅ Use exact same time as price candle to prevent desync
           value: fullCandleData.volume * 1000, // Scale volume same as VolumePlugin (1000x)
           color: price >= lastCandle.close ? '#26a69aCC' : '#ef5350CC' // Up/down color (80% opacity)
         };
@@ -240,11 +240,11 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // Just update the chart directly
       chartSeries.update(updatedCandle);
 
-      // Update volume series if available
+      // Update volume series if available - MUST use exact same time as price candle
       if (volumeSeries && fullCandleData?.volume !== undefined) {
         const prevCandle = candles.length > 1 ? candles[candles.length - 2] : currentCandle;
         const volumeData = {
-          time: currentCandle.time,
+          time: updatedCandle.time, // ✅ Use exact same time as price candle to prevent desync
           value: fullCandleData.volume * 1000, // Scale volume same as VolumePlugin (1000x)
           color: price >= prevCandle.close ? '#26a69aCC' : '#ef5350CC' // Up/down color (80% opacity)
         };

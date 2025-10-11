@@ -17,10 +17,31 @@
   function handleNavigation(event: CustomEvent) {
     dispatch('navigate', event.detail);
   }
-  
+
+  // Load saved preferences from localStorage, fallback to defaults
   let selectedGranularity = '1m';
   let selectedPeriod = '1H';
   let autoGranularityActive = false;
+
+  // Load from localStorage on mount
+  onMount(() => {
+    try {
+      const savedGranularity = localStorage.getItem('trading_granularity');
+      const savedPeriod = localStorage.getItem('trading_period');
+
+      if (savedPeriod && validGranularities[savedPeriod]) {
+        selectedPeriod = savedPeriod;
+      }
+
+      if (savedGranularity && isGranularityValid(savedGranularity, selectedPeriod)) {
+        selectedGranularity = savedGranularity;
+      }
+
+      console.log(`📦 Loaded saved preferences: ${selectedGranularity} / ${selectedPeriod}`);
+    } catch (error) {
+      console.error('Failed to load saved preferences:', error);
+    }
+  });
   
   // Live trading state
   let accountBalance = 50000;
@@ -46,17 +67,39 @@
   function selectGranularity(granularity: string) {
     if (isGranularityValid(granularity, selectedPeriod)) {
       selectedGranularity = granularity;
+      // Save to localStorage
+      try {
+        localStorage.setItem('trading_granularity', granularity);
+        console.log(`💾 Saved granularity: ${granularity}`);
+      } catch (error) {
+        console.error('Failed to save granularity:', error);
+      }
     }
   }
-  
+
   function selectPeriod(period: string) {
     selectedPeriod = period;
-    
+
+    // Save to localStorage
+    try {
+      localStorage.setItem('trading_period', period);
+      console.log(`💾 Saved period: ${period}`);
+    } catch (error) {
+      console.error('Failed to save period:', error);
+    }
+
     if (!isGranularityValid(selectedGranularity, period)) {
       const validOptions = validGranularities[period];
       if (validOptions && validOptions.length > 0) {
         const middleIndex = Math.floor(validOptions.length / 2);
         selectedGranularity = validOptions[middleIndex];
+        // Save the auto-adjusted granularity
+        try {
+          localStorage.setItem('trading_granularity', selectedGranularity);
+          console.log(`💾 Auto-saved granularity: ${selectedGranularity}`);
+        } catch (error) {
+          console.error('Failed to save granularity:', error);
+        }
       }
     }
   }
