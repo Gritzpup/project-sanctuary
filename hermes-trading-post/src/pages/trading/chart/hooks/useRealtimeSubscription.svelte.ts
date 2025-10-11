@@ -149,18 +149,8 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     const lastCandle = candles[candles.length - 1];
     const lastCandleTime = lastCandle.time as number;
 
-    // Debug for 15m specifically
-    if (currentGranularity === '15m') {
-    }
-    
     if (currentCandleTime > lastCandleTime) {
       // New candle needed
-        price,
-        volume: fullCandleData?.volume,
-        hasVolumeData: !!fullCandleData?.volume,
-        fullCandleData
-      });
-      
       const newCandle: CandlestickData = {
         time: currentCandleTime as any,
         open: price,
@@ -208,15 +198,9 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       }
     } else {
       // Update current candle
-        price,
-        volume: fullCandleData?.volume,
-        hasVolumeData: !!fullCandleData?.volume,
-        existingVolume: (candles[candles.length - 1] as any)?.volume
-      });
-      
       const updatedCandles = [...candles];
       const currentCandle = updatedCandles[updatedCandles.length - 1];
-      
+
       const updatedCandle: CandlestickData = {
         ...currentCandle,
         high: Math.max(currentCandle.high, price),
@@ -225,11 +209,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         // Preserve volume from WebSocket data or keep existing volume
         volume: fullCandleData?.volume !== undefined ? fullCandleData.volume : (currentCandle as any).volume || 0
       } as any;
-      
-        time: updatedCandle.time,
-        close: updatedCandle.close,
-        volume: updatedCandle.volume
-      });
       
       // DO NOT call dataStore.setCandles() - it causes the entire database to be replaced!
       // Just update the chart directly
