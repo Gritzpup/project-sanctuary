@@ -1,12 +1,13 @@
 // Time period mappings
 export const PERIOD_TO_SECONDS: Record<string, number> = {
-  '1H': 3600,      // 1 hour
-  '6H': 21600,     // 6 hours
-  '1D': 86400,     // 1 day
-  '1W': 604800,    // 1 week
-  '1M': 2592000,   // 30 days
-  '3M': 7776000,   // 90 days
-  '1Y': 31536000   // 365 days
+  '1H': 3600,       // 1 hour
+  '6H': 21600,      // 6 hours
+  '1D': 86400,      // 1 day
+  '1W': 604800,     // 1 week
+  '1M': 2592000,    // 30 days
+  '3M': 7776000,    // 90 days
+  '1Y': 31536000,   // 365 days
+  '5Y': 157680000   // 5 years (1825 days)
 };
 
 export const PERIOD_TO_DAYS: Record<string, number> = {
@@ -16,7 +17,8 @@ export const PERIOD_TO_DAYS: Record<string, number> = {
   '1W': 7,         // 7 days
   '1M': 30,        // 30 days
   '3M': 90,        // 90 days
-  '1Y': 365        // 365 days
+  '1Y': 365,       // 365 days
+  '5Y': 1825       // 5 years
 };
 
 // ✅ VALIDATED Coinbase API Granularities (tested 2025-10-06)
@@ -43,7 +45,8 @@ export const PERIOD_DISPLAY_NAMES: Record<string, string> = {
   '1W': '1 Week',
   '1M': '1 Month',
   '3M': '3 Months',
-  '1Y': '1 Year'
+  '1Y': '1 Year',
+  '5Y': '5 Years'
 };
 
 export const GRANULARITY_DISPLAY_NAMES: Record<string, string> = {
@@ -58,12 +61,13 @@ export const GRANULARITY_DISPLAY_NAMES: Record<string, string> = {
 // ✅ Validated trading intervals for each timeframe (using only supported granularities)
 export const RECOMMENDED_GRANULARITIES: Record<string, string[]> = {
   '1H': ['1m', '5m', '15m'],            // 60-12-4 candles
-  '6H': ['5m', '15m'],                  // 72-24 candles  
+  '6H': ['5m', '15m'],                  // 72-24 candles
   '1D': ['15m', '1h'],                  // 96-24 candles
   '1W': ['1h', '6h'],                   // 168-28 candles
   '1M': ['6h', '1d'],                   // 120-30 candles
   '3M': ['1d'],                         // 90 candles
-  '1Y': ['1d']                          // 365 candles
+  '1Y': ['1d'],                         // 365 candles
+  '5Y': ['1d']                          // 1825 candles
 };
 
 // ✅ All supported intervals for each timeframe (only API-validated granularities)
@@ -74,7 +78,8 @@ export const VALID_GRANULARITIES: Record<string, string[]> = {
   '1W': ['1h', '6h', '1d'],
   '1M': ['1h', '6h', '1d'],
   '3M': ['6h', '1d'],
-  '1Y': ['1d']
+  '1Y': ['1d'],
+  '5Y': ['1d']
 };
 
 // WebSocket configuration
