@@ -25,7 +25,7 @@
   pair="BTC-USD"
   granularity={granularity}
   period={period}
-  showControls={false}
+  showControls={true}
   showStatus={true}
   showInfo={true}
   showDebug={false}
