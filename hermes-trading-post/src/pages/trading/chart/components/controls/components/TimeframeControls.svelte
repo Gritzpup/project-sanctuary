@@ -9,6 +9,7 @@
   const dispatch = createEventDispatcher();
 
   function handleTimeframeChange(timeframe: string) {
+    console.log(`TimeframeControls: Changing to timeframe ${timeframe}, available: ${availableTimeframes.join(', ')}`);
     dispatch('timeframeChange', { timeframe });
   }
 

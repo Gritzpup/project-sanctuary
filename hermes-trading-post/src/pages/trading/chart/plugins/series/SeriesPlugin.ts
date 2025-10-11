@@ -124,11 +124,19 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
     console.log(`🔔 [SeriesPlugin:${this.config.id}] Calling initial refreshData...`);
     this.refreshData();
 
-    // ⚠️ DO NOT subscribe to data updates here!
+    // ⚠️ DO NOT subscribe to general data updates!
     // This was causing the glitching candles bug - every price update triggered refreshData()
     // which called setData() and replaced the entire dataset, causing historical candles to redraw
     // Real-time updates are handled by useRealtimeSubscription.svelte.ts via chartSeries.update()
-    console.log(`🔔 [SeriesPlugin:${this.config.id}] Skipping data update subscription to prevent glitching candles`);
+    console.log(`🔔 [SeriesPlugin:${this.config.id}] Skipping general data update subscription to prevent glitching candles`);
+
+    // ✅ BUT we DO need to subscribe to historical data loads
+    // Historical data loads require a full refresh to display the new data
+    this.dataUnsubscribe = dataStore.onHistoricalDataLoaded(() => {
+      console.log(`📊 [SeriesPlugin:${this.config.id}] Historical data loaded, refreshing...`);
+      this.refreshData();
+    });
+    console.log(`✅ [SeriesPlugin:${this.config.id}] Subscribed to historical data loads`);
   }
 
   protected unsubscribeFromData(): void {

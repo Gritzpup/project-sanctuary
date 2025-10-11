@@ -30,6 +30,7 @@ class DataStore {
   
   // Subscription mechanism for plugins
   private dataUpdateCallbacks: Set<() => void> = new Set();
+  private historicalDataLoadedCallbacks: Set<() => void> = new Set();
 
   // Helper method to get current chart config
   private getCurrentConfig() {
@@ -380,13 +381,16 @@ class DataStore {
       if (historicalData.length > 0) {
         // Merge historical data with existing data (prepend historical data)
         const mergedCandles = [...historicalData, ...this._candles];
-        
+
         // Sort by time to ensure proper order (should already be sorted, but safety check)
         mergedCandles.sort((a, b) => (a.time as number) - (b.time as number));
-        
+
         // Use setCandles to ensure proper reactivity and notifications
         this.setCandles(mergedCandles);
-        
+
+        // Notify plugins that historical data was loaded (separate from real-time updates)
+        this.notifyHistoricalDataLoaded();
+
         console.log(`📈 Added ${historicalData.length} historical candles. Total: ${mergedCandles.length}`);
         return historicalData.length;
       }
@@ -641,6 +645,14 @@ class DataStore {
     };
   }
 
+  onHistoricalDataLoaded(callback: () => void): () => void {
+    this.historicalDataLoadedCallbacks.add(callback);
+    // Return unsubscribe function
+    return () => {
+      this.historicalDataLoadedCallbacks.delete(callback);
+    };
+  }
+
   private notifyDataUpdate() {
     console.log(`🔔 [DataStore] notifyDataUpdate called, callbacks: ${this.dataUpdateCallbacks.size}`);
     this.dataUpdateCallbacks.forEach((callback, index) => {
@@ -653,6 +665,20 @@ class DataStore {
       }
     });
     console.log(`🔔 [DataStore] All data update callbacks completed`);
+  }
+
+  private notifyHistoricalDataLoaded() {
+    console.log(`📊 [DataStore] notifyHistoricalDataLoaded called, callbacks: ${this.historicalDataLoadedCallbacks.size}`);
+    this.historicalDataLoadedCallbacks.forEach((callback, index) => {
+      try {
+        console.log(`📊 [DataStore] Calling historical data loaded callback ${index + 1}/${this.historicalDataLoadedCallbacks.size}`);
+        callback();
+        console.log(`✅ [DataStore] Historical data callback ${index + 1} completed successfully`);
+      } catch (error) {
+        console.error(`❌ [DataStore] Error in historical data callback ${index + 1}:`, error);
+      }
+    });
+    console.log(`📊 [DataStore] All historical data callbacks completed`);
   }
 }
 
