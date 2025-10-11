@@ -42,13 +42,9 @@
   
   export function updateChartData() {
     if (!candleSeries || !dataStore.candles.length) {
-      console.log('🔍 updateChartData skipped:', { 
-        hasCandleSeries: !!candleSeries, 
-        candleCount: dataStore.candles.length 
-      });
       return;
     }
-    
+
     try {
       const formattedCandles = dataStore.candles.map(candle => ({
         time: candle.time as any,
@@ -66,24 +62,14 @@
           return index === 0 || candle.time !== array[index - 1].time;
         });
 
-      const granularity = chartStore.config?.granularity || 'unknown';
-      console.log(`📊 [ChartDataManager] Setting ${sortedCandles.length} candles (from ${formattedCandles.length}) on chart series [${granularity}]`);
-
-      // DEBUG: Log first and last 3 candle timestamps for 15m
-      if (granularity === '15m' && sortedCandles.length > 0) {
-        console.log(`🔍 [ChartDataManager] 15m candles - First 3:`, sortedCandles.slice(0, 3).map(c => ({ time: c.time, date: new Date((c.time as number) * 1000).toISOString() })));
-        console.log(`🔍 [ChartDataManager] 15m candles - Last 3:`, sortedCandles.slice(-3).map(c => ({ time: c.time, date: new Date((c.time as number) * 1000).toISOString() })));
-      }
-      
       // Set the data on the chart series
       candleSeries.setData(sortedCandles);
-      
+
       // Simple positioning after data is set
       setTimeout(() => {
         const chart = (candleSeries as any)?._chart || (candleSeries as any)?.chart;
         if (chart && formattedCandles.length > 1) {
           chart.timeScale().fitContent();
-          console.log(`📊 [ChartDataManager] Chart updated with ${formattedCandles.length} candles`);
         }
       }, 100);
     } catch (error) {
