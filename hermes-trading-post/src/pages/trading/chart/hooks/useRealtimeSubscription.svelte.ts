@@ -68,7 +68,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
             const granularity = chartStore?.config?.granularity;
             const candleLimit = timeframe === '1H' ? expectedCandleCount + 1 : expectedCandleCount;
             
-            console.log(`🔄 [Realtime] Windowing ${granularity}/${timeframe}: ${candles.length} total → ${candleLimit} visible (expected: ${expectedCandleCount})`);
             
             // Show the most recent candles to maintain the window  
             const startIndex = Math.max(0, candles.length - candleLimit);
@@ -86,7 +85,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
                   to: (currentTime + buffer) as any
                 });
                 
-                console.log(`🎯 Auto-scrolled to show ${expectedCandleCount} candles: ${startIndex + 1}-${candles.length} of ${candles.length}`);
               }
             }
           } else {
@@ -97,7 +95,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
               to: Math.max(expectedCandleCount, candles.length) + padding
             });
             
-            console.log(`🔄 Building dataset: showing ${candles.length}/${expectedCandleCount} candles`);
           }
         } catch (smallDatasetError) {
           console.error('Error in small dataset zoom maintenance:', smallDatasetError);
@@ -144,7 +141,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     const config = chartStore?.config;
     const currentGranularity = config?.granularity || '1m';
 
-    console.log(`🔴 [Realtime] Updating with price ${price}, volume ${fullCandleData?.volume || 0}, current candle count: ${candles.length}, granularity: ${currentGranularity}`);
 
     // Get current candle timestamp based on granularity
     const now = Date.now();
@@ -155,12 +151,10 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
 
     // Debug for 15m specifically
     if (currentGranularity === '15m') {
-      console.log(`🕒 [15m Debug] now=${now}ms (${new Date(now).toISOString()}), granularitySeconds=${granularitySeconds}, currentCandleTime=${currentCandleTime} (${new Date(currentCandleTime * 1000).toISOString()}), lastCandleTime=${lastCandleTime} (${new Date(lastCandleTime * 1000).toISOString()})`);
     }
     
     if (currentCandleTime > lastCandleTime) {
       // New candle needed
-      console.log(`🆕 [Realtime] Creating new candle with volume:`, {
         price,
         volume: fullCandleData?.volume,
         hasVolumeData: !!fullCandleData?.volume,
@@ -177,7 +171,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         volume: fullCandleData?.volume || 0
       } as any;
       
-      console.log(`🆕 [Realtime] New candle created:`, newCandle);
 
       // DO NOT call dataStore.setCandles() - it causes the entire database to be replaced!
       // Just update the chart directly
@@ -190,14 +183,12 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
           value: fullCandleData.volume * 1000, // Scale volume same as VolumePlugin (1000x)
           color: price >= lastCandle.close ? '#26a69aCC' : '#ef5350CC' // Up/down color (80% opacity)
         };
-        console.log(`📊 [Realtime] Updating volume series with new candle:`, volumeData);
         volumeSeries.update(volumeData);
       }
 
       statusStore.setNewCandle();
 
       // Simple auto-scroll for all charts including 5m
-      console.log(`🔄 New candle added: ${new Date(currentCandleTime * 1000).toLocaleTimeString()}`);
 
       // DISABLED: Auto-scroll was causing chart to snap on every candle
       // Let the chart maintain its natural 60-candle view without forced scrolling
@@ -206,7 +197,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       //   if (chart && chart.timeScale) {
       //     const config = chartStore?.config;
       //     chart.timeScale().scrollToPosition(2, false);
-      //     console.log(`🔄 Chart scrolled to show new candle at fixed position (${config?.granularity})`);
       //   }
       // } catch (error) {
       //   console.error('Error auto-scrolling chart:', error);
@@ -218,7 +208,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       }
     } else {
       // Update current candle
-      console.log(`🔄 [Realtime] Updating existing candle with volume:`, {
         price,
         volume: fullCandleData?.volume,
         hasVolumeData: !!fullCandleData?.volume,
@@ -237,7 +226,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         volume: fullCandleData?.volume !== undefined ? fullCandleData.volume : (currentCandle as any).volume || 0
       } as any;
       
-      console.log(`🔄 [Realtime] Updated candle:`, {
         time: updatedCandle.time,
         close: updatedCandle.close,
         volume: updatedCandle.volume
@@ -255,7 +243,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
           value: fullCandleData.volume * 1000, // Scale volume same as VolumePlugin (1000x)
           color: price >= prevCandle.close ? '#26a69aCC' : '#ef5350CC' // Up/down color (80% opacity)
         };
-        console.log(`📊 [Realtime] Updating volume series with existing candle:`, volumeData);
         volumeSeries.update(volumeData);
       }
 

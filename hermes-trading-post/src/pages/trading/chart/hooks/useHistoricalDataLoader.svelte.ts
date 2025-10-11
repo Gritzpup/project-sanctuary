@@ -62,7 +62,6 @@ export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
     // Check if this is a small dataset where all expected candles are already loaded
     // This prevents auto-loading for timeframes like 5m/1H (12 candles) where we already have all the data
     const config = chartStore?.config;
-    console.log('[HistoricalLoader] Checking if should skip auto-load:', {
       hasConfig: !!config,
       granularity: config?.granularity,
       timeframe: config?.timeframe,
@@ -73,7 +72,6 @@ export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
       const expectedCandleCount = getCandleCount(config.granularity, config.timeframe);
       const shouldSkip = candles.length < 30 && candles.length >= (expectedCandleCount - 3);
 
-      console.log('[HistoricalLoader] Skip check:', {
         expectedCandleCount,
         actualCandles: candles.length,
         threshold: expectedCandleCount - 3,
@@ -85,7 +83,6 @@ export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
       // If we have a small dataset (< 30 candles) and we already have all expected candles (+3 for live candle + buffer),
       // don't trigger historical auto-loading
       if (shouldSkip) {
-        console.log(`🚫 [HistoricalLoader] Skipping auto-load for small dataset: ${candles.length} candles (expected: ${expectedCandleCount})`);
         ChartDebug.log('Skipping historical auto-load for small dataset', {
           totalCandles: candles.length,
           expectedCandleCount,
@@ -135,7 +132,6 @@ export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
         
         // Force chart update if we have access to the chart and series
         if (chart && candleSeries) {
-          console.log('🔄 Force updating chart with new historical data...');
           const allCandles = dataStore.candles;
           const formattedCandles = allCandles.map(candle => ({
             time: candle.time as any,
@@ -145,7 +141,6 @@ export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
             close: candle.close,
           }));
           candleSeries.setData(formattedCandles);
-          console.log(`✅ Chart force-updated with ${formattedCandles.length} candles`);
         }
         
         return true;

@@ -44,38 +44,28 @@
   
   // Initialize plugins
   async function initializePlugins() {
-    console.log('📦 [ChartContainer] initializePlugins called, enablePlugins:', enablePlugins, 'chartCore:', !!chartCore);
 
     if (!enablePlugins || !chartCore) {
-      console.log('⚠️ [ChartContainer] Skipping plugin initialization - enablePlugins:', enablePlugins, 'chartCore:', !!chartCore);
       return;
     }
 
     pluginManager = chartCore.getPluginManager();
-    console.log('📦 [ChartContainer] Got plugin manager:', !!pluginManager);
 
     if (!pluginManager) {
-      console.log('❌ [ChartContainer] No plugin manager available!');
       return;
     }
 
     // Register default plugins
-    console.log('📦 [ChartContainer] Registering', defaultPlugins.length, 'default plugins:', defaultPlugins);
     for (const pluginName of defaultPlugins) {
-      console.log('📦 [ChartContainer] Creating plugin:', pluginName);
       const plugin = createDefaultPlugin(pluginName);
       if (plugin) {
         try {
-          console.log('📦 [ChartContainer] Registering plugin:', pluginName, 'ID:', plugin.id);
           await pluginManager.register(plugin);
-          console.log('✅ [ChartContainer] Successfully registered plugin:', pluginName);
 
           // Special handling for volume plugin to ensure it's visible
           if (pluginName === 'volume' && typeof (plugin as any).forceShow === 'function') {
-            console.log('📦 [ChartContainer] Forcing volume plugin to show');
             setTimeout(() => {
               (plugin as any).forceShow();
-              console.log('📦 [ChartContainer] Volume plugin force show completed');
             }, 1000); // Give it time to initialize
           }
 
@@ -205,7 +195,6 @@
       return;
     }
     
-    console.log('ChartContainer: chartCore type and methods:', {
       type: typeof chartCore,
       hasAddMarkers: typeof chartCore.addMarkers,
       methods: Object.getOwnPropertyNames(chartCore).filter(name => typeof chartCore[name] === 'function')
@@ -220,7 +209,6 @@
       }
     } else {
       // Fallback: add markers one by one
-      console.log('Using fallback: adding markers one by one');
       markers.forEach(marker => {
         if (typeof chartCore.addMarker === 'function') {
           chartCore.addMarker(marker);

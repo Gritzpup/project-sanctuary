@@ -62,7 +62,6 @@ class TradingBackendService {
     const backendPort = import.meta.env.VITE_BACKEND_PORT || '4828';
     this.backendUrl = `ws://localhost:${backendPort}`;
     
-    console.log('🚀 TradingBackendService constructor called, connecting to:', this.backendUrl);
     
     this.state = writable<BackendTradingState>({
       isConnected: false,
@@ -112,16 +111,13 @@ class TradingBackendService {
 
   private connect() {
     try {
-      console.log('🔌 Connecting to backend WebSocket:', this.backendUrl);
       this.ws = new WebSocket(this.backendUrl);
 
       this.ws.onopen = () => {
-        console.log('🟢 Connected to backend WebSocket at', this.backendUrl);
         this.reconnectAttempts = 0;
         this.state.update(s => ({ ...s, isConnected: true }));
         
         // Request manager state and current status immediately after connecting
-        console.log('📤 Requesting manager state and status...');
         this.send({ type: 'getManagerState' });
         this.send({ type: 'getStatus' });
       };
@@ -136,7 +132,6 @@ class TradingBackendService {
       };
 
       this.ws.onclose = () => {
-        console.log('🔴 Disconnected from trading backend');
         this.state.update(s => ({ ...s, isConnected: false }));
         this.attemptReconnect();
       };
@@ -154,7 +149,6 @@ class TradingBackendService {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       const delay = this.reconnectDelay * this.reconnectAttempts;
-      console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
       
       setTimeout(() => {
         this.connect();
@@ -165,11 +159,9 @@ class TradingBackendService {
   }
 
   private handleMessage(message: any) {
-    console.log('📡 Backend WebSocket message received:', message.type, message);
     
     switch (message.type) {
       case 'connected':
-        // console.log('Backend connection established:', message.message);
         if (message.managerState) {
           this.state.update(s => ({ ...s, managerState: message.managerState }));
         }
@@ -221,7 +213,6 @@ class TradingBackendService {
       // Bot manager messages
       case 'botManagerState':
       case 'managerState':
-        // console.log('Received manager state update:', {
         //   hasBots: !!message.data?.bots,
         //   botCount: Object.keys(message.data?.bots || {}).length,
         //   activeBotId: message.data?.activeBotId
@@ -245,7 +236,6 @@ class TradingBackendService {
         break;
         
       case 'resetComplete':
-        console.log('Reset complete for bot:', message.botId);
         if (message.status) {
           this.updateStateFromBackend(message.status);
         }
@@ -256,18 +246,15 @@ class TradingBackendService {
         break;
         
       case 'selectedStrategyUpdated':
-        console.log('Selected strategy updated for bot:', message.botId, 'to:', message.strategyType);
         // Request updated manager state to refresh bot configs
         this.send({ type: 'getManagerState' });
         break;
         
       default:
-        console.log('Unknown message type:', message.type);
     }
   }
 
   private updateStateFromBackend(status: any) {
-    console.log('🔄 Frontend received from backend:', { nextBuyPrice: status.nextBuyPrice, nextSellPrice: status.nextSellPrice });
     
     this.state.update(s => ({
       ...s,
@@ -321,11 +308,9 @@ class TradingBackendService {
   }
 
   startTrading(strategy: any, reset: boolean = false) {
-    console.log('Starting trading with strategy:', strategy);
     
     // Log the actual configuration being sent
     if (strategy.strategyConfig) {
-      console.log('📊 Strategy Configuration Details:', {
         strategyType: strategy.strategyType,
         initialDropPercent: strategy.strategyConfig.initialDropPercent,
         levelDropPercent: strategy.strategyConfig.levelDropPercent,
@@ -347,22 +332,18 @@ class TradingBackendService {
   }
 
   stopTrading() {
-    console.log('Stopping trading');
     this.send({ type: 'stop' });
   }
 
   pauseTrading() {
-    console.log('Pausing trading');
     this.send({ type: 'pause' });
   }
 
   resumeTrading() {
-    console.log('Resuming trading');
     this.send({ type: 'resume' });
   }
 
   resetTrading(botId?: string) {
-    console.log('Resetting trading for bot:', botId || 'active bot');
     this.send({ 
       type: 'reset',
       botId: botId 
@@ -370,11 +351,9 @@ class TradingBackendService {
   }
 
   updateStrategy(strategy: any) {
-    console.log('Updating strategy:', strategy);
     
     // Log the actual configuration being sent
     if (strategy.strategyConfig) {
-      console.log('📊 Updated Strategy Configuration Details:', {
         strategyType: strategy.strategyType,
         initialDropPercent: strategy.strategyConfig.initialDropPercent,
         levelDropPercent: strategy.strategyConfig.levelDropPercent,
@@ -409,7 +388,6 @@ class TradingBackendService {
 
   // Bot manager methods
   createBot(strategyType: string, botName: string, config: any = {}) {
-    console.log('Creating bot:', { strategyType, botName, config });
     this.send({
       type: 'createBot',
       strategyType,
@@ -437,7 +415,6 @@ class TradingBackendService {
   }
 
   updateSelectedStrategy(strategyType: string, botId?: string) {
-    console.log('Updating selected strategy:', { strategyType, botId: botId || 'active bot' });
     this.send({
       type: 'updateSelectedStrategy',
       strategyType,
