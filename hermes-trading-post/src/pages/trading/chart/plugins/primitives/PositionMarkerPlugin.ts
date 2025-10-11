@@ -1,6 +1,6 @@
 import { PrimitivePlugin } from './PrimitivePlugin';
 import type { SeriesMarker, Time } from 'lightweight-charts';
-import { formatPnL } from '../../utils/priceFormatters';
+import { formatPnL } from '../../../../../utils/formatters/priceFormatters';
 
 export interface Position {
   id: string;

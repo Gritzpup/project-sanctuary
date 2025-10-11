@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, getContext } from 'svelte';
-  import { formatNumber } from '../../utils/priceFormatters';
+  import { formatNumber } from '../../../../../utils/formatters/priceFormatters';
   import type { IChartApi } from 'lightweight-charts';
 
   // Props using Svelte 5 runes syntax

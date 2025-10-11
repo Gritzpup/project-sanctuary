@@ -1,6 +1,6 @@
 <script lang="ts">
   import { dataStore } from '../../stores/dataStore.svelte';
-  import { formatPrice } from '../../utils/priceFormatters';
+  import { formatPrice } from '../../../../../utils/formatters/priceFormatters';
 
   // Props using Svelte 5 runes syntax
   const {

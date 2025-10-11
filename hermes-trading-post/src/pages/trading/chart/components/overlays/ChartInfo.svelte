@@ -5,7 +5,7 @@
   import { performanceStore } from '../../stores/performanceStore.svelte';
   import { statusStore } from '../../stores/statusStore.svelte';
   import { getGranularitySeconds } from '../../utils/granularityHelpers';
-  import { formatPrice, formatNumber } from '../../utils/priceFormatters';
+  import { formatPrice, formatNumber } from '../../../../../utils/formatters/priceFormatters';
   import { formatCandleTime, getCurrentTimestamp } from '../../utils/timeHelpers';
   import TrafficLight from '../indicators/TrafficLight.svelte';
   import CandleCounter from '../indicators/CandleCounter.svelte';
