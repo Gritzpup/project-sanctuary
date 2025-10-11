@@ -180,8 +180,8 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       if (volumeSeries && fullCandleData?.volume !== undefined) {
         const volumeData = {
           time: currentCandleTime as any,
-          value: fullCandleData.volume * 100, // Scale volume same as VolumePlugin
-          color: price >= lastCandle.close ? '#26a69a80' : '#ef535080' // Up/down color
+          value: fullCandleData.volume * 1000, // Scale volume same as VolumePlugin (1000x)
+          color: price >= lastCandle.close ? '#26a69aCC' : '#ef5350CC' // Up/down color (80% opacity)
         };
         console.log(`📊 [Realtime] Updating volume series with new candle:`, volumeData);
         volumeSeries.update(volumeData);
@@ -245,8 +245,8 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         const prevCandle = candles.length > 1 ? candles[candles.length - 2] : currentCandle;
         const volumeData = {
           time: currentCandle.time,
-          value: fullCandleData.volume * 100, // Scale volume same as VolumePlugin
-          color: price >= prevCandle.close ? '#26a69a80' : '#ef535080' // Up/down color
+          value: fullCandleData.volume * 1000, // Scale volume same as VolumePlugin (1000x)
+          color: price >= prevCandle.close ? '#26a69aCC' : '#ef5350CC' // Up/down color (80% opacity)
         };
         console.log(`📊 [Realtime] Updating volume series with existing candle:`, volumeData);
         volumeSeries.update(volumeData);
