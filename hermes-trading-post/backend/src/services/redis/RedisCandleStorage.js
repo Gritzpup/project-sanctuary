@@ -30,6 +30,11 @@ class RedisCandleStorage {
 
     this.isConnected = false;
     this.connectionPromise = null;
+
+    // 🔥 PERFORMANCE FIX: Cache candle counts to avoid expensive KEYS operations
+    this.candleCountCache = new Map(); // key: "pair:granularity", value: {count, timestamp}
+    this.CACHE_TTL = 60000; // Cache for 1 minute
+
     this.setupEventHandlers();
   }
 
@@ -139,9 +144,13 @@ class RedisCandleStorage {
         await pipeline.exec();
       }
 
+      // Invalidate cache before updating metadata to get fresh count
+      const cacheKey = `${pair}:${granularity}`;
+      this.candleCountCache.delete(cacheKey);
+
       // Update metadata
       await this.updateMetadata(pair, granularity, candles);
-      
+
       // Create checkpoint for data validation
       await this.createCheckpoint(pair, granularity, candles);
 
@@ -267,16 +276,20 @@ class RedisCandleStorage {
 
     const metadataKey = generateMetadataKey(pair, granularity);
     const existing = await this.getMetadata(pair, granularity);
-    
+
     const firstTimestamp = Math.min(...candles.map(c => c.time));
     const lastTimestamp = Math.max(...candles.map(c => c.time));
-    
+
+    // 🔥 FIX: Count actual unique candles in Redis instead of accumulating writes
+    // This prevents the metadata counter from inflating due to overwrites
+    const actualCandleCount = await this.getActualCandleCount(pair, granularity);
+
     const metadata = {
       pair,
       granularity,
       firstTimestamp: existing ? Math.min(existing.firstTimestamp, firstTimestamp) : firstTimestamp,
       lastTimestamp: existing ? Math.max(existing.lastTimestamp, lastTimestamp) : lastTimestamp,
-      totalCandles: (existing?.totalCandles || 0) + candles.length,
+      totalCandles: actualCandleCount, // Use actual count from Redis
       lastUpdated: Date.now()
     };
 
@@ -290,6 +303,51 @@ class RedisCandleStorage {
     });
 
     await this.redis.expire(metadataKey, CANDLE_STORAGE_CONFIG.ttl.metadata);
+  }
+
+  /**
+   * Get the actual count of unique candles stored in Redis
+   * Uses caching to avoid expensive KEYS operations on every write
+   */
+  async getActualCandleCount(pair, granularity, forceRefresh = false) {
+    const cacheKey = `${pair}:${granularity}`;
+    const now = Date.now();
+
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      const cached = this.candleCountCache.get(cacheKey);
+      if (cached && (now - cached.timestamp) < this.CACHE_TTL) {
+        return cached.count;
+      }
+    }
+
+    // 🔥 PERFORMANCE: Use SCAN instead of KEYS to avoid blocking
+    const pattern = `${CANDLE_STORAGE_CONFIG.keyPrefixes.candles}:${pair}:${granularity}:*:data`;
+    const keys = [];
+
+    // Use SCAN for non-blocking key retrieval
+    let cursor = '0';
+    do {
+      const result = await this.redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = result[0];
+      keys.push(...result[1]);
+    } while (cursor !== '0');
+
+    let totalCount = 0;
+
+    // Count candles in each day bucket
+    for (const key of keys) {
+      const count = await this.redis.hlen(key);
+      totalCount += count;
+    }
+
+    // Cache the result
+    this.candleCountCache.set(cacheKey, {
+      count: totalCount,
+      timestamp: now
+    });
+
+    return totalCount;
   }
 
   /**
@@ -321,7 +379,15 @@ class RedisCandleStorage {
 
     const latestCandle = candles[candles.length - 1];
     const checkpointKey = generateCheckpointKey(pair, granularity, latestCandle.time);
-    
+
+    // 🔥 MEMORY LEAK FIX: Only create checkpoint if it doesn't exist
+    // This prevents creating duplicate checkpoints every 5 seconds
+    const exists = await this.redis.exists(checkpointKey);
+    if (exists) {
+      // Checkpoint already exists for this week, skip creation
+      return;
+    }
+
     const checkpoint = {
       timestamp: latestCandle.time,
       candleCount: candles.length,

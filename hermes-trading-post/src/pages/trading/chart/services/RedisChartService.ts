@@ -350,6 +350,11 @@ export class RedisChartService {
           } else if (activity.type === 'store_complete' || activity.type === 'REDIS_STORE') {
             statusStore.setDatabaseActivity('storing', 1500);
             console.log(`💾 [Database] Stored ${activity.candleCount || 0} ${activity.pair} ${activity.granularity} candles`);
+
+            // Update database count when new candles are stored
+            import('../stores/dataStore.svelte').then(({ dataStore }) => {
+              dataStore.updateDatabaseCount();
+            }).catch(err => console.error('Failed to update database count:', err));
           } else if (activity.type === 'error' || activity.type === 'API_ERROR') {
             statusStore.setDatabaseActivity('error', 3000);
           }

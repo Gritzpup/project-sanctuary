@@ -538,7 +538,7 @@ class DataStore {
   }
   
   // Get actual count from database via the existing Redis service
-  private async updateDatabaseCount() {
+  async updateDatabaseCount() {
     try {
       const config = this.getCurrentConfig();
 

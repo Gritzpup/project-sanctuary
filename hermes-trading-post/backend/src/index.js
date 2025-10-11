@@ -35,6 +35,9 @@ const granularityMappings = new Map(); // key: "pair:granularitySeconds", value:
 // 🔥 MEMORY LEAK FIX: Track mapping creation times for TTL cleanup
 const granularityMappingTimes = new Map(); // key: "pair:granularitySeconds", value: timestamp
 
+// 🔥 RACE CONDITION FIX: Track last emission times to throttle duplicate candle updates
+const lastEmissionTimes = new Map(); // key: "clientId:pair:granularity", value: timestamp
+
 // Helper function to convert granularity strings to seconds
 function getGranularitySeconds(granularity) {
   const GRANULARITY_TO_SECONDS = {
@@ -170,37 +173,51 @@ setTimeout(monitorMemoryUsage, 10000);
   
   // Set up Coinbase WebSocket event handlers
   coinbaseWebSocket.on('candle', (candleData) => {
-    
+
     // Convert granularity seconds back to string using mapping
     const mappingKey = `${candleData.product_id}:${candleData.granularity}`;
     const granularityString = granularityMappings.get(mappingKey) || '1m'; // Default fallback
-    
+
     // Create proper subscription key with string granularity
     const subscriptionKey = `${candleData.product_id}:${granularityString}`;
-    
-    
+
+
     wss.clients.forEach(client => {
       if (client.readyState === client.OPEN) {
         // Check if this client is subscribed to this data
         const clientId = client._clientId || 'unknown';
         const clientSubs = chartSubscriptions.get(clientId);
-        
-        if (clientSubs && clientSubs.has(subscriptionKey)) {
-          const messageToSend = {
-            type: 'candle',
-            pair: candleData.product_id,
-            granularity: granularityString,
-            time: candleData.time,
-            open: candleData.open,
-            high: candleData.high,
-            low: candleData.low,
-            close: candleData.close,
-            volume: candleData.volume,
-            candleType: candleData.type
-          };
 
-          console.log(`📤 Emitting ${candleData.type} candle to client ${clientId}:`, subscriptionKey, candleData.close);
-          client.send(JSON.stringify(messageToSend));
+        if (clientSubs && clientSubs.has(subscriptionKey)) {
+          // 🔥 RACE CONDITION FIX: Throttle emissions to prevent duplicate spam
+          const throttleKey = `${clientId}:${subscriptionKey}`;
+          const lastEmitTime = lastEmissionTimes.get(throttleKey) || 0;
+          const now = Date.now();
+
+          // Only emit if:
+          // 1. It's a completed candle (always emit these), OR
+          // 2. More than 1 second has passed since last emission (throttle updates)
+          const shouldEmit = candleData.type === 'complete' || (now - lastEmitTime > 1000);
+
+          if (shouldEmit) {
+            lastEmissionTimes.set(throttleKey, now);
+
+            const messageToSend = {
+              type: 'candle',
+              pair: candleData.product_id,
+              granularity: granularityString,
+              time: candleData.time,
+              open: candleData.open,
+              high: candleData.high,
+              low: candleData.low,
+              close: candleData.close,
+              volume: candleData.volume,
+              candleType: candleData.type
+            };
+
+            console.log(`📤 Emitting ${candleData.type} candle to client ${clientId}:`, subscriptionKey, candleData.close);
+            client.send(JSON.stringify(messageToSend));
+          }
         }
       }
     });
@@ -232,17 +249,27 @@ wss.on('connection', (ws) => {
   // 🔥 MEMORY LEAK FIX: Clean up on disconnect
   ws.on('close', () => {
     // Remove client subscriptions
-    chartSubscriptions.delete(ws._clientId);
-    
+    const clientId = ws._clientId;
+    chartSubscriptions.delete(clientId);
+
+    // 🔥 RACE CONDITION FIX: Clean up emission throttle tracking
+    const keysToDelete = [];
+    for (const key of lastEmissionTimes.keys()) {
+      if (key.startsWith(`${clientId}:`)) {
+        keysToDelete.push(key);
+      }
+    }
+    keysToDelete.forEach(key => lastEmissionTimes.delete(key));
+
     // Remove client from bot manager
     botManager.removeClient(ws);
-    
+
     // Remove client from all bots
     botManager.bots.forEach(bot => {
       bot.removeClient(ws);
     });
-    
-    console.log(`🧹 WebSocket client ${ws._clientId} disconnected and cleaned up`);
+
+    console.log(`🧹 WebSocket client ${clientId} disconnected and cleaned up (${keysToDelete.length} throttle entries removed)`);
   });
 
   ws.on('error', (error) => {
@@ -643,6 +670,7 @@ const gracefulShutdown = (signal) => {
   activeSubscriptions.clear();
   granularityMappings.clear();
   granularityMappingTimes.clear();
+  lastEmissionTimes.clear(); // 🔥 RACE CONDITION FIX
 
   // Clear the cleanup interval
   if (cleanupInterval) {

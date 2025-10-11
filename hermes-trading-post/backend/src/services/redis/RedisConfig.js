@@ -28,7 +28,7 @@ export const CANDLE_STORAGE_CONFIG = {
   ttl: {
     candles: (5 * 365 * 24 * 3600) + (6 * 30 * 24 * 3600), // 5.5 years
     metadata: (6 * 365 * 24 * 3600), // 6 years
-    checkpoints: (1 * 365 * 24 * 3600) // 1 year
+    checkpoints: (30 * 24 * 3600) // 🔥 MEMORY LEAK FIX: Reduced from 1 year to 30 days
   },
   
   keyPrefixes: {

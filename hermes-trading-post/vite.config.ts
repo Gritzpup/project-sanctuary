@@ -5,12 +5,12 @@ import { svelte } from '@sveltejs/vite-plugin-svelte'
 export default defineConfig({
   plugins: [svelte()],
   server: {
-    host: true, // Allow external connections
+    host: '0.0.0.0', // Allow external connections
     port: 5173,
     historyApiFallback: true,
     hmr: {
       port: 5173,
-      host: 'localhost'
+      clientPort: 5173
     },
     proxy: {
       '/api/coinbase': {
