@@ -77,7 +77,8 @@ export function useAutoGranularity(config: UseAutoGranularityConfig) {
 
     // Determine if we need to switch granularity
     // Switch UP (to larger granularity) if showing > 150 candles
-    // Switch DOWN (to smaller granularity) if showing < 50 candles and have smaller granularity available
+    // Switch DOWN (to smaller granularity) if showing < 5 candles (very zoomed in)
+    // NOTE: Don't switch for small datasets (5m/1H = 12 candles is correct!)
     let newGranularity = currentGranularity;
     let newTimeframe = chartStore.config.timeframe;
 
@@ -91,12 +92,13 @@ export function useAutoGranularity(config: UseAutoGranularityConfig) {
       const timeframeMap = { '1m': '1H', '5m': '6H', '15m': '1D', '1h': '1W', '6h': '1M', '1d': '1Y' };
       newTimeframe = timeframeMap[newGranularity];
       console.log(`🔼 [AutoGranularity] Too many candles (${visibleCandleCount}), switching UP to ${newGranularity}`);
-    } else if (visibleCandleCount < 50 && currentIndex > 0) {
-      // Too few candles visible, switch to smaller granularity
+    } else if (visibleCandleCount < 5 && currentIndex > 0) {
+      // Very few candles visible (user zoomed in very far), switch to smaller granularity
+      // Changed from 50 to 5 to avoid interfering with small datasets like 5m/1H (12 candles)
       newGranularity = granularityOrder[currentIndex - 1];
       const timeframeMap = { '1m': '1H', '5m': '6H', '15m': '1D', '1h': '1W', '6h': '1M', '1d': '1Y' };
       newTimeframe = timeframeMap[newGranularity];
-      console.log(`🔽 [AutoGranularity] Too few candles (${visibleCandleCount}), switching DOWN to ${newGranularity}`);
+      console.log(`🔽 [AutoGranularity] Very few candles visible (${visibleCandleCount}), switching DOWN to ${newGranularity}`);
     }
 
     // Only switch if granularity actually changed
