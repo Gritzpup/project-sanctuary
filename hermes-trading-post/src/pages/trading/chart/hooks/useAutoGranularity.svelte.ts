@@ -155,9 +155,8 @@ export function useAutoGranularity(config: UseAutoGranularityConfig) {
     cleanup();
   }
 
-  onDestroy(() => {
-    cleanup();
-  });
+  // Don't use onDestroy here since this is called from handleChartReady, not during component init
+  // The cleanup function is returned and should be called manually when needed
 
   return {
     cleanup,

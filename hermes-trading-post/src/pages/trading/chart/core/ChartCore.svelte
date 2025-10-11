@@ -312,11 +312,16 @@
   onDestroy(async () => {
     performanceStore.stopMonitoring();
     realtimeSubscription.unsubscribeFromRealtime();
-    
+
+    // Cleanup auto-granularity if it was initialized
+    if (autoGranularity && typeof autoGranularity.cleanup === 'function') {
+      autoGranularity.cleanup();
+    }
+
     if (pluginManager) {
       await pluginManager.destroy();
     }
-    
+
     chartStore.reset();
     dataStore.reset();
     statusStore.reset();

@@ -29,7 +29,7 @@
   export let showStatus: boolean = true;
   export let showInfo: boolean = true;
   export let showDebug: boolean = false;
-  export let enablePlugins: boolean = false;
+  export let enablePlugins: boolean = true; // Enable plugins by default (especially volume)
   export let enableAutoGranularity: boolean = true; // Enable automatic granularity switching
   export let defaultPlugins: string[] = ['volume'];
   export let multiPane: boolean = false;
