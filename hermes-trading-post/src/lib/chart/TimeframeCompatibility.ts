@@ -25,7 +25,8 @@ const OPTIMAL_CANDLE_RANGES = {
   minimum: 4,     // Minimum for meaningful analysis (reduced for 1H+15m = 4 candles)
   ideal: 60,      // Ideal for most trading views
   maximum: 200,   // Maximum before chart becomes cluttered
-  extended: 500   // Extended for long-term analysis
+  extended: 500,  // Extended for long-term analysis
+  longTerm: 2000  // Long-term views (5Y = 1825 candles)
 };
 
 // Calculate how many candles fit in a time period
@@ -43,11 +44,12 @@ function calculateCandleCount(granularity: string, period: string): number {
     '1H': 60,
     '4H': 240,
     '1D': 1440,
-    '5D': 7200,  // 5 days
-    '1M': 43200,  // ~30 days
-    '3M': 129600, // ~90 days
-    '6M': 259200, // ~180 days
-    '1Y': 525600  // ~365 days
+    '5D': 7200,    // 5 days
+    '1M': 43200,   // ~30 days
+    '3M': 129600,  // ~90 days
+    '6M': 259200,  // ~180 days
+    '1Y': 525600,  // ~365 days
+    '5Y': 2628000  // ~1825 days (5 years)
   };
 
   const granMin = granularityMinutes[granularity];
@@ -67,7 +69,7 @@ function getCompatibility(candleCount: number): { compatible: boolean; isOptimal
       description: `Too few candles (${candleCount}). Increase time range or decrease granularity.`
     };
   }
-  
+
   if (candleCount <= OPTIMAL_CANDLE_RANGES.ideal) {
     return {
       compatible: true,
@@ -75,7 +77,7 @@ function getCompatibility(candleCount: number): { compatible: boolean; isOptimal
       description: `Optimal view (${candleCount} candles). Good balance for analysis.`
     };
   }
-  
+
   if (candleCount <= OPTIMAL_CANDLE_RANGES.maximum) {
     return {
       compatible: true,
@@ -83,7 +85,7 @@ function getCompatibility(candleCount: number): { compatible: boolean; isOptimal
       description: `Good view (${candleCount} candles). Slightly crowded but usable.`
     };
   }
-  
+
   if (candleCount <= OPTIMAL_CANDLE_RANGES.extended) {
     return {
       compatible: true,
@@ -91,7 +93,15 @@ function getCompatibility(candleCount: number): { compatible: boolean; isOptimal
       description: `Extended view (${candleCount} candles). Crowded but useful for long-term analysis.`
     };
   }
-  
+
+  if (candleCount <= OPTIMAL_CANDLE_RANGES.longTerm) {
+    return {
+      compatible: true,
+      isOptimal: false,
+      description: `Long-term view (${candleCount} candles). Very crowded but acceptable for multi-year analysis.`
+    };
+  }
+
   return {
     compatible: false,
     isOptimal: false,
@@ -103,8 +113,8 @@ function getCompatibility(candleCount: number): { compatible: boolean; isOptimal
 function buildCompatibilityMatrix(): CompatibilityMatrix {
   // ✅ Only use API-validated granularities
   const granularities = ['1m', '5m', '15m', '1h', '6h', '1d'];
-  const periods = ['1H', '4H', '1D', '5D', '1M', '3M', '6M', '1Y'];
-  
+  const periods = ['1H', '4H', '1D', '5D', '1M', '3M', '6M', '1Y', '5Y'];
+
   const matrix: CompatibilityMatrix = {};
   
   for (const granularity of granularities) {
@@ -181,8 +191,22 @@ export function getBestPeriodForGranularity(granularity: string): string {
 
 // Get the best granularity for a given period
 export function getBestGranularityForPeriod(period: string): string {
+  // First try to find optimal granularities
   const recommended = getRecommendedGranularities(period);
-  return recommended[0] || '1h'; // Default to 1h if no optimal match
+  if (recommended.length > 0) {
+    return recommended[0];
+  }
+
+  // If no optimal match, find ANY compatible granularity (prefer larger granularities for longer periods)
+  const granularityOrder = ['1d', '6h', '1h', '15m', '5m', '1m'];
+  for (const granularity of granularityOrder) {
+    if (TIMEFRAME_COMPATIBILITY[granularity]?.[period]?.compatible) {
+      return granularity;
+    }
+  }
+
+  // Last resort fallback
+  return '1h';
 }
 
 // Auto-suggest compatible combination when user changes one control

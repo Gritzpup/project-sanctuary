@@ -37,8 +37,10 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
   function getPeriodSeconds(period: string): number {
     const periodMap: Record<string, number> = {
       '1H': 3600,       // 1 hour
+      '4H': 14400,      // 4 hours
       '6H': 21600,      // 6 hours
       '1D': 86400,      // 1 day
+      '5D': 432000,     // 5 days
       '1W': 604800,     // 1 week
       '1M': 2592000,    // ~30 days
       '3M': 7776000,    // ~90 days
