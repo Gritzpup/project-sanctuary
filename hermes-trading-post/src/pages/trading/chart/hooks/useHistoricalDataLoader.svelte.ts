@@ -1,6 +1,8 @@
 import { onMount, onDestroy } from 'svelte';
 import type { IChartApi, ISeriesApi, LogicalRangeChangeEventHandler } from 'lightweight-charts';
 import { dataStore } from '../stores/dataStore.svelte';
+import { chartStore } from '../stores/chartStore.svelte';
+import { getCandleCount } from '../../../../lib/chart/TimeframeCompatibility';
 import { ChartDebug } from '../utils/debug';
 
 interface UseHistoricalDataLoaderConfig {
@@ -57,13 +59,51 @@ export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
       return;
     }
 
+    // Check if this is a small dataset where all expected candles are already loaded
+    // This prevents auto-loading for timeframes like 5m/1H (12 candles) where we already have all the data
+    const config = chartStore?.config;
+    console.log('[HistoricalLoader] Checking if should skip auto-load:', {
+      hasConfig: !!config,
+      granularity: config?.granularity,
+      timeframe: config?.timeframe,
+      candleCount: candles.length
+    });
+
+    if (config?.granularity && config?.timeframe) {
+      const expectedCandleCount = getCandleCount(config.granularity, config.timeframe);
+      const shouldSkip = candles.length < 30 && candles.length >= (expectedCandleCount - 3);
+
+      console.log('[HistoricalLoader] Skip check:', {
+        expectedCandleCount,
+        actualCandles: candles.length,
+        threshold: expectedCandleCount - 3,
+        shouldSkip,
+        isSmall: candles.length < 30,
+        hasEnough: candles.length >= (expectedCandleCount - 3)
+      });
+
+      // If we have a small dataset (< 30 candles) and we already have all expected candles (+3 for live candle + buffer),
+      // don't trigger historical auto-loading
+      if (shouldSkip) {
+        console.log(`🚫 [HistoricalLoader] Skipping auto-load for small dataset: ${candles.length} candles (expected: ${expectedCandleCount})`);
+        ChartDebug.log('Skipping historical auto-load for small dataset', {
+          totalCandles: candles.length,
+          expectedCandleCount,
+          granularity: config.granularity,
+          timeframe: config.timeframe,
+          reason: 'All expected candles already loaded'
+        });
+        return;
+      }
+    }
+
     // Check if user is scrolling close to the beginning of the data
     const { from } = logicalRange;
     const totalCandles = candles.length;
-    
+
     // Calculate how close we are to the beginning (0 = very beginning, 1 = very end)
     const scrollPosition = Math.max(0, from) / totalCandles;
-    
+
     ChartDebug.log('Scroll position check', {
       from,
       totalCandles,

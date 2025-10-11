@@ -101,21 +101,15 @@
         series: chartCanvas?.getSeries()
       });
 
-      // CRITICAL: Refresh indicator plugins after data reload, but NOT volume
-      // Volume updates are handled separately by real-time subscriptions
+      // CRITICAL: Refresh ALL plugins after granularity change (including volume)
+      // Volume needs full refresh when switching granularities, not just real-time updates
       setTimeout(() => {
         if (pluginManager) {
-          console.log(`🔄 [ChartCore] Refreshing indicator plugins after data reload...`);
+          console.log(`🔄 [ChartCore] Refreshing ALL plugins after granularity change...`);
           const enabledPlugins = pluginManager.getEnabled();
           for (const plugin of enabledPlugins) {
             try {
-              // Skip volume plugin - it's updated by real-time subscription
-              if (plugin.id === 'volume') {
-                console.log(`⏭️ [ChartCore] Skipping volume plugin refresh (handled by real-time updates)`);
-                continue;
-              }
-
-              // Force a refresh of indicator plugin data
+              // Refresh all plugins including volume when granularity changes
               if (typeof (plugin as any).refreshData === 'function') {
                 console.log(`🔄 [ChartCore] Refreshing plugin: ${plugin.id}`);
                 (plugin as any).refreshData();
@@ -127,7 +121,7 @@
         }
       }, 500); // Small delay to ensure data is ready
 
-      // Apply proper positioning for new timeframe
+      // Apply proper positioning for new timeframe - MUST complete before real-time updates
       setTimeout(() => {
         if (chartCanvas) {
           const chart = chartCanvas.getChart();
@@ -147,18 +141,18 @@
             console.log(`🔄 Chart positioned for ${granularity}: ${dataStore.candles.length} candles`);
           }
         }
-      }, 200); // Increased timeout for reliability
 
-      // Re-enable real-time updates after timeframe change
-      // Get volume series from plugin manager
-      const volumePlugin = pluginManager?.get('volume');
-      const volumeSeries = volumePlugin ? (volumePlugin as any).getSeries() : null;
+        // Re-enable real-time updates AFTER positioning completes
+        // This prevents auto-scroll from interfering with initial positioning
+        const volumePlugin = pluginManager?.get('volume');
+        const volumeSeries = volumePlugin ? (volumePlugin as any).getSeries() : null;
 
-      realtimeSubscription.subscribeToRealtime({
-        pair,
-        granularity
-      }, chartCanvas?.getSeries(), volumeSeries);
-      console.log(`🟢 [ChartCore] Real-time subscription restarted after timeframe change with volume series: ${!!volumeSeries}`);
+        realtimeSubscription.subscribeToRealtime({
+          pair,
+          granularity
+        }, chartCanvas?.getSeries(), volumeSeries);
+        console.log(`🟢 [ChartCore] Real-time subscription restarted after positioning with volume series: ${!!volumeSeries}`);
+      }, 600); // Increased timeout to ensure positioning completes before real-time updates
 
       statusStore.setReady();
       console.log(`Data reloaded for ${granularity} + ${period}`);

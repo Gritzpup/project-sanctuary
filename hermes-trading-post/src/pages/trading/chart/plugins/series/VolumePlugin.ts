@@ -189,10 +189,15 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         });
       }
 
+      // Safety check: ensure color is never null/undefined
+      const color = isPriceUp
+        ? (settings.upColor || '#26a69aCC')
+        : (settings.downColor || '#ef5350CC');
+
       return {
         time: candle.time,
         value: displayVolume,
-        color: isPriceUp ? settings.upColor : settings.downColor
+        color: color
       };
     });
     
