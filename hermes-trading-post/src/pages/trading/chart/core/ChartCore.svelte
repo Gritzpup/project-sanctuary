@@ -185,6 +185,23 @@
       });
 
       console.log(`🟢 [ChartCore] PluginManager initialized and ready for plugin registration`);
+
+      // Wait a bit for plugins to be registered by ChartContainer, then update volume series
+      setTimeout(() => {
+        const volumePlugin = pluginManager?.get('volume');
+        const volumeSeries = volumePlugin ? (volumePlugin as any).getSeries() : null;
+
+        if (volumeSeries) {
+          console.log(`🔄 [ChartCore] Volume plugin found, re-subscribing with volume series...`);
+          realtimeSubscription.subscribeToRealtime({
+            pair,
+            granularity
+          }, chartCanvas?.getSeries(), volumeSeries);
+          console.log(`✅ [ChartCore] Real-time subscription updated with volume series!`);
+        } else {
+          console.warn(`⚠️ [ChartCore] Volume plugin not found after waiting`);
+        }
+      }, 1500); // Wait for plugins to be registered
     }
 
     // Initialize auto-granularity switching after chart is ready
@@ -264,15 +281,13 @@
       }, 500); // Small delay to ensure data is ready
 
       // Enable real-time updates after initial data load
-      // Get volume series from plugin manager
-      const volumePlugin = pluginManager?.get('volume');
-      const volumeSeries = volumePlugin ? (volumePlugin as any).getSeries() : null;
-
+      // Note: Volume plugin may not be registered yet, so start without it
+      // It will be re-subscribed with volume series after plugin initialization
       realtimeSubscription.subscribeToRealtime({
         pair,
         granularity
-      }, chartCanvas?.getSeries(), volumeSeries);
-      console.log(`🟢 [ChartCore] Real-time subscription enabled after initial data load with volume series: ${!!volumeSeries}`);
+      }, chartCanvas?.getSeries(), null);
+      console.log(`🟢 [ChartCore] Real-time subscription enabled after initial data load (volume series will be added after plugin init)`);
 
       // Set status to ready after data loads and chart is updated
       setTimeout(() => {
