@@ -68,40 +68,32 @@ class DataStore {
   // Auto-populate Redis with 5 years of historical data from Coinbase API
   private async autoLoadHistoricalData() {
     try {
-      console.log('🚀 FILLING DATABASE: Starting 5-year historical data population from Coinbase API...');
-      
       const config = this.getCurrentConfig();
       const granularitySeconds = config.granularity === '5m' ? 300 : 60; // 1m = 60s, 5m = 300s
       const candlesPerRequest = 300; // Coinbase API limit
-      
+
       // Calculate 5 years back from now
       const endTime = Math.floor(Date.now() / 1000);
       const fiveYearsSeconds = 5 * 365 * 24 * 60 * 60; // 5 years in seconds
       const startTime = endTime - fiveYearsSeconds;
-      
-      console.log(`📊 Target: ${Math.floor(fiveYearsSeconds / granularitySeconds).toLocaleString()} candles over 5 years`);
-      console.log(`📊 Period: ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
-      
+
       let currentEndTime = endTime;
       let totalFetched = 0;
       let requestCount = 0;
-      
+
       // Work backwards in 300-candle chunks
       while (currentEndTime > startTime && requestCount < 10000) { // Safety limit
         requestCount++;
         const chunkStartTime = currentEndTime - (candlesPerRequest * granularitySeconds);
-        
-        console.log(`🔄 Request ${requestCount}: Fetching candles ${currentEndTime} to ${chunkStartTime}`);
-        
+
         try {
           // Set status to fetching
           this._dataStats.loadingStatus = 'fetching';
-          
+
           // Call Coinbase API directly to populate Redis
           const response = await fetch(`/api/coinbase/products/BTC-USD/candles?granularity=${granularitySeconds}&start=${chunkStartTime}&end=${currentEndTime}`);
-          
+
           if (!response.ok) {
-            console.error(`❌ API error: ${response.status} ${response.statusText}`);
             if (response.status === 429) {
               this._dataStats.loadingStatus = 'rate-limited';
             } else {
@@ -110,49 +102,42 @@ class DataStore {
             await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s on error
             continue;
           }
-          
+
           const candles = await response.json();
-          
+
           if (candles && candles.length > 0) {
             // Set status to storing
             this._dataStats.loadingStatus = 'storing';
-            
+
             totalFetched += candles.length;
-            console.log(`✅ Fetched ${candles.length} candles. Total: ${totalFetched.toLocaleString()}`);
-            
-            // Log progress and update DB count periodically during loading
-            console.log(`📊 Added ${candles.length} candles to database`);
-            
+
             // Update DB count every 10 requests to show progress
             if (requestCount % 10 === 0) {
               this.updateDatabaseCount();
             }
-            
+
             // Move to next chunk
             currentEndTime = chunkStartTime;
           } else {
-            console.log('📈 No more data from Coinbase API');
             break;
           }
-          
+
           // Rate limiting - don't overwhelm Coinbase API
           await new Promise(resolve => setTimeout(resolve, 100)); // 100ms between requests
-          
+
         } catch (error) {
           console.error('❌ Error fetching chunk:', error);
           this._dataStats.loadingStatus = 'error';
           await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s on error
         }
       }
-      
-      console.log(`✅ DATABASE POPULATION COMPLETE! Fetched ${totalFetched.toLocaleString()} candles in ${requestCount} requests`);
-      
+
       // Set status back to idle
       this._dataStats.loadingStatus = 'idle';
-      
+
       // Reload the chart data to show the new data
       await this.reloadData(startTime, endTime);
-      
+
     } catch (error) {
       console.error('❌ Database population failed:', error);
       this._dataStats.loadingStatus = 'error';
@@ -164,19 +149,16 @@ class DataStore {
     try {
       const config = this.getCurrentConfig();
       const granularitySeconds = config.granularity === '5m' ? 300 : 60;
-      
+
       // Only check last 6 hours for missing data
       const endTime = Math.floor(Date.now() / 1000);
       const startTime = endTime - (6 * 60 * 60); // 6 hours ago
-      
-      console.log(`🔍 Checking for recent data gaps in last 6 hours...`);
-      
+
       const response = await fetch(`/api/coinbase/products/BTC-USD/candles?granularity=${granularitySeconds}&start=${startTime}&end=${endTime}`);
-      
+
       if (response.ok) {
         const candles = await response.json();
         if (candles.length > 0) {
-          console.log(`📥 Fetched ${candles.length} recent candles to fill gaps`);
           // Store in Redis via the backend API
           await fetch('/api/chart/store-candles', {
             method: 'POST',
@@ -202,22 +184,9 @@ class DataStore {
     endTime: number,
     maxCandles?: number
   ): Promise<void> {
-    const loadStartTime = performance.now();
-    
-    console.log(`🔄 [DataStore] Loading data: ${pair}/${granularity} from ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
-    
     try {
-      if (granularity === '1d' || granularity === '1D') {
-        ChartDebug.critical(`[PERF] dataStore.loadData started`);
-      }
-      
       await this.dataService.initialize(pair, granularity);
-      
-      if (granularity === '1d' || granularity === '1D') {
-        ChartDebug.critical(`[PERF] About to fetch historical data`);
-      }
-      
-      const fetchStart = performance.now();
+
       const data = await this.dataService.fetchCandles({
         pair,
         granularity,
@@ -225,18 +194,6 @@ class DataStore {
         end: endTime,
         limit: maxCandles || 10000 // Support 5 years of data (5 years ≈ 2.6M 1m candles, but start with 10k for performance)
       });
-      const fetchEnd = performance.now();
-      
-      if (granularity === '1d' || granularity === '1D') {
-        ChartDebug.critical(`[PERF] fetchHistoricalData took ${fetchEnd - fetchStart}ms`);
-      }
-      
-      console.log(`✅ [DataStore] Data loaded successfully: ${data.length} candles for ${pair}/${granularity}`);
-
-      // Warn if we got very few candles (possible race condition)
-      if (data.length < 3 && maxCandles && maxCandles > 10) {
-        console.warn(`⚠️ Only ${data.length} candles loaded (expected ~${maxCandles}). This may be a race condition.`);
-      }
 
       this.setCandles(data);
       this.updateStats();
@@ -245,37 +202,9 @@ class DataStore {
       setTimeout(() => {
         this.updateDatabaseCount();
       }, 100);
-      
-      // Special debug for 1d/3M combination
-      if (granularity === '1d' || granularity === '1D') {
-        const timeRange = endTime - startTime;
-        const expectedCandles = Math.ceil(timeRange / 86400); // 86400 seconds = 1 day
-        ChartDebug.critical(`1d granularity debug: Expected ${expectedCandles} candles, Got ${data.length} candles`);
-        ChartDebug.critical(`Time range: ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
-      }
-      
-      ChartDebug.log(`Data loaded: ${data.length} candles for ${pair} ${granularity}`);
-      
-      // ⚠️ DISABLED: Auto-load historical data
-      // This was causing 18M+ candles to be stored for 1m granularity (5 years = 2.6M candles)
-      // TODO: Implement proper multi-granularity storage strategy:
-      // - 1m: Store last 1-2 days only (~2,880 candles)
-      // - 5m: Store last 1-2 weeks (~4,032 candles)
-      // - 15m: Store last month (~2,880 candles)
-      // - 1h: Store last 3-6 months (~4,320-8,640 candles)
-      // - 6h: Store last 1-2 years (~2,920 candles)
-      // - 1d: Store 5+ years (~1,825 candles)
-      //
-      // The backend MultiGranularityAggregator already generates all timeframes,
-      // we just need to configure appropriate retention policies per granularity
-      console.log(`📊 Historical data auto-load disabled to prevent excessive storage`);
-      
-      if (granularity === '1d' || granularity === '1D') {
-        ChartDebug.critical(`[PERF] dataStore.loadData completed in ${performance.now() - loadStartTime}ms`);
-      }
+
     } catch (error) {
       console.error(`❌ [DataStore] Error loading data for ${pair}/${granularity}:`, error);
-      ChartDebug.error('Error loading data:', error);
       throw error;
     }
   }
@@ -322,32 +251,18 @@ class DataStore {
   }
 
   setCandles(candles: CandlestickDataWithVolume[]) {
-    console.log(`📊 [DataStore] Setting ${candles.length} candles`);
-    if (candles.length > 0) {
-      console.log(`📊 [DataStore] First candle:`, candles[0]);
-      console.log(`📊 [DataStore] Last candle:`, candles[candles.length - 1]);
-      console.log(`📊 [DataStore] Volume check - last candle volume:`, candles[candles.length - 1].volume);
-      
-      // Check if any candles have volume data
-      const candlesWithVolume = candles.filter(c => c.volume && c.volume > 0);
-      console.log(`📊 [DataStore] Candles with volume data: ${candlesWithVolume.length}/${candles.length}`);
-    }
-    
     this._candles = candles;
     this._visibleCandles = candles; // Initially all candles are visible
-    
+
     // Update latest price
     if (candles.length > 0) {
       const lastCandle = candles[candles.length - 1];
       this._latestPrice = lastCandle.close;
     }
-    
+
     // Update stats to trigger UI updates
     this.updateStats();
-    
-    // Debug the state after setting candles
-    this.debug();
-    
+
     // Notify plugins of data update
     this.notifyDataUpdate();
   }
@@ -391,10 +306,9 @@ class DataStore {
         // Notify plugins that historical data was loaded (separate from real-time updates)
         this.notifyHistoricalDataLoaded();
 
-        console.log(`📈 Added ${historicalData.length} historical candles. Total: ${mergedCandles.length}`);
         return historicalData.length;
       }
-      
+
       return 0;
     } catch (error) {
       console.error('❌ Error fetching historical data:', error);
@@ -403,39 +317,11 @@ class DataStore {
   }
 
   updateVisibleRange(from: number, to: number) {
-    // Debug visible range calculation
-    if (this._candles.length > 0) {
-      const granularity = this.getCurrentConfig().granularity;
-      if (granularity === '1d' || granularity === '1D') {
-        ChartDebug.critical(`[dataStore] updateVisibleRange called for 1d granularity:`);
-        ChartDebug.critical(`- From: ${new Date(from * 1000).toISOString()}`);
-        ChartDebug.critical(`- To: ${new Date(to * 1000).toISOString()}`);
-        ChartDebug.critical(`- Time range: ${(to - from) / 86400} days`);
-        ChartDebug.critical(`- Total candles available: ${this._candles.length}`);
-        
-        // Show first and last candle times
-        if (this._candles.length > 0) {
-          ChartDebug.critical(`- First available candle: ${new Date((this._candles[0].time as number) * 1000).toISOString()}`);
-          ChartDebug.critical(`- Last available candle: ${new Date((this._candles[this._candles.length - 1].time as number) * 1000).toISOString()}`);
-        }
-      }
-    }
-    
     this._visibleCandles = this._candles.filter(
       candle => candle.time >= from && candle.time <= to
     );
-    
+
     this._dataStats.visibleCount = this._visibleCandles.length;
-    
-    // Debug result for 1d granularity
-    const granularity = this.getCurrentConfig().granularity;
-    if (granularity === '1d') {
-      ChartDebug.critical(`Visible candles after filter: ${this._visibleCandles.length}`);
-      if (this._visibleCandles.length > 0) {
-        ChartDebug.critical(`- First visible: ${new Date((this._visibleCandles[0].time as number) * 1000).toISOString()}`);
-        ChartDebug.critical(`- Last visible: ${new Date((this._visibleCandles[this._visibleCandles.length - 1].time as number) * 1000).toISOString()}`);
-      }
-    }
   }
 
   // Realtime updates
@@ -456,13 +342,6 @@ class DataStore {
       pair,
       granularity,
       (update: WebSocketCandle) => {
-        console.log(`🔄 [DataStore] Received real-time update:`, {
-          time: update.time,
-          close: update.close,
-          volume: update.volume,
-          hasVolume: !!update.volume
-        });
-        
         const candleData: CandlestickData = {
           time: update.time,
           open: update.open,
@@ -471,12 +350,6 @@ class DataStore {
           close: update.close,
           volume: update.volume || 0
         };
-
-        console.log(`🔄 [DataStore] Formatted candle data with volume:`, {
-          time: candleData.time,
-          close: candleData.close,
-          volume: candleData.volume
-        });
 
         // Update or add candle IN-PLACE without triggering Svelte reactivity on historical candles
         const existingIndex = this._candles.findIndex(c => c.time === update.time);
@@ -488,12 +361,10 @@ class DataStore {
           if (existingIndex === lastIndex) {
             // Update the last candle directly - this won't trigger historical candle re-renders
             this._candles[lastIndex] = candleData;
-            console.log(`🔄 [DataStore] Updated live candle at index ${lastIndex}`);
           }
         } else {
           // New candle - append without replacing the entire array
           this._candles.push(candleData);
-          console.log(`🆕 [DataStore] Added new candle, total: ${this._candles.length}`);
         }
 
         // Update latest price for status display
@@ -501,8 +372,6 @@ class DataStore {
 
         // Update stats timestamp only
         this._dataStats.lastUpdate = Date.now();
-
-        console.log(`🔄 [DataStore] Real-time update processed (candle updated, no plugin notifications)`);
 
         // DO NOT call notifyDataUpdate() - it triggers plugin refreshes which call setData()
         // The candle is already updated in the array, chart will get it via the callback
@@ -564,8 +433,6 @@ class DataStore {
         const totalData = await totalResponse.json();
         if (totalData.success) {
           this._dataStats.totalDatabaseCount = totalData.data.totalCandles;
-          console.log(`📊 Updated TOTAL DB count: ${totalData.data.totalCandles} candles across all granularities`);
-          console.log(`📊 Breakdown:`, totalData.data.breakdown);
         }
       }
 
@@ -580,7 +447,6 @@ class DataStore {
         // Use storageMetadata.totalCandles if available, otherwise metadata.totalCandles
         const dbCount = response.metadata.storageMetadata?.totalCandles || response.metadata.totalCandles || 0;
         this._dataStats.totalCount = dbCount;
-        console.log(`📊 Updated current granularity DB count: ${dbCount} candles`);
       }
     } catch (error) {
       console.error('Error getting database count:', error);
@@ -621,18 +487,9 @@ class DataStore {
 
   // Debug method to check current state
   debug() {
-    console.log('🐛 [DataStore Debug]', {
-      totalCandles: this._candles.length,
-      visibleCandles: this._visibleCandles.length,
-      latestPrice: this._latestPrice,
-      stats: this._dataStats,
-      firstCandle: this._candles[0],
-      lastCandle: this._candles[this._candles.length - 1]
-    });
-    
     // Make debug available globally for testing
     (window as any).debugDataStore = () => this.debug();
-    
+
     return this._candles;
   }
 
@@ -654,31 +511,23 @@ class DataStore {
   }
 
   private notifyDataUpdate() {
-    console.log(`🔔 [DataStore] notifyDataUpdate called, callbacks: ${this.dataUpdateCallbacks.size}`);
-    this.dataUpdateCallbacks.forEach((callback, index) => {
+    this.dataUpdateCallbacks.forEach((callback) => {
       try {
-        console.log(`🔔 [DataStore] Calling data update callback ${index + 1}/${this.dataUpdateCallbacks.size}`);
         callback();
-        console.log(`✅ [DataStore] Callback ${index + 1} completed successfully`);
       } catch (error) {
-        console.error(`❌ [DataStore] Error in data update callback ${index + 1}:`, error);
+        console.error(`❌ [DataStore] Error in data update callback:`, error);
       }
     });
-    console.log(`🔔 [DataStore] All data update callbacks completed`);
   }
 
   private notifyHistoricalDataLoaded() {
-    console.log(`📊 [DataStore] notifyHistoricalDataLoaded called, callbacks: ${this.historicalDataLoadedCallbacks.size}`);
-    this.historicalDataLoadedCallbacks.forEach((callback, index) => {
+    this.historicalDataLoadedCallbacks.forEach((callback) => {
       try {
-        console.log(`📊 [DataStore] Calling historical data loaded callback ${index + 1}/${this.historicalDataLoadedCallbacks.size}`);
         callback();
-        console.log(`✅ [DataStore] Historical data callback ${index + 1} completed successfully`);
       } catch (error) {
-        console.error(`❌ [DataStore] Error in historical data callback ${index + 1}:`, error);
+        console.error(`❌ [DataStore] Error in historical data callback:`, error);
       }
     });
-    console.log(`📊 [DataStore] All historical data callbacks completed`);
   }
 }
 
