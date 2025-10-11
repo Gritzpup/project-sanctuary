@@ -542,8 +542,12 @@ class DataStore {
     try {
       const config = this.getCurrentConfig();
 
+      // Use dynamic host for network access
+      const backendHost = (import.meta.env.VITE_BACKEND_HOST as string) || window.location.hostname || 'localhost';
+      const backendUrl = `http://${backendHost}:4828`;
+
       // Get total count across ALL granularities
-      const totalResponse = await fetch(`http://localhost:4828/api/trading/total-candles?pair=${config.pair}`);
+      const totalResponse = await fetch(`${backendUrl}/api/trading/total-candles?pair=${config.pair}`);
       if (totalResponse.ok) {
         const totalData = await totalResponse.json();
         if (totalData.success) {

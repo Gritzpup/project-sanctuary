@@ -22,8 +22,14 @@ interface RedisChartDataResponse {
 }
 
 export class RedisChartService {
-  private backendUrl: string = 'http://localhost:4828'; // Backend API base URL
-  private wsUrl: string = 'ws://localhost:4828'; // Backend WebSocket for real-time data
+  // Use window.location.hostname to work on any network machine
+  private getBackendHost(): string {
+    const envHost = import.meta.env.VITE_BACKEND_HOST;
+    return envHost || window.location.hostname || 'localhost';
+  }
+
+  private backendUrl: string = `http://${this.getBackendHost()}:4828`; // Backend API base URL
+  private wsUrl: string = `ws://${this.getBackendHost()}:4828`; // Backend WebSocket for real-time data
   private ws: WebSocket | null = null;
   private wsReconnectTimeout: NodeJS.Timeout | null = null;
   private wsSubscriptions: Map<string, (data: WebSocketCandle) => void> = new Map();
