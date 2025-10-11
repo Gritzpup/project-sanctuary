@@ -141,15 +141,22 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       return;
     }
 
-    console.log(`🔴 [Realtime] Updating with price ${price}, volume ${fullCandleData?.volume || 0}, current candle count: ${candles.length}`);
-    
+    const config = chartStore?.config;
+    const currentGranularity = config?.granularity || '1m';
+
+    console.log(`🔴 [Realtime] Updating with price ${price}, volume ${fullCandleData?.volume || 0}, current candle count: ${candles.length}, granularity: ${currentGranularity}`);
+
     // Get current candle timestamp based on granularity
     const now = Date.now();
-    const config = chartStore?.config;
-    const granularitySeconds = getGranularitySeconds(config?.granularity || '1m');
+    const granularitySeconds = getGranularitySeconds(currentGranularity);
     const currentCandleTime = Math.floor(now / (granularitySeconds * 1000)) * granularitySeconds; // Round down to granularity boundary
     const lastCandle = candles[candles.length - 1];
     const lastCandleTime = lastCandle.time as number;
+
+    // Debug for 15m specifically
+    if (currentGranularity === '15m') {
+      console.log(`🕒 [15m Debug] now=${now}ms (${new Date(now).toISOString()}), granularitySeconds=${granularitySeconds}, currentCandleTime=${currentCandleTime} (${new Date(currentCandleTime * 1000).toISOString()}), lastCandleTime=${lastCandleTime} (${new Date(lastCandleTime * 1000).toISOString()})`);
+    }
     
     if (currentCandleTime > lastCandleTime) {
       // New candle needed

@@ -190,10 +190,10 @@
       autoGranularity = useAutoGranularity({
         chart,
         candleSeries: chartCanvas?.getSeries() || null,
-        enabled: true,
+        enabled: false, // DISABLED: Interferes with manual granularity selection (e.g., 15m with few candles)
         debounceMs: 300
       });
-      console.log(`🟢 [ChartCore] Auto-granularity switching enabled`);
+      console.log(`🟢 [ChartCore] Auto-granularity switching DISABLED to prevent interference`);
     }
 
     // Notify parent component that chart is ready

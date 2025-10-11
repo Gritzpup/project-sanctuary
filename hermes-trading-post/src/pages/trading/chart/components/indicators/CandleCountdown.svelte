@@ -47,6 +47,10 @@
       // For 5-minute candles, next candle is at the next 5-minute boundary
       const current5Min = Math.floor(now / 300);
       nextCandleTime = (current5Min + 1) * 300;
+    } else if (currentGranularity === '15m') {
+      // For 15-minute candles, next candle is at the next 15-minute boundary
+      const current15Min = Math.floor(now / 900);
+      nextCandleTime = (current15Min + 1) * 900;
     } else if (currentGranularity === '1h') {
       // For 1-hour candles, next candle is at the next hour boundary
       const currentHour = Math.floor(now / 3600);
