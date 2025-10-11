@@ -62,23 +62,10 @@ export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
     // Check if this is a small dataset where all expected candles are already loaded
     // This prevents auto-loading for timeframes like 5m/1H (12 candles) where we already have all the data
     const config = chartStore?.config;
-      hasConfig: !!config,
-      granularity: config?.granularity,
-      timeframe: config?.timeframe,
-      candleCount: candles.length
-    });
 
     if (config?.granularity && config?.timeframe) {
       const expectedCandleCount = getCandleCount(config.granularity, config.timeframe);
       const shouldSkip = candles.length < 30 && candles.length >= (expectedCandleCount - 3);
-
-        expectedCandleCount,
-        actualCandles: candles.length,
-        threshold: expectedCandleCount - 3,
-        shouldSkip,
-        isSmall: candles.length < 30,
-        hasEnough: candles.length >= (expectedCandleCount - 3)
-      });
 
       // If we have a small dataset (< 30 candles) and we already have all expected candles (+3 for live candle + buffer),
       // don't trigger historical auto-loading
