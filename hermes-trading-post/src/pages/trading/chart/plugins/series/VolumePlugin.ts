@@ -111,8 +111,17 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
     try {
       const dataStore = this.getDataStore();
       const candles = dataStore.candles;
+      const chartStore = this.getChartStore();
+      const granularity = chartStore?.config?.granularity || 'unknown';
 
-      console.log(`🔄 [VolumePlugin] getData called with ${candles.length} candles`);
+      console.log(`🔄 [VolumePlugin] getData called with ${candles.length} candles [${granularity}]`);
+
+      // DEBUG: Log first and last 3 candle timestamps for 15m
+      if (granularity === '15m' && candles.length > 0) {
+        console.log(`🔍 [VolumePlugin] 15m candles - First 3:`, candles.slice(0, 3).map(c => ({ time: c.time, date: new Date((c.time as number) * 1000).toISOString() })));
+        console.log(`🔍 [VolumePlugin] 15m candles - Last 3:`, candles.slice(-3).map(c => ({ time: c.time, date: new Date((c.time as number) * 1000).toISOString() })));
+      }
+
       console.log(`🔄 [VolumePlugin] Plugin enabled: ${this.enabled}, Series: ${this.series ? 'exists' : 'null'}`);
 
       if (candles.length === 0) {

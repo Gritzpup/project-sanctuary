@@ -57,7 +57,7 @@
         low: candle.low,
         close: candle.close,
       }));
-      
+
       // Sort by time and remove duplicates
       const sortedCandles = formattedCandles
         .sort((a, b) => (a.time as number) - (b.time as number))
@@ -65,8 +65,15 @@
           // Keep only the first occurrence of each timestamp
           return index === 0 || candle.time !== array[index - 1].time;
         });
-      
-      console.log(`📊 [ChartDataManager] Setting ${sortedCandles.length} candles (from ${formattedCandles.length}) on chart series`);
+
+      const granularity = chartStore.config?.granularity || 'unknown';
+      console.log(`📊 [ChartDataManager] Setting ${sortedCandles.length} candles (from ${formattedCandles.length}) on chart series [${granularity}]`);
+
+      // DEBUG: Log first and last 3 candle timestamps for 15m
+      if (granularity === '15m' && sortedCandles.length > 0) {
+        console.log(`🔍 [ChartDataManager] 15m candles - First 3:`, sortedCandles.slice(0, 3).map(c => ({ time: c.time, date: new Date((c.time as number) * 1000).toISOString() })));
+        console.log(`🔍 [ChartDataManager] 15m candles - Last 3:`, sortedCandles.slice(-3).map(c => ({ time: c.time, date: new Date((c.time as number) * 1000).toISOString() })));
+      }
       
       // Set the data on the chart series
       candleSeries.setData(sortedCandles);

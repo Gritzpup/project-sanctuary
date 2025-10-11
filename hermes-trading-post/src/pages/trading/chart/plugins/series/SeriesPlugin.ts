@@ -149,18 +149,18 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
 
   protected refreshData(): void {
     console.log(`🔄 [SeriesPlugin:${this.config.id}] refreshData called`);
-    
+
     if (!this.series) {
       console.log(`❌ [SeriesPlugin:${this.config.id}] No series available for refresh`);
       return;
     }
-    
+
     console.log(`🔄 [SeriesPlugin:${this.config.id}] Getting data...`);
     const data = this.getData();
-    
+
     if (data && data.length > 0) {
       console.log(`🔄 [SeriesPlugin:${this.config.id}] Setting ${data.length} data points on series`);
-      
+
       // Sort and deduplicate data before setting on series
       const sortedData = data
         .sort((a, b) => (a.time as number) - (b.time as number))
@@ -168,12 +168,19 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
           // Keep only the first occurrence of each timestamp
           return index === 0 || item.time !== array[index - 1].time;
         });
-      
+
       console.log(`🔄 [SeriesPlugin:${this.config.id}] Setting ${sortedData.length} sorted/deduped data points (from ${data.length})`);
-      this.series.setData(sortedData);
+
+      // ✅ FIX: Always clear and re-set data to prevent stale candles from previous granularity
+      // Using setData() should clear existing data, but explicitly doing it ensures clean state
+      this.series.setData([]);  // Clear first
+      this.series.setData(sortedData);  // Then set new data
+
       console.log(`✅ [SeriesPlugin:${this.config.id}] Data updated successfully`);
     } else {
       console.log(`⚠️ [SeriesPlugin:${this.config.id}] No data to set (length: ${data?.length || 0})`);
+      // Clear series if no data
+      this.series.setData([]);
     }
   }
 
