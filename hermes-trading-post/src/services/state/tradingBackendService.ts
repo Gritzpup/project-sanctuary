@@ -308,25 +308,13 @@ class TradingBackendService {
   }
 
   startTrading(strategy: any, reset: boolean = false) {
-    
-    // Log the actual configuration being sent
-    if (strategy.strategyConfig) {
-        strategyType: strategy.strategyType,
-        initialDropPercent: strategy.strategyConfig.initialDropPercent,
-        levelDropPercent: strategy.strategyConfig.levelDropPercent,
-        profitTarget: strategy.strategyConfig.profitTarget || strategy.strategyConfig.profitTargetPercent,
-        maxLevels: strategy.strategyConfig.maxLevels,
-        fullConfig: strategy.strategyConfig
-      });
-    }
-    
     // Flatten the structure - backend expects strategyType and strategyConfig directly in config
     this.send({
       type: 'start',
-      config: { 
+      config: {
         strategyType: strategy.strategyType,
         strategyConfig: strategy.strategyConfig,
-        reset 
+        reset
       }
     });
   }
@@ -351,17 +339,6 @@ class TradingBackendService {
   }
 
   updateStrategy(strategy: any) {
-    
-    // Log the actual configuration being sent
-    if (strategy.strategyConfig) {
-        strategyType: strategy.strategyType,
-        initialDropPercent: strategy.strategyConfig.initialDropPercent,
-        levelDropPercent: strategy.strategyConfig.levelDropPercent,
-        profitTarget: strategy.strategyConfig.profitTarget || strategy.strategyConfig.profitTargetPercent,
-        maxLevels: strategy.strategyConfig.maxLevels,
-        fullConfig: strategy.strategyConfig
-      });
-    }
     
     this.send({
       type: 'updateStrategy',
