@@ -231,7 +231,7 @@ export function getAutoSuggestion(
 }
 
 // Extended periods for the period control (footer) - optimized for maximum compatibility
-export const EXTENDED_PERIODS = ['1H', '4H', '1D', '5D', '1M', '3M', '6M', '1Y'] as const;
+export const EXTENDED_PERIODS = ['1H', '4H', '1D', '5D', '1M', '3M', '6M', '1Y', '5Y'] as const;
 export type ExtendedPeriod = typeof EXTENDED_PERIODS[number];
 
 // ✅ Enhanced granularity options (API-validated only)

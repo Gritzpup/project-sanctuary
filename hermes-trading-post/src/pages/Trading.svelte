@@ -161,11 +161,12 @@
       <div class="controls-section">
         <div class="period-controls">
           <h3>Time Period</h3>
-          <div class="button-group">
+          <div class="button-group" style="flex-wrap: wrap; max-width: 100%; overflow: visible;">
             {#each ['1H', '4H', '5D', '1M', '3M', '6M', '1Y', '5Y'] as period}
-              <button 
-                class="btn-base btn-sm btn-timeframe" 
+              <button
+                class="btn-base btn-sm btn-timeframe"
                 class:active={selectedPeriod === period}
+                style="{period === '5Y' ? 'border: 3px solid red !important; background: yellow !important; color: black !important;' : ''}"
                 on:click={() => selectPeriod(period)}
               >
                 {period}
