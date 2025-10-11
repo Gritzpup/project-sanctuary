@@ -36,14 +36,15 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
    */
   function getPeriodSeconds(period: string): number {
     const periodMap: Record<string, number> = {
-      '1M': 2592000,   // ~30 days
-      '3M': 7776000,   // ~90 days  
-      '6M': 15552000,  // ~180 days
-      '1H': 3600,      // 1 hour
-      '4H': 14400,     // 4 hours
-      '1D': 86400,     // 1 day
-      '1W': 604800,    // 1 week
-      '1Y': 31536000   // 365 days
+      '1H': 3600,       // 1 hour
+      '6H': 21600,      // 6 hours
+      '1D': 86400,      // 1 day
+      '1W': 604800,     // 1 week
+      '1M': 2592000,    // ~30 days
+      '3M': 7776000,    // ~90 days
+      '6M': 15552000,   // ~180 days
+      '1Y': 31536000,   // 365 days
+      '5Y': 157680000   // 5 years (1825 days)
     };
     return periodMap[period] || 3600;
   }
