@@ -24,17 +24,17 @@
         textColor: '#d1d4dc',
       },
       grid: {
-        vertLines: { color: '#2b2b2b' },
-        horzLines: { color: '#2b2b2b' },
+        vertLines: { visible: false },
+        horzLines: { visible: false },
       },
-      width: chartContainer.clientWidth,
+      width: chartContainer.clientWidth + 58, // Add 58px to stretch chart wider since price scale overlays
       height: chartContainer.clientHeight || 280,
       timeScale: {
         visible: false, // Hide bottom scale (was showing confusing numbers)
       },
       leftPriceScale: {
         visible: true,
-        borderColor: '#2b2b2b',
+        borderVisible: false,
         mode: 1, // Normal price scale mode
         entireTextOnly: false,
         alignLabels: true,
@@ -42,6 +42,7 @@
           top: 0.1,
           bottom: 0.1,
         },
+        minimumWidth: 0, // Remove minimum width to allow overlay
       },
       rightPriceScale: {
         visible: false,
@@ -97,7 +98,7 @@
     const resizeObserver = new ResizeObserver(() => {
       if (chart && chartContainer) {
         chart.applyOptions({
-          width: chartContainer.clientWidth,
+          width: chartContainer.clientWidth + 58, // Add 58px to stretch chart wider since price scale overlays
           height: chartContainer.clientHeight || 280,
         });
       }
@@ -177,6 +178,25 @@
       time: level.price as any,  // Use price as x-axis
       value: level.depth
     }));
+
+    // Add gap in the middle - add extra price points between highest bid and lowest ask
+    if (bids.length > 0 && asks.length > 0) {
+      const highestBidPrice = bids[bids.length - 1].price;
+      const lowestAskPrice = asks[0].price;
+      const gapSize = (lowestAskPrice - highestBidPrice) * 0.2; // 20% of spread as padding
+
+      // Add padding point to bid data (drops to 0 at edge)
+      bidData.push({
+        time: (highestBidPrice + gapSize) as any,
+        value: 0
+      });
+
+      // Add padding point to ask data (drops to 0 at edge)
+      askData.unshift({
+        time: (lowestAskPrice - gapSize) as any,
+        value: 0
+      });
+    }
 
     // Update chart series
     bidSeries.setData(bidData);
@@ -299,6 +319,31 @@
     width: 100%;
     height: 300px;
     position: relative;
+  }
+
+  /* Make table row relative for absolute positioning */
+  .depth-chart :global(.tv-lightweight-charts tr) {
+    position: relative;
+  }
+
+  /* First TD - price scale - position absolute to overlay on chart */
+  .depth-chart :global(.tv-lightweight-charts tr > td:first-child) {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    z-index: 10 !important;
+    pointer-events: none !important;
+  }
+
+  /* Hide the grey background canvas of price scale */
+  .depth-chart :global(.tv-lightweight-charts tr > td:first-child canvas[style*="z-index: 1"]) {
+    opacity: 0 !important;
+  }
+
+  /* Second TD - main chart - shift left to center the wider chart */
+  .depth-chart :global(.tv-lightweight-charts tr > td:nth-child(2)) {
+    position: relative !important;
+    left: -29px !important;
   }
 
   /* Hide TradingView watermark - aggressive approach */
