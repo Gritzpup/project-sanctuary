@@ -43,9 +43,6 @@ export class RedisChartService {
     // Test basic connectivity to backend
     try {
       const response = await fetch(`${this.backendUrl}/health`);
-      if (!response.ok) {
-        console.warn('⚠️ [RedisChartService] Backend health check failed with status:', response.status);
-      }
     } catch (error) {
       console.error('❌ [RedisChartService] Backend connectivity test failed:', error);
     }
@@ -280,10 +277,7 @@ export class RedisChartService {
             type: message.candleType || 'update'
           };
 
-          console.log(`📥 [Frontend] Received ${candleData.type} candle:`, subscriptionKey, candleData.close);
           callback(candleData);
-        } else {
-          console.warn(`⚠️ [Frontend] No callback for candle:`, subscriptionKey);
         }
         break;
         
@@ -307,7 +301,6 @@ export class RedisChartService {
             statusStore.setDatabaseActivity('fetching', 2000);
           } else if (activity.type === 'store_complete' || activity.type === 'REDIS_STORE') {
             statusStore.setDatabaseActivity('storing', 1500);
-            console.log(`💾 [Database] Stored ${activity.candleCount || 0} ${activity.pair} ${activity.granularity} candles`);
 
             // Update database count when new candles are stored
             import('../stores/dataStore.svelte').then(({ dataStore }) => {

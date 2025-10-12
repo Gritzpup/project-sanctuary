@@ -68,22 +68,8 @@
               (plugin as any).forceShow();
             }, 1000); // Give it time to initialize
           }
-
-          // Log to backend for debugging
-          fetch('/api/debug-log', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: `Plugin registered: ${pluginName}` })
-          }).catch(() => {});
         } catch (error) {
           console.error(`❌ [ChartContainer] Failed to register ${pluginName} plugin:`, error);
-
-          // Log error to backend
-          fetch('/api/debug-log', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: `Plugin registration failed: ${pluginName} - ${error.message}` })
-          }).catch(() => {});
         }
       } else {
         console.warn('⚠️ [ChartContainer] Failed to create plugin:', pluginName);
