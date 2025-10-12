@@ -11,8 +11,8 @@
   let ws: WebSocket | null = null;
 
   // Reactive orderbook data for display
-  let bids = $derived(orderbookStore.getBids(10));
-  let asks = $derived(orderbookStore.getAsks(10));
+  let bids = $derived(orderbookStore.getBids(12));
+  let asks = $derived(orderbookStore.getAsks(12));
   let maxBidSize = $derived(Math.max(...bids.map(b => b.size), 0.001));
   let maxAskSize = $derived(Math.max(...asks.map(a => a.size), 0.001));
 
@@ -238,11 +238,11 @@
         <span>Buy Price</span>
       </div>
       <div class="orderbook-rows">
-        {#each bids as bid}
-          <div class="orderbook-row bid-row" style="--volume-width: {(bid.size / maxBidSize * 100)}%">
+        {#each orderbookStore.getBids(12) as bid, i}
+          <div class="orderbook-row bid-row" class:top-order={i === 0} style="--volume-width: {(bid.size / maxBidSize * 100)}%">
             <div class="volume-bar bid-bar"></div>
             <span class="quantity">{bid.size.toFixed(5)}</span>
-            <span class="price">{Math.floor(bid.price).toLocaleString('en-US')}</span>
+            <span class="price">${Math.floor(bid.price).toLocaleString('en-US')}</span>
           </div>
         {/each}
       </div>
@@ -254,10 +254,10 @@
         <span>Quantity</span>
       </div>
       <div class="orderbook-rows">
-        {#each asks as ask}
-          <div class="orderbook-row ask-row" style="--volume-width: {(ask.size / maxAskSize * 100)}%">
+        {#each orderbookStore.getAsks(12) as ask, i}
+          <div class="orderbook-row ask-row" class:top-order={i === 0} style="--volume-width: {(ask.size / maxAskSize * 100)}%">
             <div class="volume-bar ask-bar"></div>
-            <span class="price">{Math.floor(ask.price).toLocaleString('en-US')}</span>
+            <span class="price">${Math.floor(ask.price).toLocaleString('en-US')}</span>
             <span class="quantity">{ask.size.toFixed(5)}</span>
           </div>
         {/each}
@@ -435,7 +435,7 @@
     display: flex;
     justify-content: space-between;
     padding: 3px 8px;
-    font-size: 11px;
+    font-size: 10px;
     font-family: 'Monaco', 'Courier New', monospace;
     position: relative;
     border-radius: 3px;
@@ -495,6 +495,20 @@
 
   .orderbook-row .quantity {
     color: #9ca3af;
+  }
+
+  /* Highlight top orders (best bid/ask) */
+  .top-order {
+    font-size: 13px !important;
+    padding: 4px 8px !important;
+  }
+
+  .top-order .price {
+    font-weight: 700 !important;
+  }
+
+  .top-order .quantity {
+    color: #ffffff !important;
   }
 
   /* Responsive */
