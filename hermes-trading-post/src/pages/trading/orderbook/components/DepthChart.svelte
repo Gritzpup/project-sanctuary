@@ -42,8 +42,8 @@
       depthData.asks[depthData.asks.length - 1]?.depth || 0
     );
 
-    // Create 5 volume labels from 0 to maxDepth
-    return Array.from({length: 5}, (_, i) => (maxDepth / 4) * i);
+    // Create 4 volume labels from 25% to 100% (skip 0)
+    return Array.from({length: 4}, (_, i) => (maxDepth / 4) * (i + 1));
   });
 
   function formatPrice(price: number): string {
@@ -295,7 +295,7 @@
       <!-- Custom volume gauge overlay (bottom) -->
       <div class="volume-gauge-overlay">
         {#each volumeRange() as volume, i}
-          <div class="volume-label" style="left: {(i / 4) * 100}%">
+          <div class="volume-label" style="left: {((i + 1) / 4) * 100}%">
             {formatVolume(volume)}
           </div>
         {/each}
@@ -454,7 +454,7 @@
     position: absolute;
     left: 0;
     right: 0;
-    bottom: 5px;
+    bottom: 5px; /* Position at bottom of chart */
     height: 20px;
     pointer-events: none;
     z-index: 100;
