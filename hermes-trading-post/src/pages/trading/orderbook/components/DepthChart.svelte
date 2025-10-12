@@ -27,7 +27,7 @@
         vertLines: { visible: false },
         horzLines: { visible: false },
       },
-      width: chartContainer.clientWidth + 40, // Add 40px to stretch chart (not full 58px to avoid overlap)
+      width: chartContainer.clientWidth + 20, // Add 20px to stretch chart slightly
       height: chartContainer.clientHeight || 230,
       timeScale: {
         visible: false, // Hide bottom scale (was showing confusing numbers)
@@ -98,7 +98,7 @@
     const resizeObserver = new ResizeObserver(() => {
       if (chart && chartContainer) {
         chart.applyOptions({
-          width: chartContainer.clientWidth + 40, // Add 40px to stretch chart (not full 58px to avoid overlap)
+          width: chartContainer.clientWidth + 20, // Add 20px to stretch chart slightly
           height: chartContainer.clientHeight || 230,
         });
       }
@@ -298,7 +298,7 @@
   }
 
   .panel-content {
-    padding: 15px;
+    padding: 15px 0px 15px 15px; /* No padding on right side */
     overflow-y: auto;
     flex: 1;
     display: flex;
@@ -337,6 +337,7 @@
     height: 230px;
     position: relative;
     margin-bottom: 15px;
+    overflow: hidden; /* Prevent chart from extending beyond container */
   }
 
   /* Make table row relative for absolute positioning */
@@ -361,7 +362,7 @@
   /* Second TD - main chart - shift left to center the wider chart */
   .depth-chart :global(.tv-lightweight-charts tr > td:nth-child(2)) {
     position: relative !important;
-    left: -20px !important;
+    left: -10px !important;
   }
 
   /* Hide TradingView watermark - aggressive approach */
@@ -392,10 +393,11 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
-    padding: 10px;
+    padding: 10px 5px;
     background: rgba(74, 0, 224, 0.05);
     border: 1px solid rgba(74, 0, 224, 0.2);
     border-radius: 6px;
+    margin: 0 5px 0 5px; /* Narrow by 5px on each side */
   }
 
   .orderbook-side {
