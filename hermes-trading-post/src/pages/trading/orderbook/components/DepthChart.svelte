@@ -20,14 +20,14 @@
     // Initialize chart
     chart = createChart(chartContainer, {
       layout: {
-        background: { type: ColorType.Solid, color: '#1a1a1a' },
+        background: { type: ColorType.Solid, color: 'transparent' },
         textColor: '#d1d4dc',
       },
       grid: {
         vertLines: { visible: false },
         horzLines: { visible: false },
       },
-      width: chartContainer.clientWidth + 20, // Add 20px to stretch chart slightly
+      width: chartContainer.clientWidth + 30, // Add 30px to stretch chart to match orderbook width
       height: chartContainer.clientHeight || 230,
       timeScale: {
         visible: false, // Hide bottom scale (was showing confusing numbers)
@@ -98,7 +98,7 @@
     const resizeObserver = new ResizeObserver(() => {
       if (chart && chartContainer) {
         chart.applyOptions({
-          width: chartContainer.clientWidth + 20, // Add 20px to stretch chart slightly
+          width: chartContainer.clientWidth + 30, // Add 30px to stretch chart to match orderbook width
           height: chartContainer.clientHeight || 230,
         });
       }
@@ -298,7 +298,7 @@
   }
 
   .panel-content {
-    padding: 15px 0px 15px 15px; /* No padding on right side */
+    padding: 15px; /* Restore padding */
     overflow-y: auto;
     flex: 1;
     display: flex;
@@ -337,7 +337,16 @@
     height: 230px;
     position: relative;
     margin-bottom: 15px;
-    overflow: hidden; /* Prevent chart from extending beyond container */
+    overflow: hidden;
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 6px;
+    background: #1a1a1a; /* Fill background */
+  }
+
+  /* Remove internal chart padding */
+  .depth-chart :global(.tv-lightweight-charts) {
+    width: 100% !important;
+    height: 100% !important;
   }
 
   /* Make table row relative for absolute positioning */
@@ -362,7 +371,7 @@
   /* Second TD - main chart - shift left to center the wider chart */
   .depth-chart :global(.tv-lightweight-charts tr > td:nth-child(2)) {
     position: relative !important;
-    left: -10px !important;
+    left: -15px !important;
   }
 
   /* Hide TradingView watermark - aggressive approach */
@@ -393,11 +402,11 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
-    padding: 10px 5px;
+    padding: 10px;
     background: rgba(74, 0, 224, 0.05);
     border: 1px solid rgba(74, 0, 224, 0.2);
     border-radius: 6px;
-    margin: 0 5px 0 5px; /* Narrow by 5px on each side */
+    margin: 0; /* No margin - fill container width */
   }
 
   .orderbook-side {
