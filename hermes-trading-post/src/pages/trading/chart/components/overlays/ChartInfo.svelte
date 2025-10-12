@@ -62,19 +62,15 @@
   
 
   onMount(() => {
-    
+
     // IMMEDIATE status force - don't wait
-    import('../../stores/statusStore.svelte').then(({ statusStore }) => {
-      statusStore.forceReady();
-    });
-    
+    statusStore.forceReady();
+
     // Force status to ready after 5 seconds if still loading
     setTimeout(() => {
-      import('../../stores/statusStore.svelte').then(({ statusStore }) => {
-        if (statusStore.status === 'initializing' || statusStore.status === 'loading') {
-          statusStore.forceReady();
-        }
-      });
+      if (statusStore.status === 'initializing' || statusStore.status === 'loading') {
+        statusStore.forceReady();
+      }
     }, 5000);
     
     if (showClock) {

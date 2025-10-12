@@ -6,7 +6,6 @@
 
 // ✨ New recommended services (backend-first architecture)
 export { backendCache, BackendCacheService } from './cache/BackendCacheService';
-export { paperTradingEngine, PaperTradingEngine } from './trading/PaperTradingEngine';
 export { BackendAPIService, backendAPI } from './api/BackendAPIService';
 
 // 🔄 Strategy adapters (eliminates frontend/backend duplication)
@@ -26,9 +25,8 @@ export * from './backtesting';
 export const services = {
   // New unified services (recommended)
   cache: () => import('./cache/BackendCacheService').then(m => m.backendCache),
-  trading: () => import('./trading/PaperTradingEngine').then(m => m.paperTradingEngine),
   api: () => import('./api/BackendAPIService').then(m => m.backendAPI),
-  
+
   // Legacy services (for migration)
   legacyCache: () => import('./cache/indexedDB').then(m => new m.IndexedDBCache()),
   legacyPaperTrading: () => import('./state/paperTradingService'),
@@ -50,16 +48,12 @@ export const migration = {
   },
   
   // Trading engine migration
-  async getTradingEngine(useUnified = true) {
-    if (useUnified) {
-      return (await import('./trading/PaperTradingEngine')).paperTradingEngine;
-    } else {
-      // Return legacy service selector
-      return {
-        paperTrading: () => import('./state/paperTradingService'),
-        paperTest: () => import('./state/paperTestService')
-      };
-    }
+  async getTradingEngine() {
+    // Return legacy service selector
+    return {
+      paperTrading: () => import('./state/paperTradingService'),
+      paperTest: () => import('./state/paperTestService')
+    };
   },
   
   // Strategy migration

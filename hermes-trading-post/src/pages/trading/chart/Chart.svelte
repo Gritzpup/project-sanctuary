@@ -1,15 +1,15 @@
 <script lang="ts">
-  
+
   import ChartContainer from './ChartContainer.svelte';
   import type { IChartApi } from 'lightweight-charts';
   import type { PluginManager } from './plugins';
   import { onMount } from 'svelte';
-  
+  import { statusStore } from './stores/statusStore.svelte';
+
   // Status monitoring - only set ready if stuck in loading state too long
   onMount(() => {
-    setTimeout(async () => {
+    setTimeout(() => {
       try {
-        const { statusStore } = await import('./stores/statusStore.svelte');
         // Only intervene if truly stuck, not to mask real issues
         if (statusStore.status === 'loading' || statusStore.status === 'initializing') {
           console.warn('Chart status stuck in', statusStore.status, 'state - setting to ready');

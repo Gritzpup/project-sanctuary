@@ -4,6 +4,7 @@ import { perfTest } from '../utils/performanceTest';
 import { CoinbaseAPI } from '../../../../services/api/coinbaseApi';
 import { getGranularitySeconds } from '../utils/granularityHelpers';
 import { Logger } from '../../../../utils/Logger';
+import { statusStore } from '../stores/statusStore.svelte';
 
 export class ChartAPIService {
   private coinbaseApi: CoinbaseAPI;
@@ -224,11 +225,14 @@ export class ChartAPIService {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.sendSubscription(pair, granularity);
     }
-    
-    // Import and update status store
-    import('../stores/statusStore.svelte').then(({ statusStore }) => {
+
+
+    // Update status store
+    try {
       statusStore.setWebSocketConnected(true);
-    }).catch(console.error);
+    } catch (error) {
+      console.error('Failed to update status store:', error);
+    }
     
     // Return unsubscribe function
     return {
@@ -246,11 +250,14 @@ export class ChartAPIService {
             if (this.wsSubscriptions.size === 0 && this.ws) {
               this.ws.close();
               this.ws = null;
-              
+
+
               // Update status store
-              import('../stores/statusStore.svelte').then(({ statusStore }) => {
+              try {
                 statusStore.setWebSocketConnected(false);
-              }).catch(console.error);
+              } catch (error) {
+                console.error('Failed to update status store:', error);
+              }
             }
           }, 100); // 100ms delay to allow for granularity switches
         }
@@ -275,11 +282,14 @@ export class ChartAPIService {
       this.ws.onopen = () => {
         ChartDebug.log('WebSocket connected');
         this.clearReconnectTimeout();
-        
+
+
         // Update status store - WebSocket is connected
-        import('../stores/statusStore.svelte').then(({ statusStore }) => {
+        try {
           statusStore.setWebSocketConnected(true);
-        }).catch(console.error);
+        } catch (error) {
+          console.error('Failed to update status store:', error);
+        }
         
         // Resubscribe to all active subscriptions
         for (const key of this.wsSubscriptions.keys()) {
@@ -312,11 +322,14 @@ export class ChartAPIService {
 
       this.ws.onerror = (error) => {
         ChartDebug.error('WebSocket error:', error);
-        
+
+
         // Update status store - WebSocket error
-        import('../stores/statusStore.svelte').then(({ statusStore }) => {
+        try {
           statusStore.setWebSocketConnected(false);
-        }).catch(console.error);
+        } catch (error) {
+          console.error('Failed to update status store:', error);
+        }
         
         if (onError) {
           onError(new Error('WebSocket connection error'));
@@ -325,11 +338,14 @@ export class ChartAPIService {
 
       this.ws.onclose = () => {
         ChartDebug.log('WebSocket disconnected');
-        
+
+
         // Update status store - WebSocket disconnected
-        import('../stores/statusStore.svelte').then(({ statusStore }) => {
+        try {
           statusStore.setWebSocketConnected(false);
-        }).catch(console.error);
+        } catch (error) {
+          console.error('Failed to update status store:', error);
+        }
         
         this.scheduleReconnect(onError);
       };

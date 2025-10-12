@@ -2,6 +2,8 @@ import type { CandlestickData } from 'lightweight-charts';
 import type { Candle, DataRequest, WebSocketCandle } from '../types/data.types';
 import { ChartDebug } from '../utils/debug';
 import { Logger } from '../../../../utils/Logger';
+import { statusStore } from '../stores/statusStore.svelte';
+import { dataStore } from '../stores/dataStore.svelte';
 
 interface RedisChartDataResponse {
   success: boolean;
@@ -295,7 +297,7 @@ export class RedisChartService {
 
       case 'database_activity':
         // Forward database activity to statusStore
-        import('../stores/statusStore.svelte').then(({ statusStore }) => {
+        try {
           const activity = message.data;
           if (activity.type === 'fetch_start' || activity.type === 'API_FETCH') {
             statusStore.setDatabaseActivity('fetching', 2000);
@@ -303,15 +305,17 @@ export class RedisChartService {
             statusStore.setDatabaseActivity('storing', 1500);
 
             // Update database count when new candles are stored
-            import('../stores/dataStore.svelte').then(({ dataStore }) => {
+            try {
               dataStore.updateDatabaseCount();
-            }).catch(err => console.error('Failed to update database count:', err));
+            } catch (err) {
+              console.error('Failed to update database count:', err);
+            }
           } else if (activity.type === 'error' || activity.type === 'API_ERROR') {
             statusStore.setDatabaseActivity('error', 3000);
           }
-        }).catch(error => {
+        } catch (error) {
           console.error('Failed to update database activity:', error);
-        });
+        }
         break;
 
       default:
