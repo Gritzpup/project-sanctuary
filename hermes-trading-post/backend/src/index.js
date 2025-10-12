@@ -178,8 +178,8 @@ setTimeout(monitorMemoryUsage, 10000);
 
   // 📊 Start polling orderbook data for depth chart visualization
   // Note: level2 WebSocket requires auth, so we use REST API polling instead
-  orderbookPollingService.startPolling('BTC-USD', 50);
-  console.log('📊 Started orderbook polling for BTC-USD depth chart');
+  orderbookPollingService.startPolling('BTC-USD', 150);
+  console.log('📊 Started orderbook polling for BTC-USD depth chart with 150 levels');
 
   // Set up Coinbase WebSocket event handlers
   coinbaseWebSocket.on('candle', (candleData) => {

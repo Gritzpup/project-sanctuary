@@ -10,6 +10,12 @@
   let askSeries: ISeriesApi<'Area'>;
   let ws: WebSocket | null = null;
 
+  // Reactive orderbook data for display
+  let bids = $derived(orderbookStore.getBids(10));
+  let asks = $derived(orderbookStore.getAsks(10));
+  let maxBidSize = $derived(Math.max(...bids.map(b => b.size), 0.001));
+  let maxAskSize = $derived(Math.max(...asks.map(a => a.size), 0.001));
+
   onMount(() => {
     // Initialize chart
     chart = createChart(chartContainer, {
@@ -24,11 +30,21 @@
       width: chartContainer.clientWidth,
       height: chartContainer.clientHeight || 280,
       timeScale: {
-        visible: false, // Depth chart doesn't use time
+        visible: false, // Hide bottom scale (was showing confusing numbers)
       },
-      rightPriceScale: {
+      leftPriceScale: {
         visible: true,
         borderColor: '#2b2b2b',
+        mode: 1, // Normal price scale mode
+        entireTextOnly: false,
+        alignLabels: true,
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.1,
+        },
+      },
+      rightPriceScale: {
+        visible: false,
       },
       crosshair: {
         vertLine: {
@@ -37,6 +53,9 @@
         horzLine: {
           labelVisible: true,
         },
+      },
+      watermark: {
+        visible: false, // Hide TradingView watermark
       },
     });
 
@@ -47,6 +66,8 @@
       lineColor: 'rgba(38, 166, 154, 1)',
       lineWidth: 2,
       priceLineVisible: false,
+      lastValueVisible: false, // Remove price tag
+      priceScaleId: 'left',
     });
 
     // Create ask series (red mountain on right)
@@ -56,6 +77,8 @@
       lineColor: 'rgba(239, 83, 80, 1)',
       lineWidth: 2,
       priceLineVisible: false,
+      lastValueVisible: false, // Remove price tag
+      priceScaleId: 'left',
     });
 
     // Connect to WebSocket for orderbook data (retry until connection is available)
@@ -135,8 +158,8 @@
   function updateChart() {
     if (!bidSeries || !askSeries) return;
 
-    // Get depth data from store
-    const { bids, asks } = orderbookStore.getDepthData(50);
+    // Get depth data from store (more levels = smoother walls, less fluctuation)
+    const { bids, asks } = orderbookStore.getDepthData(150);
 
     if (bids.length === 0 || asks.length === 0) {
       console.warn('⚠️ No depth data available yet');
@@ -185,6 +208,41 @@
     </div>
   </div>
   <div bind:this={chartContainer} class="depth-chart"></div>
+
+  <!-- Orderbook List -->
+  <div class="orderbook-list">
+    <div class="orderbook-side bids">
+      <div class="orderbook-header">
+        <span>Quantity</span>
+        <span>Buy Price</span>
+      </div>
+      <div class="orderbook-rows">
+        {#each bids as bid}
+          <div class="orderbook-row bid-row" style="--volume-width: {(bid.size / maxBidSize * 100)}%">
+            <div class="volume-bar bid-bar"></div>
+            <span class="quantity">{bid.size.toFixed(5)}</span>
+            <span class="price">{Math.floor(bid.price).toLocaleString('en-US')}</span>
+          </div>
+        {/each}
+      </div>
+    </div>
+
+    <div class="orderbook-side asks">
+      <div class="orderbook-header">
+        <span>Sell Price</span>
+        <span>Quantity</span>
+      </div>
+      <div class="orderbook-rows">
+        {#each asks as ask}
+          <div class="orderbook-row ask-row" style="--volume-width: {(ask.size / maxAskSize * 100)}%">
+            <div class="volume-bar ask-bar"></div>
+            <span class="price">{Math.floor(ask.price).toLocaleString('en-US')}</span>
+            <span class="quantity">{ask.size.toFixed(5)}</span>
+          </div>
+        {/each}
+      </div>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -243,6 +301,127 @@
     position: relative;
   }
 
+  /* Hide TradingView watermark - aggressive approach */
+  .depth-chart :global(.tv-lightweight-charts) :global([class*="watermark"]) {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+
+  .depth-chart :global(canvas + div) {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+
+  /* Hide any SVG watermarks */
+  .depth-chart :global(svg) {
+    display: none !important;
+  }
+
+  /* Hide divs after canvas that might contain watermarks */
+  .depth-chart :global(div[style*="position"]) {
+    background-image: none !important;
+  }
+
+  /* Orderbook List */
+  .orderbook-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: var(--space-md);
+    padding: var(--space-sm);
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+  }
+
+  .orderbook-side {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .orderbook-header {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-xs);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: var(--space-xs);
+  }
+
+  .orderbook-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .orderbook-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px var(--space-xs);
+    font-size: var(--font-size-sm);
+    font-family: 'Monaco', 'Courier New', monospace;
+    position: relative;
+  }
+
+  /* Volume bars behind text */
+  .volume-bar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: var(--volume-width);
+    z-index: 0;
+    opacity: 0.3;
+  }
+
+  .bid-bar {
+    right: 0;
+    background: rgba(38, 166, 154, 0.8);
+  }
+
+  .ask-bar {
+    left: 0;
+    background: rgba(239, 83, 80, 0.8);
+  }
+
+  .bid-row {
+    background: rgba(38, 166, 154, 0.1);
+  }
+
+  .bid-row .price {
+    color: rgba(38, 166, 154, 1);
+    font-weight: 600;
+    position: relative;
+    z-index: 1;
+  }
+
+  .bid-row .quantity {
+    position: relative;
+    z-index: 1;
+  }
+
+  .ask-row {
+    background: rgba(239, 83, 80, 0.1);
+  }
+
+  .ask-row .price {
+    color: rgba(239, 83, 80, 1);
+    font-weight: 600;
+    position: relative;
+    z-index: 1;
+  }
+
+  .ask-row .quantity {
+    position: relative;
+    z-index: 1;
+  }
+
+  .orderbook-row .quantity {
+    color: var(--text-secondary);
+  }
+
   /* Responsive */
   @media (max-width: 768px) {
     .depth-chart-container {
@@ -250,7 +429,11 @@
     }
 
     .depth-chart {
-      height: 250px;
+      height: 300px;
+    }
+
+    .orderbook-list {
+      grid-template-columns: 1fr;
     }
   }
 </style>

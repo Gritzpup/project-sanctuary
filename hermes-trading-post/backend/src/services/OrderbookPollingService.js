@@ -12,7 +12,7 @@ export class OrderbookPollingService extends EventEmitter {
     this.intervalId = null;
     this.isPolling = false;
     this.productId = null;
-    this.limit = 50; // Number of bids/asks to fetch
+    this.limit = 150; // Number of bids/asks to fetch (more depth = smoother walls)
   }
 
   /**

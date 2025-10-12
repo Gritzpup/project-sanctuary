@@ -89,7 +89,7 @@ class OrderbookStore {
    * - Asks: Cumulative depth INCREASES going RIGHT (away from spread)
    * - Creates valley at current price (spread)
    */
-  getDepthData(maxLevels: number = 50): { bids: Array<{ price: number; depth: number }>; asks: Array<{ price: number; depth: number }> } {
+  getDepthData(maxLevels: number = 150): { bids: Array<{ price: number; depth: number }>; asks: Array<{ price: number; depth: number }> } {
     // Get and sort bids (highest price first = closest to spread)
     const sortedBids = Array.from(this.bids.entries())
       .sort(([priceA], [priceB]) => priceB - priceA)  // Descending (high to low)
@@ -151,6 +151,26 @@ class OrderbookStore {
     this.bids = new Map();
     this.asks = new Map();
     this.isReady = false;
+  }
+
+  /**
+   * Get top N bids for orderbook list display
+   */
+  getBids(count: number = 10): Array<{ price: number; size: number }> {
+    return Array.from(this.bids.entries())
+      .sort(([priceA], [priceB]) => priceB - priceA) // Highest first
+      .slice(0, count)
+      .map(([price, size]) => ({ price, size }));
+  }
+
+  /**
+   * Get top N asks for orderbook list display
+   */
+  getAsks(count: number = 10): Array<{ price: number; size: number }> {
+    return Array.from(this.asks.entries())
+      .sort(([priceA], [priceB]) => priceA - priceB) // Lowest first
+      .slice(0, count)
+      .map(([price, size]) => ({ price, size }));
   }
 }
 

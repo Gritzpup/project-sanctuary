@@ -54,26 +54,11 @@
     />
   </div>
 
-  <!-- Middle Column: Market Gauge + Depth Chart -->
+  <!-- Middle Column: Orderbook Depth Chart -->
   <div class="middle-column">
-    <!-- Market Position Gauge -->
-    <div class="market-gauge-container">
-      <div class="panel market-gauge-panel">
-        <MarketGauge
-          currentPrice={backendState.currentPrice}
-          positions={tradingState.positions}
-          recentHigh={tradingState.recentHigh}
-          recentLow={tradingState.recentLow}
-          isRunning={tradingState.isRunning}
-        />
-      </div>
-    </div>
-
     <!-- Orderbook Depth Chart -->
-    <div class="depth-chart-container">
-      <div class="panel depth-chart-panel">
-        <DepthChart />
-      </div>
+    <div class="depth-chart-container-full">
+      <DepthChart />
     </div>
   </div>
 
@@ -151,36 +136,10 @@
     order: 2;
   }
 
-  .market-gauge-container {
-    width: 100%;
-    min-width: 0;
-    height: 300px;
-    flex-shrink: 0;
-  }
-
-  .market-gauge-panel {
+  .depth-chart-container-full {
     width: 100%;
     height: 100%;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 8px;
-    overflow: hidden;
-  }
-
-  .depth-chart-container {
-    width: 100%;
     min-width: 0;
-    height: 280px;
-    flex-shrink: 0;
-  }
-
-  .depth-chart-panel {
-    width: 100%;
-    height: 100%;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 8px;
-    overflow: hidden;
   }
 
   .strategy-container {
