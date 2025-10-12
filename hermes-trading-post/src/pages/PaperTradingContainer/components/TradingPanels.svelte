@@ -1,6 +1,8 @@
 <script lang="ts">
   import TradingChart from '../../PaperTrading/components/TradingChart.svelte';
   import StrategyControls from '../../../components/papertrading/StrategyControls.svelte';
+  import DepthChart from '../../trading/orderbook/components/DepthChart.svelte';
+  import MarketGauge from '../../../components/trading/MarketGauge.svelte';
   import { createEventDispatcher } from 'svelte';
 
   export let chartComponent: any = null;
@@ -20,7 +22,7 @@
   function forwardEvent(event: CustomEvent) {
     dispatch(event.type, event.detail);
   }
-  
+
 </script>
 
 <div class="panels-row main-panels-row">
@@ -51,7 +53,30 @@
     on:botTabSelect={forwardEvent}
     />
   </div>
-  
+
+  <!-- Middle Column: Market Gauge + Depth Chart -->
+  <div class="middle-column">
+    <!-- Market Position Gauge -->
+    <div class="market-gauge-container">
+      <div class="panel market-gauge-panel">
+        <MarketGauge
+          currentPrice={backendState.currentPrice}
+          positions={tradingState.positions}
+          recentHigh={tradingState.recentHigh}
+          recentLow={tradingState.recentLow}
+          isRunning={tradingState.isRunning}
+        />
+      </div>
+    </div>
+
+    <!-- Orderbook Depth Chart -->
+    <div class="depth-chart-container">
+      <div class="panel depth-chart-panel">
+        <DepthChart />
+      </div>
+    </div>
+  </div>
+
   <!-- Strategy Controls Panel -->
   <div class="strategy-container">
     <StrategyControls
@@ -117,36 +142,88 @@
     position: relative;
   }
 
+  .middle-column {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    order: 2;
+  }
+
+  .market-gauge-container {
+    width: 100%;
+    min-width: 0;
+    height: 300px;
+    flex-shrink: 0;
+  }
+
+  .market-gauge-panel {
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .depth-chart-container {
+    width: 100%;
+    min-width: 0;
+    height: 280px;
+    flex-shrink: 0;
+  }
+
+  .depth-chart-panel {
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
   .strategy-container {
     width: 100%;
     min-width: 0;
     height: auto;
-    order: 2;
+    order: 3;
     margin-top: 0;
   }
 
-  /* Desktop enhancement: Grid layout for larger screens */
+  /* Desktop enhancement: 3-column layout for larger screens */
   @media (min-width: 769px) {
     .panels-row,
     .main-panels-row {
       display: grid;
-      grid-template-columns: 2fr 1fr;
+      grid-template-columns: 2fr 1fr 1fr;
       gap: 20px;
     }
 
-    .main-panels-row {
+    .chart-container {
+      grid-column: 1;
+      grid-row: 1;
       height: 600px;
+      order: unset;
     }
 
-    .chart-container {
-      height: 100%; /* Full height on desktop in grid */
+    .middle-column {
+      grid-column: 2;
+      grid-row: 1;
+      height: 600px;
       order: unset;
     }
 
     .strategy-container {
-      height: 100%;
+      grid-column: 3;
+      grid-row: 1;
+      height: 600px;
       order: unset;
       margin-top: unset;
+    }
+
+    .main-panels-row {
+      height: auto;
     }
   }
 

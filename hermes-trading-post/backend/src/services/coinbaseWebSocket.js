@@ -196,7 +196,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   subscribeTicker(productId) {
     const subscriptionKey = `ticker:${productId}`;
-    
+
     if (this.subscriptions.has(subscriptionKey)) {
       console.log(`Already subscribed to ticker for ${productId}`);
       return;
@@ -209,9 +209,34 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     };
 
     this.subscriptions.set(subscriptionKey, subscription);
-    
+
     if (this.isConnected) {
       console.log(`📡 Subscribing to ticker for ${productId}`);
+      this.ws.send(JSON.stringify(subscription));
+    }
+  }
+
+  /**
+   * Subscribe to level2 orderbook updates for depth chart visualization
+   */
+  subscribeLevel2(productId) {
+    const subscriptionKey = `level2:${productId}`;
+
+    if (this.subscriptions.has(subscriptionKey)) {
+      console.log(`Already subscribed to level2 for ${productId}`);
+      return;
+    }
+
+    const subscription = {
+      type: 'subscribe',
+      product_ids: [productId],
+      channels: ['level2']
+    };
+
+    this.subscriptions.set(subscriptionKey, subscription);
+
+    if (this.isConnected) {
+      console.log(`📊 Subscribing to level2 orderbook for ${productId}`);
       this.ws.send(JSON.stringify(subscription));
     }
   }
@@ -301,11 +326,16 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       case 'match':
         this.handleMatch(message);
         break;
-        
+
+      case 'snapshot':
+      case 'l2update':
+        this.handleLevel2(message);
+        break;
+
       case 'error':
         console.error('🔴 Coinbase WebSocket error:', message);
         break;
-        
+
       default:
         // Ignore other message types
         break;
@@ -325,6 +355,82 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       time: ticker.time,
       volume_24h: parseFloat(ticker.volume_24h)
     });
+  }
+
+  /**
+   * Handle level2 orderbook messages (snapshot and updates)
+   */
+  handleLevel2(message) {
+    // Level2 messages come in two types:
+    // 1. snapshot: Full orderbook state with "updates" array
+    // 2. l2update: Incremental updates with "changes" array
+
+    const productId = message.product_id;
+
+    if (message.type === 'snapshot') {
+      // Full orderbook snapshot
+      // Advanced Trade API format: updates array with {side, price_level, new_quantity, event_time}
+      const orderbook = {
+        type: 'snapshot',
+        product_id: productId,
+        bids: [],
+        asks: []
+      };
+
+      // Parse updates array
+      if (message.updates) {
+        message.updates.forEach(update => {
+          const priceLevel = {
+            price: parseFloat(update.price_level),
+            size: parseFloat(update.new_quantity)
+          };
+
+          if (update.side === 'bid') {
+            orderbook.bids.push(priceLevel);
+          } else if (update.side === 'offer') {
+            orderbook.asks.push(priceLevel);
+          }
+        });
+      }
+
+      // Sort bids descending (highest first), asks ascending (lowest first)
+      orderbook.bids.sort((a, b) => b.price - a.price);
+      orderbook.asks.sort((a, b) => a.price - b.price);
+
+      this.emit('level2', orderbook);
+
+    } else if (message.type === 'l2update') {
+      // Incremental update
+      // Format: changes array with [side, price, size] tuples
+      const updates = {
+        type: 'update',
+        product_id: productId,
+        changes: []
+      };
+
+      if (message.changes) {
+        message.changes.forEach(change => {
+          updates.changes.push({
+            side: change[0],  // 'buy' or 'sell'
+            price: parseFloat(change[1]),
+            size: parseFloat(change[2])  // 0 means remove this level
+          });
+        });
+      }
+
+      // Also handle Advanced Trade API format with updates array
+      if (message.updates) {
+        message.updates.forEach(update => {
+          updates.changes.push({
+            side: update.side === 'bid' ? 'buy' : 'sell',
+            price: parseFloat(update.price_level),
+            size: parseFloat(update.new_quantity)
+          });
+        });
+      }
+
+      this.emit('level2', updates);
+    }
   }
 
   /**

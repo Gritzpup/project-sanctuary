@@ -373,8 +373,8 @@ class DataStore {
         // Update stats timestamp only
         this._dataStats.lastUpdate = Date.now();
 
-        // DO NOT call notifyDataUpdate() - it triggers plugin refreshes which call setData()
-        // The candle is already updated in the array, chart will get it via the callback
+        // Notify data update callbacks for price updates (e.g., chart header)
+        this.notifyDataUpdate();
 
         // Notify callback if provided
         if (onUpdate) {
@@ -528,6 +528,13 @@ class DataStore {
         console.error(`❌ [DataStore] Error in historical data callback:`, error);
       }
     });
+  }
+
+  /**
+   * Get the WebSocket connection for other components to use
+   */
+  getWebSocket(): WebSocket | null {
+    return this.dataService.ws;
   }
 }
 

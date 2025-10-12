@@ -8,6 +8,7 @@ import { BotManager } from './services/botManager.js';
 import { coinbaseWebSocket } from './services/coinbaseWebSocket.js';
 import { historicalDataService } from './services/HistoricalDataService.js';
 import { continuousCandleUpdater } from './services/ContinuousCandleUpdater.js';
+import { orderbookPollingService } from './services/OrderbookPollingService.js';
 import tradingRoutes from './routes/trading.js';
 
 dotenv.config();
@@ -161,16 +162,25 @@ setTimeout(monitorMemoryUsage, 10000);
   granularities.forEach((granularitySeconds, index) => {
     const granularityStr = granularityStrings[index];
     const mappingKey = `BTC-USD:${granularitySeconds}`;
-    
+
     // Set up granularity mapping
     granularityMappings.set(mappingKey, granularityStr);
     granularityMappingTimes.set(mappingKey, Date.now());
-    
+
     // Subscribe to real-time data
     coinbaseWebSocket.subscribeMatches('BTC-USD', granularitySeconds);
     console.log(`📡 Auto-subscribed to BTC-USD ${granularityStr} (${granularitySeconds}s) for continuous updates`);
   });
-  
+
+  // 🚀 RADICAL OPTIMIZATION: Subscribe to ticker for INSTANT price updates
+  coinbaseWebSocket.subscribeTicker('BTC-USD');
+  console.log('⚡ Auto-subscribed to BTC-USD ticker for instant price updates');
+
+  // 📊 Start polling orderbook data for depth chart visualization
+  // Note: level2 WebSocket requires auth, so we use REST API polling instead
+  orderbookPollingService.startPolling('BTC-USD', 50);
+  console.log('📊 Started orderbook polling for BTC-USD depth chart');
+
   // Set up Coinbase WebSocket event handlers
   coinbaseWebSocket.on('candle', (candleData) => {
 
@@ -196,8 +206,8 @@ setTimeout(monitorMemoryUsage, 10000);
 
           // Only emit if:
           // 1. It's a completed candle (always emit these), OR
-          // 2. More than 1 second has passed since last emission (throttle updates)
-          const shouldEmit = candleData.type === 'complete' || (now - lastEmitTime > 1000);
+          // 2. More than 100ms has passed since last emission (10 updates/sec max)
+          const shouldEmit = candleData.type === 'complete' || (now - lastEmitTime > 100);
 
           if (shouldEmit) {
             lastEmissionTimes.set(throttleKey, now);
@@ -222,11 +232,48 @@ setTimeout(monitorMemoryUsage, 10000);
       }
     });
   });
-  
+
+  // 🚀 RADICAL OPTIMIZATION: Add ticker support for INSTANT price updates (no throttling!)
+  coinbaseWebSocket.on('ticker', (tickerData) => {
+    // Forward ticker updates to ALL clients with NO THROTTLING
+    // This gives us near-instant price updates (hundreds per second)
+    wss.clients.forEach(client => {
+      if (client.readyState === client.OPEN) {
+        const clientId = client._clientId || 'unknown';
+        const clientSubs = chartSubscriptions.get(clientId);
+
+        // Check if client is subscribed to this pair
+        if (clientSubs && clientSubs.has(`${tickerData.product_id}:1m`)) {
+          client.send(JSON.stringify({
+            type: 'ticker',
+            pair: tickerData.product_id,
+            price: tickerData.price,
+            time: Date.now() / 1000  // Unix timestamp
+          }));
+        }
+      }
+    });
+  });
+
+  // 📊 Handle orderbook polling data and forward to clients
+  orderbookPollingService.on('orderbook', (orderbookData) => {
+    console.log(`📊 Broadcasting orderbook: ${orderbookData.bids.length} bids, ${orderbookData.asks.length} asks to ${wss.clients.size} clients`);
+
+    // Forward orderbook data to ALL connected clients
+    wss.clients.forEach(client => {
+      if (client.readyState === client.OPEN) {
+        client.send(JSON.stringify({
+          type: 'level2',
+          data: orderbookData
+        }));
+      }
+    });
+  });
+
   coinbaseWebSocket.on('error', (error) => {
     console.error('Coinbase WebSocket error:', error);
   });
-  
+
   coinbaseWebSocket.on('disconnected', () => {
     console.log('Coinbase WebSocket disconnected');
   });
