@@ -30,7 +30,10 @@
       width: chartContainer.clientWidth + 30, // Add 30px to stretch chart to match orderbook width
       height: chartContainer.clientHeight || 230,
       timeScale: {
-        visible: false, // Hide bottom scale (was showing confusing numbers)
+        visible: true, // Show volume scale on bottom
+        borderVisible: false,
+        timeVisible: false,
+        secondsVisible: false,
       },
       leftPriceScale: {
         visible: true,
@@ -277,6 +280,7 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    max-width: 100%; /* Allow container to control width */
   }
 
   .panel-header {
@@ -366,6 +370,20 @@
   /* Hide the grey background canvas of price scale */
   .depth-chart :global(.tv-lightweight-charts tr > td:first-child canvas[style*="z-index: 1"]) {
     opacity: 0 !important;
+  }
+
+  /* Make price scale text more visible with enhanced styling */
+  .depth-chart :global(.tv-lightweight-charts tr > td:first-child canvas[style*="z-index: 2"]) {
+    filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 6px rgba(0, 0, 0, 0.8));
+  }
+
+  /* Make bottom time scale background transparent and text visible */
+  .depth-chart :global(.tv-lightweight-charts tr:last-child > td canvas[style*="z-index: 1"]) {
+    opacity: 0 !important;
+  }
+
+  .depth-chart :global(.tv-lightweight-charts tr:last-child > td canvas[style*="z-index: 2"]) {
+    filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 6px rgba(0, 0, 0, 0.8));
   }
 
   /* Second TD - main chart - shift left to center the wider chart */

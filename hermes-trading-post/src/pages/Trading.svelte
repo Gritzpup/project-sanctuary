@@ -2,6 +2,7 @@
   import Chart from './Chart.svelte';
   import ChartInfo from './trading/chart/components/overlays/ChartInfo.svelte';
   import CollapsibleSidebar from '../components/layout/CollapsibleSidebar.svelte';
+  import DepthChart from './trading/orderbook/components/DepthChart.svelte';
   import { onMount, createEventDispatcher } from 'svelte';
   
   export let currentPrice: number = 0;
@@ -198,14 +199,11 @@
         </div>
       </div>
       
-      <!-- Candle Info Footer - RIGHT AFTER TIMEFRAME BUTTONS -->
-      <div class="candle-info-section">
-        <div class="candle-info-content">
-          <p class="test-text-white mb-10">🔥 TEST: Candle Info Footer Section 🔥</p>
-          <p class="test-text-lime">This should appear below the timeframe buttons!</p>
-        </div>
+      <!-- Orderbook Depth Chart - Market Position Visualization -->
+      <div class="depth-chart-section">
+        <DepthChart />
       </div>
-      
+
       <div class="panel chart-panel">
         <Chart 
           bind:status={connectionStatus}
@@ -269,28 +267,29 @@
     display: flex;
     gap: var(--space-xl);
     margin-bottom: var(--space-xl);
+    width: fit-content; /* Constrain to content width */
   }
-  
+
   .period-controls,
   .granularity-controls {
     flex: 1;
+    min-width: 280px; /* Ensure consistent width */
   }
-  
+
   .auto-granularity-notice {
     margin-top: var(--space-md);
     font-size: var(--font-size-xs);
     color: var(--color-warning);
     animation: fadeIn var(--transition-slow);
   }
-  
-  /* Debug section - remove when done */
-  .candle-info-section {
-    background: rgba(255, 0, 0, 0.3);
-    border: 2px solid #ff0000;
-    border-radius: var(--radius-lg);
-    padding: var(--space-md) var(--space-xl);
-    margin-top: var(--space-md);
-    min-height: 60px;
+
+  /* Depth chart section - match width of controls section exactly */
+  .depth-chart-section {
+    margin-top: var(--space-xl);
+    margin-bottom: var(--space-xl);
+    /* Match the controls section: 2 controls at 280px each + gap */
+    width: calc(280px + 280px + var(--space-xl));
+    max-width: 100%; /* Don't overflow on small screens */
   }
   
   .live-trading-section {

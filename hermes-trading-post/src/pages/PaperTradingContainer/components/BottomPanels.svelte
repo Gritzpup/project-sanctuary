@@ -29,13 +29,26 @@
 <style>
   .panels-row-bottom {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    /* Match the TradingPanels grid: skip chart column (2fr), use depth+strategy columns (1fr 1fr) */
+    grid-template-columns: 2fr 1fr 1fr;
     gap: 20px;
     margin-top: 0px;
     height: 300px;
   }
 
+  /* First panel (Open Positions) spans the chart column */
+  .panels-row-bottom > :first-child {
+    grid-column: 1;
+  }
+
+  /* Second panel (Trading History) aligns with depth chart column */
+  .panels-row-bottom > :nth-child(2) {
+    grid-column: 2;
+  }
+
+  /* Third panel (Market Gauge) aligns with strategy controls column */
   .market-gauge-panel {
+    grid-column: 3;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(74, 0, 224, 0.3);
     border-radius: 8px;
@@ -48,6 +61,12 @@
       grid-template-columns: 1fr;
       grid-template-rows: 1fr 1fr 1fr;
       height: 900px;
+    }
+
+    .panels-row-bottom > :first-child,
+    .panels-row-bottom > :nth-child(2),
+    .market-gauge-panel {
+      grid-column: 1;
     }
   }
 </style>
