@@ -425,7 +425,7 @@
   /* Custom price gauge overlay */
   .price-gauge-overlay {
     position: absolute;
-    left: 5px;
+    left: 0;
     top: 0;
     bottom: 0;
     width: 60px;
@@ -454,7 +454,7 @@
     position: absolute;
     left: 0;
     right: 0;
-    bottom: 5px; /* Position at bottom of chart */
+    bottom: 0;
     height: 20px;
     pointer-events: none;
     z-index: 100;
