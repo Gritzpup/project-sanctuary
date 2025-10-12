@@ -27,8 +27,8 @@
         vertLines: { visible: false },
         horzLines: { visible: false },
       },
-      width: chartContainer.clientWidth + 58, // Add 58px to stretch chart wider since price scale overlays
-      height: chartContainer.clientHeight || 280,
+      width: chartContainer.clientWidth + 40, // Add 40px to stretch chart (not full 58px to avoid overlap)
+      height: chartContainer.clientHeight || 230,
       timeScale: {
         visible: false, // Hide bottom scale (was showing confusing numbers)
       },
@@ -98,8 +98,8 @@
     const resizeObserver = new ResizeObserver(() => {
       if (chart && chartContainer) {
         chart.applyOptions({
-          width: chartContainer.clientWidth + 58, // Add 58px to stretch chart wider since price scale overlays
-          height: chartContainer.clientHeight || 280,
+          width: chartContainer.clientWidth + 40, // Add 40px to stretch chart (not full 58px to avoid overlap)
+          height: chartContainer.clientHeight || 230,
         });
       }
     });
@@ -213,9 +213,9 @@
   });
 </script>
 
-<div class="depth-chart-container">
-  <div class="depth-chart-header">
-    <h3>Order Book Depth</h3>
+<div class="panel depth-chart-panel">
+  <div class="panel-header">
+    <h2>Order Book Depth</h2>
     <div class="depth-chart-legend">
       <span class="legend-item bid">
         <span class="legend-color bid"></span>
@@ -227,7 +227,8 @@
       </span>
     </div>
   </div>
-  <div bind:this={chartContainer} class="depth-chart"></div>
+  <div class="panel-content">
+    <div bind:this={chartContainer} class="depth-chart"></div>
 
   <!-- Orderbook List -->
   <div class="orderbook-list">
@@ -263,42 +264,58 @@
       </div>
     </div>
   </div>
+  </div>
 </div>
 
 <style>
-  .depth-chart-container {
-    width: 100%;
-    background: var(--color-surface);
-    border-radius: var(--border-radius);
-    padding: var(--space-md);
-    border: 1px solid var(--color-border);
+  /* Panel styling matching other trading panels */
+  .panel {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
   }
 
-  .depth-chart-header {
+  .panel-header {
+    background: var(--bg-primary-subtle);
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-primary);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--space-md);
+    min-height: 50px;
+    flex-shrink: 0;
   }
 
-  .depth-chart-header h3 {
-    font-size: var(--font-size-lg);
-    font-weight: 600;
-    color: var(--text-primary);
+  .panel-header h2 {
     margin: 0;
+    font-size: 16px;
+    color: #a78bfa;
+    font-weight: 500;
+  }
+
+  .panel-content {
+    padding: 15px;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
   }
 
   .depth-chart-legend {
     display: flex;
-    gap: var(--space-md);
+    gap: 12px;
   }
 
   .legend-item {
     display: flex;
     align-items: center;
-    gap: var(--space-xs);
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
+    gap: 6px;
+    font-size: 12px;
+    color: #c4b5fd;
   }
 
   .legend-color {
@@ -317,8 +334,9 @@
 
   .depth-chart {
     width: 100%;
-    height: 300px;
+    height: 230px;
     position: relative;
+    margin-bottom: 15px;
   }
 
   /* Make table row relative for absolute positioning */
@@ -343,7 +361,7 @@
   /* Second TD - main chart - shift left to center the wider chart */
   .depth-chart :global(.tv-lightweight-charts tr > td:nth-child(2)) {
     position: relative !important;
-    left: -29px !important;
+    left: -20px !important;
   }
 
   /* Hide TradingView watermark - aggressive approach */
@@ -374,10 +392,10 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
-    margin-top: var(--space-md);
-    padding: var(--space-sm);
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 4px;
+    padding: 10px;
+    background: rgba(74, 0, 224, 0.05);
+    border: 1px solid rgba(74, 0, 224, 0.2);
+    border-radius: 6px;
   }
 
   .orderbook-side {
@@ -388,12 +406,12 @@
   .orderbook-header {
     display: flex;
     justify-content: space-between;
-    padding: var(--space-xs);
-    font-size: var(--font-size-sm);
+    padding: 6px 8px;
+    font-size: 11px;
     font-weight: 600;
-    color: var(--text-secondary);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    margin-bottom: var(--space-xs);
+    color: #c4b5fd;
+    border-bottom: 1px solid rgba(74, 0, 224, 0.3);
+    margin-bottom: 6px;
   }
 
   .orderbook-rows {
@@ -405,10 +423,11 @@
   .orderbook-row {
     display: flex;
     justify-content: space-between;
-    padding: 2px var(--space-xs);
-    font-size: var(--font-size-sm);
+    padding: 3px 8px;
+    font-size: 11px;
     font-family: 'Monaco', 'Courier New', monospace;
     position: relative;
+    border-radius: 3px;
   }
 
   /* Volume bars behind text */
@@ -464,17 +483,17 @@
   }
 
   .orderbook-row .quantity {
-    color: var(--text-secondary);
+    color: #9ca3af;
   }
 
   /* Responsive */
   @media (max-width: 768px) {
-    .depth-chart-container {
-      padding: var(--space-sm);
+    .panel-content {
+      padding: 10px;
     }
 
     .depth-chart {
-      height: 300px;
+      height: 250px;
     }
 
     .orderbook-list {
