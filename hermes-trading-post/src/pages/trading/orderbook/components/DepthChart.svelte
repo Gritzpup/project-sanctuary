@@ -16,11 +16,27 @@
   let maxBidSize = $derived(Math.max(...bids.map(b => b.size), 0.001));
   let maxAskSize = $derived(Math.max(...asks.map(a => a.size), 0.001));
 
+  // Calculate price range for custom gauge labels
+  let priceRange = $derived(() => {
+    if (bids.length === 0 || asks.length === 0) return [];
+    const minPrice = Math.min(...bids.map(b => b.price));
+    const maxPrice = Math.max(...asks.map(a => a.price));
+    const range = maxPrice - minPrice;
+    const step = range / 5; // 5 labels
+    return Array.from({length: 6}, (_, i) => minPrice + (step * i));
+  });
+
+  function formatPrice(price: number): string {
+    if (price >= 1000000) return `$${(price / 1000000).toFixed(1)}M`;
+    if (price >= 1000) return `$${Math.round(price / 1000)}k`;
+    return `$${price.toFixed(0)}`;
+  }
+
   onMount(() => {
     // Initialize chart
     chart = createChart(chartContainer, {
       layout: {
-        background: { type: ColorType.Solid, color: 'transparent' },
+        background: { type: ColorType.Solid, color: '#1a1a1a' },
         textColor: '#d1d4dc',
       },
       grid: {
@@ -36,16 +52,18 @@
         secondsVisible: false,
       },
       leftPriceScale: {
-        visible: true,
-        borderVisible: false,
-        mode: 1, // Normal price scale mode
-        entireTextOnly: false,
-        alignLabels: true,
-        scaleMargins: {
-          top: 0.1,
-          bottom: 0.1,
+        visible: false, // Disable built-in price scale - we'll create our own overlay
+      },
+      localization: {
+        // Custom price formatter to show abbreviated values like "99k"
+        priceFormatter: (price: number) => {
+          if (price >= 1000000) {
+            return `$${(price / 1000000).toFixed(1)}M`;
+          } else if (price >= 1000) {
+            return `$${Math.round(price / 1000)}k`;
+          }
+          return `$${price.toFixed(0)}`;
         },
-        minimumWidth: 0, // Remove minimum width to allow overlay
       },
       rightPriceScale: {
         visible: false,
@@ -111,7 +129,11 @@
     // Cleanup
     return () => {
       resizeObserver.disconnect();
-      if (ws) ws.close();
+      // Clean up WebSocket event listener (don't close the WebSocket - it's shared!)
+      if (ws && (ws as any).__depthChartHandler) {
+        ws.removeEventListener('message', (ws as any).__depthChartHandler);
+        delete (ws as any).__depthChartHandler;
+      }
       if (chart) chart.remove();
     };
   });
@@ -126,13 +148,8 @@
 
     console.log('📊 DepthChart: Connected to WebSocket, listening for level2 messages');
 
-    // Listen for level2 messages
-    const originalOnMessage = ws.onmessage;
-    ws.onmessage = (event) => {
-      // Call original handler first
-      if (originalOnMessage) originalOnMessage.call(ws, event);
-
-      // Handle level2 messages for depth chart
+    // Use addEventListener instead of wrapping onmessage to avoid breaking the main chart
+    const messageHandler = (event: MessageEvent) => {
       try {
         const message = JSON.parse(event.data);
         if (message.type === 'level2') {
@@ -143,6 +160,11 @@
         console.error('Error parsing level2 message:', error);
       }
     };
+
+    ws.addEventListener('message', messageHandler);
+
+    // Store the handler for cleanup
+    (ws as any).__depthChartHandler = messageHandler;
 
     return true; // Successfully connected
   }
@@ -210,6 +232,12 @@
   }
 
   onDestroy(() => {
+    // Clean up WebSocket event listener
+    if (ws && (ws as any).__depthChartHandler) {
+      ws.removeEventListener('message', (ws as any).__depthChartHandler);
+      delete (ws as any).__depthChartHandler;
+    }
+
     if (chart) {
       chart.remove();
     }
@@ -231,7 +259,16 @@
     </div>
   </div>
   <div class="panel-content">
-    <div bind:this={chartContainer} class="depth-chart"></div>
+    <div bind:this={chartContainer} class="depth-chart">
+      <!-- Custom price gauge overlay -->
+      <div class="price-gauge-overlay">
+        {#each priceRange() as price, i}
+          <div class="price-label" style="top: {(i / 5) * 100}%">
+            {formatPrice(price)}
+          </div>
+        {/each}
+      </div>
+    </div>
 
   <!-- Orderbook List -->
   <div class="orderbook-list">
@@ -353,65 +390,59 @@
     height: 100% !important;
   }
 
-  /* Make table row relative for absolute positioning */
-  .depth-chart :global(.tv-lightweight-charts tr) {
-    position: relative;
+  /* Custom price gauge overlay */
+  .price-gauge-overlay {
+    position: absolute;
+    left: 5px;
+    top: 0;
+    bottom: 0;
+    width: 60px;
+    pointer-events: none;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
   }
 
-  /* First TD - price scale - position absolute to overlay on chart */
-  .depth-chart :global(.tv-lightweight-charts tr > td:first-child) {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    z-index: 10 !important;
-    pointer-events: none !important;
+  .price-label {
+    position: absolute;
+    left: 0;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 600;
+    text-shadow:
+      0 0 3px rgba(0, 0, 0, 1),
+      0 0 5px rgba(0, 0, 0, 0.8),
+      0 0 8px rgba(0, 0, 0, 0.6);
+    transform: translateY(-50%);
   }
 
-  /* Hide the grey background canvas of price scale */
-  .depth-chart :global(.tv-lightweight-charts tr > td:first-child canvas[style*="z-index: 1"]) {
-    opacity: 0 !important;
-  }
-
-  /* Make price scale text more visible with enhanced styling */
-  .depth-chart :global(.tv-lightweight-charts tr > td:first-child canvas[style*="z-index: 2"]) {
-    filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 6px rgba(0, 0, 0, 0.8));
-  }
-
-  /* Make bottom time scale background transparent and text visible */
-  .depth-chart :global(.tv-lightweight-charts tr:last-child > td canvas[style*="z-index: 1"]) {
-    opacity: 0 !important;
-  }
-
-  .depth-chart :global(.tv-lightweight-charts tr:last-child > td canvas[style*="z-index: 2"]) {
-    filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 6px rgba(0, 0, 0, 0.8));
-  }
-
-  /* Second TD - main chart - shift left to center the wider chart */
-  .depth-chart :global(.tv-lightweight-charts tr > td:nth-child(2)) {
-    position: relative !important;
-    left: -15px !important;
-  }
-
-  /* Hide TradingView watermark - aggressive approach */
+  /* Hide TradingView watermark - targeted approach */
   .depth-chart :global(.tv-lightweight-charts) :global([class*="watermark"]) {
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
   }
 
-  .depth-chart :global(canvas + div) {
+  /* Hide watermark div specifically (usually has cursor: pointer) */
+  .depth-chart :global(.tv-lightweight-charts div[style*="cursor: pointer"]) {
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
   }
 
-  /* Hide any SVG watermarks */
-  .depth-chart :global(svg) {
+  /* Hide watermark SVG */
+  .depth-chart :global(.tv-lightweight-charts svg) {
     display: none !important;
   }
 
-  /* Hide divs after canvas that might contain watermarks */
-  .depth-chart :global(div[style*="position"]) {
+  /* Hide watermark by position (usually bottom-right corner) */
+  .depth-chart :global(.tv-lightweight-charts div[style*="position: absolute"][style*="right"][style*="bottom"]) {
+    display: none !important;
+  }
+
+  /* Remove background images that might be watermarks */
+  .depth-chart :global(div[style*="background-image"]) {
     background-image: none !important;
   }
 
