@@ -29,24 +29,24 @@
 <style>
   .panels-row-bottom {
     display: grid;
-    /* Match the TradingPanels grid: skip chart column (2fr), use depth+strategy columns (1fr 1fr) */
-    grid-template-columns: 2fr 1fr 1fr;
+    /* Open Positions (1fr) + Trading History (1fr) + Market Gauge (1fr) */
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 20px;
     margin-top: 0px;
     height: 300px;
   }
 
-  /* First panel (Open Positions) spans the chart column */
+  /* First panel (Open Positions) - smaller */
   .panels-row-bottom > :first-child {
     grid-column: 1;
   }
 
-  /* Second panel (Trading History) aligns with depth chart column */
+  /* Second panel (Trading History) - aligns with depth chart */
   .panels-row-bottom > :nth-child(2) {
     grid-column: 2;
   }
 
-  /* Third panel (Market Gauge) aligns with strategy controls column */
+  /* Third panel (Market Gauge) - aligns with strategy controls */
   .market-gauge-panel {
     grid-column: 3;
     background: rgba(255, 255, 255, 0.02);
@@ -67,6 +67,26 @@
     .panels-row-bottom > :nth-child(2),
     .market-gauge-panel {
       grid-column: 1;
+    }
+  }
+
+  /* Desktop layout - custom sizing */
+  @media (min-width: 769px) {
+    .panels-row-bottom {
+      /* Open Positions (1.5fr), Trading History (1.5fr), Market Gauge (1fr) */
+      grid-template-columns: 1.5fr 1.5fr 1fr;
+    }
+
+    .panels-row-bottom > :first-child {
+      grid-column: 1; /* Open Positions */
+    }
+
+    .panels-row-bottom > :nth-child(2) {
+      grid-column: 2; /* Trading History */
+    }
+
+    .market-gauge-panel {
+      grid-column: 3; /* Market Gauge - narrower */
     }
   }
 </style>
