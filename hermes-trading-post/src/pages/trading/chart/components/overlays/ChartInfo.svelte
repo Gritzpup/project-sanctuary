@@ -123,7 +123,7 @@
 </script>
 
 <div class="chart-info {positionClass}">
-  
+
   <!-- Traffic lights for status indicators -->
   <div class="info-item">
     <!-- Database loading status traffic light -->
@@ -142,7 +142,7 @@
       <TrafficLight size="medium" flashDuration={500} tradingStatus={tradingStatus} />
     </span>
   </div>
-  
+
   {#if showLatestCandleTime && latestCandleTime}
     <div class="info-item candle-time">
       <span class="info-label">Latest Candle:</span>
@@ -156,7 +156,6 @@
       <span class="info-value">
         {formatNumber(dataStore.stats.totalDatabaseCount || dataStore.stats.totalCount)}
       </span>
-      <span class="loading-status status-{dataStore.stats.loadingStatus}"></span>
     </div>
     <div class="info-item">
       <span class="info-label">Candles:</span>
