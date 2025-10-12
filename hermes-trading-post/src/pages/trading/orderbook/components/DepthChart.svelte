@@ -16,20 +16,45 @@
   let maxBidSize = $derived(Math.max(...bids.map(b => b.size), 0.001));
   let maxAskSize = $derived(Math.max(...asks.map(a => a.size), 0.001));
 
-  // Calculate price range for custom gauge labels
+  // Calculate price range for custom gauge labels - force 25k spread
   let priceRange = $derived(() => {
-    if (bids.length === 0 || asks.length === 0) return [];
-    const minPrice = Math.min(...bids.map(b => b.price));
-    const maxPrice = Math.max(...asks.map(a => a.price));
-    const range = maxPrice - minPrice;
-    const step = range / 5; // 5 labels
+    const summary = orderbookStore.summary;
+    if (!summary.bestBid || !summary.bestAsk) return [];
+
+    // Get current mid price
+    const midPrice = (summary.bestBid + summary.bestAsk) / 2;
+
+    // Force a 25k range centered around mid price
+    const minPrice = midPrice - 12500; // 12.5k below
+    const maxPrice = midPrice + 12500; // 12.5k above
+    const step = 5000; // 5k steps for 6 labels
+
     return Array.from({length: 6}, (_, i) => minPrice + (step * i));
+  });
+
+  // Calculate volume range for bottom gauge
+  let volumeRange = $derived(() => {
+    const depthData = orderbookStore.getDepthData(500); // Use 500 levels
+    if (depthData.bids.length === 0 || depthData.asks.length === 0) return [];
+
+    const maxDepth = Math.max(
+      depthData.bids[depthData.bids.length - 1]?.depth || 0,
+      depthData.asks[depthData.asks.length - 1]?.depth || 0
+    );
+
+    // Create 5 volume labels from 0 to maxDepth
+    return Array.from({length: 5}, (_, i) => (maxDepth / 4) * i);
   });
 
   function formatPrice(price: number): string {
     if (price >= 1000000) return `$${(price / 1000000).toFixed(1)}M`;
     if (price >= 1000) return `$${Math.round(price / 1000)}k`;
     return `$${price.toFixed(0)}`;
+  }
+
+  function formatVolume(volume: number): string {
+    if (volume >= 1000) return `${(volume / 1000).toFixed(1)}k`;
+    return volume.toFixed(1);
   }
 
   onMount(() => {
@@ -46,10 +71,8 @@
       width: chartContainer.clientWidth + 30, // Add 30px to stretch chart to match orderbook width
       height: chartContainer.clientHeight || 230,
       timeScale: {
-        visible: true, // Show volume scale on bottom
+        visible: false, // Hide built-in time scale - we'll use custom overlay
         borderVisible: false,
-        timeVisible: false,
-        secondsVisible: false,
       },
       leftPriceScale: {
         visible: false, // Disable built-in price scale - we'll create our own overlay
@@ -184,8 +207,8 @@
   function updateChart() {
     if (!bidSeries || !askSeries) return;
 
-    // Get depth data from store (more levels = smoother walls, less fluctuation)
-    const { bids, asks } = orderbookStore.getDepthData(150);
+    // Get depth data from store (500 levels for good V-shape)
+    const { bids, asks } = orderbookStore.getDepthData(500);
 
     if (bids.length === 0 || asks.length === 0) {
       console.warn('⚠️ No depth data available yet');
@@ -260,11 +283,20 @@
   </div>
   <div class="panel-content">
     <div bind:this={chartContainer} class="depth-chart">
-      <!-- Custom price gauge overlay -->
+      <!-- Custom price gauge overlay (left side) -->
       <div class="price-gauge-overlay">
         {#each priceRange() as price, i}
           <div class="price-label" style="top: {(i / 5) * 100}%">
             {formatPrice(price)}
+          </div>
+        {/each}
+      </div>
+
+      <!-- Custom volume gauge overlay (bottom) -->
+      <div class="volume-gauge-overlay">
+        {#each volumeRange() as volume, i}
+          <div class="volume-label" style="left: {(i / 4) * 100}%">
+            {formatVolume(volume)}
           </div>
         {/each}
       </div>
@@ -415,6 +447,32 @@
       0 0 5px rgba(0, 0, 0, 0.8),
       0 0 8px rgba(0, 0, 0, 0.6);
     transform: translateY(-50%);
+  }
+
+  /* Custom volume gauge overlay (bottom) */
+  .volume-gauge-overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 5px;
+    height: 20px;
+    pointer-events: none;
+    z-index: 100;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .volume-label {
+    position: absolute;
+    bottom: 0;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 600;
+    text-shadow:
+      0 0 3px rgba(0, 0, 0, 1),
+      0 0 5px rgba(0, 0, 0, 0.8),
+      0 0 8px rgba(0, 0, 0, 0.6);
+    transform: translateX(-50%);
   }
 
   /* Hide TradingView watermark - targeted approach */

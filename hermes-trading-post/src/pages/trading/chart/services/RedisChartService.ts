@@ -264,6 +264,27 @@ export class RedisChartService {
    */
   private handleWebSocketMessage(message: any) {
     switch (message.type) {
+      case 'ticker':
+        // 🚀 RADICAL OPTIMIZATION: Handle instant ticker updates (no throttle)
+        // Forward to candle callback as optimistic price update
+        const tickerKey = `${message.pair}:1m`; // Always use 1m for ticker
+        const tickerCallback = this.wsSubscriptions.get(tickerKey);
+
+        if (tickerCallback) {
+          const tickerData: WebSocketCandle = {
+            time: 0,  // ⚠️ CRITICAL: Don't use message.time! It's Date.now() which changes every ms
+            open: message.price,
+            high: message.price,
+            low: message.price,
+            close: message.price,
+            volume: 0,  // Volume not available in ticker
+            type: 'ticker' // Mark as ticker update
+          };
+
+          tickerCallback(tickerData);
+        }
+        break;
+
       case 'candle':
         const subscriptionKey = `${message.pair}:${message.granularity}`;
         const callback = this.wsSubscriptions.get(subscriptionKey);

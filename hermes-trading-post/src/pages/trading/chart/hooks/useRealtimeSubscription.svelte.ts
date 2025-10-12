@@ -27,9 +27,13 @@ export interface UseRealtimeSubscriptionOptions {
 
 export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions = {}) {
   const { onPriceUpdate, onNewCandle, onReconnect, onError } = options;
-  
+
   // Disable aggressive auto-scroll to prevent snapping
   const ENABLE_SMALL_DATASET_AUTO_SCROLL = false; // DISABLED - causing snapping behavior
+
+  // 🚀 RADICAL OPTIMIZATION: Remove RAF batching for INSTANT updates
+  // Ticker updates come so fast that batching adds unnecessary delay
+  // Let status store updates happen immediately
 
   /**
    * Maintains optimal candle count visible in the chart (60 for normal, 12 for small datasets)
@@ -141,8 +145,36 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     const config = chartStore?.config;
     const currentGranularity = config?.granularity || '1m';
 
+    // 🔥 FIX: For ticker updates (no volume), ALWAYS update the existing candle
+    // Only candle updates with official timestamps should create new candles
+    // Ticker detection: type='ticker' OR time=0 (we set time=0 for tickers to prevent timestamp issues)
+    const isTicker = fullCandleData?.type === 'ticker' || fullCandleData?.time === 0 || (!fullCandleData?.volume && fullCandleData?.type === 'ticker');
 
-    // Get current candle timestamp based on granularity
+    if (isTicker) {
+      // Ticker update: ALWAYS update the last candle, never create new ones
+      const currentCandle = candles[candles.length - 1];
+
+      const updatedCandle: CandlestickData = {
+        ...currentCandle,
+        high: Math.max(currentCandle.high, price),
+        low: Math.min(currentCandle.low, price),
+        close: price,
+        // Keep existing volume for ticker updates
+        volume: (currentCandle as any).volume || 0
+      } as any;
+
+      chartSeries.update(updatedCandle);
+      statusStore.setPriceUpdate(); // Direct update for instant response
+
+      // Ensure status stays ready during ticker updates
+      if (statusStore.status !== 'ready') {
+        statusStore.setReady();
+      }
+
+      return; // Exit early for ticker updates
+    }
+
+    // Get current candle timestamp based on granularity (for official candle updates only)
     const now = Date.now();
     const granularitySeconds = getGranularitySeconds(currentGranularity);
     const currentCandleTime = Math.floor(now / (granularitySeconds * 1000)) * granularitySeconds; // Round down to granularity boundary
@@ -191,15 +223,14 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // } catch (error) {
       //   console.error('Error auto-scrolling chart:', error);
       // }
-      
+
       // Call new candle callback
       if (onNewCandle) {
         onNewCandle(newCandle);
       }
     } else {
-      // Update current candle
-      const updatedCandles = [...candles];
-      const currentCandle = updatedCandles[updatedCandles.length - 1];
+      // Update current candle - no array copy needed, just get reference
+      const currentCandle = candles[candles.length - 1];
 
       const updatedCandle: CandlestickData = {
         ...currentCandle,
@@ -209,7 +240,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         // Preserve volume from WebSocket data or keep existing volume
         volume: fullCandleData?.volume !== undefined ? fullCandleData.volume : (currentCandle as any).volume || 0
       } as any;
-      
+
       // DO NOT call dataStore.setCandles() - it causes the entire database to be replaced!
       // Just update the chart directly
       chartSeries.update(updatedCandle);
@@ -225,7 +256,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         volumeSeries.update(volumeData);
       }
 
-      statusStore.setPriceUpdate();
+      statusStore.setPriceUpdate(); // Direct update for instant response
 
       // DISABLED: Auto-scroll was causing chart to snap constantly
       // Let the chart maintain its natural 60-candle view
@@ -266,7 +297,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       (candleData) => {
         // Update both price AND volume in real-time
         updateLiveCandleWithPrice(candleData.close, chartSeries, volumeSeries, candleData);
-        statusStore.setPriceUpdate();
+        statusStore.setPriceUpdate(); // Direct update for instant response
       },
       () => {
         statusStore.setReady();
