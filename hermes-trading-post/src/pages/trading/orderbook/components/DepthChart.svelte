@@ -606,7 +606,7 @@
     font-family: 'Monaco', 'Courier New', monospace;
     position: relative;
     border-radius: 3px;
-    transition: all 0.15s ease-out; /* Smooth transitions for value changes */
+    transition: all 0.1s ease-out; /* Ultra-smooth transitions for 10 updates/sec */
   }
 
   /* Volume bars behind text */
@@ -617,7 +617,7 @@
     width: var(--volume-width);
     z-index: 0;
     opacity: 0.3;
-    transition: width 0.2s ease-out; /* Smooth width animation for volume changes */
+    transition: width 0.1s ease-out; /* Ultra-smooth width animation for 10 updates/sec */
   }
 
   .bid-bar {

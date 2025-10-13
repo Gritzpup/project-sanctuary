@@ -8,7 +8,7 @@ import https from 'https';
 export class OrderbookPollingService extends EventEmitter {
   constructor() {
     super();
-    this.pollInterval = 250; // Poll every 250ms (4x per second) for near real-time updates
+    this.pollInterval = 100; // Poll every 100ms (10x per second) for ultra-smooth real-time updates
     this.intervalId = null;
     this.isPolling = false;
     this.productId = null;
