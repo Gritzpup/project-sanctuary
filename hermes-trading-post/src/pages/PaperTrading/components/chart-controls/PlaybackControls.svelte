@@ -130,6 +130,7 @@
     align-items: center;
     justify-content: center;
     min-width: 40px;
+    width: 120px;  /* Fixed width to match both controls */
     transition: all 0.2s ease;
     box-sizing: border-box;
   }
