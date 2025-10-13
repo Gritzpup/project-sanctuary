@@ -318,7 +318,6 @@
       console.error('ChartCore: ChartCanvas not available for adding markers');
       return;
     }
-    console.log('ChartCore: Forwarding addMarkers to ChartCanvas with', markers.length, 'markers');
     chartCanvas.addMarkers(markers);
   }
   
@@ -331,7 +330,6 @@
       console.error('ChartCore: ChartCanvas not available for clearing markers');
       return;
     }
-    console.log('ChartCore: Forwarding clearMarkers to ChartCanvas');
     chartCanvas.clearMarkers();
   }
 

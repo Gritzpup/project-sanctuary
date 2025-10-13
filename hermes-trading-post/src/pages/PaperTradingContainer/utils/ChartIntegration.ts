@@ -28,7 +28,7 @@ export class ChartIntegration {
         chartComponent.addMarkers(markers);
       }
       
-      console.log(`📍 Updated chart with ${markers.length} trade markers`);
+      // Chart markers updated
     } catch (error) {
       console.error('❌ Failed to update chart markers:', error);
     }

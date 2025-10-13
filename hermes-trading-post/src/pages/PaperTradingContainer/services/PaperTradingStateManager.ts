@@ -110,14 +110,8 @@ export class PaperTradingStateManager {
   }
 
   private logBackendStateUpdate(backendState: any) {
-    console.log('📡 Backend state update received:', {
-      isConnected: backendState.isConnected,
-      isRunning: backendState.isRunning,
-      trades: backendState.trades?.length || 0,
-      positions: backendState.positions?.length || 0,
-      balance: backendState.balance
-    });
-    
+    // Backend state updates tracked without console spam
+
     PerformanceLogger.logTradingPerformance(backendState);
   }
 
