@@ -179,16 +179,20 @@ export function useDepthChartRendering(
         });
 
         const summary = orderbookStore.summary;
-        if (summary.bestBid && summary.bestAsk) {
+        if (summary.bestBid && summary.bestAsk && orderbookStore.isReady) {
           const midPrice = (summary.bestBid + summary.bestAsk) / 2;
           const rangeMultiplier = Math.max(0.5, Math.min(1.5, newWidth / 500));
           const baseRange = 10000;
           const adjustedRange = baseRange * rangeMultiplier;
 
-          chart.timeScale().setVisibleRange({
-            from: (midPrice - adjustedRange) as any,
-            to: (midPrice + adjustedRange) as any
-          });
+          try {
+            chart.timeScale().setVisibleRange({
+              from: (midPrice - adjustedRange) as any,
+              to: (midPrice + adjustedRange) as any
+            });
+          } catch (error) {
+            // Silently ignore if chart not ready for range setting
+          }
         }
       }
     });
@@ -256,7 +260,7 @@ export function useDepthChartRendering(
     // Keep chart centered
     try {
       const summary = orderbookStore.summary;
-      if (summary.bestBid && summary.bestAsk) {
+      if (summary.bestBid && summary.bestAsk && orderbookStore.isReady && bids.length > 0 && asks.length > 0) {
         const midPrice = (summary.bestBid + summary.bestAsk) / 2;
         const chartWidth = chartContainer?.clientWidth || 500;
         const rangeMultiplier = Math.max(0.5, Math.min(1.5, chartWidth / 500));
@@ -270,7 +274,9 @@ export function useDepthChartRendering(
       }
     } catch (e) {
       try {
-        chart!.timeScale().fitContent();
+        if (bids.length > 0 && asks.length > 0) {
+          chart!.timeScale().fitContent();
+        }
       } catch (e2) {
         // Ignore if chart not ready
       }
