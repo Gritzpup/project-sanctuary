@@ -3,6 +3,7 @@
  * @description Global strategy configuration and state management
  */
 import { writable, derived } from 'svelte/store';
+import { logger } from '../services/logging';
 
 interface CustomStrategy {
   id: string;
@@ -39,11 +40,11 @@ function loadStoredStrategy(): StrategyConfig {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      // console.log('Strategy Store: Loaded stored strategy:', parsed.selectedType);
+      logger.debug('Loaded stored strategy', { selectedType: parsed.selectedType }, 'StrategyStore');
       return parsed;
     }
   } catch (error) {
-    console.error('Strategy Store: Error loading stored strategy:', error);
+    logger.error('Error loading stored strategy', { error: error instanceof Error ? error.message : String(error) }, 'StrategyStore');
   }
   
   // Return default values if no stored strategy or error
@@ -64,7 +65,7 @@ function saveStrategy(config: StrategyConfig): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
   } catch (error) {
-    console.error('Strategy Store: Error saving strategy:', error);
+    logger.error('Error saving strategy', { error: error instanceof Error ? error.message : String(error) }, 'StrategyStore');
   }
 }
 
@@ -91,7 +92,7 @@ function createStrategyStore() {
         saveStrategy(newState);
         return newState;
       });
-      console.log('Strategy Store: Updated strategy:', type, { parameters, isCustom });
+      logger.info('Strategy updated', { type, hasParameters: Object.keys(parameters).length > 0, isCustom }, 'StrategyStore');
     },
     
     // Update just the parameters
@@ -129,7 +130,7 @@ function createStrategyStore() {
         saveStrategy(newState);
         return newState;
       });
-      console.log('Strategy Store: Updated balance and fees:', { balance, fees });
+      logger.info('Balance and fees updated', { balance, fees }, 'StrategyStore');
     },
     
     // Set paper trading status
@@ -142,7 +143,7 @@ function createStrategyStore() {
         saveStrategy(newState);
         return newState;
       });
-      console.log('Strategy Store: Paper trading active:', isActive);
+      logger.info('Paper trading status changed', { isActive }, 'StrategyStore');
     },
     
     // Reset store to defaults
@@ -160,7 +161,7 @@ function createStrategyStore() {
       };
       set(defaultConfig);
       saveStrategy(defaultConfig);
-      console.log('Strategy Store: Reset to defaults');
+      logger.info('Store reset to defaults', {}, 'StrategyStore');
     },
     
     // Sync current backtesting strategy to paper/live trading
@@ -184,8 +185,11 @@ function createStrategyStore() {
             timestamp: newState.lastSyncedAt
           }
         }));
-        
-        console.log('Strategy Store: Synced strategy to paper/live trading:', newState.syncedStrategy);
+
+        logger.info('Strategy synced to paper/live trading', {
+          strategy: newState.syncedStrategy?.type,
+          timestamp: newState.lastSyncedAt
+        }, 'StrategyStore');
         return newState;
       });
     },
