@@ -26,9 +26,9 @@
 
     const cleanupChart = renderingHook.initializeChart();
 
-    // Connect to WebSocket (retry until connection is available)
+    // Connect to WebSocket with rendering callback
     const connectInterval = setInterval(() => {
-      if (dataHook.connectWebSocket()) {
+      if (dataHook.connectWebSocket(renderingHook.handleLevel2MessageWithBatching)) {
         clearInterval(connectInterval);
       }
     }, 500);

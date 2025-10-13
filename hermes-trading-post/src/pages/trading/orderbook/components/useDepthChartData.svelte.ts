@@ -240,7 +240,7 @@ export function useDepthChartData() {
     };
   });
 
-  function connectWebSocket(): boolean {
+  function connectWebSocket(renderCallback?: (data: any) => void): boolean {
     ws = dataStore.getWebSocket();
 
     if (!ws) {
@@ -252,6 +252,10 @@ export function useDepthChartData() {
         const message = JSON.parse(event.data);
         if (message.type === 'level2') {
           handleLevel2Message(message.data);
+          // Call rendering callback if provided
+          if (renderCallback) {
+            renderCallback(message.data);
+          }
         }
       } catch (error) {
         logger.error('Error parsing level2 message', { error: error instanceof Error ? error.message : String(error) }, 'DepthChartData');
