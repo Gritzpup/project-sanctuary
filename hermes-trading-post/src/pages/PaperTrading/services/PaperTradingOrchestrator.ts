@@ -9,7 +9,6 @@ import { DCAStrategy } from '../../../strategies/implementations/DCAStrategy';
 import { VWAPBounceStrategy } from '../../../strategies/implementations/VWAPBounceStrategy';
 import { MicroScalpingStrategy } from '../../../strategies/implementations/MicroScalpingStrategy';
 import { ProperScalpingStrategy } from '../../../strategies/implementations/ProperScalpingStrategy';
-import { UltraMicroScalpingStrategy } from '../../../strategies/implementations/UltraMicroScalpingStrategy';
 import { get } from 'svelte/store';
 import { getBackendWsUrl } from '../../../utils/backendConfig';
 

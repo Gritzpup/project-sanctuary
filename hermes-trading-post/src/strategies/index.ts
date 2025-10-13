@@ -13,7 +13,6 @@ export { RSIMeanReversionStrategy } from './implementations/RSIMeanReversionStra
 export { DCAStrategy } from './implementations/DCAStrategy';
 export { VWAPBounceStrategy } from './implementations/VWAPBounceStrategy';
 export { MicroScalpingStrategy } from './implementations/MicroScalpingStrategy';
-export { UltraMicroScalpingStrategy } from './implementations/UltraMicroScalpingStrategy';
 export { ProperScalpingStrategy } from './implementations/ProperScalpingStrategy';
 
 // Import the classes for the registry
@@ -23,7 +22,6 @@ import { RSIMeanReversionStrategy } from './implementations/RSIMeanReversionStra
 import { DCAStrategy } from './implementations/DCAStrategy';
 import { VWAPBounceStrategy } from './implementations/VWAPBounceStrategy';
 import { MicroScalpingStrategy } from './implementations/MicroScalpingStrategy';
-import { UltraMicroScalpingStrategy } from './implementations/UltraMicroScalpingStrategy';
 import { ProperScalpingStrategy } from './implementations/ProperScalpingStrategy';
 
 // Strategy registry for easy access
@@ -34,7 +32,6 @@ export const StrategyRegistry = {
   'dca': DCAStrategy,
   'vwap-bounce': VWAPBounceStrategy,
   'micro-scalping': MicroScalpingStrategy,
-  'ultra-micro-scalping': UltraMicroScalpingStrategy,
   'proper-scalping': ProperScalpingStrategy
 } as const;
 
