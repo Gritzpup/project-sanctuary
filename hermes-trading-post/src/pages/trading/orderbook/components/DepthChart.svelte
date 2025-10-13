@@ -10,65 +10,76 @@
   let askSeries: ISeriesApi<'Area'>;
   let ws: WebSocket | null = null;
 
-  // Force immediate updates - no $derived batching
-  let bids = $state<Array<{ price: number; size: number }>>([]);
-  let asks = $state<Array<{ price: number; size: number }>>([]);
-  let bidsWithCumulative = $state<Array<{ price: number; size: number; cumulative: number }>>([]);
-  let asksWithCumulative = $state<Array<{ price: number; size: number; cumulative: number }>>([]);
-
-  function updateOrderbookLists() {
-    // Get fresh data
-    bids = orderbookStore.getBids(12);
-    asks = orderbookStore.getAsks(12);
-
-    // Calculate cumulative quantities
+  // Use reactive getters instead of manual updates for smoother transitions
+  // This allows Svelte to track individual property changes
+  let bidsWithCumulative = $derived.by(() => {
+    const bids = orderbookStore.getBids(12);
     let cumulative = 0;
-    bidsWithCumulative = bids.map(bid => {
+    return bids.map(bid => {
       cumulative += bid.size;
-      return { ...bid, cumulative };
+      return {
+        price: bid.price,
+        size: bid.size,
+        cumulative,
+        key: `bid-${bid.price}` // Stable key for tracking
+      };
     });
+  });
 
-    cumulative = 0;
-    asksWithCumulative = asks.map(ask => {
+  let asksWithCumulative = $derived.by(() => {
+    const asks = orderbookStore.getAsks(12);
+    let cumulative = 0;
+    return asks.map(ask => {
       cumulative += ask.size;
-      return { ...ask, cumulative };
+      return {
+        price: ask.price,
+        size: ask.size,
+        cumulative,
+        key: `ask-${ask.price}` // Stable key for tracking
+      };
     });
-  }
+  });
 
-  let maxBidSize = $state(0.001);
-  let maxAskSize = $state(0.001);
-  let volumeRange = $state<Array<{ position: number; value: number }>>([]);
-  let priceRange = $state({ left: 0, center: 0, right: 0 });
+  // Reactive derived values for smooth gauge updates
+  let maxBidSize = $derived.by(() => {
+    return bidsWithCumulative.length > 0
+      ? Math.max(...bidsWithCumulative.map(b => b.size), 0.001)
+      : 0.001;
+  });
 
-  function updateGauges() {
-    // Update max sizes
-    maxBidSize = bids.length > 0 ? Math.max(...bids.map(b => b.size), 0.001) : 0.001;
-    maxAskSize = asks.length > 0 ? Math.max(...asks.map(a => a.size), 0.001) : 0.001;
+  let maxAskSize = $derived.by(() => {
+    return asksWithCumulative.length > 0
+      ? Math.max(...asksWithCumulative.map(a => a.size), 0.001)
+      : 0.001;
+  });
 
-    // Calculate volume range for left gauge
+  let volumeRange = $derived.by(() => {
     const depthData = orderbookStore.getDepthData(10000);
     if (depthData.bids.length > 0 && depthData.asks.length > 0) {
       const maxBidDepth = depthData.bids[depthData.bids.length - 1]?.depth || 0;
       const maxAskDepth = depthData.asks[depthData.asks.length - 1]?.depth || 0;
       const maxDepth = Math.max(maxBidDepth, maxAskDepth);
 
-      volumeRange = Array.from({length: 4}, (_, i) => ({
+      return Array.from({length: 4}, (_, i) => ({
         position: (i + 1) * 25,
         value: (maxDepth / 4) * (i + 1)
       }));
     }
+    return [];
+  });
 
-    // Calculate price range for bottom gauge
+  let priceRange = $derived.by(() => {
     const summary = orderbookStore.summary;
     if (summary.bestBid && summary.bestAsk) {
       const midPrice = (summary.bestBid + summary.bestAsk) / 2;
-      priceRange = {
+      return {
         left: midPrice - 10000,
         center: midPrice,
         right: midPrice + 10000
       };
     }
-  }
+    return { left: 0, center: 0, right: 0 };
+  });
 
   function formatPrice(price: number): string {
     if (price >= 1000000) return `$${(price / 1000000).toFixed(1)}M`;
@@ -224,20 +235,18 @@
     if (data.type === 'snapshot') {
       // Initial orderbook snapshot
       orderbookStore.processSnapshot(data);
-      // Force immediate updates to chart, list, and gauges
+      // Update chart immediately
       requestAnimationFrame(() => {
         updateChart();
-        updateOrderbookLists();
-        updateGauges();
+        // List and gauges update automatically via reactive $derived
       });
     } else if (data.type === 'update') {
       // Incremental update
       orderbookStore.processUpdate(data);
-      // Force immediate updates to chart, list, and gauges
+      // Update chart immediately
       requestAnimationFrame(() => {
         updateChart();
-        updateOrderbookLists();
-        updateGauges();
+        // List and gauges update automatically via reactive $derived
       });
     }
   }
@@ -384,8 +393,11 @@
         <span>Buy Price</span>
       </div>
       <div class="orderbook-rows">
-        {#each bidsWithCumulative as bid, i (bid.price)}
-          <div class="orderbook-row bid-row" class:top-order={i === 0} style="--volume-width: {(bid.size / maxBidSize * 100)}%">
+        {#each bidsWithCumulative as bid, i (bid.key)}
+          <div class="orderbook-row bid-row"
+               class:top-order={i === 0}
+               style="--volume-width: {(bid.size / maxBidSize * 100)}%"
+               data-price={bid.price}>
             <div class="volume-bar bid-bar"></div>
             <span class="quantity">{bid.cumulative.toFixed(5)}</span>
             <span class="price">${Math.floor(bid.price).toLocaleString('en-US')}</span>
@@ -400,8 +412,11 @@
         <span>Quantity</span>
       </div>
       <div class="orderbook-rows">
-        {#each asksWithCumulative as ask, i (ask.price)}
-          <div class="orderbook-row ask-row" class:top-order={i === 0} style="--volume-width: {(ask.size / maxAskSize * 100)}%">
+        {#each asksWithCumulative as ask, i (ask.key)}
+          <div class="orderbook-row ask-row"
+               class:top-order={i === 0}
+               style="--volume-width: {(ask.size / maxAskSize * 100)}%"
+               data-price={ask.price}>
             <div class="volume-bar ask-bar"></div>
             <span class="price">${Math.floor(ask.price).toLocaleString('en-US')}</span>
             <span class="quantity">{ask.cumulative.toFixed(5)}</span>
@@ -650,30 +665,33 @@
     font-family: 'Monaco', 'Courier New', monospace;
     position: relative;
     border-radius: 3px;
-    /* Smooth transitions for all properties */
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    /* Ultra-smooth transitions with will-change for GPU acceleration */
+    will-change: transform;
+    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94),
                 opacity 0.2s ease-out,
-                background-color 0.15s ease-out;
+                background-color 0.2s ease-out;
     transform: translateY(0);
   }
 
-  /* Animate row entry/exit */
-  .orderbook-row:has(.quantity) {
-    animation: slideIn 0.2s ease-out;
+  /* Stagger row animations for wave effect */
+  .orderbook-rows {
+    --stagger-delay: 0.02s;
   }
 
-  @keyframes slideIn {
-    from {
-      opacity: 0;
-      transform: translateX(-10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }
+  .orderbook-row:nth-child(1) { animation-delay: calc(0 * var(--stagger-delay)); }
+  .orderbook-row:nth-child(2) { animation-delay: calc(1 * var(--stagger-delay)); }
+  .orderbook-row:nth-child(3) { animation-delay: calc(2 * var(--stagger-delay)); }
+  .orderbook-row:nth-child(4) { animation-delay: calc(3 * var(--stagger-delay)); }
+  .orderbook-row:nth-child(5) { animation-delay: calc(4 * var(--stagger-delay)); }
+  .orderbook-row:nth-child(6) { animation-delay: calc(5 * var(--stagger-delay)); }
+  .orderbook-row:nth-child(7) { animation-delay: calc(6 * var(--stagger-delay)); }
+  .orderbook-row:nth-child(8) { animation-delay: calc(7 * var(--stagger-delay)); }
+  .orderbook-row:nth-child(9) { animation-delay: calc(8 * var(--stagger-delay)); }
+  .orderbook-row:nth-child(10) { animation-delay: calc(9 * var(--stagger-delay)); }
+  .orderbook-row:nth-child(11) { animation-delay: calc(10 * var(--stagger-delay)); }
+  .orderbook-row:nth-child(12) { animation-delay: calc(11 * var(--stagger-delay)); }
 
-  /* Volume bars behind text */
+  /* Volume bars behind text with GPU acceleration */
   .volume-bar {
     position: absolute;
     top: 0;
@@ -681,14 +699,26 @@
     width: var(--volume-width);
     z-index: 0;
     opacity: 0.3;
-    /* Smoother cubic bezier for natural movement */
-    transition: width 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: width;
+    /* Ultra-smooth width animation */
+    transition: width 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
 
-  /* Smooth text value transitions */
+  /* Smooth text value transitions - numbers morphing effect */
   .orderbook-row .quantity,
   .orderbook-row .price {
-    transition: color 0.1s ease-out;
+    position: relative;
+    z-index: 1;
+    transition: all 0.2s ease-out;
+    /* Prevent text selection during rapid updates */
+    user-select: none;
+  }
+
+  /* Add subtle glow on value changes */
+  @keyframes valueChange {
+    0% { text-shadow: 0 0 0 transparent; }
+    50% { text-shadow: 0 0 8px rgba(255, 255, 255, 0.3); }
+    100% { text-shadow: 0 0 0 transparent; }
   }
 
   .bid-bar {
