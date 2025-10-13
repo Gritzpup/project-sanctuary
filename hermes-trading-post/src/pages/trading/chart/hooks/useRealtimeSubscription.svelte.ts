@@ -152,7 +152,20 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
 
     if (isTicker) {
       // Ticker update: ALWAYS update the last candle, never create new ones
+      // 🔒 Lock the candle reference to prevent race conditions
       const currentCandle = candles[candles.length - 1];
+
+      // 🛡️ Safety check: Make sure we're not trying to update a very old candle
+      const now = Date.now() / 1000; // Current time in seconds
+      const candleAge = now - (currentCandle.time as number);
+      const granularitySeconds = getGranularitySeconds(currentGranularity);
+
+      // If candle is more than 2 granularity periods old, skip update to prevent
+      // "Cannot update oldest data" error
+      if (candleAge > granularitySeconds * 2) {
+        console.warn(`⚠️ [Realtime] Skipping ticker update - candle too old (${candleAge}s > ${granularitySeconds * 2}s)`);
+        return;
+      }
 
       const updatedCandle: CandlestickData = {
         ...currentCandle,
@@ -163,12 +176,20 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         volume: (currentCandle as any).volume || 0
       } as any;
 
-      chartSeries.update(updatedCandle);
-      statusStore.setPriceUpdate(); // Direct update for instant response
+      try {
+        chartSeries.update(updatedCandle);
+        statusStore.setPriceUpdate(); // Direct update for instant response
 
-      // Ensure status stays ready during ticker updates
-      if (statusStore.status !== 'ready') {
-        statusStore.setReady();
+        // Ensure status stays ready during ticker updates
+        if (statusStore.status !== 'ready') {
+          statusStore.setReady();
+        }
+      } catch (error) {
+        // Silently handle "Cannot update oldest data" errors - they're expected
+        // when candles roll over during ticker updates
+        if (!(error as Error).message?.includes('Cannot update oldest data')) {
+          console.error('[Realtime] Error updating ticker:', error);
+        }
       }
 
       return; // Exit early for ticker updates

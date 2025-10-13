@@ -13,37 +13,58 @@
   // Reactive orderbook data for display
   let bids = $derived(orderbookStore.getBids(12));
   let asks = $derived(orderbookStore.getAsks(12));
+
+  // Calculate cumulative quantities for display
+  let bidsWithCumulative = $derived(() => {
+    let cumulative = 0;
+    return bids.map(bid => {
+      cumulative += bid.size;
+      return { ...bid, cumulative };
+    });
+  });
+
+  let asksWithCumulative = $derived(() => {
+    let cumulative = 0;
+    return asks.map(ask => {
+      cumulative += ask.size;
+      return { ...ask, cumulative };
+    });
+  });
+
   let maxBidSize = $derived(Math.max(...bids.map(b => b.size), 0.001));
   let maxAskSize = $derived(Math.max(...asks.map(a => a.size), 0.001));
 
-  // Calculate price range for custom gauge labels - force 25k spread
+  // Calculate volume range for left gauge (linear scale, no zero in middle)
+  let volumeRange = $derived(() => {
+    const depthData = orderbookStore.getDepthData(10000); // Match chart level count
+    if (depthData.bids.length === 0 || depthData.asks.length === 0) return [];
+
+    const maxBidDepth = depthData.bids[depthData.bids.length - 1]?.depth || 0;
+    const maxAskDepth = depthData.asks[depthData.asks.length - 1]?.depth || 0;
+    const maxDepth = Math.max(maxBidDepth, maxAskDepth);
+
+    // Create 5 evenly spaced labels from 0 to maxDepth
+    // Positions: 0%, 25%, 50%, 75%, 100%
+    return Array.from({length: 5}, (_, i) => ({
+      position: i * 25, // 0, 25, 50, 75, 100
+      value: (maxDepth / 4) * i // 0, 25%, 50%, 75%, 100% of maxDepth
+    }));
+  });
+
+  // Calculate price range for bottom gauge (3 prices spanning 20k range)
   let priceRange = $derived(() => {
     const summary = orderbookStore.summary;
-    if (!summary.bestBid || !summary.bestAsk) return [];
+    if (!summary.bestBid || !summary.bestAsk) return { left: 0, center: 0, right: 0 };
 
     // Get current mid price
     const midPrice = (summary.bestBid + summary.bestAsk) / 2;
 
-    // Force a 25k range centered around mid price
-    const minPrice = midPrice - 12500; // 12.5k below
-    const maxPrice = midPrice + 12500; // 12.5k above
-    const step = 5000; // 5k steps for 6 labels
-
-    return Array.from({length: 6}, (_, i) => minPrice + (step * i));
-  });
-
-  // Calculate volume range for bottom gauge
-  let volumeRange = $derived(() => {
-    const depthData = orderbookStore.getDepthData(500); // Use 500 levels
-    if (depthData.bids.length === 0 || depthData.asks.length === 0) return [];
-
-    const maxDepth = Math.max(
-      depthData.bids[depthData.bids.length - 1]?.depth || 0,
-      depthData.asks[depthData.asks.length - 1]?.depth || 0
-    );
-
-    // Create 4 volume labels from 25% to 100% (skip 0)
-    return Array.from({length: 4}, (_, i) => (maxDepth / 4) * (i + 1));
+    // Fixed 10k spread on either side (20k total range)
+    return {
+      left: midPrice - 10000,    // Left edge: -10k from mid
+      center: midPrice,           // Center: current mid price
+      right: midPrice + 10000     // Right edge: +10k from mid
+    };
   });
 
   function formatPrice(price: number): string {
@@ -69,7 +90,7 @@
         horzLines: { visible: false },
       },
       width: chartContainer.clientWidth + 30, // Add 30px to stretch chart to match orderbook width
-      height: chartContainer.clientHeight || 230,
+      height: (chartContainer.clientHeight || 230) - 5, // Reduce height by 5px to lift bottom
       timeScale: {
         visible: false, // Hide built-in time scale - we'll use custom overlay
         borderVisible: false,
@@ -143,7 +164,7 @@
       if (chart && chartContainer) {
         chart.applyOptions({
           width: chartContainer.clientWidth + 30, // Add 30px to stretch chart to match orderbook width
-          height: chartContainer.clientHeight || 230,
+          height: (chartContainer.clientHeight || 230) - 5, // Reduce height by 5px to lift bottom
         });
       }
     });
@@ -207,8 +228,9 @@
   function updateChart() {
     if (!bidSeries || !askSeries) return;
 
-    // Get depth data from store (500 levels for good V-shape)
-    const { bids, asks } = orderbookStore.getDepthData(500);
+    // Get depth data from store (use more levels to cover 20k price range)
+    // With ~$1 increments, need ~10,000 levels to cover 10k on each side
+    const { bids, asks } = orderbookStore.getDepthData(10000);
 
     if (bids.length === 0 || asks.length === 0) {
       console.warn('⚠️ No depth data available yet');
@@ -283,22 +305,34 @@
   </div>
   <div class="panel-content">
     <div bind:this={chartContainer} class="depth-chart">
-      <!-- Custom price gauge overlay (left side) -->
-      <div class="price-gauge-overlay">
-        {#each priceRange() as price, i}
-          <div class="price-label" style="top: {(i / 5) * 100}%">
-            {formatPrice(price)}
+      <!-- Mid price indicator line (shows balance of power) -->
+      <div class="mid-price-line"></div>
+
+      <!-- Custom volume gauge overlay (left side) - linear scale -->
+      <div class="volume-gauge-overlay">
+        {#each volumeRange() as item}
+          <div class="volume-label" style="top: {100 - item.position}%">
+            {formatVolume(item.value)}
           </div>
         {/each}
       </div>
 
-      <!-- Custom volume gauge overlay (bottom) -->
-      <div class="volume-gauge-overlay">
-        {#each volumeRange() as volume, i}
-          <div class="volume-label" style="left: {((i + 1) / 4) * 100}%">
-            {formatVolume(volume)}
-          </div>
-        {/each}
+      <!-- Custom price gauge overlay (bottom) - 3 prices spanning 20k -->
+      <div class="price-gauge-overlay">
+        <!-- Left price -->
+        <div class="price-label" style="left: 10%">
+          {formatPrice(priceRange().left)}
+        </div>
+
+        <!-- Center price -->
+        <div class="price-label price-label-center" style="left: 50%">
+          {formatPrice(priceRange().center)}
+        </div>
+
+        <!-- Right price -->
+        <div class="price-label" style="left: 90%">
+          {formatPrice(priceRange().right)}
+        </div>
       </div>
     </div>
 
@@ -310,10 +344,10 @@
         <span>Buy Price</span>
       </div>
       <div class="orderbook-rows">
-        {#each orderbookStore.getBids(12) as bid, i}
+        {#each bidsWithCumulative() as bid, i}
           <div class="orderbook-row bid-row" class:top-order={i === 0} style="--volume-width: {(bid.size / maxBidSize * 100)}%">
             <div class="volume-bar bid-bar"></div>
-            <span class="quantity">{bid.size.toFixed(5)}</span>
+            <span class="quantity">{bid.cumulative.toFixed(5)}</span>
             <span class="price">${Math.floor(bid.price).toLocaleString('en-US')}</span>
           </div>
         {/each}
@@ -326,11 +360,11 @@
         <span>Quantity</span>
       </div>
       <div class="orderbook-rows">
-        {#each orderbookStore.getAsks(12) as ask, i}
+        {#each asksWithCumulative() as ask, i}
           <div class="orderbook-row ask-row" class:top-order={i === 0} style="--volume-width: {(ask.size / maxAskSize * 100)}%">
             <div class="volume-bar ask-bar"></div>
             <span class="price">${Math.floor(ask.price).toLocaleString('en-US')}</span>
-            <span class="quantity">{ask.size.toFixed(5)}</span>
+            <span class="quantity">{ask.cumulative.toFixed(5)}</span>
           </div>
         {/each}
       </div>
@@ -422,8 +456,21 @@
     height: 100% !important;
   }
 
-  /* Custom price gauge overlay */
-  .price-gauge-overlay {
+  /* Mid-price vertical line (balance of power indicator) */
+  .mid-price-line {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 99;
+  }
+
+  /* Custom volume gauge overlay (left side) */
+  .volume-gauge-overlay {
     position: absolute;
     left: 0;
     top: 0;
@@ -433,38 +480,11 @@
     z-index: 100;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-  }
-
-  .price-label {
-    position: absolute;
-    left: 0;
-    color: #ffffff;
-    font-size: 11px;
-    font-weight: 600;
-    text-shadow:
-      0 0 3px rgba(0, 0, 0, 1),
-      0 0 5px rgba(0, 0, 0, 0.8),
-      0 0 8px rgba(0, 0, 0, 0.6);
-    transform: translateY(-50%);
-  }
-
-  /* Custom volume gauge overlay (bottom) */
-  .volume-gauge-overlay {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 20px;
-    pointer-events: none;
-    z-index: 100;
-    display: flex;
-    justify-content: space-between;
   }
 
   .volume-label {
     position: absolute;
-    bottom: 0;
+    left: 0;
     color: #ffffff;
     font-size: 10px;
     font-weight: 600;
@@ -472,7 +492,45 @@
       0 0 3px rgba(0, 0, 0, 1),
       0 0 5px rgba(0, 0, 0, 0.8),
       0 0 8px rgba(0, 0, 0, 0.6);
+    transform: translateY(-50%);
+    line-height: 1;
+  }
+
+  .volume-label-center {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 9px;
+  }
+
+  /* Custom price gauge overlay (bottom) */
+  .price-gauge-overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 15px;
+    pointer-events: none;
+    z-index: 100;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .price-label {
+    position: absolute;
+    bottom: 0;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 600;
+    text-shadow:
+      0 0 3px rgba(0, 0, 0, 1),
+      0 0 5px rgba(0, 0, 0, 0.8),
+      0 0 8px rgba(0, 0, 0, 0.6);
     transform: translateX(-50%);
+    line-height: 1;
+  }
+
+  .price-label-center {
+    color: #a78bfa;
+    font-weight: 700;
   }
 
   /* Hide TradingView watermark - targeted approach */
