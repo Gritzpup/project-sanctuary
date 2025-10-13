@@ -185,31 +185,35 @@
 
     const midPrice = (summary.bestBid + summary.bestAsk) / 2;
 
-    // Get orderbook data with INDIVIDUAL volumes (not cumulative depth)
-    // This finds the actual buy/sell walls
-    const bids = orderbookStore.getBids(100);
-    const asks = orderbookStore.getAsks(100);
+    // Get depth data for analysis
+    const depthData = orderbookStore.getDepthData(100);
 
-    // Find the price level with highest INDIVIDUAL volume (the wall)
+    // Find the highest volume point within reasonable range of current price
     let maxBidVolume = 0;
     let maxBidPrice = summary.bestBid;
+    let maxBidIndex = -1;
 
-    bids.forEach((bid) => {
+    // Check bids (sorted by price descending, so closest to spread is first)
+    depthData.bids.forEach((bid, index) => {
       // Only consider bids within 2% of current price
-      if (bid.price > midPrice * 0.98 && bid.size > maxBidVolume) {
-        maxBidVolume = bid.size;
+      if (bid.price > midPrice * 0.98 && bid.depth > maxBidVolume) {
+        maxBidVolume = bid.depth;
         maxBidPrice = bid.price;
+        maxBidIndex = index;
       }
     });
 
     let maxAskVolume = 0;
     let maxAskPrice = summary.bestAsk;
+    let maxAskIndex = -1;
 
-    asks.forEach((ask) => {
+    // Check asks (sorted by price ascending, so closest to spread is first)
+    depthData.asks.forEach((ask, index) => {
       // Only consider asks within 2% of current price
-      if (ask.price < midPrice * 1.02 && ask.size > maxAskVolume) {
-        maxAskVolume = ask.size;
+      if (ask.price < midPrice * 1.02 && ask.depth > maxAskVolume) {
+        maxAskVolume = ask.depth;
         maxAskPrice = ask.price;
+        maxAskIndex = index;
       }
     });
 
@@ -545,9 +549,8 @@
       const lowestAskPrice = asks[0].price;
       const spread = lowestAskPrice - highestBidPrice;
 
-      // Make gap at least 50% of spread OR $50, whichever is larger
-      // This ensures visible separation even with tight spreads
-      const gapSize = Math.max(spread * 0.50, 50);
+      // Make gap 30% of spread to create more visible valley at current price
+      const gapSize = spread * 0.30;
 
       // Add padding point to bid data (drops to 0 at edge)
       bidData.push({
