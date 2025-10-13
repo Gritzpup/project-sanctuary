@@ -107,10 +107,11 @@
 
     if (total === 0) return 'neutral';
 
-    const bidRatio = totalBidVolume / total;
-    // More bids = bullish (green), more asks = bearish (red)
-    if (bidRatio > 0.55) return 'bullish';
-    if (bidRatio < 0.45) return 'bearish';
+    const askRatio = totalAskVolume / total;
+    // More asks (sells) = bearish (red), more bids (buys) = bullish (green)
+    // This shows ORDER FLOW - if more people are selling, price likely goes down
+    if (askRatio > 0.55) return 'bearish';  // More selling pressure
+    if (askRatio < 0.45) return 'bullish';  // More buying pressure
     return 'neutral';
   });
 
