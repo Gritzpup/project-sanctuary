@@ -88,13 +88,17 @@
       const displayedPrice = Math.floor(midPrice / 1000) * 1000; // The price shown in gauge (e.g., 115000)
       const offset = midPrice - displayedPrice; // How far we are from the displayed thousand
 
-      // Map offset to visual position
-      // 0-500: valley moves from center (50%) to right (up to 60%)
-      // 500-1000: valley continues moving right (60% to 70%)
-      // When it hits 1000, it resets to center at the new price
-      const percentOffset = (offset / 1000) * 20; // 0-20% movement range
+      // Map offset to position within the visible chart area
+      // The chart shows 20k range (-10k to +10k from center)
+      // We want to move within the middle third of the chart
+      const rangeStart = 40; // Start at 40% (slightly left of center)
+      const rangeEnd = 60;   // End at 60% (slightly right of center)
+      const rangeWidth = rangeEnd - rangeStart;
 
-      return 50 + percentOffset; // Base 50% (center) + offset
+      // Map 0-1000 offset to position within our range
+      const percentOffset = (offset / 1000) * rangeWidth;
+
+      return rangeStart + percentOffset; // Position within 40-60% range
     }
     return 50; // Default to center
   });
@@ -137,7 +141,7 @@
         vertLines: { visible: false },
         horzLines: { visible: false },
       },
-      width: chartContainer.clientWidth + 30, // Add 30px to stretch chart to match orderbook width
+      width: chartContainer.clientWidth,
       height: (chartContainer.clientHeight || 230) - 5, // Reduce height by 5px to lift bottom
       timeScale: {
         visible: false, // Hide built-in time scale - we'll use custom overlay
@@ -216,10 +220,23 @@
     // Handle resize
     const resizeObserver = new ResizeObserver(() => {
       if (chart && chartContainer) {
+        const newWidth = chartContainer.clientWidth;
+        const newHeight = (chartContainer.clientHeight || 230) - 5;
+
         chart.applyOptions({
-          width: chartContainer.clientWidth + 30, // Add 30px to stretch chart to match orderbook width
-          height: (chartContainer.clientHeight || 230) - 5, // Reduce height by 5px to lift bottom
+          width: newWidth,
+          height: newHeight,
         });
+
+        // Re-fit the visible range after resize to maintain proper view
+        const summary = orderbookStore.summary;
+        if (summary.bestBid && summary.bestAsk) {
+          const midPrice = (summary.bestBid + summary.bestAsk) / 2;
+          chart.timeScale().setVisibleRange({
+            from: (midPrice - 10000) as any,
+            to: (midPrice + 10000) as any
+          });
+        }
       }
     });
     resizeObserver.observe(chartContainer);
