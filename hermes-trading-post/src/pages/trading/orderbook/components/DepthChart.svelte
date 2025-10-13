@@ -231,32 +231,39 @@
     return true; // Successfully connected
   }
 
+  let updatePending = false;
+
   function handleLevel2Message(data: any) {
     if (data.type === 'snapshot') {
       // Initial orderbook snapshot
       orderbookStore.processSnapshot(data);
-      // Update chart immediately
-      requestAnimationFrame(() => {
-        updateChart();
-        // List and gauges update automatically via reactive $derived
-      });
+      // Update chart immediately without requestAnimationFrame for snapshots
+      updateChart();
     } else if (data.type === 'update') {
       // Incremental update
       orderbookStore.processUpdate(data);
-      // Update chart immediately
-      requestAnimationFrame(() => {
-        updateChart();
-        // List and gauges update automatically via reactive $derived
-      });
+      // Batch chart updates using requestAnimationFrame only if not already pending
+      if (!updatePending) {
+        updatePending = true;
+        requestAnimationFrame(() => {
+          updateChart();
+          updatePending = false;
+        });
+      }
     }
   }
+
+  // Cache to reduce unnecessary chart updates
+  let lastBidCount = 0;
+  let lastAskCount = 0;
+  let chartUpdateCount = 0;
 
   function updateChart() {
     if (!bidSeries || !askSeries) return;
 
-    // Get depth data from store (use more levels to cover 20k price range)
-    // With ~$1 increments, need ~10,000 levels to cover 10k on each side
-    const { bids, asks } = orderbookStore.getDepthData(10000);
+    // Get depth data from store (use reasonable number of levels for performance)
+    // 500 levels is enough to show immediate depth while maintaining performance
+    const { bids, asks } = orderbookStore.getDepthData(500);
 
     if (bids.length === 0 || asks.length === 0) {
       console.warn('⚠️ No depth data available yet');
@@ -294,10 +301,28 @@
       });
     }
 
-    // For depth charts, always use setData since prices can change dramatically
-    // The chart library doesn't support updating with out-of-order prices
-    bidSeries.setData(bidData);
-    askSeries.setData(askData);
+    // Only update chart if data actually changed (check length and edge values)
+    const bidsChanged = bids.length !== lastBidCount ||
+                       (bids.length > 0 && (bids[0].depth !== bidData[0]?.value));
+    const asksChanged = asks.length !== lastAskCount ||
+                       (asks.length > 0 && (asks[0].depth !== askData[0]?.value));
+
+    if (bidsChanged || asksChanged) {
+      chartUpdateCount++;
+
+      // Log every 20th update to track performance
+      if (chartUpdateCount % 20 === 0) {
+        console.log(`📈 Chart update #${chartUpdateCount} - Bids: ${bids.length}, Asks: ${asks.length}`);
+      }
+
+      // For depth charts, always use setData since prices can change dramatically
+      // The chart library doesn't support updating with out-of-order prices
+      bidSeries.setData(bidData);
+      askSeries.setData(askData);
+
+      lastBidCount = bids.length;
+      lastAskCount = asks.length;
+    }
 
     // Maintain visible range to prevent jumping - keep current zoom level
     try {
@@ -665,11 +690,11 @@
     font-family: 'Monaco', 'Courier New', monospace;
     position: relative;
     border-radius: 3px;
-    /* Ultra-smooth transitions with will-change for GPU acceleration */
-    will-change: transform;
-    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                opacity 0.2s ease-out,
-                background-color 0.2s ease-out;
+    /* Ultra-fast transitions with will-change for GPU acceleration */
+    will-change: transform, opacity;
+    transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                opacity 0.1s ease-out,
+                background-color 0.1s ease-out;
     transform: translateY(0);
   }
 
@@ -700,16 +725,16 @@
     z-index: 0;
     opacity: 0.3;
     will-change: width;
-    /* Ultra-smooth width animation */
-    transition: width 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    /* Ultra-fast width animation for real-time updates */
+    transition: width 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
 
-  /* Smooth text value transitions - numbers morphing effect */
+  /* Fast text value transitions - numbers morphing effect */
   .orderbook-row .quantity,
   .orderbook-row .price {
     position: relative;
     z-index: 1;
-    transition: all 0.2s ease-out;
+    transition: all 0.1s ease-out;
     /* Prevent text selection during rapid updates */
     user-select: none;
   }

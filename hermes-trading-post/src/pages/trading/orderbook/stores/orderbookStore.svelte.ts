@@ -19,39 +19,110 @@ class OrderbookStore {
   private bids = $state<Map<number, number>>(new Map());  // price -> size
   private asks = $state<Map<number, number>>(new Map());  // price -> size
 
+  // Cached sorted arrays - only update when underlying data changes
+  private _sortedBids = $state<Array<[number, number]>>([]);
+  private _sortedAsks = $state<Array<[number, number]>>([]);
+  private _lastBidVersion = 0;
+  private _lastAskVersion = 0;
+
   public isReady = $state(false);
   public productId = $state('BTC-USD');
 
+  private _lastUpdateTime = 0;
+  private _updateCount = 0;
+
   /**
-   * Process orderbook snapshot (initial full state)
+   * Process orderbook snapshot - optimized to detect actual changes
    */
   processSnapshot(data: { product_id: string; bids: OrderbookLevel[]; asks: OrderbookLevel[] }) {
+    const now = Date.now();
+    const timeSinceLastUpdate = now - this._lastUpdateTime;
+    this._updateCount++;
+
+    // Log update frequency every 10th update
+    if (this._updateCount % 10 === 0) {
+      console.log(`📊 Orderbook update #${this._updateCount} (${timeSinceLastUpdate}ms since last)`);
+    }
+
+    this._lastUpdateTime = now;
+
     // Remove debug spam - only log on first connection
     if (!this.isReady) {
       console.log(`📊 Connected to orderbook for ${data.product_id}`);
     }
 
     this.productId = data.product_id;
-    this.bids = new Map();
-    this.asks = new Map();
 
-    // Build bid side - optimized
+    // Track if data actually changed
+    let bidsChanged = false;
+    let asksChanged = false;
+
+    // Smart update for bids - only if different
+    const newBids = new Map<number, number>();
     for (let i = 0; i < data.bids.length; i++) {
       const level = data.bids[i];
       if (level.size > 0) {
-        this.bids.set(level.price, level.size);
+        newBids.set(level.price, level.size);
       }
     }
 
-    // Build ask side - optimized
+    // Check if bids actually changed
+    if (newBids.size !== this.bids.size) {
+      bidsChanged = true;
+    } else {
+      for (const [price, size] of newBids) {
+        if (this.bids.get(price) !== size) {
+          bidsChanged = true;
+          break;
+        }
+      }
+    }
+
+    // Smart update for asks - only if different
+    const newAsks = new Map<number, number>();
     for (let i = 0; i < data.asks.length; i++) {
       const level = data.asks[i];
       if (level.size > 0) {
-        this.asks.set(level.price, level.size);
+        newAsks.set(level.price, level.size);
       }
     }
 
+    // Check if asks actually changed
+    if (newAsks.size !== this.asks.size) {
+      asksChanged = true;
+    } else {
+      for (const [price, size] of newAsks) {
+        if (this.asks.get(price) !== size) {
+          asksChanged = true;
+          break;
+        }
+      }
+    }
+
+    // Only update if data changed
+    if (bidsChanged) {
+      this.bids = newBids;
+      this._updateSortedBids();
+    }
+
+    if (asksChanged) {
+      this.asks = newAsks;
+      this._updateSortedAsks();
+    }
+
     this.isReady = true;
+  }
+
+  private _updateSortedBids() {
+    this._sortedBids = Array.from(this.bids.entries())
+      .sort(([a], [b]) => b - a); // Descending
+    this._lastBidVersion++;
+  }
+
+  private _updateSortedAsks() {
+    this._sortedAsks = Array.from(this.asks.entries())
+      .sort(([a], [b]) => a - b); // Ascending
+    this._lastAskVersion++;
   }
 
   /**
@@ -63,23 +134,53 @@ class OrderbookStore {
       return;
     }
 
+    const now = Date.now();
+    const timeSinceLastUpdate = now - this._lastUpdateTime;
+    this._updateCount++;
+
+    // Log update frequency every 10th update
+    if (this._updateCount % 10 === 0) {
+      console.log(`📊 Orderbook update #${this._updateCount} (${timeSinceLastUpdate}ms since last, ${data.changes.length} changes)`);
+    }
+
+    this._lastUpdateTime = now;
+
+    let bidsChanged = false;
+    let asksChanged = false;
+
     data.changes.forEach(change => {
       const { side, price, size } = change;
 
       if (side === 'buy' || side === 'bid') {
+        const oldSize = this.bids.get(price);
         if (size === 0) {
-          this.bids.delete(price);  // Remove price level
-        } else {
-          this.bids.set(price, size);  // Update price level
+          if (this.bids.delete(price)) {
+            bidsChanged = true;
+          }
+        } else if (oldSize !== size) {
+          this.bids.set(price, size);
+          bidsChanged = true;
         }
-      } else if (side === 'sell' || side === 'offer') {
+      } else if (side === 'sell' || side === 'offer' || side === 'ask') {
+        const oldSize = this.asks.get(price);
         if (size === 0) {
-          this.asks.delete(price);  // Remove price level
-        } else {
-          this.asks.set(price, size);  // Update price level
+          if (this.asks.delete(price)) {
+            asksChanged = true;
+          }
+        } else if (oldSize !== size) {
+          this.asks.set(price, size);
+          asksChanged = true;
         }
       }
     });
+
+    // Only update sorted arrays if data actually changed
+    if (bidsChanged) {
+      this._updateSortedBids();
+    }
+    if (asksChanged) {
+      this._updateSortedAsks();
+    }
   }
 
   /**
@@ -92,15 +193,9 @@ class OrderbookStore {
    * - Creates valley at current price (spread)
    */
   getDepthData(maxLevels: number = 150): { bids: Array<{ price: number; depth: number }>; asks: Array<{ price: number; depth: number }> } {
-    // Get and sort bids (highest price first = closest to spread)
-    const sortedBids = Array.from(this.bids.entries())
-      .sort(([priceA], [priceB]) => priceB - priceA)  // Descending (high to low)
-      .slice(0, maxLevels);
-
-    // Get and sort asks (lowest price first = closest to spread)
-    const sortedAsks = Array.from(this.asks.entries())
-      .sort(([priceA], [priceB]) => priceA - priceB)  // Ascending (low to high)
-      .slice(0, maxLevels);
+    // Use cached sorted arrays
+    const sortedBids = this._sortedBids.slice(0, maxLevels);
+    const sortedAsks = this._sortedAsks.slice(0, maxLevels);
 
     // Calculate cumulative depth for BIDS starting from best bid (highest price)
     // Going OUTWARD (toward lower prices), accumulating depth
@@ -124,22 +219,16 @@ class OrderbookStore {
   }
 
   /**
-   * Get current orderbook summary
+   * Get current orderbook summary - uses cached arrays
    */
   get summary(): Orderbook {
-    const sortedBids = Array.from(this.bids.entries())
-      .sort(([priceA], [priceB]) => priceB - priceA);
-
-    const sortedAsks = Array.from(this.asks.entries())
-      .sort(([priceA], [priceB]) => priceA - priceB);
-
-    const bestBid = sortedBids.length > 0 ? sortedBids[0][0] : 0;
-    const bestAsk = sortedAsks.length > 0 ? sortedAsks[0][0] : 0;
+    const bestBid = this._sortedBids.length > 0 ? this._sortedBids[0][0] : 0;
+    const bestAsk = this._sortedAsks.length > 0 ? this._sortedAsks[0][0] : 0;
     const spread = bestAsk > 0 && bestBid > 0 ? bestAsk - bestBid : 0;
 
     return {
-      bids: sortedBids.slice(0, 20).map(([price, size]) => ({ price, size })),
-      asks: sortedAsks.slice(0, 20).map(([price, size]) => ({ price, size })),
+      bids: this._sortedBids.slice(0, 20).map(([price, size]) => ({ price, size })),
+      asks: this._sortedAsks.slice(0, 20).map(([price, size]) => ({ price, size })),
       spread,
       bestBid,
       bestAsk
@@ -150,29 +239,41 @@ class OrderbookStore {
    * Reset orderbook state
    */
   reset() {
-    this.bids = new Map();
-    this.asks = new Map();
+    this.bids.clear();
+    this.asks.clear();
+    this._sortedBids = [];
+    this._sortedAsks = [];
+    this._lastBidVersion = 0;
+    this._lastAskVersion = 0;
     this.isReady = false;
   }
 
   /**
-   * Get top N bids for orderbook list display
+   * Get top N bids for orderbook list display - uses cached sorted array
    */
   getBids(count: number = 10): Array<{ price: number; size: number }> {
-    return Array.from(this.bids.entries())
-      .sort(([priceA], [priceB]) => priceB - priceA) // Highest first
+    return this._sortedBids
       .slice(0, count)
       .map(([price, size]) => ({ price, size }));
   }
 
   /**
-   * Get top N asks for orderbook list display
+   * Get top N asks for orderbook list display - uses cached sorted array
    */
   getAsks(count: number = 10): Array<{ price: number; size: number }> {
-    return Array.from(this.asks.entries())
-      .sort(([priceA], [priceB]) => priceA - priceB) // Lowest first
+    return this._sortedAsks
       .slice(0, count)
       .map(([price, size]) => ({ price, size }));
+  }
+
+  /**
+   * Get version numbers for change detection
+   */
+  get versions() {
+    return {
+      bids: this._lastBidVersion,
+      asks: this._lastAskVersion
+    };
   }
 }
 
