@@ -4,8 +4,8 @@
    * @description Main depth chart component - orchestrates data, rendering, and UI
    */
   import { onMount, onDestroy } from 'svelte';
-  import { useDepthChartData } from './useDepthChartData';
-  import { useDepthChartRendering } from './useDepthChartRendering';
+  import { useDepthChartData } from './useDepthChartData.svelte';
+  import { useDepthChartRendering } from './useDepthChartRendering.svelte';
   import DepthChartOverlays from './DepthChartOverlays.svelte';
   import OrderbookList from './OrderbookList.svelte';
 
