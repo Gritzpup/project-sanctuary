@@ -12,10 +12,26 @@
 
   // Use reactive getters instead of manual updates for smoother transitions
   // This allows Svelte to track individual property changes
+  // Cache previous bids/asks to detect actual changes
+  let prevBids: any[] = [];
+  let prevAsks: any[] = [];
+
   let bidsWithCumulative = $derived.by(() => {
     const bids = orderbookStore.getBids(12);
+
+    // Check if bids actually changed by comparing prices and sizes
+    const bidsChanged = bids.length !== prevBids.length ||
+      bids.some((bid, i) => !prevBids[i] ||
+        bid.price !== prevBids[i].price ||
+        bid.size !== prevBids[i].size);
+
+    if (!bidsChanged && prevBids.length > 0) {
+      // Return the cached version if nothing changed
+      return prevBids;
+    }
+
     let cumulative = 0;
-    return bids.map(bid => {
+    const result = bids.map(bid => {
       cumulative += bid.size;
       return {
         price: bid.price,
@@ -24,12 +40,27 @@
         key: `bid-${bid.price}` // Stable key for tracking
       };
     });
+
+    prevBids = result;
+    return result;
   });
 
   let asksWithCumulative = $derived.by(() => {
     const asks = orderbookStore.getAsks(12);
+
+    // Check if asks actually changed by comparing prices and sizes
+    const asksChanged = asks.length !== prevAsks.length ||
+      asks.some((ask, i) => !prevAsks[i] ||
+        ask.price !== prevAsks[i].price ||
+        ask.size !== prevAsks[i].size);
+
+    if (!asksChanged && prevAsks.length > 0) {
+      // Return the cached version if nothing changed
+      return prevAsks;
+    }
+
     let cumulative = 0;
-    return asks.map(ask => {
+    const result = asks.map(ask => {
       cumulative += ask.size;
       return {
         price: ask.price,
@@ -38,19 +69,42 @@
         key: `ask-${ask.price}` // Stable key for tracking
       };
     });
+
+    prevAsks = result;
+    return result;
   });
+
+  // Cached max sizes to prevent recalculation if data hasn't changed
+  let cachedMaxBidSize = 0.001;
+  let cachedMaxAskSize = 0.001;
 
   // Reactive derived values for smooth gauge updates
   let maxBidSize = $derived.by(() => {
-    return bidsWithCumulative.length > 0
+    // Only recalculate if bids actually changed (using object identity)
+    if (bidsWithCumulative === prevBids && cachedMaxBidSize > 0) {
+      return cachedMaxBidSize;
+    }
+
+    const newMax = bidsWithCumulative.length > 0
       ? Math.max(...bidsWithCumulative.map(b => b.size), 0.001)
       : 0.001;
+
+    cachedMaxBidSize = newMax;
+    return newMax;
   });
 
   let maxAskSize = $derived.by(() => {
-    return asksWithCumulative.length > 0
+    // Only recalculate if asks actually changed (using object identity)
+    if (asksWithCumulative === prevAsks && cachedMaxAskSize > 0) {
+      return cachedMaxAskSize;
+    }
+
+    const newMax = asksWithCumulative.length > 0
       ? Math.max(...asksWithCumulative.map(a => a.size), 0.001)
       : 0.001;
+
+    cachedMaxAskSize = newMax;
+    return newMax;
   });
 
   let volumeRange = $derived.by(() => {
@@ -83,7 +137,7 @@
 
   function formatPrice(price: number): string {
     if (price >= 1000000) return `$${(price / 1000000).toFixed(1)}M`;
-    if (price >= 1000) return `$${Math.round(price / 1000)}k`;
+    if (price >= 1000) return `$${Math.floor(price / 1000)}k`;
     return `$${price.toFixed(0)}`;
   }
 
@@ -118,7 +172,7 @@
           if (price >= 1000000) {
             return `$${(price / 1000000).toFixed(1)}M`;
           } else if (price >= 1000) {
-            return `$${Math.round(price / 1000)}k`;
+            return `$${Math.floor(price / 1000)}k`;
           }
           return `$${price.toFixed(0)}`;
         },
