@@ -269,27 +269,14 @@
             </div>
           </ChartPanes>
         {/if}
-        
-        {#if showInfo}
-          <ChartInfo 
-            position="bottom-left"
-            showCandleCount={true}
-            showTimeRange={false}
-            showClock={true}
-            showPerformance={false}
-            showLatestPrice={true}
-            showLatestCandleTime={false}
-            showCandleCountdown={true}
-          />
-        {/if}
-        
-        <ChartError 
+
+        <ChartError
           position="center"
           dismissible={true}
         />
-        
+
         {#if showDebug}
-          <ChartDebug 
+          <ChartDebug
             show={true}
             expanded={false}
           />
@@ -297,6 +284,21 @@
       </div>
     </ChartCore>
   </div>
+
+  {#if showInfo}
+    <div class="chart-footer">
+      <ChartInfo
+        position="footer"
+        showCandleCount={true}
+        showTimeRange={false}
+        showClock={true}
+        showPerformance={false}
+        showLatestPrice={true}
+        showLatestCandleTime={false}
+        showCandleCountdown={true}
+      />
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -352,7 +354,17 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
-  
+
+  .chart-footer {
+    padding: 8px 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid var(--border-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 35px;
+  }
+
   /* Responsive */
   @media (max-width: 768px) {
     .chart-header {
