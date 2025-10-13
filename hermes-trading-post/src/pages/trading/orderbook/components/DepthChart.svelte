@@ -55,30 +55,21 @@
         lastUpdate: lastL2UpdateTime,
         updatesPerSecond: 0
       };
-    } else if (metrics.updatesPerSecond >= 20) {
-      // High frequency = WebSocket
+    } else if (metrics.updatesPerSecond >= 8) {
+      // 8+ updates/sec = Real-time L2 WebSocket (authenticated Coinbase L2 typically sends 10-11/s)
       l2Status = {
         state: 'active',
-        label: `WebSocket (${metrics.updatesPerSecond}/s)`,
-        message: `Real-time WebSocket: ${metrics.updatesPerSecond} updates/sec, ${metrics.avgLatency.toFixed(0)}ms latency`,
-        lastUpdate: lastL2UpdateTime,
-        updatesPerSecond: metrics.updatesPerSecond
-      };
-    } else if (metrics.updatesPerSecond >= 8 && metrics.updatesPerSecond <= 12) {
-      // ~10/s = Polling
-      l2Status = {
-        state: 'waiting',
-        label: `Polling (${metrics.updatesPerSecond}/s)`,
-        message: `Using polling fallback: ${metrics.updatesPerSecond} updates/sec, ${metrics.avgLatency.toFixed(0)}ms latency`,
+        label: `L2 WebSocket (${metrics.updatesPerSecond}/s)`,
+        message: `Real-time L2 data: ${metrics.updatesPerSecond} updates/sec, ${metrics.avgLatency.toFixed(0)}ms latency`,
         lastUpdate: lastL2UpdateTime,
         updatesPerSecond: metrics.updatesPerSecond
       };
     } else if (metrics.updatesPerSecond > 0) {
-      // Some updates
+      // Low frequency = might be slow connection or degraded
       l2Status = {
-        state: 'active',
-        label: `Active (${metrics.updatesPerSecond}/s)`,
-        message: `Receiving updates: ${metrics.updatesPerSecond} updates/sec`,
+        state: 'waiting',
+        label: `Slow (${metrics.updatesPerSecond}/s)`,
+        message: `Slow updates: ${metrics.updatesPerSecond} updates/sec`,
         lastUpdate: lastL2UpdateTime,
         updatesPerSecond: metrics.updatesPerSecond
       };
@@ -405,9 +396,15 @@
         const summary = orderbookStore.summary;
         if (summary.bestBid && summary.bestAsk) {
           const midPrice = (summary.bestBid + summary.bestAsk) / 2;
+
+          // Calculate range based on new chart width for responsive scaling
+          const rangeMultiplier = Math.max(0.5, Math.min(1.5, newWidth / 500));
+          const baseRange = 10000;
+          const adjustedRange = baseRange * rangeMultiplier;
+
           chart.timeScale().setVisibleRange({
-            from: (midPrice - 10000) as any,
-            to: (midPrice + 10000) as any
+            from: (midPrice - adjustedRange) as any,
+            to: (midPrice + adjustedRange) as any
           });
         }
       }
@@ -456,6 +453,7 @@
   }
 
   let updatePending = false;
+  let hasPendingData = false;
 
   function handleLevel2Message(data: any) {
     // Track that we received an update
@@ -465,16 +463,22 @@
     if (data.type === 'snapshot') {
       // Initial orderbook snapshot
       orderbookStore.processSnapshot(data);
-      // Update chart immediately without requestAnimationFrame for snapshots
+      // Update chart immediately for snapshots
       updateChart();
     } else if (data.type === 'update') {
-      // Incremental update
+      // Incremental update - store in orderbook immediately
       orderbookStore.processUpdate(data);
-      // Batch chart updates using requestAnimationFrame only if not already pending
+      hasPendingData = true;
+
+      // Use RAF to batch chart rendering (expensive), but don't drop data
+      // Data is already in the store, we just delay the visual update
       if (!updatePending) {
         updatePending = true;
         requestAnimationFrame(() => {
-          updateChart();
+          if (hasPendingData) {
+            updateChart();
+            hasPendingData = false;
+          }
           updatePending = false;
         });
       }
@@ -514,7 +518,11 @@
     if (bids.length > 0 && asks.length > 0) {
       const highestBidPrice = bids[bids.length - 1].price;
       const lowestAskPrice = asks[0].price;
-      const gapSize = (lowestAskPrice - highestBidPrice) * 0.2; // 20% of spread as padding
+      const spread = lowestAskPrice - highestBidPrice;
+
+      // Use a smaller, fixed gap size that scales with viewport
+      // Use minimum of 10% of spread or 100 price units, whichever is smaller
+      const gapSize = Math.min(spread * 0.1, 100);
 
       // Add padding point to bid data (drops to 0 at edge)
       bidData.push({
@@ -558,10 +566,16 @@
       if (summary.bestBid && summary.bestAsk) {
         const midPrice = (summary.bestBid + summary.bestAsk) / 2;
 
-        // Always show 20k range centered on spread
+        // Calculate range based on chart width for better responsiveness
+        // Wider charts show more depth, narrower charts show less
+        const chartWidth = chartContainer?.clientWidth || 500;
+        const rangeMultiplier = Math.max(0.5, Math.min(1.5, chartWidth / 500));
+        const baseRange = 10000;
+        const adjustedRange = baseRange * rangeMultiplier;
+
         chart.timeScale().setVisibleRange({
-          from: (midPrice - 10000) as any,
-          to: (midPrice + 10000) as any
+          from: (midPrice - adjustedRange) as any,
+          to: (midPrice + adjustedRange) as any
         });
       }
     } catch (e) {

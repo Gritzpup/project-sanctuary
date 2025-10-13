@@ -155,15 +155,39 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // 🔒 Lock the candle reference to prevent race conditions
       const currentCandle = candles[candles.length - 1];
 
+      // Skip ticker updates if we don't have real candle data yet (time would be 0)
+      if (!currentCandle || currentCandle.time === 0 || currentCandle.time == null) {
+        // Chart hasn't loaded real data yet, skip ticker updates
+        return;
+      }
+
       // 🛡️ Safety check: Make sure we're not trying to update a very old candle
       const now = Date.now() / 1000; // Current time in seconds
-      const candleAge = now - (currentCandle.time as number);
+      // Ensure candleTime is in seconds (could be in milliseconds)
+      // Timestamps after year 2286 are in milliseconds (> 10^10), need conversion
+      const candleTime = (currentCandle.time as number);
+      const candleTimeInSeconds = candleTime > 10000000000 ? candleTime / 1000 : candleTime;
+      const candleAge = Math.abs(now - candleTimeInSeconds); // Use absolute value to handle any timestamp format
       const granularitySeconds = getGranularitySeconds(currentGranularity);
 
       // If candle is more than 2 granularity periods old, skip update to prevent
       // "Cannot update oldest data" error
       if (candleAge > granularitySeconds * 2) {
-        console.warn(`⚠️ [Realtime] Skipping ticker update - candle too old (${candleAge}s > ${granularitySeconds * 2}s)`);
+        // Only log if this is a real timing issue (not the initial case)
+        console.debug(`⚠️ [Realtime] Skipping ticker update - candle timing mismatch`, {
+          candleAge: candleAge.toFixed(0) + 's',
+          maxAge: (granularitySeconds * 2) + 's'
+        });
+        return;
+      }
+
+      // Validate currentCandle has all required fields before updating
+      if (!currentCandle ||
+          currentCandle.open == null ||
+          currentCandle.high == null ||
+          currentCandle.low == null ||
+          currentCandle.close == null) {
+        console.warn('[Realtime] Skipping ticker update - currentCandle has null values:', currentCandle);
         return;
       }
 

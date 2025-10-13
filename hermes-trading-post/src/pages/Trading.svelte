@@ -3,6 +3,7 @@
   import ChartInfo from './trading/chart/components/overlays/ChartInfo.svelte';
   import CollapsibleSidebar from '../components/layout/CollapsibleSidebar.svelte';
   import DepthChart from './trading/orderbook/components/DepthChart.svelte';
+  import PerformanceComparison from './trading/components/PerformanceComparison.svelte';
   import { onMount, createEventDispatcher } from 'svelte';
   
   export let currentPrice: number = 0;
@@ -199,6 +200,9 @@
         </div>
       </div>
       
+      <!-- Performance Comparison Test -->
+      <PerformanceComparison />
+
       <!-- Orderbook Depth Chart - Market Position Visualization -->
       <div class="depth-chart-section">
         <DepthChart />

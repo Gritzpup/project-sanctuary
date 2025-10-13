@@ -8,7 +8,6 @@ import { BotManager } from './services/botManager.js';
 import { coinbaseWebSocket } from './services/coinbaseWebSocket.js';
 import { historicalDataService } from './services/HistoricalDataService.js';
 import { continuousCandleUpdater } from './services/ContinuousCandleUpdater.js';
-import { orderbookPollingService } from './services/OrderbookPollingService.js';
 import tradingRoutes from './routes/trading.js';
 
 dotenv.config();
@@ -177,21 +176,31 @@ setTimeout(monitorMemoryUsage, 10000);
   console.log('⚡ Auto-subscribed to BTC-USD ticker for instant price updates');
 
   // 📊 Try WebSocket level2 first for real-time orderbook (public feed, no auth needed!)
-  console.log('🚀 Attempting WebSocket level2 for real-time orderbook updates...');
+  console.log('🚀 Starting AUTHENTICATED WebSocket level2 for real-time orderbook updates...');
+  console.log('🔐 Attempting to connect with CDP authentication (no polling fallback)');
+
   coinbaseWebSocket.subscribeLevel2('BTC-USD');
 
   // Track if we're receiving WebSocket level2 data
   let usingWebSocketLevel2 = false;
   let level2MessageCount = 0;
+  let lastLevel2Log = Date.now();
 
   // Listen for level2 updates from WebSocket
   coinbaseWebSocket.on('level2', (orderbookData) => {
-    usingWebSocketLevel2 = true;
+    if (!usingWebSocketLevel2) {
+      console.log('✅✅✅ AUTHENTICATED L2 WEBSOCKET CONNECTED AND RECEIVING DATA! ✅✅✅');
+      console.log('📊 Real-time orderbook updates are now streaming');
+      usingWebSocketLevel2 = true;
+    }
+
     level2MessageCount++;
 
-    // Log performance every 100 messages
-    if (level2MessageCount % 100 === 0) {
-      console.log(`📊 WebSocket Level2: Received ${level2MessageCount} orderbook updates`);
+    // Log every second instead of every 100 messages
+    const now = Date.now();
+    if (now - lastLevel2Log >= 1000) {
+      console.log(`📊 [L2 WebSocket] Received ${level2MessageCount} total updates (real-time streaming active)`);
+      lastLevel2Log = now;
     }
 
     // Forward to all clients with 'level2' type
@@ -205,17 +214,16 @@ setTimeout(monitorMemoryUsage, 10000);
     });
   });
 
-  // Fallback to polling if WebSocket level2 doesn't work after 3 seconds
+  // ✅ Using Advanced Trade WebSocket with CDP JWT authentication for real-time push updates
+  // No polling fallback needed - WebSocket provides instant updates
   setTimeout(() => {
-    if (!usingWebSocketLevel2) {
-      console.log('⚠️ WebSocket level2 not receiving data, starting polling fallback...');
-      orderbookPollingService.startPolling('BTC-USD', 150);
-      setupPollingListener(); // Set up the polling event listener only if needed
+    if (usingWebSocketLevel2) {
+      console.log(`✅ WebSocket Level2 active! Received ${level2MessageCount} updates.`);
+      console.log('📊 Using REAL-TIME PUSH updates from Advanced Trade WebSocket');
     } else {
-      console.log(`✅ WebSocket level2 active! Received ${level2MessageCount} updates. Polling disabled.`);
-      console.log('📊 Using real-time WebSocket for orderbook updates (no polling needed)');
+      console.log('⚠️ WebSocket Level2 not receiving data - check CDP API keys');
     }
-  }, 3000);
+  }, 5000);
 
   // Set up Coinbase WebSocket event handlers
   coinbaseWebSocket.on('candle', (candleData) => {
@@ -290,37 +298,6 @@ setTimeout(monitorMemoryUsage, 10000);
       }
     });
   });
-
-  // 📊 Handle orderbook polling data and forward to clients (only if WebSocket level2 fails)
-  let orderbookMessageCount = 0;
-  let lastOrderbookBroadcast = Date.now();
-
-  // Only set up polling listener if WebSocket level2 fails
-  // This will be done in the setTimeout callback above if needed
-  const setupPollingListener = () => {
-    orderbookPollingService.on('orderbook', (orderbookData) => {
-      orderbookMessageCount++;
-      const now = Date.now();
-      const timeSinceLastMsg = now - lastOrderbookBroadcast;
-
-      // Log every 10th message to reduce spam
-      if (orderbookMessageCount % 10 === 0) {
-        console.log(`📊 [POLLING] Broadcasting orderbook #${orderbookMessageCount} (${timeSinceLastMsg}ms since last): ${orderbookData.bids.length} bids, ${orderbookData.asks.length} asks to ${wss.clients.size} clients`);
-      }
-
-      lastOrderbookBroadcast = now;
-
-      // Forward orderbook data to ALL connected clients
-      wss.clients.forEach(client => {
-        if (client.readyState === client.OPEN) {
-          client.send(JSON.stringify({
-            type: 'level2',
-            data: orderbookData
-          }));
-        }
-      });
-    });
-  };
 
   coinbaseWebSocket.on('error', (error) => {
     console.error('Coinbase WebSocket error:', error);

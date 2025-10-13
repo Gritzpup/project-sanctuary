@@ -58,7 +58,6 @@ export class PaperTradingOrchestrator {
 
   private backendWs: WebSocket | null = null;
   private backendConnected = false;
-  private statusPollingInterval: any = null;
 
   constructor() {
     this.connectToBackend();
@@ -85,16 +84,11 @@ export class PaperTradingOrchestrator {
       this.backendWs = new WebSocket(getBackendWsUrl());
       
       this.backendWs.onopen = () => {
-        console.log('🟢 Connected to backend WebSocket');
+        console.log('🟢 Connected to backend WebSocket - REALTIME MODE');
         this.backendConnected = true;
         this.backendWs?.send(JSON.stringify({ type: 'selectBot', botId: 'reverse-descending-grid-bot-1' }));
+        // Request initial status once, then rely on realtime updates
         this.backendWs?.send(JSON.stringify({ type: 'getStatus' }));
-        
-        this.statusPollingInterval = setInterval(() => {
-          if (this.backendWs && this.backendConnected) {
-            this.backendWs.send(JSON.stringify({ type: 'getStatus' }));
-          }
-        }, 2000);
       };
       
       this.backendWs.onmessage = (event) => {
@@ -109,12 +103,8 @@ export class PaperTradingOrchestrator {
       this.backendWs.onclose = () => {
         console.log('🔴 Backend WebSocket disconnected');
         this.backendConnected = false;
-        
-        if (this.statusPollingInterval) {
-          clearInterval(this.statusPollingInterval);
-          this.statusPollingInterval = null;
-        }
-        
+
+        // Reconnect after 2 seconds
         setTimeout(() => this.connectToBackend(), 2000);
       };
       
@@ -454,9 +444,6 @@ export class PaperTradingOrchestrator {
 
 
   destroy() {
-    if (this.statusPollingInterval) {
-      clearInterval(this.statusPollingInterval);
-    }
     this.backendWs?.close();
   }
 }

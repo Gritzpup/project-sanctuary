@@ -145,19 +145,22 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     }
 
     this.isConnecting = true;
-    console.log('🔌 Connecting to Coinbase WebSocket...');
+    console.log('🔌 Connecting to Coinbase Advanced Trade WebSocket...');
 
     try {
-      this.ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+      // Use Coinbase Advanced Trade WebSocket endpoint with CDP API key support
+      // This endpoint supports Level2 channel with JWT authentication using CDP keys
+      this.ws = new WebSocket('wss://advanced-trade-ws.coinbase.com');
 
       this.ws.on('open', () => {
-        console.log('✅ Connected to Coinbase WebSocket');
+        console.log('✅✅✅ Connected to Coinbase Advanced Trade WebSocket ✅✅✅');
         this.isConnected = true;
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.emit('connected');
-        
+
         // Resubscribe to any existing subscriptions
+        console.log(`📡 WebSocket connection established - resubscribing to ${this.subscriptions.size} channels`);
         this.resubscribe();
       });
 
@@ -219,6 +222,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
   /**
    * Subscribe to level2 orderbook updates for depth chart visualization
+   * Uses Advanced Trade WebSocket with CDP JWT authentication for REAL-TIME PUSH updates
    */
   subscribeLevel2(productId) {
     const subscriptionKey = `level2:${productId}`;
@@ -228,36 +232,30 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       return;
     }
 
-    // Try to get authentication for level2
-    const auth = cdpAuth.getWebSocketAuth();
+    // Generate JWT authentication for Advanced Trade WebSocket
+    // getWebSocketAuth() returns the complete subscription message with auth fields
+    const subscription = cdpAuth.getWebSocketAuth();
 
-    let subscription;
-    if (auth) {
-      // Use authenticated subscription for level2
-      console.log(`🔐 Using CDP authentication for level2 ${productId}`);
-      subscription = auth; // Auth object already contains subscription info
-      subscription.product_ids = [productId];
-      subscription.channels = [
-        {
-          name: 'level2',
-          product_ids: [productId]
-        }
-      ];
-    } else {
-      // Fallback to unauthenticated level2_batch (updates every 50ms)
-      console.log(`📊 Using unauthenticated level2_batch for ${productId} (will get batched updates)`);
-      subscription = {
-        type: 'subscribe',
-        product_ids: [productId],
-        channels: ['level2_batch'] // Use level2_batch which doesn't require auth
-      };
+    if (!subscription) {
+      console.error('❌ Failed to generate JWT auth for Level2 subscription');
+      console.error('⚠️ Falling back to polling - WebSocket push requires CDP API keys');
+      return;
     }
+
+    // Update product_ids to use the requested productId (not hardcoded BTC-USD)
+    subscription.product_ids = [productId];
+    subscription.channels[0].product_ids = [productId];
+
+    console.log(`🚀 Subscribing to AUTHENTICATED Level2 channel for ${productId} with CDP JWT`);
+    console.log(`📡 This will provide REAL-TIME PUSH updates (no polling!)`);
 
     this.subscriptions.set(subscriptionKey, subscription);
 
     if (this.isConnected) {
-      console.log(`📊 Subscribing to level2 orderbook for ${productId}`);
+      console.log(`📊 Sending authenticated Level2 subscription for ${productId}`);
       this.ws.send(JSON.stringify(subscription));
+    } else {
+      console.log(`⏳ WebSocket not connected yet, subscription will be sent on connection`);
     }
   }
 
@@ -336,13 +334,13 @@ export class CoinbaseWebSocketClient extends EventEmitter {
   handleMessage(message) {
     switch (message.type) {
       case 'subscriptions':
-        console.log('📡 Coinbase subscription confirmed:', message);
+        console.log('📡 Coinbase subscription confirmed:', JSON.stringify(message, null, 2));
         break;
-        
+
       case 'ticker':
         this.handleTicker(message);
         break;
-        
+
       case 'match':
         this.handleMatch(message);
         break;
@@ -350,15 +348,17 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       case 'snapshot':
       case 'l2update':
       case 'level2':
+        console.log(`📊 [L2] Received ${message.type} for ${message.product_id}`);
         this.handleLevel2(message);
         break;
 
       case 'error':
-        console.error('🔴 Coinbase WebSocket error:', message);
+        console.error('🔴 Coinbase WebSocket error:', JSON.stringify(message, null, 2));
         break;
 
       default:
-        // Ignore other message types
+        // Log unknown message types for debugging
+        console.log(`❓ Unknown message type: ${message.type}`, message);
         break;
     }
   }
@@ -532,10 +532,12 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * Resubscribe to all active subscriptions
    */
   resubscribe() {
-    console.log(`📡 Resubscribing to ${this.subscriptions.size} subscriptions`);
-    this.subscriptions.forEach((subscription) => {
+    console.log(`📡 Resubscribing to ${this.subscriptions.size} subscriptions...`);
+    this.subscriptions.forEach((subscription, key) => {
+      console.log(`📤 Sending subscription for ${key}:`, JSON.stringify(subscription, null, 2));
       this.ws.send(JSON.stringify(subscription));
     });
+    console.log('✅ All subscriptions sent');
   }
 
   /**
