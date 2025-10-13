@@ -164,42 +164,14 @@
     return volume.toFixed(1);
   }
 
-  // Handle mouse movements on the chart
+  // Handle mouse movement for fallback hover tracking
   function handleMouseMove(event: MouseEvent) {
-    if (!chartContainer || !chart) return;
-
-    const rect = chartContainer.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-
-    mouseX = x;
-    mouseY = y;
-
-    // Convert pixel position to price
-    const coordinate = chart.timeScale().coordinateToPrice(x);
-    if (coordinate !== null) {
-      hoverPrice = coordinate as number;
-
-      // Find the volume at this price
-      const depthData = orderbookStore.getDepthData(500);
-      let foundVolume = 0;
-
-      // Check if it's in bids
-      const bidPoint = depthData.bids.find(b => Math.abs(b.price - hoverPrice) < 50);
-      if (bidPoint) {
-        foundVolume = bidPoint.depth;
-      } else {
-        // Check asks
-        const askPoint = depthData.asks.find(a => Math.abs(a.price - hoverPrice) < 50);
-        if (askPoint) {
-          foundVolume = askPoint.depth;
-        }
-      }
-
-      hoverVolume = foundVolume;
+    // This is a fallback - primary tracking is done via crosshair subscription
+    if (!isHovering && chartContainer) {
+      const rect = chartContainer.getBoundingClientRect();
+      mouseX = event.clientX - rect.left;
+      mouseY = event.clientY - rect.top;
     }
-
-    isHovering = true;
   }
 
   function handleMouseLeave() {
@@ -241,11 +213,18 @@
         visible: false,
       },
       crosshair: {
+        mode: 1, // Magnet mode for better tracking
         vertLine: {
-          labelVisible: true,
+          labelVisible: false, // We'll use our custom label
+          color: 'rgba(255, 255, 255, 0.3)',
+          width: 1,
+          style: 2, // Dashed
         },
         horzLine: {
-          labelVisible: true,
+          labelVisible: false, // We'll use our custom label
+          color: 'rgba(255, 255, 255, 0.3)',
+          width: 1,
+          style: 2, // Dashed
         },
       },
       watermark: {
@@ -279,6 +258,42 @@
       crosshairMarkerVisible: false, // Reduce visual noise
       lineStyle: 0, // Solid line
       lineType: 2, // Curved line for smoother appearance
+    });
+
+    // Subscribe to crosshair movement for custom hover display
+    chart.subscribeCrosshairMove((param) => {
+      if (!param || param.point === undefined) {
+        isHovering = false;
+        return;
+      }
+
+      const { x, y } = param.point;
+      mouseX = x;
+      mouseY = y;
+
+      // Get price from the crosshair parameter
+      if (param.time !== undefined) {
+        hoverPrice = param.time as number; // In depth chart, time axis is price
+
+        // Find the volume at this price
+        const depthData = orderbookStore.getDepthData(500);
+        let foundVolume = 0;
+
+        // Check if it's in bids
+        const bidPoint = depthData.bids.find(b => Math.abs(b.price - hoverPrice) < 50);
+        if (bidPoint) {
+          foundVolume = bidPoint.depth;
+        } else {
+          // Check asks
+          const askPoint = depthData.asks.find(a => Math.abs(a.price - hoverPrice) < 50);
+          if (askPoint) {
+            foundVolume = askPoint.depth;
+          }
+        }
+
+        hoverVolume = foundVolume;
+        isHovering = true;
+      }
     });
 
     // Connect to WebSocket for orderbook data (retry until connection is available)
