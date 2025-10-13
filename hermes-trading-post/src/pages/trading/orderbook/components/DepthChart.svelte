@@ -347,47 +347,54 @@
 
       const { x, y } = param.point;
       mouseX = x;
-      mouseY = y;
 
-      // Get price from the crosshair parameter
+      // Get price and volume from the series data at crosshair position
       if (param.time !== undefined) {
         hoverPrice = param.time as number; // In depth chart, time axis is price
 
-        // Find the volume at this price
-        const depthData = orderbookStore.getDepthData(500);
         let foundVolume = 0;
+        let useSeries = null;
 
-        // Check if it's in bids
-        const bidPoint = depthData.bids.find(b => Math.abs(b.price - hoverPrice) < 50);
-        if (bidPoint) {
-          foundVolume = bidPoint.depth;
-        } else {
-          // Check asks
-          const askPoint = depthData.asks.find(a => Math.abs(a.price - hoverPrice) < 50);
-          if (askPoint) {
-            foundVolume = askPoint.depth;
+        // Try to get data from the series at the crosshair position
+        try {
+          const bidSeriesData = param.seriesData.get(bidSeries);
+          if (bidSeriesData && (bidSeriesData as any).value !== undefined) {
+            foundVolume = (bidSeriesData as any).value;
+            useSeries = bidSeries;
           }
+        } catch (e) {}
+
+        if (foundVolume === 0) {
+          try {
+            const askSeriesData = param.seriesData.get(askSeries);
+            if (askSeriesData && (askSeriesData as any).value !== undefined) {
+              foundVolume = (askSeriesData as any).value;
+              useSeries = askSeries;
+            }
+          } catch (e) {}
         }
 
         hoverVolume = foundVolume;
 
-        // Get the actual Y coordinate based on which side (bid or ask) we're hovering over
-        if (foundVolume > 0 && bidSeries && askSeries) {
-          // Determine which series to use based on which side found the volume
-          const useSeries = bidPoint ? bidSeries : askSeries;
-
-          // Use priceToCoordinate to get the Y position for this volume value
+        // Now convert the volume value to Y coordinate using priceToCoordinate
+        // This gives us the ACTUAL position of the data point on the chart line
+        if (foundVolume > 0 && useSeries) {
           try {
             const yCoord = useSeries.priceToCoordinate(foundVolume);
             if (yCoord !== null) {
-              mouseY = yCoord; // Update mouseY to the actual chart line position
+              mouseY = yCoord; // This is where the actual data point is!
+              console.log('🎯 Snapped to line:', { mouseY: yCoord, volume: foundVolume });
+            } else {
+              mouseY = y; // Fallback to cursor position
             }
           } catch (error) {
-            // Silently ignore coordinate conversion errors
+            mouseY = y; // Fallback to cursor position
           }
+        } else {
+          mouseY = y; // Fallback to cursor position
         }
 
-        isHovering = true;
+        isHovering = foundVolume > 0;
       }
     });
 
