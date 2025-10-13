@@ -10,101 +10,46 @@
   let askSeries: ISeriesApi<'Area'>;
   let ws: WebSocket | null = null;
 
-  // Use reactive getters instead of manual updates for smoother transitions
-  // This allows Svelte to track individual property changes
-  // Cache previous bids/asks to detect actual changes
-  let prevBids: any[] = [];
-  let prevAsks: any[] = [];
-
+  // Use reactive getters for smooth updates
   let bidsWithCumulative = $derived.by(() => {
     const bids = orderbookStore.getBids(12);
-
-    // Check if bids actually changed by comparing prices and sizes
-    const bidsChanged = bids.length !== prevBids.length ||
-      bids.some((bid, i) => !prevBids[i] ||
-        bid.price !== prevBids[i].price ||
-        bid.size !== prevBids[i].size);
-
-    if (!bidsChanged && prevBids.length > 0) {
-      // Return the cached version if nothing changed
-      return prevBids;
-    }
-
     let cumulative = 0;
-    const result = bids.map(bid => {
+    return bids.map((bid, index) => {
       cumulative += bid.size;
       return {
         price: bid.price,
         size: bid.size,
         cumulative,
-        key: `bid-${bid.price}` // Stable key for tracking
+        key: `bid-${index}` // Use index as stable key to prevent re-renders
       };
     });
-
-    prevBids = result;
-    return result;
   });
 
   let asksWithCumulative = $derived.by(() => {
     const asks = orderbookStore.getAsks(12);
-
-    // Check if asks actually changed by comparing prices and sizes
-    const asksChanged = asks.length !== prevAsks.length ||
-      asks.some((ask, i) => !prevAsks[i] ||
-        ask.price !== prevAsks[i].price ||
-        ask.size !== prevAsks[i].size);
-
-    if (!asksChanged && prevAsks.length > 0) {
-      // Return the cached version if nothing changed
-      return prevAsks;
-    }
-
     let cumulative = 0;
-    const result = asks.map(ask => {
+    return asks.map((ask, index) => {
       cumulative += ask.size;
       return {
         price: ask.price,
         size: ask.size,
         cumulative,
-        key: `ask-${ask.price}` // Stable key for tracking
+        key: `ask-${index}` // Use index as stable key to prevent re-renders
       };
     });
-
-    prevAsks = result;
-    return result;
   });
 
-  // Cached max sizes to prevent recalculation if data hasn't changed
-  let cachedMaxBidSize = 0.001;
-  let cachedMaxAskSize = 0.001;
-
-  // Reactive derived values for smooth gauge updates
+  // Reactive derived values for volume bar widths
   let maxBidSize = $derived.by(() => {
-    // Only recalculate if bids actually changed (using object identity)
-    if (bidsWithCumulative === prevBids && cachedMaxBidSize > 0) {
-      return cachedMaxBidSize;
-    }
-
-    const newMax = bidsWithCumulative.length > 0
+    return bidsWithCumulative.length > 0
       ? Math.max(...bidsWithCumulative.map(b => b.size), 0.001)
       : 0.001;
-
-    cachedMaxBidSize = newMax;
-    return newMax;
   });
 
   let maxAskSize = $derived.by(() => {
-    // Only recalculate if asks actually changed (using object identity)
-    if (asksWithCumulative === prevAsks && cachedMaxAskSize > 0) {
-      return cachedMaxAskSize;
-    }
-
-    const newMax = asksWithCumulative.length > 0
+    return asksWithCumulative.length > 0
       ? Math.max(...asksWithCumulative.map(a => a.size), 0.001)
       : 0.001;
-
-    cachedMaxAskSize = newMax;
-    return newMax;
   });
 
   let volumeRange = $derived.by(() => {
@@ -777,7 +722,7 @@
     bottom: 0;
     width: var(--volume-width);
     z-index: 0;
-    opacity: 0.3;
+    opacity: 0.15;  /* Reduced opacity so text is clearly visible */
     will-change: width;
     /* Ultra-fast width animation for real-time updates */
     transition: width 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
@@ -802,12 +747,12 @@
 
   .bid-bar {
     right: 0;
-    background: rgba(38, 166, 154, 0.8);
+    background: rgba(38, 166, 154, 0.6);  /* Reduced opacity for subtlety */
   }
 
   .ask-bar {
     left: 0;
-    background: rgba(239, 83, 80, 0.8);
+    background: rgba(239, 83, 80, 0.6);  /* Reduced opacity for subtlety */
   }
 
   .bid-row {
