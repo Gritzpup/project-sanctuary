@@ -26,14 +26,14 @@ export function getBackendHost(): string {
  * Get the backend HTTP URL
  */
 export function getBackendHttpUrl(): string {
-  return `http://${getBackendHost()}:4828`;
+  return `http://${getBackendHost()}:4829`;
 }
 
 /**
  * Get the backend WebSocket URL
  */
 export function getBackendWsUrl(): string {
-  return `ws://${getBackendHost()}:4828`;
+  return `ws://${getBackendHost()}:4829`;
 }
 
 /**
