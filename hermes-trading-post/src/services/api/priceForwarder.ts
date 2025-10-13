@@ -1,4 +1,5 @@
 import { writable, get } from 'svelte/store';
+import { getBackendWsUrl } from '../../utils/backendConfig';
 
 interface PriceUpdate {
     price: number;
@@ -21,7 +22,7 @@ class PriceForwarder {
         
         try {
             // Connect directly to backend WebSocket server
-            const wsUrl = `ws://localhost:4828/ws`;
+            const wsUrl = `${getBackendWsUrl()}/ws`;
             this.ws = new WebSocket(wsUrl);
             
             this.ws.addEventListener('open', () => {

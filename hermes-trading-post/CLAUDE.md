@@ -1,54 +1,54 @@
 # Claude Code Working Practices
 
-## 🔍 Browser Monitoring (MANDATORY)
-**IMMEDIATELY** check browser logs after ANY frontend change:
-- **MANDATORY**: Check `~/.browser-logs/errors.log` after every change
-- **MANDATORY**: Check `~/.browser-logs/console.log` for issues  
-- **MANDATORY**: Use `tail -f ~/.browser-logs/all.log` to monitor live
-- **NEVER** assume changes work without checking logs
-- **PROACTIVELY** fix ALL errors found before moving on
+## 📊 Tilt Integration (CRITICAL - PRIMARY LOGGING METHOD)
+**ALWAYS** use Tilt for ALL server monitoring and logging:
+- **MANDATORY**: Use `tilt logs [resource-name]` to check frontend, backend, database, and browser console logs
+- **MANDATORY**: Access Tilt UI at http://localhost:10350 for service status
+- **NEVER** use ~/.browser-logs or ~/.terminal-logs directories
+- **ALWAYS** use Tilt for starting/stopping services
+- **NEVER** run manual bash commands for backend servers
+- Use `tilt trigger [resource-name]` to restart services
 
-### Frontend Quick Commands:
+### Tilt Logging Commands:
 ```bash
-# View latest console logs
-tail -n 20 ~/.browser-logs/console.log
+# Check browser console logs (console.log, errors, network, WebSocket)
+tilt logs browser-monitor
 
-# Check for errors
-grep -i error ~/.browser-logs/all.log
+# Check frontend server logs (Vite dev server)
+tilt logs hermes-trading-post
 
-# Monitor live logs
-tail -f ~/.browser-logs/console.log
+# Check backend logs (Paper trading API)
+tilt logs paper-trading-backend
+
+# Check database status
+tilt logs hermes-redis-server
+
+# Follow logs in real-time
+tilt logs browser-monitor --follow
+
+# Check all resources
+tilt get uiresources
 ```
 
-## 🖥️ Terminal/Backend Monitoring
-**ALWAYS** check terminal logs for backend services:
-- Backend server logs: `~/.terminal-logs/backend.log`
-- System logs: `~/.terminal-logs/system.log`
-- Error logs: `~/.terminal-logs/errors.log`
-- Combined logs: `~/.terminal-logs/all.log`
+## 🌐 Browser Console Monitoring (CRITICAL)
+**Browser-monitor captures ALL browser console activity via Chrome DevTools Protocol:**
+- **Console output**: console.log, console.warn, console.error, console.debug
+- **JavaScript exceptions**: All uncaught errors with stack traces
+- **Network errors**: Failed requests, HTTP 4xx/5xx responses
+- **WebSocket errors**: Connection failures and frame errors
+- **Security warnings**: Certificate and security policy issues
 
-### Backend Quick Commands:
+**ALWAYS check browser-monitor logs after frontend changes:**
 ```bash
-# View latest backend logs
-tail -n 20 ~/.terminal-logs/backend.log
+# See recent console activity
+tilt logs browser-monitor | tail -n 50
 
-# Check for backend errors
-grep -i error ~/.terminal-logs/errors.log
+# Filter for errors only
+tilt logs browser-monitor | grep -E "EXCEPTION|ERROR|console.error"
 
-# Monitor live backend activity
-tail -f ~/.terminal-logs/backend.log
-
-# Check all logs for issues
-tail -f ~/.terminal-logs/all.log
+# Watch console in real-time
+tilt logs browser-monitor --follow
 ```
-
-## ✅ Verification Process
-**ALWAYS** verify changes after making them:
-1. Check browser-monitor logs for frontend changes
-2. Check terminal-monitor logs for backend changes
-3. Verify no new errors in either error log
-4. Confirm expected behavior in both frontend and backend logs
-5. Test functionality through logs before considering complete
 
 ## 🚫 Git Commit Rules
 **NEVER** commit to GitHub without explicit permission:
@@ -57,17 +57,19 @@ tail -f ~/.terminal-logs/all.log
 - Always wait for user approval before committing
 - Ask "Should I commit these changes?" when work is complete
 
-## 📊 Tilt Integration (CRITICAL)
-- **ALWAYS** use Tilt for starting/stopping services
-- **NEVER** run manual bash commands for backend servers
-- Browser-monitor runs silently (no console spam to Tilt)
-- Access Tilt UI at http://localhost:10350 for service status
-- Paper trading backend is in the "sanctuary" section
-- Use browser-monitor logs instead of Tilt logs for frontend debugging
-- Use `tilt trigger [resource-name]` to restart services
+## ✅ Verification Process
+**ALWAYS** verify changes after making them:
+1. Use `tilt logs browser-monitor` to check browser console for errors after frontend changes
+2. Use `tilt logs hermes-trading-post` to check Vite dev server logs
+3. Use `tilt logs paper-trading-backend` to check backend API logs
+4. Verify no new errors in any Tilt logs
+5. Confirm expected behavior through Tilt logs before considering complete
+6. Check Tilt UI at http://localhost:10350 for service health
 
 ## 🎯 Important Reminders
-1. Browser logs are the primary source for frontend debugging
-2. Always verify changes through logs
-3. Never auto-commit - always ask first
-4. Check logs after EVERY change to frontend code
+1. Tilt logs are the PRIMARY source for all debugging (frontend, backend, database, browser console)
+2. Browser-monitor captures ALL console activity - check it after every frontend change
+3. Always verify changes through Tilt logs
+4. Never auto-commit - always ask first
+5. Check Tilt logs after EVERY change to any code
+6. All logging goes through Tilt - no local log files

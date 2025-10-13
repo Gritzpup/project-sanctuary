@@ -84,6 +84,7 @@
     padding: 15px;
     overflow-y: auto;
     flex: 1;
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.6));
   }
 
   .positions-grid {

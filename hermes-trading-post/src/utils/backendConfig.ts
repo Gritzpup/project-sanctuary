@@ -6,15 +6,15 @@
 /**
  * Get the backend host for API and WebSocket connections
  * - Uses environment variable if set
- * - Falls back to window.location.hostname for network access
- * - Defaults to 'localhost' for local development
+ * - Uses window.location.hostname to auto-detect (works on LAN)
+ * - Falls back to localhost if not in browser
  */
 export function getBackendHost(): string {
   const envHost = import.meta.env.VITE_BACKEND_HOST;
   if (envHost) return envHost;
 
-  // Use window.location.hostname to connect to backend on same host
-  // This allows the app to work when accessed from any network machine
+  // Auto-detect: uses localhost when accessed via localhost,
+  // or 192.168.1.6 when accessed via LAN IP
   if (typeof window !== 'undefined' && window.location.hostname) {
     return window.location.hostname;
   }
@@ -26,14 +26,14 @@ export function getBackendHost(): string {
  * Get the backend HTTP URL
  */
 export function getBackendHttpUrl(): string {
-  return `http://${getBackendHost()}:4829`;
+  return `http://${getBackendHost()}:4828`;
 }
 
 /**
  * Get the backend WebSocket URL
  */
 export function getBackendWsUrl(): string {
-  return `ws://${getBackendHost()}:4829`;
+  return `ws://${getBackendHost()}:4828`;
 }
 
 /**

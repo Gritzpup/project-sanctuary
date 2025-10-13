@@ -5,6 +5,7 @@
 
 import { writable, get } from 'svelte/store';
 import type { Writable } from 'svelte/store';
+import { getBackendWsUrl, getBackendHttpUrl } from '../../utils/backendConfig';
 
 export interface BackendTradingState {
   isConnected: boolean;
@@ -59,8 +60,7 @@ class TradingBackendService {
   private backendUrl: string;
 
   constructor() {
-    const backendPort = import.meta.env.VITE_BACKEND_PORT || '4828';
-    this.backendUrl = `ws://localhost:${backendPort}`;
+    this.backendUrl = getBackendWsUrl();
     
     
     this.state = writable<BackendTradingState>({
@@ -352,8 +352,7 @@ class TradingBackendService {
 
   async fetchStatus(): Promise<any> {
     try {
-      const backendPort = import.meta.env.VITE_BACKEND_PORT || '4828';
-      const response = await fetch(`http://localhost:${backendPort}/api/trading/status`);
+      const response = await fetch(`${getBackendHttpUrl()}/api/trading/status`);
       const status = await response.json();
       this.updateStateFromBackend(status);
       return status;

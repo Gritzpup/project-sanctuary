@@ -5,10 +5,11 @@ import { CoinbaseAPI } from '../../../../services/api/coinbaseApi';
 import { getGranularitySeconds } from '../utils/granularityHelpers';
 import { logger } from '../../../../services/logging';
 import { statusStore } from '../stores/statusStore.svelte';
+import { getBackendWsUrl } from '../../../../utils/backendConfig';
 
 export class ChartAPIService {
   private coinbaseApi: CoinbaseAPI;
-  private wsUrl: string = 'ws://localhost:4828'; // Backend WebSocket for status/data sync
+  private wsUrl: string = getBackendWsUrl(); // Backend WebSocket for status/data sync
   private ws: WebSocket | null = null;
   private wsReconnectTimeout: NodeJS.Timeout | null = null;
   private wsSubscriptions: Map<string, (data: WebSocketCandle) => void> = new Map();
