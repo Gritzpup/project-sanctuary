@@ -212,11 +212,9 @@
     const strongerPrice = strongerSide === 'bid' ? maxBidPrice : maxAskPrice;
     const strongerVolume = strongerSide === 'bid' ? maxBidVolume : maxAskVolume;
 
-    // Calculate position on chart using actual data range (not hardcoded 20k)
-    // Get the actual price range from the depth data
-    const allPrices = [...depthData.bids.map(b => b.price), ...depthData.asks.map(a => a.price)];
-    const rangeStart = Math.min(...allPrices);
-    const rangeEnd = Math.max(...allPrices);
+    // Calculate position on chart (assuming 20k range centered on midPrice)
+    const rangeStart = midPrice - 10000;
+    const rangeEnd = midPrice + 10000;
     const positionInRange = (strongerPrice - rangeStart) / (rangeEnd - rangeStart);
     const offset = Math.max(10, Math.min(90, positionInRange * 100));
 
@@ -351,68 +349,41 @@
       if (param.time !== undefined) {
         hoverPrice = param.time as number; // In depth chart, time axis is price
 
-        // Find the volume at this price using seriesData (more accurate than store lookup)
+        // Find the volume at this price
+        const depthData = orderbookStore.getDepthData(500);
         let foundVolume = 0;
-        let foundSeries = null;
 
-        // Try to get the actual data point from the series
-        try {
-          // Check bid series first
-          const bidSeriesData = param.seriesData.get(bidSeries);
-          if (bidSeriesData && (bidSeriesData as any).value !== undefined) {
-            foundVolume = (bidSeriesData as any).value;
-            foundSeries = bidSeries;
-          } else {
-            // Check ask series
-            const askSeriesData = param.seriesData.get(askSeries);
-            if (askSeriesData && (askSeriesData as any).value !== undefined) {
-              foundVolume = (askSeriesData as any).value;
-              foundSeries = askSeries;
-            }
-          }
-        } catch (error) {
-          // Fallback to manual lookup if series data not available
-        }
-
-        // Fallback: If series data didn't work, search the orderbook data
-        if (foundVolume === 0) {
-          const depthData = orderbookStore.getDepthData(500);
-
-          // Use binary search or find closest price point
-          // For BTC prices around $95k, we need larger tolerance
-          const tolerance = Math.max(100, hoverPrice * 0.001); // 0.1% of price or $100, whichever is larger
-
-          // Check bids
-          const bidPoint = depthData.bids.find(b => Math.abs(b.price - hoverPrice) < tolerance);
-          if (bidPoint) {
-            foundVolume = bidPoint.depth;
-            foundSeries = bidSeries;
-          } else {
-            // Check asks
-            const askPoint = depthData.asks.find(a => Math.abs(a.price - hoverPrice) < tolerance);
-            if (askPoint) {
-              foundVolume = askPoint.depth;
-              foundSeries = askSeries;
-            }
+        // Check if it's in bids
+        const bidPoint = depthData.bids.find(b => Math.abs(b.price - hoverPrice) < 50);
+        if (bidPoint) {
+          foundVolume = bidPoint.depth;
+        } else {
+          // Check asks
+          const askPoint = depthData.asks.find(a => Math.abs(a.price - hoverPrice) < 50);
+          if (askPoint) {
+            foundVolume = askPoint.depth;
           }
         }
 
         hoverVolume = foundVolume;
 
-        // Get the actual Y coordinate for the volume at this price
-        if (foundVolume > 0 && foundSeries) {
+        // Get the actual Y coordinate based on which side (bid or ask) we're hovering over
+        if (foundVolume > 0 && bidSeries && askSeries) {
+          // Determine which series to use based on which side found the volume
+          const useSeries = bidPoint ? bidSeries : askSeries;
+
+          // Use priceToCoordinate to get the Y position for this volume value
           try {
-            // Use priceToCoordinate to convert the volume (Y-axis value) to pixel coordinate
-            const yCoord = foundSeries.priceToCoordinate(foundVolume);
+            const yCoord = useSeries.priceToCoordinate(foundVolume);
             if (yCoord !== null) {
-              mouseY = yCoord; // Snap to the exact chart line position
+              mouseY = yCoord; // Update mouseY to the actual chart line position
             }
           } catch (error) {
-            // Keep original mouseY if coordinate conversion fails
+            // Silently ignore coordinate conversion errors
           }
         }
 
-        isHovering = foundVolume > 0; // Only show hover if we found valid data
+        isHovering = true;
       }
     });
 
@@ -604,24 +575,22 @@
       lastAskCount = asks.length;
     }
 
-    // Always keep chart centered on the spread, but use the ACTUAL data range
+    // Always keep chart centered on the spread with consistent range
     try {
-      if (bids.length > 0 && asks.length > 0) {
-        // Get the actual price range of the data we're displaying
-        const lowestBidPrice = bids[0].price; // First bid (lowest price, reversed data)
-        const highestBidPrice = bids[bids.length - 1].price; // Last bid (highest price)
-        const lowestAskPrice = asks[0].price; // First ask (lowest price)
-        const highestAskPrice = asks[asks.length - 1].price; // Last ask (highest price)
+      const summary = orderbookStore.summary;
+      if (summary.bestBid && summary.bestAsk) {
+        const midPrice = (summary.bestBid + summary.bestAsk) / 2;
 
-        // Use the full range of actual data, plus 5% padding on each side
-        const dataMin = Math.min(lowestBidPrice, lowestAskPrice);
-        const dataMax = Math.max(highestBidPrice, highestAskPrice);
-        const dataRange = dataMax - dataMin;
-        const padding = dataRange * 0.05; // 5% padding
+        // Calculate range based on chart width for better responsiveness
+        // Wider charts show more depth, narrower charts show less
+        const chartWidth = chartContainer?.clientWidth || 500;
+        const rangeMultiplier = Math.max(0.5, Math.min(1.5, chartWidth / 500));
+        const baseRange = 10000;
+        const adjustedRange = baseRange * rangeMultiplier;
 
         chart.timeScale().setVisibleRange({
-          from: (dataMin - padding) as any,
-          to: (dataMax + padding) as any
+          from: (midPrice - adjustedRange) as any,
+          to: (midPrice + adjustedRange) as any
         });
       }
     } catch (e) {
