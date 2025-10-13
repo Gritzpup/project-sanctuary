@@ -26,28 +26,30 @@ class OrderbookStore {
    * Process orderbook snapshot (initial full state)
    */
   processSnapshot(data: { product_id: string; bids: OrderbookLevel[]; asks: OrderbookLevel[] }) {
-    console.log(`📊 Processing orderbook snapshot for ${data.product_id}:`, {
-      bids: data.bids.length,
-      asks: data.asks.length
-    });
+    // Remove debug spam - only log on first connection
+    if (!this.isReady) {
+      console.log(`📊 Connected to orderbook for ${data.product_id}`);
+    }
 
     this.productId = data.product_id;
     this.bids = new Map();
     this.asks = new Map();
 
-    // Build bid side
-    data.bids.forEach(level => {
+    // Build bid side - optimized
+    for (let i = 0; i < data.bids.length; i++) {
+      const level = data.bids[i];
       if (level.size > 0) {
         this.bids.set(level.price, level.size);
       }
-    });
+    }
 
-    // Build ask side
-    data.asks.forEach(level => {
+    // Build ask side - optimized
+    for (let i = 0; i < data.asks.length; i++) {
+      const level = data.asks[i];
       if (level.size > 0) {
         this.asks.set(level.price, level.size);
       }
-    });
+    }
 
     this.isReady = true;
   }

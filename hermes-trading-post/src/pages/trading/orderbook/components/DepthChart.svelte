@@ -125,7 +125,7 @@
       },
     });
 
-    // Create bid series (green mountain on left)
+    // Create bid series (green mountain on left) with smooth animations
     bidSeries = chart.addAreaSeries({
       topColor: 'rgba(38, 166, 154, 0.4)',
       bottomColor: 'rgba(38, 166, 154, 0.0)',
@@ -136,7 +136,7 @@
       priceScaleId: 'left',
     });
 
-    // Create ask series (red mountain on right)
+    // Create ask series (red mountain on right) with smooth animations
     askSeries = chart.addAreaSeries({
       topColor: 'rgba(239, 83, 80, 0.4)',
       bottomColor: 'rgba(239, 83, 80, 0.0)',
@@ -197,7 +197,7 @@
       try {
         const message = JSON.parse(event.data);
         if (message.type === 'level2') {
-          console.log('📊 DepthChart: Received level2 message with', message.data?.bids?.length, 'bids and', message.data?.asks?.length, 'asks');
+          // Remove debug spam
           handleLevel2Message(message.data);
         }
       } catch (error) {
@@ -604,6 +604,7 @@
     font-family: 'Monaco', 'Courier New', monospace;
     position: relative;
     border-radius: 3px;
+    transition: all 0.15s ease-out; /* Smooth transitions for value changes */
   }
 
   /* Volume bars behind text */
@@ -614,6 +615,7 @@
     width: var(--volume-width);
     z-index: 0;
     opacity: 0.3;
+    transition: width 0.2s ease-out; /* Smooth width animation for volume changes */
   }
 
   .bid-bar {
