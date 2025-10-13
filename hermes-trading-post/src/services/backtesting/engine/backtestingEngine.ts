@@ -7,6 +7,7 @@ import { Strategy } from '../../../strategies/base/Strategy';
 import type { CandleData, BacktestResult, StrategyState, VaultAllocationConfig } from '../../../types/strategy/strategy';
 import { CompoundEngine } from '../../trading/CompoundEngine';
 import { OpportunityDetector } from '../../trading/OpportunityDetector';
+import { VAULT_ALLOCATION } from '../../../constants';
 
 import { BacktestStateManager } from './stateManager';
 import { TradeExecutor } from './tradeExecutor';
@@ -34,9 +35,9 @@ export class BacktestingEngine {
     // Initialize compound engine
     const strategyConfig = this.strategy.getConfig();
     const vaultConfig: VaultAllocationConfig = strategyConfig.vaultConfig || {
-      btcVaultPercent: 14.3,
-      usdGrowthPercent: 14.3,
-      usdcVaultPercent: 71.4,
+      btcVaultPercent: VAULT_ALLOCATION.BTC_VAULT_PERCENT,
+      usdGrowthPercent: VAULT_ALLOCATION.USD_GROWTH_PERCENT,
+      usdcVaultPercent: VAULT_ALLOCATION.USDC_VAULT_PERCENT,
       compoundFrequency: 'trade',
       minCompoundAmount: 0.01,
       autoCompound: true
