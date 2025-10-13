@@ -210,8 +210,10 @@ setTimeout(monitorMemoryUsage, 10000);
     if (!usingWebSocketLevel2) {
       console.log('⚠️ WebSocket level2 not receiving data, starting polling fallback...');
       orderbookPollingService.startPolling('BTC-USD', 150);
+      setupPollingListener(); // Set up the polling event listener only if needed
     } else {
       console.log(`✅ WebSocket level2 active! Received ${level2MessageCount} updates. Polling disabled.`);
+      console.log('📊 Using real-time WebSocket for orderbook updates (no polling needed)');
     }
   }, 3000);
 
@@ -289,30 +291,36 @@ setTimeout(monitorMemoryUsage, 10000);
     });
   });
 
-  // 📊 Handle orderbook polling data and forward to clients
+  // 📊 Handle orderbook polling data and forward to clients (only if WebSocket level2 fails)
   let orderbookMessageCount = 0;
   let lastOrderbookBroadcast = Date.now();
 
-  orderbookPollingService.on('orderbook', (orderbookData) => {
-    orderbookMessageCount++;
-    const now = Date.now();
-    const timeSinceLastMsg = now - lastOrderbookBroadcast;
+  // Only set up polling listener if WebSocket level2 fails
+  // This will be done in the setTimeout callback above if needed
+  const setupPollingListener = () => {
+    orderbookPollingService.on('orderbook', (orderbookData) => {
+      orderbookMessageCount++;
+      const now = Date.now();
+      const timeSinceLastMsg = now - lastOrderbookBroadcast;
 
-    // Log every message to debug frequency
-    console.log(`📊 [${orderbookMessageCount}] Broadcasting orderbook (${timeSinceLastMsg}ms since last): ${orderbookData.bids.length} bids, ${orderbookData.asks.length} asks to ${wss.clients.size} clients`);
-
-    lastOrderbookBroadcast = now;
-
-    // Forward orderbook data to ALL connected clients
-    wss.clients.forEach(client => {
-      if (client.readyState === client.OPEN) {
-        client.send(JSON.stringify({
-          type: 'level2',
-          data: orderbookData
-        }));
+      // Log every 10th message to reduce spam
+      if (orderbookMessageCount % 10 === 0) {
+        console.log(`📊 [POLLING] Broadcasting orderbook #${orderbookMessageCount} (${timeSinceLastMsg}ms since last): ${orderbookData.bids.length} bids, ${orderbookData.asks.length} asks to ${wss.clients.size} clients`);
       }
+
+      lastOrderbookBroadcast = now;
+
+      // Forward orderbook data to ALL connected clients
+      wss.clients.forEach(client => {
+        if (client.readyState === client.OPEN) {
+          client.send(JSON.stringify({
+            type: 'level2',
+            data: orderbookData
+          }));
+        }
+      });
     });
-  });
+  };
 
   coinbaseWebSocket.on('error', (error) => {
     console.error('Coinbase WebSocket error:', error);
