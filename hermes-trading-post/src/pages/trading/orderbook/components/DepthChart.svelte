@@ -10,26 +10,30 @@
   let askSeries: ISeriesApi<'Area'>;
   let ws: WebSocket | null = null;
 
-  // Reactive orderbook data for display
-  let bids = $derived(orderbookStore.getBids(12));
-  let asks = $derived(orderbookStore.getAsks(12));
+  // Force immediate updates - no $derived batching
+  let bids = $state<Array<{ price: number; size: number }>>([]);
+  let asks = $state<Array<{ price: number; size: number }>>([]);
+  let bidsWithCumulative = $state<Array<{ price: number; size: number; cumulative: number }>>([]);
+  let asksWithCumulative = $state<Array<{ price: number; size: number; cumulative: number }>>([]);
 
-  // Calculate cumulative quantities for display
-  let bidsWithCumulative = $derived(() => {
+  function updateOrderbookLists() {
+    // Get fresh data
+    bids = orderbookStore.getBids(12);
+    asks = orderbookStore.getAsks(12);
+
+    // Calculate cumulative quantities
     let cumulative = 0;
-    return bids.map(bid => {
+    bidsWithCumulative = bids.map(bid => {
       cumulative += bid.size;
       return { ...bid, cumulative };
     });
-  });
 
-  let asksWithCumulative = $derived(() => {
-    let cumulative = 0;
-    return asks.map(ask => {
+    cumulative = 0;
+    asksWithCumulative = asks.map(ask => {
       cumulative += ask.size;
       return { ...ask, cumulative };
     });
-  });
+  }
 
   let maxBidSize = $derived(Math.max(...bids.map(b => b.size), 0.001));
   let maxAskSize = $derived(Math.max(...asks.map(a => a.size), 0.001));
@@ -217,13 +221,19 @@
     if (data.type === 'snapshot') {
       // Initial orderbook snapshot
       orderbookStore.processSnapshot(data);
-      // Force immediate chart update using RAF to bypass Svelte batching
-      requestAnimationFrame(() => updateChart());
+      // Force immediate updates to both chart and list
+      requestAnimationFrame(() => {
+        updateChart();
+        updateOrderbookLists();
+      });
     } else if (data.type === 'update') {
       // Incremental update
       orderbookStore.processUpdate(data);
-      // Force immediate chart update using RAF to bypass Svelte batching
-      requestAnimationFrame(() => updateChart());
+      // Force immediate updates to both chart and list
+      requestAnimationFrame(() => {
+        updateChart();
+        updateOrderbookLists();
+      });
     }
   }
 
