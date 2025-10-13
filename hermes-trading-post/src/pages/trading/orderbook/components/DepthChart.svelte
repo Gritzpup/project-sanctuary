@@ -10,6 +10,13 @@
   let askSeries: ISeriesApi<'Area'>;
   let ws: WebSocket | null = null;
 
+  // Hover tracking
+  let mouseX = $state(0);
+  let mouseY = $state(0);
+  let isHovering = $state(false);
+  let hoverPrice = $state(0);
+  let hoverVolume = $state(0);
+
   // Use reactive getters for smooth updates
   let bidsWithCumulative = $derived.by(() => {
     const bids = orderbookStore.getBids(12);
@@ -155,6 +162,48 @@
   function formatVolume(volume: number): string {
     if (volume >= 1000) return `${(volume / 1000).toFixed(1)}k`;
     return volume.toFixed(1);
+  }
+
+  // Handle mouse movements on the chart
+  function handleMouseMove(event: MouseEvent) {
+    if (!chartContainer || !chart) return;
+
+    const rect = chartContainer.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    mouseX = x;
+    mouseY = y;
+
+    // Convert pixel position to price
+    const coordinate = chart.timeScale().coordinateToPrice(x);
+    if (coordinate !== null) {
+      hoverPrice = coordinate as number;
+
+      // Find the volume at this price
+      const depthData = orderbookStore.getDepthData(500);
+      let foundVolume = 0;
+
+      // Check if it's in bids
+      const bidPoint = depthData.bids.find(b => Math.abs(b.price - hoverPrice) < 50);
+      if (bidPoint) {
+        foundVolume = bidPoint.depth;
+      } else {
+        // Check asks
+        const askPoint = depthData.asks.find(a => Math.abs(a.price - hoverPrice) < 50);
+        if (askPoint) {
+          foundVolume = askPoint.depth;
+        }
+      }
+
+      hoverVolume = foundVolume;
+    }
+
+    isHovering = true;
+  }
+
+  function handleMouseLeave() {
+    isHovering = false;
   }
 
   onMount(() => {
@@ -452,7 +501,14 @@
     </div>
   </div>
   <div class="panel-content">
-    <div bind:this={chartContainer} class="depth-chart">
+    <div
+      bind:this={chartContainer}
+      class="depth-chart"
+      on:mousemove={handleMouseMove}
+      on:mouseleave={handleMouseLeave}
+      role="img"
+      aria-label="Orderbook depth chart"
+    >
       <!-- Mid price indicator line (shows balance of power) -->
       <div class="mid-price-line"></div>
 
@@ -466,6 +522,20 @@
         <div class="valley-point"></div>
         <div class="valley-line"></div>
       </div>
+
+      <!-- Hover overlay -->
+      {#if isHovering}
+        <div class="hover-overlay" style="left: {mouseX}px">
+          <div class="hover-line"></div>
+          <div class="hover-circle" style="top: {mouseY}px"></div>
+          <div class="hover-price-label">
+            <span class="hover-price">${Math.floor(hoverPrice).toLocaleString('en-US')}</span>
+            {#if hoverVolume > 0}
+              <span class="hover-volume">{hoverVolume.toFixed(3)} BTC</span>
+            {/if}
+          </div>
+        </div>
+      {/if}
 
       <!-- Custom volume gauge overlay (left side) - linear scale -->
       <div class="volume-gauge-overlay">
@@ -632,6 +702,64 @@
     transform: translateX(-50%);
     pointer-events: none;
     z-index: 99;
+  }
+
+  /* Hover overlay */
+  .hover-overlay {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 102;
+    transform: translateX(-1px);
+  }
+
+  .hover-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
+  }
+
+  .hover-circle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: white;
+    border: 2px solid #a78bfa;
+    transform: translate(-50%, -50%);
+    left: 0;
+    box-shadow: 0 0 6px rgba(167, 139, 250, 0.8);
+  }
+
+  .hover-price-label {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.9);
+    border: 1px solid rgba(167, 139, 250, 0.5);
+    border-radius: 4px;
+    padding: 4px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 11px;
+    white-space: nowrap;
+    color: white;
+  }
+
+  .hover-price {
+    font-weight: 700;
+    font-size: 12px;
+    color: #a78bfa;
+  }
+
+  .hover-volume {
+    font-size: 10px;
+    opacity: 0.8;
   }
 
   /* Dynamic valley indicator that moves with price */
