@@ -127,8 +127,8 @@
     left: 0;
     top: 0;
     height: 100vh;
-    width: 250px;
-    background: var(--bg-secondary);
+    width: 200px;
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.6));
     border-right: 1px solid var(--border-primary);
     display: flex;
     flex-direction: column;
@@ -137,7 +137,7 @@
   }
 
   .sidebar.collapsed {
-    width: 80px;
+    width: 60px;
   }
 
   .sidebar-header {
@@ -241,6 +241,7 @@
     align-items: center;
     justify-content: center;
     transition: all var(--transition-normal);
+    font-size: 24px;
   }
 
   .toggle-btn:hover {

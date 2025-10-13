@@ -67,7 +67,7 @@
     grid-template-columns: 1fr 1fr;
     gap: 10px;
     padding: 10px;
-    background: rgba(74, 0, 224, 0.05);
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.6));
     border: 1px solid rgba(74, 0, 224, 0.2);
     border-radius: 6px;
     margin: 0;

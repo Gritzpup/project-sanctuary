@@ -231,7 +231,7 @@
     position: relative;
     width: 100%;
     padding: 0;
-    background: transparent;
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.6));
     justify-content: center;
     align-items: center;
     gap: 8px;

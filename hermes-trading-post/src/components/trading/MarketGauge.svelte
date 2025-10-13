@@ -239,6 +239,7 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.6));
   }
 
   .price-row {

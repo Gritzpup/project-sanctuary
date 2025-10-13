@@ -357,7 +357,7 @@
 
   .chart-footer {
     padding: 8px 16px;
-    background: rgba(0, 0, 0, 0.2);
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.6));
     border-top: 1px solid var(--border-primary);
     display: flex;
     align-items: center;

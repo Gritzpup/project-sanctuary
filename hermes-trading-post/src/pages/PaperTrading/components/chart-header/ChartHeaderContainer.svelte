@@ -84,7 +84,7 @@
 
 <style>
   .chart-header {
-    background: var(--surface-elevated);
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.6));
     border-bottom: 1px solid var(--border-primary);
     padding: var(--space-sm);
     box-sizing: border-box;

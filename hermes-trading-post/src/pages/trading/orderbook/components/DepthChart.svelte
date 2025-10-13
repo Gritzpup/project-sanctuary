@@ -260,7 +260,7 @@
     // Initialize chart
     chart = createChart(chartContainer, {
       layout: {
-        background: { type: ColorType.Solid, color: '#1a1a1a' },
+        background: { type: ColorType.Solid, color: '#0a0a0a' },
         textColor: '#d1d4dc',
       },
       grid: {
@@ -902,7 +902,7 @@
     overflow: hidden;
     border: 1px solid rgba(74, 0, 224, 0.3);
     border-radius: 6px;
-    background: #1a1a1a; /* Fill background */
+    background: #0a0a0a; /* Darker background to match gradient */
   }
 
   /* Remove internal chart padding */

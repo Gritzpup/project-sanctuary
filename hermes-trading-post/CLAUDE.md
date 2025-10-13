@@ -59,17 +59,19 @@ tilt logs browser-monitor --follow
 
 ## ✅ Verification Process
 **ALWAYS** verify changes after making them:
-1. Use `tilt logs browser-monitor` to check browser console for errors after frontend changes
-2. Use `tilt logs hermes-trading-post` to check Vite dev server logs
-3. Use `tilt logs paper-trading-backend` to check backend API logs
-4. Verify no new errors in any Tilt logs
-5. Confirm expected behavior through Tilt logs before considering complete
-6. Check Tilt UI at http://localhost:10350 for service health
+1. **WAIT 5 SECONDS** after making code changes before checking logs (machine needs time to rebuild)
+2. Use `tilt logs browser-monitor` to check browser console for errors after frontend changes
+3. Use `tilt logs hermes-trading-post` to check Vite dev server logs
+4. Use `tilt logs paper-trading-backend` to check backend API logs
+5. Verify no new errors in any Tilt logs
+6. Confirm expected behavior through Tilt logs before considering complete
+7. Check Tilt UI at http://localhost:10350 for service health
 
 ## 🎯 Important Reminders
-1. Tilt logs are the PRIMARY source for all debugging (frontend, backend, database, browser console)
-2. Browser-monitor captures ALL console activity - check it after every frontend change
-3. Always verify changes through Tilt logs
-4. Never auto-commit - always ask first
-5. Check Tilt logs after EVERY change to any code
-6. All logging goes through Tilt - no local log files
+1. **WAIT 5 SECONDS** after making changes before checking any logs - machine needs time to rebuild
+2. Tilt logs are the PRIMARY source for all debugging (frontend, backend, database, browser console)
+3. Browser-monitor captures ALL console activity - check it after every frontend change
+4. Always verify changes through Tilt logs
+5. Never auto-commit - always ask first
+6. Check Tilt logs after EVERY change to any code (but wait 5 seconds first!)
+7. All logging goes through Tilt - no local log files
