@@ -212,10 +212,15 @@
     const strongerPrice = strongerSide === 'bid' ? maxBidPrice : maxAskPrice;
     const strongerVolume = strongerSide === 'bid' ? maxBidVolume : maxAskVolume;
 
-    // Calculate position on chart (assuming 20k range centered on midPrice)
-    const rangeStart = midPrice - 10000;
-    const rangeEnd = midPrice + 10000;
-    const positionInRange = (strongerPrice - rangeStart) / (rangeEnd - rangeStart);
+    // Calculate position on chart using ACTUAL data range
+    // Get the actual price range from the depth data
+    const allPrices = [...depthData.bids.map(b => b.price), ...depthData.asks.map(a => a.price)];
+    const rangeStart = Math.min(...allPrices);
+    const rangeEnd = Math.max(...allPrices);
+    const rangeSpan = rangeEnd - rangeStart;
+
+    // Calculate position within the actual data range
+    const positionInRange = rangeSpan > 0 ? (strongerPrice - rangeStart) / rangeSpan : 0.5;
     const offset = Math.max(10, Math.min(90, positionInRange * 100));
 
     return {
@@ -349,41 +354,45 @@
       if (param.time !== undefined) {
         hoverPrice = param.time as number; // In depth chart, time axis is price
 
-        // Find the volume at this price
-        const depthData = orderbookStore.getDepthData(500);
+        // Get the volume at this price from the chart's series data (most accurate)
         let foundVolume = 0;
+        let useSeries: any = null;
 
-        // Check if it's in bids
-        const bidPoint = depthData.bids.find(b => Math.abs(b.price - hoverPrice) < 50);
-        if (bidPoint) {
-          foundVolume = bidPoint.depth;
-        } else {
-          // Check asks
-          const askPoint = depthData.asks.find(a => Math.abs(a.price - hoverPrice) < 50);
-          if (askPoint) {
-            foundVolume = askPoint.depth;
+        // Try to get data from bid series first
+        try {
+          const bidSeriesData = param.seriesData.get(bidSeries);
+          if (bidSeriesData && (bidSeriesData as any).value !== undefined) {
+            foundVolume = (bidSeriesData as any).value;
+            useSeries = bidSeries;
           }
+        } catch (e) {}
+
+        // If not in bids, try asks
+        if (foundVolume === 0) {
+          try {
+            const askSeriesData = param.seriesData.get(askSeries);
+            if (askSeriesData && (askSeriesData as any).value !== undefined) {
+              foundVolume = (askSeriesData as any).value;
+              useSeries = askSeries;
+            }
+          } catch (e) {}
         }
 
         hoverVolume = foundVolume;
 
-        // Get the actual Y coordinate based on which side (bid or ask) we're hovering over
-        if (foundVolume > 0 && bidSeries && askSeries) {
-          // Determine which series to use based on which side found the volume
-          const useSeries = bidPoint ? bidSeries : askSeries;
-
-          // Use priceToCoordinate to get the Y position for this volume value
+        // Get the actual Y coordinate based on the series we found data in
+        if (foundVolume > 0 && useSeries) {
           try {
             const yCoord = useSeries.priceToCoordinate(foundVolume);
             if (yCoord !== null) {
-              mouseY = yCoord; // Update mouseY to the actual chart line position
+              mouseY = yCoord; // Snap to the exact chart line position
             }
           } catch (error) {
             // Silently ignore coordinate conversion errors
           }
         }
 
-        isHovering = true;
+        isHovering = foundVolume > 0;
       }
     });
 
@@ -520,6 +529,7 @@
       return;
     }
 
+
     // Convert to LightweightCharts format
     // Note: We use price as the "time" axis for depth chart
     const bidData = bids.map(level => ({
@@ -575,22 +585,28 @@
       lastAskCount = asks.length;
     }
 
-    // Always keep chart centered on the spread with consistent range
+    // Use the ACTUAL orderbook data range (Coinbase only sends ~$300-500 of depth)
+    // Don't force it into an arbitrary 20k range - that compresses everything
     try {
-      const summary = orderbookStore.summary;
-      if (summary.bestBid && summary.bestAsk) {
-        const midPrice = (summary.bestBid + summary.bestAsk) / 2;
+      if (bids.length > 0 && asks.length > 0) {
+        const lowestBidPrice = bids[0].price;
+        const highestBidPrice = bids[bids.length - 1].price;
+        const lowestAskPrice = asks[0].price;
+        const highestAskPrice = asks[asks.length - 1].price;
 
-        // Calculate range based on chart width for better responsiveness
-        // Wider charts show more depth, narrower charts show less
-        const chartWidth = chartContainer?.clientWidth || 500;
-        const rangeMultiplier = Math.max(0.5, Math.min(1.5, chartWidth / 500));
-        const baseRange = 10000;
-        const adjustedRange = baseRange * rangeMultiplier;
+        const dataMin = Math.min(lowestBidPrice, lowestAskPrice);
+        const dataMax = Math.max(highestBidPrice, highestAskPrice);
+        const dataRange = dataMax - dataMin;
+
+        // Add 10% padding on each side for visual breathing room
+        const padding = dataRange * 0.10;
+
+        const fromPrice = dataMin - padding;
+        const toPrice = dataMax + padding;
 
         chart.timeScale().setVisibleRange({
-          from: (midPrice - adjustedRange) as any,
-          to: (midPrice + adjustedRange) as any
+          from: fromPrice as any,
+          to: toPrice as any
         });
       }
     } catch (e) {
