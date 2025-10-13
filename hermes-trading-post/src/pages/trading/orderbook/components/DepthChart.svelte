@@ -217,11 +217,13 @@
     if (data.type === 'snapshot') {
       // Initial orderbook snapshot
       orderbookStore.processSnapshot(data);
-      updateChart();
+      // Force immediate chart update using RAF to bypass Svelte batching
+      requestAnimationFrame(() => updateChart());
     } else if (data.type === 'update') {
       // Incremental update
       orderbookStore.processUpdate(data);
-      updateChart();
+      // Force immediate chart update using RAF to bypass Svelte batching
+      requestAnimationFrame(() => updateChart());
     }
   }
 
