@@ -35,41 +35,40 @@
     });
   }
 
-  let maxBidSize = $derived(Math.max(...bids.map(b => b.size), 0.001));
-  let maxAskSize = $derived(Math.max(...asks.map(a => a.size), 0.001));
+  let maxBidSize = $state(0.001);
+  let maxAskSize = $state(0.001);
+  let volumeRange = $state<Array<{ position: number; value: number }>>([]);
+  let priceRange = $state({ left: 0, center: 0, right: 0 });
 
-  // Calculate volume range for left gauge (linear scale, no zero in middle)
-  let volumeRange = $derived(() => {
-    const depthData = orderbookStore.getDepthData(10000); // Match chart level count
-    if (depthData.bids.length === 0 || depthData.asks.length === 0) return [];
+  function updateGauges() {
+    // Update max sizes
+    maxBidSize = bids.length > 0 ? Math.max(...bids.map(b => b.size), 0.001) : 0.001;
+    maxAskSize = asks.length > 0 ? Math.max(...asks.map(a => a.size), 0.001) : 0.001;
 
-    const maxBidDepth = depthData.bids[depthData.bids.length - 1]?.depth || 0;
-    const maxAskDepth = depthData.asks[depthData.asks.length - 1]?.depth || 0;
-    const maxDepth = Math.max(maxBidDepth, maxAskDepth);
+    // Calculate volume range for left gauge
+    const depthData = orderbookStore.getDepthData(10000);
+    if (depthData.bids.length > 0 && depthData.asks.length > 0) {
+      const maxBidDepth = depthData.bids[depthData.bids.length - 1]?.depth || 0;
+      const maxAskDepth = depthData.asks[depthData.asks.length - 1]?.depth || 0;
+      const maxDepth = Math.max(maxBidDepth, maxAskDepth);
 
-    // Create 4 evenly spaced labels from 25% to 100% (skip bottom 0% to avoid overlap)
-    // Positions: 25%, 50%, 75%, 100%
-    return Array.from({length: 4}, (_, i) => ({
-      position: (i + 1) * 25, // 25, 50, 75, 100
-      value: (maxDepth / 4) * (i + 1) // 25%, 50%, 75%, 100% of maxDepth
-    }));
-  });
+      volumeRange = Array.from({length: 4}, (_, i) => ({
+        position: (i + 1) * 25,
+        value: (maxDepth / 4) * (i + 1)
+      }));
+    }
 
-  // Calculate price range for bottom gauge (3 prices spanning 20k range)
-  let priceRange = $derived(() => {
+    // Calculate price range for bottom gauge
     const summary = orderbookStore.summary;
-    if (!summary.bestBid || !summary.bestAsk) return { left: 0, center: 0, right: 0 };
-
-    // Get current mid price
-    const midPrice = (summary.bestBid + summary.bestAsk) / 2;
-
-    // Fixed 10k spread on either side (20k total range)
-    return {
-      left: midPrice - 10000,    // Left edge: -10k from mid
-      center: midPrice,           // Center: current mid price
-      right: midPrice + 10000     // Right edge: +10k from mid
-    };
-  });
+    if (summary.bestBid && summary.bestAsk) {
+      const midPrice = (summary.bestBid + summary.bestAsk) / 2;
+      priceRange = {
+        left: midPrice - 10000,
+        center: midPrice,
+        right: midPrice + 10000
+      };
+    }
+  }
 
   function formatPrice(price: number): string {
     if (price >= 1000000) return `$${(price / 1000000).toFixed(1)}M`;
@@ -138,6 +137,9 @@
       priceLineVisible: false,
       lastValueVisible: false, // Remove price tag
       priceScaleId: 'left',
+      crosshairMarkerVisible: false, // Reduce visual noise
+      lineStyle: 0, // Solid line
+      lineType: 2, // Curved line for smoother appearance
     });
 
     // Create ask series (red mountain on right) with smooth animations
@@ -149,6 +151,9 @@
       priceLineVisible: false,
       lastValueVisible: false, // Remove price tag
       priceScaleId: 'left',
+      crosshairMarkerVisible: false, // Reduce visual noise
+      lineStyle: 0, // Solid line
+      lineType: 2, // Curved line for smoother appearance
     });
 
     // Connect to WebSocket for orderbook data (retry until connection is available)
@@ -194,14 +199,12 @@
       return false; // WebSocket not ready yet
     }
 
-    console.log('📊 DepthChart: Connected to WebSocket, listening for level2 messages');
-
+    // Silent connection - no console spam
     // Use addEventListener instead of wrapping onmessage to avoid breaking the main chart
     const messageHandler = (event: MessageEvent) => {
       try {
         const message = JSON.parse(event.data);
         if (message.type === 'level2') {
-          // Remove debug spam
           handleLevel2Message(message.data);
         }
       } catch (error) {
@@ -221,18 +224,20 @@
     if (data.type === 'snapshot') {
       // Initial orderbook snapshot
       orderbookStore.processSnapshot(data);
-      // Force immediate updates to both chart and list
+      // Force immediate updates to chart, list, and gauges
       requestAnimationFrame(() => {
         updateChart();
         updateOrderbookLists();
+        updateGauges();
       });
     } else if (data.type === 'update') {
       // Incremental update
       orderbookStore.processUpdate(data);
-      // Force immediate updates to both chart and list
+      // Force immediate updates to chart, list, and gauges
       requestAnimationFrame(() => {
         updateChart();
         updateOrderbookLists();
+        updateGauges();
       });
     }
   }
@@ -280,12 +285,35 @@
       });
     }
 
-    // Update chart series
+    // For depth charts, always use setData since prices can change dramatically
+    // The chart library doesn't support updating with out-of-order prices
     bidSeries.setData(bidData);
     askSeries.setData(askData);
 
-    // Fit content to show both mountains
-    chart.timeScale().fitContent();
+    // Maintain visible range to prevent jumping - keep current zoom level
+    try {
+      const timeScale = chart.timeScale();
+      const visibleRange = timeScale.getVisibleRange();
+
+      // If we have a visible range, maintain it
+      if (visibleRange && visibleRange.from !== null && visibleRange.to !== null) {
+        // Small adjustment to keep chart centered on spread
+        const spread = asks[0]?.price - bids[bids.length - 1]?.price || 0;
+        const center = (asks[0]?.price + bids[bids.length - 1]?.price) / 2 || 0;
+        const currentCenter = ((visibleRange.from as number) + (visibleRange.to as number)) / 2;
+
+        // Only recenter if we've drifted significantly
+        if (Math.abs(currentCenter - center) > spread * 2) {
+          timeScale.fitContent();
+        }
+      } else {
+        // No visible range set, fit content
+        timeScale.fitContent();
+      }
+    } catch (e) {
+      // Fallback to fit content if range maintenance fails
+      chart.timeScale().fitContent();
+    }
   }
 
   onDestroy(() => {
@@ -322,7 +350,7 @@
 
       <!-- Custom volume gauge overlay (left side) - linear scale -->
       <div class="volume-gauge-overlay">
-        {#each volumeRange() as item}
+        {#each volumeRange as item}
           <div class="volume-label" style="top: {100 - item.position}%">
             {formatVolume(item.value)}
           </div>
@@ -333,17 +361,17 @@
       <div class="price-gauge-overlay">
         <!-- Left price -->
         <div class="price-label" style="left: 10%">
-          {formatPrice(priceRange().left)}
+          {formatPrice(priceRange.left)}
         </div>
 
         <!-- Center price -->
         <div class="price-label price-label-center" style="left: 50%">
-          {formatPrice(priceRange().center)}
+          {formatPrice(priceRange.center)}
         </div>
 
         <!-- Right price -->
         <div class="price-label" style="left: 90%">
-          {formatPrice(priceRange().right)}
+          {formatPrice(priceRange.right)}
         </div>
       </div>
     </div>
@@ -356,7 +384,7 @@
         <span>Buy Price</span>
       </div>
       <div class="orderbook-rows">
-        {#each bidsWithCumulative() as bid, i}
+        {#each bidsWithCumulative as bid, i (bid.price)}
           <div class="orderbook-row bid-row" class:top-order={i === 0} style="--volume-width: {(bid.size / maxBidSize * 100)}%">
             <div class="volume-bar bid-bar"></div>
             <span class="quantity">{bid.cumulative.toFixed(5)}</span>
@@ -372,7 +400,7 @@
         <span>Quantity</span>
       </div>
       <div class="orderbook-rows">
-        {#each asksWithCumulative() as ask, i}
+        {#each asksWithCumulative as ask, i (ask.price)}
           <div class="orderbook-row ask-row" class:top-order={i === 0} style="--volume-width: {(ask.size / maxAskSize * 100)}%">
             <div class="volume-bar ask-bar"></div>
             <span class="price">${Math.floor(ask.price).toLocaleString('en-US')}</span>
@@ -506,6 +534,9 @@
       0 0 8px rgba(0, 0, 0, 0.6);
     transform: translateY(-50%);
     line-height: 1;
+    /* Smooth transitions for position and opacity */
+    transition: top 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.2s ease-out;
   }
 
   .volume-label-center {
@@ -538,6 +569,9 @@
       0 0 8px rgba(0, 0, 0, 0.6);
     transform: translateX(-50%);
     line-height: 1;
+    /* Smooth transitions for price changes */
+    transition: opacity 0.15s ease-out,
+                color 0.15s ease-out;
   }
 
   .price-label-center {
@@ -616,7 +650,27 @@
     font-family: 'Monaco', 'Courier New', monospace;
     position: relative;
     border-radius: 3px;
-    transition: all 0.1s ease-out; /* Ultra-smooth transitions for 10 updates/sec */
+    /* Smooth transitions for all properties */
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.2s ease-out,
+                background-color 0.15s ease-out;
+    transform: translateY(0);
+  }
+
+  /* Animate row entry/exit */
+  .orderbook-row:has(.quantity) {
+    animation: slideIn 0.2s ease-out;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 
   /* Volume bars behind text */
@@ -627,7 +681,14 @@
     width: var(--volume-width);
     z-index: 0;
     opacity: 0.3;
-    transition: width 0.1s ease-out; /* Ultra-smooth width animation for 10 updates/sec */
+    /* Smoother cubic bezier for natural movement */
+    transition: width 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Smooth text value transitions */
+  .orderbook-row .quantity,
+  .orderbook-row .price {
+    transition: color 0.1s ease-out;
   }
 
   .bid-bar {

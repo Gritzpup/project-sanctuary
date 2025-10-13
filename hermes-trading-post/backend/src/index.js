@@ -256,8 +256,18 @@ setTimeout(monitorMemoryUsage, 10000);
   });
 
   // 📊 Handle orderbook polling data and forward to clients
+  let orderbookMessageCount = 0;
+  let lastOrderbookBroadcast = Date.now();
+
   orderbookPollingService.on('orderbook', (orderbookData) => {
-    console.log(`📊 Broadcasting orderbook: ${orderbookData.bids.length} bids, ${orderbookData.asks.length} asks to ${wss.clients.size} clients`);
+    orderbookMessageCount++;
+    const now = Date.now();
+    const timeSinceLastMsg = now - lastOrderbookBroadcast;
+
+    // Log every message to debug frequency
+    console.log(`📊 [${orderbookMessageCount}] Broadcasting orderbook (${timeSinceLastMsg}ms since last): ${orderbookData.bids.length} bids, ${orderbookData.asks.length} asks to ${wss.clients.size} clients`);
+
+    lastOrderbookBroadcast = now;
 
     // Forward orderbook data to ALL connected clients
     wss.clients.forEach(client => {
