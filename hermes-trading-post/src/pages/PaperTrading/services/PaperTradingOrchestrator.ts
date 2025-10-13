@@ -11,6 +11,7 @@ import { MicroScalpingStrategy } from '../../../strategies/implementations/Micro
 import { ProperScalpingStrategy } from '../../../strategies/implementations/ProperScalpingStrategy';
 import { UltraMicroScalpingStrategy } from '../../../strategies/implementations/UltraMicroScalpingStrategy';
 import { get } from 'svelte/store';
+import { getBackendWsUrl } from '../../../utils/backendConfig';
 
 export interface TradingState {
   isRunning: boolean;
@@ -81,7 +82,7 @@ export class PaperTradingOrchestrator {
 
   private connectToBackend() {
     try {
-      this.backendWs = new WebSocket('ws://localhost:4828');
+      this.backendWs = new WebSocket(getBackendWsUrl());
       
       this.backendWs.onopen = () => {
         console.log('🟢 Connected to backend WebSocket');

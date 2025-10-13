@@ -1,4 +1,5 @@
 import { UnifiedAPIClient } from './UnifiedAPIClient';
+import { getBackendHttpUrl } from '../../utils/backendConfig';
 
 export interface BotStatus {
   isRunning: boolean;
@@ -29,7 +30,7 @@ export interface ManagerState {
 export class BackendAPIService {
   private static instance: BackendAPIService;
   private apiClient: UnifiedAPIClient;
-  private baseURL = 'http://localhost:4828';
+  private baseURL = getBackendHttpUrl();
 
   private constructor() {
     this.apiClient = UnifiedAPIClient.getInstance();

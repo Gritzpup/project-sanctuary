@@ -176,10 +176,44 @@ setTimeout(monitorMemoryUsage, 10000);
   coinbaseWebSocket.subscribeTicker('BTC-USD');
   console.log('⚡ Auto-subscribed to BTC-USD ticker for instant price updates');
 
-  // 📊 Start polling orderbook data for depth chart visualization
-  // Note: level2 WebSocket requires auth, so we use REST API polling instead
-  orderbookPollingService.startPolling('BTC-USD', 150);
-  console.log('📊 Started orderbook polling for BTC-USD depth chart with 150 levels');
+  // 📊 Try WebSocket level2 first for real-time orderbook (public feed, no auth needed!)
+  console.log('🚀 Attempting WebSocket level2 for real-time orderbook updates...');
+  coinbaseWebSocket.subscribeLevel2('BTC-USD');
+
+  // Track if we're receiving WebSocket level2 data
+  let usingWebSocketLevel2 = false;
+  let level2MessageCount = 0;
+
+  // Listen for level2 updates from WebSocket
+  coinbaseWebSocket.on('level2', (orderbookData) => {
+    usingWebSocketLevel2 = true;
+    level2MessageCount++;
+
+    // Log performance every 100 messages
+    if (level2MessageCount % 100 === 0) {
+      console.log(`📊 WebSocket Level2: Received ${level2MessageCount} orderbook updates`);
+    }
+
+    // Forward to all clients with 'level2' type
+    wss.clients.forEach(client => {
+      if (client.readyState === client.OPEN) {
+        client.send(JSON.stringify({
+          type: 'level2',
+          data: orderbookData
+        }));
+      }
+    });
+  });
+
+  // Fallback to polling if WebSocket level2 doesn't work after 3 seconds
+  setTimeout(() => {
+    if (!usingWebSocketLevel2) {
+      console.log('⚠️ WebSocket level2 not receiving data, starting polling fallback...');
+      orderbookPollingService.startPolling('BTC-USD', 150);
+    } else {
+      console.log(`✅ WebSocket level2 active! Received ${level2MessageCount} updates. Polling disabled.`);
+    }
+  }, 3000);
 
   // Set up Coinbase WebSocket event handlers
   coinbaseWebSocket.on('candle', (candleData) => {

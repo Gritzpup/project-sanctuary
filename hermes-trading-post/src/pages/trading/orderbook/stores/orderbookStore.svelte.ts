@@ -31,6 +31,19 @@ class OrderbookStore {
   private _lastUpdateTime = 0;
   private _updateCount = 0;
 
+  // Performance metrics for L2 WebSocket
+  private _metrics = {
+    snapshotCount: 0,
+    updateCount: 0,
+    totalLatency: 0,
+    minLatency: Infinity,
+    maxLatency: 0,
+    avgLatency: 0,
+    updatesPerSecond: 0,
+    lastSecondTimestamp: Date.now(),
+    updatesInCurrentSecond: 0
+  };
+
   /**
    * Process orderbook snapshot - optimized to detect actual changes
    */
@@ -38,6 +51,26 @@ class OrderbookStore {
     const now = Date.now();
     const timeSinceLastUpdate = now - this._lastUpdateTime;
     this._updateCount++;
+    this._metrics.snapshotCount++;
+
+    // Track updates per second
+    if (now - this._metrics.lastSecondTimestamp >= 1000) {
+      this._metrics.updatesPerSecond = this._metrics.updatesInCurrentSecond;
+      this._metrics.updatesInCurrentSecond = 0;
+      this._metrics.lastSecondTimestamp = now;
+
+      // Log performance metrics every second
+      console.log(`📊 L2 Performance: ${this._metrics.updatesPerSecond} updates/sec, Avg latency: ${this._metrics.avgLatency.toFixed(1)}ms, Min: ${this._metrics.minLatency}ms, Max: ${this._metrics.maxLatency}ms`);
+    }
+    this._metrics.updatesInCurrentSecond++;
+
+    // Update latency metrics
+    if (this._lastUpdateTime > 0) {
+      this._metrics.totalLatency += timeSinceLastUpdate;
+      this._metrics.minLatency = Math.min(this._metrics.minLatency, timeSinceLastUpdate);
+      this._metrics.maxLatency = Math.max(this._metrics.maxLatency, timeSinceLastUpdate);
+      this._metrics.avgLatency = this._metrics.totalLatency / this._updateCount;
+    }
 
     // Log update frequency every 10th update
     if (this._updateCount % 10 === 0) {
@@ -137,6 +170,26 @@ class OrderbookStore {
     const now = Date.now();
     const timeSinceLastUpdate = now - this._lastUpdateTime;
     this._updateCount++;
+    this._metrics.updateCount++;
+
+    // Track updates per second
+    if (now - this._metrics.lastSecondTimestamp >= 1000) {
+      this._metrics.updatesPerSecond = this._metrics.updatesInCurrentSecond;
+      this._metrics.updatesInCurrentSecond = 0;
+      this._metrics.lastSecondTimestamp = now;
+
+      // Log performance metrics every second
+      console.log(`📊 L2 Performance: ${this._metrics.updatesPerSecond} updates/sec, Avg latency: ${this._metrics.avgLatency.toFixed(1)}ms, Min: ${this._metrics.minLatency}ms, Max: ${this._metrics.maxLatency}ms`);
+    }
+    this._metrics.updatesInCurrentSecond++;
+
+    // Update latency metrics
+    if (this._lastUpdateTime > 0) {
+      this._metrics.totalLatency += timeSinceLastUpdate;
+      this._metrics.minLatency = Math.min(this._metrics.minLatency, timeSinceLastUpdate);
+      this._metrics.maxLatency = Math.max(this._metrics.maxLatency, timeSinceLastUpdate);
+      this._metrics.avgLatency = this._metrics.totalLatency / this._updateCount;
+    }
 
     // Log update frequency every 10th update
     if (this._updateCount % 10 === 0) {
@@ -273,6 +326,17 @@ class OrderbookStore {
     return {
       bids: this._lastBidVersion,
       asks: this._lastAskVersion
+    };
+  }
+
+  /**
+   * Get performance metrics for L2 WebSocket
+   */
+  get metrics() {
+    return {
+      ...this._metrics,
+      totalUpdates: this._updateCount,
+      isReady: this.isReady
     };
   }
 }
