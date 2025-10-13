@@ -1,7 +1,7 @@
 import type { CandlestickData } from 'lightweight-charts';
 import type { Candle, DataRequest, WebSocketCandle } from '../types/data.types';
 import { ChartDebug } from '../utils/debug';
-import { Logger } from '../../../../utils/Logger';
+import { logger } from '../../../../services/logging';
 import { statusStore } from '../stores/statusStore.svelte';
 import { dataStore } from '../stores/dataStore.svelte';
 
@@ -162,7 +162,7 @@ export class RedisChartService {
       
     } catch (error) {
       ChartDebug.error('Failed to get storage stats:', error);
-      Logger.error('RedisChartService', 'Failed to get storage stats', { error: error.message });
+      logger.error( 'Failed to get storage stats', { error: error.message });
       return null;
     }
   }

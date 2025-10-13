@@ -7,7 +7,7 @@
 
 import type { StoredCandle } from './RedisCandleStorage';
 import { GRANULARITY_SECONDS } from './RedisConfig';
-import { Logger } from '../../utils/Logger';
+import { logger } from '../logging';
 
 export interface AggregationRule {
   sourceGranularity: string;
@@ -73,7 +73,7 @@ export class CandleAggregator {
     // Sort by timestamp
     aggregatedCandles.sort((a, b) => a.time - b.time);
 
-    Logger.debug('CandleAggregator', 'Aggregated candles', {
+    logger.debug('Aggregated candles', {
       sourceCount: sourceCandles.length,
       targetGranularity,
       aggregatedCount: aggregatedCandles.length,
@@ -233,7 +233,7 @@ export class CandleAggregator {
       const targetGran = path[i];
       currentCandles = this.aggregateCandles(currentCandles, targetGran);
       
-      Logger.debug('CandleAggregator', 'Aggregation step completed', {
+      logger.debug('Aggregation step completed', {
         from: path[i - 1],
         to: targetGran,
         inputCount: currentCandles.length,

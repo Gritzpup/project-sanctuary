@@ -6,7 +6,7 @@
 import axios from 'axios';
 import type { CandleData } from '../../types/coinbase';
 import { RateLimiter } from './rateLimiter';
-import { Logger } from '../../utils/Logger';
+import { logger } from '../logging';
 
 export class CoinbaseAPI {
   private baseUrl = 'https://api.exchange.coinbase.com'; // Direct API access
@@ -17,7 +17,7 @@ export class CoinbaseAPI {
     axios.interceptors.response.use(
       response => response,
       error => {
-        Logger.error('CoinbaseAPI', 'API Error', { 
+        logger.error( 'API Error', { 
           message: error.message,
           responseData: error.response?.data,
           responseStatus: error.response?.status
@@ -41,12 +41,12 @@ export class CoinbaseAPI {
       // Validate time range to prevent future data requests
       const now = Math.floor(Date.now() / 1000);
       if (end && parseInt(end) > now) {
-        Logger.warn('CoinbaseAPI', 'Attempted to fetch future data. Capping end time at now.');
+        logger.warn( 'Attempted to fetch future data. Capping end time at now.');
         end = now.toString();
       }
       
       if (start && parseInt(start) > now) {
-        Logger.warn('CoinbaseAPI', 'Start time is in the future. Returning empty array.');
+        logger.warn( 'Start time is in the future. Returning empty array.');
         return [];
       }
       
@@ -81,7 +81,7 @@ export class CoinbaseAPI {
       
       return candles;
     }).catch(error => {
-      Logger.error('CoinbaseAPI', 'API request failed', {
+      logger.error( 'API request failed', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data
@@ -97,7 +97,7 @@ export class CoinbaseAPI {
       const response = await axios.get(`${this.baseUrl}/products/${productId}/ticker`);
       return parseFloat(response.data.price);
     }).catch(error => {
-      Logger.error('CoinbaseAPI', 'Error fetching ticker', { productId, error: error.message });
+      logger.error( 'Error fetching ticker', { productId, error: error.message });
       throw error;
     });
   }
@@ -161,7 +161,7 @@ export class CoinbaseAPI {
       
       return result;
     }).catch(error => {
-      Logger.error('CoinbaseAPI', 'Failed to fetch 24h stats', {
+      logger.error( 'Failed to fetch 24h stats', {
         productId,
         message: error.message,
         status: error.response?.status,

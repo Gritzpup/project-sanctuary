@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from 'svelte';
-  import { structuredLogger } from '../utils/StructuredLogger';
+  import { logger } from '../services/logging';
   
   export let fallbackComponent: any = null;
   export let fallbackProps: Record<string, unknown> = {};
@@ -69,19 +69,12 @@
     errorInfo = caughtErrorInfo;
 
     // Log error using structured logger
-    structuredLogger.critical(
-      'ERROR_BOUNDARY',
-      'Component error caught by error boundary',
-      caughtError,
-      {
-        component: 'ErrorBoundary',
-        metadata: {
-          errorInfo: caughtErrorInfo,
-          hasError: true,
-          componentStack: caughtErrorInfo?.componentStack
-        }
-      }
-    );
+    logger.error('Component error caught by error boundary', {
+      error: caughtError.message,
+      errorInfo: caughtErrorInfo,
+      hasError: true,
+      componentStack: caughtErrorInfo?.componentStack
+    }, 'ErrorBoundary');
 
     dispatch('error', { error: caughtError, errorInfo: caughtErrorInfo });
   }
@@ -110,15 +103,10 @@
       userId: null // Would be populated from user context
     };
 
-    structuredLogger.critical(
-      'ERROR_REPORT',
-      'User reported error via error boundary',
-      error || undefined,
-      {
-        action: 'report_issue',
-        metadata: errorReport
-      }
-    );
+    logger.error('User reported error via error boundary', {
+      action: 'report_issue',
+      errorReport
+    }, 'ErrorBoundary');
 
     // For now, just copy to clipboard
     navigator.clipboard?.writeText(JSON.stringify(errorReport, null, 2))

@@ -3,7 +3,7 @@ import { ChartDebug } from '../utils/debug';
 import { perfTest } from '../utils/performanceTest';
 import { CoinbaseAPI } from '../../../../services/api/coinbaseApi';
 import { getGranularitySeconds } from '../utils/granularityHelpers';
-import { Logger } from '../../../../utils/Logger';
+import { logger } from '../../../../services/logging';
 import { statusStore } from '../stores/statusStore.svelte';
 
 export class ChartAPIService {
@@ -28,9 +28,9 @@ export class ChartAPIService {
     const fetchStartTime = performance.now();
     perfTest.mark('fetchCandles-start');
     
-    Logger.debug('ChartAPIService', `fetchCandles called for ${pair} ${granularity}`);
+    logger.debug(`fetchCandles called for ${pair} ${granularity}`, {}, 'ChartAPIService');
     if (start && end) {
-      Logger.debug('ChartAPIService', `Time range: ${new Date(start * 1000).toISOString()} to ${new Date(end * 1000).toISOString()}`);
+      logger.debug(`Time range: ${new Date(start * 1000).toISOString()} to ${new Date(end * 1000).toISOString()}`, {}, 'ChartAPIService');
     }
     
     // Log performance start for 3M/1d

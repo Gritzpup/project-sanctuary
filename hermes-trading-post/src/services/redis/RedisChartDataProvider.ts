@@ -10,7 +10,7 @@ import { redisCandleStorage, type StoredCandle } from './RedisCandleStorage';
 import { candleAggregator } from './CandleAggregator';
 import { GRANULARITY_SECONDS } from './RedisConfig';
 import { CoinbaseAPI } from '../api/coinbaseApi';
-import { Logger } from '../../utils/Logger';
+import { logger } from '../logging';
 
 export interface ChartDataRequest {
   pair: string;
@@ -61,10 +61,10 @@ export class RedisChartDataProvider {
       await this.ensureRecentData('BTC-USD');
       
       this.isInitialized = true;
-      Logger.info('RedisChartDataProvider', 'Initialized successfully');
+      logger.info( 'Initialized successfully');
       
     } catch (error) {
-      Logger.error('RedisChartDataProvider', 'Initialization failed', { error: error.message });
+      logger.error( 'Initialization failed', { error: error.message });
       throw error;
     }
   }
@@ -84,7 +84,7 @@ export class RedisChartDataProvider {
     const granularitySeconds = GRANULARITY_SECONDS[granularity];
     const calculatedStartTime = startTime || (calculatedEndTime - (maxCandles * granularitySeconds));
 
-    Logger.debug('RedisChartDataProvider', 'Chart data request', {
+    logger.debug( 'Chart data request', {
       pair,
       granularity,
       startTime: calculatedStartTime,
@@ -111,7 +111,7 @@ export class RedisChartDataProvider {
       if (cacheHitRatio >= 0.95) {
         // Redis has sufficient data
         finalCandles = redisCandles;
-        Logger.debug('RedisChartDataProvider', 'Served from Redis cache', {
+        logger.debug( 'Served from Redis cache', {
           candleCount: redisCandles.length,
           cacheHitRatio
         });
@@ -127,7 +127,7 @@ export class RedisChartDataProvider {
           redisCandles
         );
         
-        Logger.info('RedisChartDataProvider', 'Filled data gaps', {
+        logger.info( 'Filled data gaps', {
           source,
           redisCandleCount: redisCandles.length,
           finalCandleCount: finalCandles.length,
@@ -157,7 +157,7 @@ export class RedisChartDataProvider {
       };
 
     } catch (error) {
-      Logger.error('RedisChartDataProvider', 'Error getting chart data', { error: error.message });
+      logger.error( 'Error getting chart data', { error: error.message });
       
       // Fallback to API only
       return this.getChartDataFromAPI(request);
@@ -191,7 +191,7 @@ export class RedisChartDataProvider {
           // Store the fetched data in Redis for future use
           await redisCandleStorage.storeCandles(pair, granularity, gapCandles);
           
-          Logger.debug('RedisChartDataProvider', 'Filled data gap', {
+          logger.debug( 'Filled data gap', {
             pair,
             granularity,
             gapStart: new Date(gap.start * 1000).toISOString(),
@@ -201,7 +201,7 @@ export class RedisChartDataProvider {
         }
         
       } catch (error) {
-        Logger.warn('RedisChartDataProvider', 'Failed to fill data gap', { 
+        logger.warn( 'Failed to fill data gap', { 
           error: error.message,
           gap
         });
@@ -318,7 +318,7 @@ export class RedisChartDataProvider {
       // Store in Redis for future use
       if (candles.length > 0) {
         redisCandleStorage.storeCandles(pair, granularity, candles).catch(error => {
-          Logger.warn('RedisChartDataProvider', 'Failed to cache API data', { error: error.message });
+          logger.warn( 'Failed to cache API data', { error: error.message });
         });
       }
 
@@ -343,7 +343,7 @@ export class RedisChartDataProvider {
       };
 
     } catch (error) {
-      Logger.error('RedisChartDataProvider', 'API fallback failed', { error: error.message });
+      logger.error( 'API fallback failed', { error: error.message });
       throw error;
     }
   }
@@ -357,7 +357,7 @@ export class RedisChartDataProvider {
     
     if (!metadata || (now - metadata.lastTimestamp) > 3600) {
       // Missing or stale data, fetch recent candles
-      Logger.info('RedisChartDataProvider', 'Populating recent data', { pair });
+      logger.info( 'Populating recent data', { pair });
       
       const endTime = now;
       const startTime = endTime - (1000 * 60); // Last 1000 minutes
@@ -371,14 +371,14 @@ export class RedisChartDataProvider {
           // Generate aggregated candles for other granularities
           await this.generateAggregatedCandles(pair, recentCandles);
           
-          Logger.info('RedisChartDataProvider', 'Populated recent data', {
+          logger.info( 'Populated recent data', {
             pair,
             candleCount: recentCandles.length
           });
         }
         
       } catch (error) {
-        Logger.warn('RedisChartDataProvider', 'Failed to populate recent data', { 
+        logger.warn( 'Failed to populate recent data', { 
           error: error.message 
         });
       }
@@ -400,7 +400,7 @@ export class RedisChartDataProvider {
         }
         
       } catch (error) {
-        Logger.warn('RedisChartDataProvider', 'Failed to generate aggregated candles', {
+        logger.warn( 'Failed to generate aggregated candles', {
           error: error.message,
           granularity
         });
@@ -419,14 +419,14 @@ export class RedisChartDataProvider {
       // Update aggregated candles
       await this.updateAggregatedCandles(pair, newCandle);
       
-      Logger.debug('RedisChartDataProvider', 'Updated with new candle', {
+      logger.debug( 'Updated with new candle', {
         pair,
         timestamp: new Date(newCandle.time * 1000).toISOString(),
         price: newCandle.close
       });
       
     } catch (error) {
-      Logger.error('RedisChartDataProvider', 'Failed to update with new candle', {
+      logger.error( 'Failed to update with new candle', {
         error: error.message
       });
     }
@@ -458,7 +458,7 @@ export class RedisChartDataProvider {
         }
         
       } catch (error) {
-        Logger.warn('RedisChartDataProvider', 'Failed to update aggregated candle', {
+        logger.warn( 'Failed to update aggregated candle', {
           error: error.message,
           granularity
         });

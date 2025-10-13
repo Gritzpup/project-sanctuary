@@ -16,7 +16,7 @@ import {
   generateCheckpointKey,
   generateLockKey
 } from './RedisConfig';
-import { Logger } from '../../utils/Logger';
+import { logger } from '../logging';
 
 export interface StoredCandle {
   time: number;
@@ -64,17 +64,17 @@ export class RedisCandleStorage {
 
   private setupEventHandlers(): void {
     this.redis.on('connect', () => {
-      Logger.info('RedisCandleStorage', 'Connected to Redis on port 6379');
+      logger.info( 'Connected to Redis on port 6379');
       this.isConnected = true;
     });
 
     this.redis.on('error', (error) => {
-      Logger.error('RedisCandleStorage', 'Redis connection error', { error: error.message });
+      logger.error( 'Redis connection error', { error: error.message });
       this.isConnected = false;
     });
 
     this.redis.on('close', () => {
-      Logger.warn('RedisCandleStorage', 'Redis connection closed');
+      logger.warn( 'Redis connection closed');
       this.isConnected = false;
     });
   }
@@ -86,7 +86,7 @@ export class RedisCandleStorage {
 
     this.connectionPromise = this.redis.connect().then(() => {
       this.isConnected = true;
-      Logger.info('RedisCandleStorage', 'Redis candle storage initialized');
+      logger.info( 'Redis candle storage initialized');
     });
 
     return this.connectionPromise;
@@ -117,7 +117,7 @@ export class RedisCandleStorage {
       // Acquire lock for this operation
       const lockAcquired = await this.redis.set(lockKey, '1', 'EX', 30, 'NX');
       if (!lockAcquired) {
-        Logger.warn('RedisCandleStorage', 'Could not acquire lock for storing candles', { pair, granularity });
+        logger.warn( 'Could not acquire lock for storing candles', { pair, granularity });
         return;
       }
 
@@ -165,7 +165,7 @@ export class RedisCandleStorage {
       // Create checkpoint for data validation
       await this.createCheckpoint(pair, granularity, candles);
 
-      Logger.info('RedisCandleStorage', 'Stored candles successfully', {
+      logger.info( 'Stored candles successfully', {
         pair,
         granularity,
         candleCount: candles.length,
@@ -226,7 +226,7 @@ export class RedisCandleStorage {
             volume: candleData.v || 0
           });
         } catch (error) {
-          Logger.error('RedisCandleStorage', 'Error parsing candle data', { error: error.message, dataStr });
+          logger.error( 'Error parsing candle data', { error: error.message, dataStr });
         }
       }
     }
@@ -234,7 +234,7 @@ export class RedisCandleStorage {
     // Sort by timestamp to ensure proper order
     allCandles.sort((a, b) => a.time - b.time);
 
-    Logger.debug('RedisCandleStorage', 'Retrieved candles', {
+    logger.debug( 'Retrieved candles', {
       pair,
       granularity,
       requestedRange: { startTime, endTime },
@@ -404,7 +404,7 @@ export class RedisCandleStorage {
       }
 
       if (cleanedDays > 0) {
-        Logger.info('RedisCandleStorage', 'Cleaned up old candle data', {
+        logger.info( 'Cleaned up old candle data', {
           pair,
           granularity,
           cleanedDays,
