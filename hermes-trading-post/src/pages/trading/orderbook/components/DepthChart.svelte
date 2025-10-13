@@ -543,14 +543,14 @@
     }));
 
     // Add gap in the middle - add extra price points between highest bid and lowest ask
+    // This creates the visible "V" valley between bid and ask mountains
     if (bids.length > 0 && asks.length > 0) {
       const highestBidPrice = bids[bids.length - 1].price;
       const lowestAskPrice = asks[0].price;
       const spread = lowestAskPrice - highestBidPrice;
 
-      // Use a smaller, fixed gap size that scales with viewport
-      // Use minimum of 10% of spread or 100 price units, whichever is smaller
-      const gapSize = Math.min(spread * 0.1, 100);
+      // Make gap 30% of spread to create more visible valley at current price
+      const gapSize = spread * 0.30;
 
       // Add padding point to bid data (drops to 0 at edge)
       bidData.push({
