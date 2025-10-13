@@ -605,11 +605,6 @@
   <div class="panel-header">
     <div class="header-left">
       <h2>Order Book Depth</h2>
-      <!-- L2 Data Flow Traffic Light -->
-      <div class="l2-status-indicator" title="L2 Data Status: {l2Status.message}">
-        <div class="traffic-light traffic-light-{l2Status.state}"></div>
-        <span class="status-text">{l2Status.label}</span>
-      </div>
     </div>
     <div class="depth-chart-legend">
       <span class="legend-item bid">
