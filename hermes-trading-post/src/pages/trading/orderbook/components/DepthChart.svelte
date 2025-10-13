@@ -43,11 +43,11 @@
     const maxAskDepth = depthData.asks[depthData.asks.length - 1]?.depth || 0;
     const maxDepth = Math.max(maxBidDepth, maxAskDepth);
 
-    // Create 5 evenly spaced labels from 0 to maxDepth
-    // Positions: 0%, 25%, 50%, 75%, 100%
-    return Array.from({length: 5}, (_, i) => ({
-      position: i * 25, // 0, 25, 50, 75, 100
-      value: (maxDepth / 4) * i // 0, 25%, 50%, 75%, 100% of maxDepth
+    // Create 4 evenly spaced labels from 25% to 100% (skip bottom 0% to avoid overlap)
+    // Positions: 25%, 50%, 75%, 100%
+    return Array.from({length: 4}, (_, i) => ({
+      position: (i + 1) * 25, // 25, 50, 75, 100
+      value: (maxDepth / 4) * (i + 1) // 25%, 50%, 75%, 100% of maxDepth
     }));
   });
 
