@@ -3,7 +3,7 @@ import { createValidationResult, combineValidationResults } from './ValidationTy
 import { NumberValidator } from './NumberValidator';
 import { StringValidator } from './StringValidator';
 import { DateValidator } from './DateValidator';
-import type { SupportedTradingPair, SupportedGranularity, SupportedStrategy } from '../../types/Trading';
+import type { SupportedTradingPair, SupportedGranularity, SupportedStrategy } from '../../types/trading/trading';
 
 export class TradingValidator {
   private static readonly SUPPORTED_PAIRS = [
