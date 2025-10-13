@@ -86,17 +86,17 @@
 
   .main-controls .btn-base {
     flex: 1;
-    height: 32px;
+    height: 38px;
     border-radius: var(--radius-sm);
     font-weight: var(--font-weight-medium);
-    font-size: var(--font-size-xs);
+    font-size: 14px;
     background: var(--bg-primary);
     color: var(--text-accent);
     border: 1px solid var(--border-primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--space-xs);
+    gap: 6px;
     transition: all var(--transition-normal);
   }
 
@@ -105,7 +105,7 @@
   }
 
   .btn-icon {
-    font-size: var(--font-size-xs);
+    font-size: 16px;
     line-height: 1;
     display: inline-flex;
     align-items: center;
@@ -113,13 +113,13 @@
 
   /* Add consistent spacing between icons and text */
   .btn-icon {
-    margin-right: var(--space-xs);
+    margin-right: 4px;
   }
 
   /* Reset other properties for text icons */
   .btn-icon:not(.spinner) {
-    font-size: var(--font-size-xs);
-    margin-right: var(--space-xs);
+    font-size: 16px;
+    margin-right: 4px;
     padding: 0;
     width: auto;
     height: auto;
@@ -187,8 +187,8 @@
 
   /* Spinner animation for trading button */
   .spinner {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
     border: 2px solid transparent;
     border-top: 2px solid currentColor;
     border-radius: 50%;
