@@ -4,12 +4,19 @@
  */
 import { writable, derived } from 'svelte/store';
 
+interface CustomStrategy {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+}
+
 interface StrategyConfig {
   selectedType: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   isCustom?: boolean;
   customCode?: string;
-  customStrategies?: any[];
+  customStrategies?: CustomStrategy[];
   balance?: number;
   fees?: {
     maker: number;
@@ -19,7 +26,7 @@ interface StrategyConfig {
   lastSyncedAt?: number;
   syncedStrategy?: {
     type: string;
-    parameters: Record<string, any>;
+    parameters: Record<string, unknown>;
     customCode?: string;
   };
 }
@@ -72,7 +79,7 @@ function createStrategyStore() {
     subscribe,
     
     // Update the selected strategy type and parameters
-    setStrategy: (type: string, parameters: Record<string, any>, isCustom: boolean = false, customCode?: string) => {
+    setStrategy: (type: string, parameters: Record<string, unknown>, isCustom: boolean = false, customCode?: string) => {
       update(state => {
         const newState = {
           ...state,
@@ -88,7 +95,7 @@ function createStrategyStore() {
     },
     
     // Update just the parameters
-    updateParameters: (parameters: Record<string, any>) => {
+    updateParameters: (parameters: Record<string, unknown>) => {
       update(state => {
         const newState = {
           ...state,
@@ -100,7 +107,7 @@ function createStrategyStore() {
     },
     
     // Set custom strategies list
-    setCustomStrategies: (strategies: any[]) => {
+    setCustomStrategies: (strategies: CustomStrategy[]) => {
       update(state => {
         const newState = {
           ...state,

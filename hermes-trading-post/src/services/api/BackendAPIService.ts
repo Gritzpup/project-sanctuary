@@ -1,5 +1,6 @@
 import { UnifiedAPIClient } from './UnifiedAPIClient';
 import { getBackendHttpUrl } from '../../utils/backendConfig';
+import type { Position, Trade } from '../../types/trading/core';
 
 export interface BotStatus {
   isRunning: boolean;
@@ -9,8 +10,8 @@ export interface BotStatus {
     btc: number;
   };
   currentPrice: number;
-  positions: any[];
-  trades: any[];
+  positions: Position[];
+  trades: Trade[];
   strategyType?: string;
   positionCount: number;
   totalValue: number;
@@ -18,12 +19,12 @@ export interface BotStatus {
 
 export interface BotConfig {
   strategyType: string;
-  strategyConfig: Record<string, any>;
+  strategyConfig: Record<string, unknown>;
 }
 
 export interface ManagerState {
-  strategies: Record<string, any>;
-  activeBot: any;
+  strategies: Record<string, BotStatus>;
+  activeBot: BotStatus | null;
   selectedStrategy: string;
 }
 
@@ -50,7 +51,7 @@ export class BackendAPIService {
   }
 
   // Bot Management
-  public async createBot(strategyType: string, botName: string, config: any): Promise<{ botId: string }> {
+  public async createBot(strategyType: string, botName: string, config: Record<string, unknown>): Promise<{ botId: string }> {
     return this.apiClient.retryRequest(
       () => this.apiClient.post(`${this.baseURL}/api/trading/bots`, {
         strategyType,
