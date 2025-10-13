@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import { redisCandleStorage } from './redis/RedisCandleStorage.js';
 import { coinbaseAPI } from './CoinbaseAPIService.js';
 import { MultiGranularityAggregator } from './MultiGranularityAggregator.js';
+import { cdpAuth } from './CDPAuth.js';
 
 /**
  * Coinbase WebSocket client for real-time market data
@@ -227,11 +228,30 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       return;
     }
 
-    const subscription = {
-      type: 'subscribe',
-      product_ids: [productId],
-      channels: ['level2']
-    };
+    // Try to get authentication for level2
+    const auth = cdpAuth.getWebSocketAuth();
+
+    let subscription;
+    if (auth) {
+      // Use authenticated subscription for level2
+      console.log(`🔐 Using CDP authentication for level2 ${productId}`);
+      subscription = auth; // Auth object already contains subscription info
+      subscription.product_ids = [productId];
+      subscription.channels = [
+        {
+          name: 'level2',
+          product_ids: [productId]
+        }
+      ];
+    } else {
+      // Fallback to unauthenticated level2_batch (updates every 50ms)
+      console.log(`📊 Using unauthenticated level2_batch for ${productId} (will get batched updates)`);
+      subscription = {
+        type: 'subscribe',
+        product_ids: [productId],
+        channels: ['level2_batch'] // Use level2_batch which doesn't require auth
+      };
+    }
 
     this.subscriptions.set(subscriptionKey, subscription);
 
@@ -329,6 +349,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
       case 'snapshot':
       case 'l2update':
+      case 'level2':
         this.handleLevel2(message);
         break;
 
@@ -361,9 +382,10 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * Handle level2 orderbook messages (snapshot and updates)
    */
   handleLevel2(message) {
-    // Level2 messages come in two types:
+    // Level2 messages come in multiple types:
     // 1. snapshot: Full orderbook state with "updates" array
     // 2. l2update: Incremental updates with "changes" array
+    // 3. level2: Authenticated level2 format with bids/asks arrays
 
     const productId = message.product_id;
 
@@ -430,6 +452,37 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       }
 
       this.emit('level2', updates);
+    } else if (message.type === 'level2') {
+      // Authenticated level2 format (direct bids/asks)
+      const orderbook = {
+        type: 'snapshot',
+        product_id: productId,
+        bids: [],
+        asks: []
+      };
+
+      // Parse bids
+      if (message.bids) {
+        message.bids.forEach(bid => {
+          orderbook.bids.push({
+            price: parseFloat(bid[0]),
+            size: parseFloat(bid[1])
+          });
+        });
+      }
+
+      // Parse asks
+      if (message.asks) {
+        message.asks.forEach(ask => {
+          orderbook.asks.push({
+            price: parseFloat(ask[0]),
+            size: parseFloat(ask[1])
+          });
+        });
+      }
+
+      // Bids and asks are already sorted
+      this.emit('level2', orderbook);
     }
   }
 
