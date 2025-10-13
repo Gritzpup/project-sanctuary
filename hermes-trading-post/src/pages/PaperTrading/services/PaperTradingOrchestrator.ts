@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import type { Strategy } from '../../../strategies/base/Strategy';
 import type { Position } from '../../../strategies/base/StrategyTypes';
+import type { Trade, Signal } from '../../../types/trading/core';
 import { paperTradingManager } from '../../../services/state/paperTradingManager';
 import { ReverseRatioStrategy } from '../../../strategies/implementations/ReverseRatioStrategy';
 import { GridTradingStrategy } from '../../../strategies/implementations/GridTradingStrategy';
@@ -21,7 +22,7 @@ export interface TradingState {
   btcBalance: number;
   vaultBalance: number;
   btcVaultBalance: number;
-  trades: any[];
+  trades: Trade[];
   positions: Position[];
   totalReturn: number;
   winRate: number;
@@ -31,6 +32,23 @@ export interface TradingState {
   recentHigh: number;
   recentLow: number;
   currentPrice: number;
+}
+
+interface BackendMessage {
+  type: string;
+  data?: unknown;
+}
+
+interface BotState {
+  isRunning: boolean;
+  isPaused: boolean;
+  currentPrice: number;
+  positions: Position[];
+  trades: Trade[];
+  balance: {
+    usd: number;
+    btc: number;
+  };
 }
 
 export class PaperTradingOrchestrator {
@@ -113,7 +131,7 @@ export class PaperTradingOrchestrator {
     }
   }
 
-  private handleBackendMessage(data: any) {
+  private handleBackendMessage(data: BackendMessage) {
     if (data.type === 'status' && data.data) {
       this.updateState({
         isRunning: data.data.isRunning || false,
@@ -345,7 +363,7 @@ export class PaperTradingOrchestrator {
     }
   }
 
-  private processPriceThroughStrategy(activeBot: any, price: number) {
+  private processPriceThroughStrategy(activeBot: { service: { getState: () => any } }, price: number) {
     try {
       const botState = activeBot.service.getState();
       const currentBotState = get(botState);
