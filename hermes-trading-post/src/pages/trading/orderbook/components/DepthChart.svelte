@@ -80,6 +80,40 @@
     return { left: 0, center: 0, right: 0 };
   });
 
+  // Calculate valley point offset based on price within $1000 range
+  let valleyOffset = $derived.by(() => {
+    const summary = orderbookStore.summary;
+    if (summary.bestBid && summary.bestAsk) {
+      const midPrice = (summary.bestBid + summary.bestAsk) / 2;
+      const displayedPrice = Math.floor(midPrice / 1000) * 1000; // The price shown in gauge (e.g., 115000)
+      const offset = midPrice - displayedPrice; // How far we are from the displayed thousand
+
+      // Map offset to visual position
+      // 0-500: valley moves from center (50%) to right (up to 60%)
+      // 500-1000: valley continues moving right (60% to 70%)
+      // When it hits 1000, it resets to center at the new price
+      const percentOffset = (offset / 1000) * 20; // 0-20% movement range
+
+      return 50 + percentOffset; // Base 50% (center) + offset
+    }
+    return 50; // Default to center
+  });
+
+  // Calculate buy/sell pressure balance for coloring
+  let pressureBalance = $derived.by(() => {
+    const totalBidVolume = bidsWithCumulative.reduce((sum, bid) => sum + bid.size, 0);
+    const totalAskVolume = asksWithCumulative.reduce((sum, ask) => sum + ask.size, 0);
+    const total = totalBidVolume + totalAskVolume;
+
+    if (total === 0) return 'neutral';
+
+    const bidRatio = totalBidVolume / total;
+    // More bids = bullish (green), more asks = bearish (red)
+    if (bidRatio > 0.55) return 'bullish';
+    if (bidRatio < 0.45) return 'bearish';
+    return 'neutral';
+  });
+
   function formatPrice(price: number): string {
     if (price >= 1000000) return `$${(price / 1000000).toFixed(1)}M`;
     if (price >= 1000) return `$${Math.floor(price / 1000)}k`;
@@ -381,6 +415,12 @@
       <!-- Mid price indicator line (shows balance of power) -->
       <div class="mid-price-line"></div>
 
+      <!-- Dynamic valley point indicator -->
+      <div class="valley-indicator valley-{pressureBalance}" style="left: {valleyOffset}%">
+        <div class="valley-point"></div>
+        <div class="valley-line"></div>
+      </div>
+
       <!-- Custom volume gauge overlay (left side) - linear scale -->
       <div class="volume-gauge-overlay">
         {#each volumeRange as item}
@@ -546,6 +586,96 @@
     transform: translateX(-50%);
     pointer-events: none;
     z-index: 99;
+  }
+
+  /* Dynamic valley indicator that moves with price */
+  .valley-indicator {
+    position: absolute;
+    bottom: 0;
+    height: 100%;
+    transform: translateX(-50%);
+    transition: left 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .valley-point {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 12px solid #a78bfa;
+    filter: drop-shadow(0 0 6px rgba(167, 139, 250, 1));
+    animation: valleyPulse 2s ease-in-out infinite;
+  }
+
+  .valley-line {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: calc(100% - 25px);
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(167, 139, 250, 0.2) 30%,
+      rgba(167, 139, 250, 0.5) 100%
+    );
+  }
+
+  @keyframes valleyPulse {
+    0%, 100% {
+      opacity: 0.7;
+      transform: translateX(-50%) translateY(0);
+    }
+    50% {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-3px);
+    }
+  }
+
+  /* Pressure balance color variations */
+  .valley-bullish .valley-point {
+    border-top-color: #26a69a;
+    filter: drop-shadow(0 0 6px rgba(38, 166, 154, 1));
+  }
+
+  .valley-bullish .valley-line {
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(38, 166, 154, 0.2) 30%,
+      rgba(38, 166, 154, 0.5) 100%
+    );
+  }
+
+  .valley-bearish .valley-point {
+    border-top-color: #ef5350;
+    filter: drop-shadow(0 0 6px rgba(239, 83, 80, 1));
+  }
+
+  .valley-bearish .valley-line {
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(239, 83, 80, 0.2) 30%,
+      rgba(239, 83, 80, 0.5) 100%
+    );
+  }
+
+  .valley-neutral .valley-point {
+    border-top-color: #a78bfa;
+    filter: drop-shadow(0 0 6px rgba(167, 139, 250, 1));
+  }
+
+  .valley-neutral .valley-line {
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(167, 139, 250, 0.2) 30%,
+      rgba(167, 139, 250, 0.5) 100%
+    );
   }
 
   /* Custom volume gauge overlay (left side) */
