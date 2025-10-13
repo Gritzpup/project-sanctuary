@@ -17,6 +17,88 @@
   let hoverPrice = $state(0);
   let hoverVolume = $state(0);
 
+  // L2 Data flow status indicator
+  let l2Status = $state({
+    state: 'disconnected', // 'disconnected', 'waiting', 'active', 'error'
+    label: 'Connecting',
+    message: 'Connecting to L2 data stream...',
+    lastUpdate: 0,
+    updatesPerSecond: 0
+  });
+
+  // Track L2 data flow
+  let lastL2UpdateTime = 0;
+  let l2UpdateCount = 0;
+  let l2UpdateTimer: NodeJS.Timeout | null = null;
+
+  // Monitor L2 data flow status
+  function updateL2Status() {
+    const now = Date.now();
+    const timeSinceUpdate = now - lastL2UpdateTime;
+    const metrics = orderbookStore.metrics;
+
+    // Determine status based on update frequency and timing
+    if (!orderbookStore.isReady) {
+      l2Status = {
+        state: 'waiting',
+        label: 'Waiting',
+        message: 'Waiting for orderbook data...',
+        lastUpdate: lastL2UpdateTime,
+        updatesPerSecond: 0
+      };
+    } else if (timeSinceUpdate > 2000) {
+      // No updates for 2 seconds
+      l2Status = {
+        state: 'error',
+        label: 'No Data',
+        message: `No updates for ${(timeSinceUpdate / 1000).toFixed(1)}s`,
+        lastUpdate: lastL2UpdateTime,
+        updatesPerSecond: 0
+      };
+    } else if (metrics.updatesPerSecond >= 20) {
+      // High frequency = WebSocket
+      l2Status = {
+        state: 'active',
+        label: `WebSocket (${metrics.updatesPerSecond}/s)`,
+        message: `Real-time WebSocket: ${metrics.updatesPerSecond} updates/sec, ${metrics.avgLatency.toFixed(0)}ms latency`,
+        lastUpdate: lastL2UpdateTime,
+        updatesPerSecond: metrics.updatesPerSecond
+      };
+    } else if (metrics.updatesPerSecond >= 8 && metrics.updatesPerSecond <= 12) {
+      // ~10/s = Polling
+      l2Status = {
+        state: 'waiting',
+        label: `Polling (${metrics.updatesPerSecond}/s)`,
+        message: `Using polling fallback: ${metrics.updatesPerSecond} updates/sec, ${metrics.avgLatency.toFixed(0)}ms latency`,
+        lastUpdate: lastL2UpdateTime,
+        updatesPerSecond: metrics.updatesPerSecond
+      };
+    } else if (metrics.updatesPerSecond > 0) {
+      // Some updates
+      l2Status = {
+        state: 'active',
+        label: `Active (${metrics.updatesPerSecond}/s)`,
+        message: `Receiving updates: ${metrics.updatesPerSecond} updates/sec`,
+        lastUpdate: lastL2UpdateTime,
+        updatesPerSecond: metrics.updatesPerSecond
+      };
+    }
+  }
+
+  // Start monitoring L2 status
+  $effect(() => {
+    if (!l2UpdateTimer) {
+      l2UpdateTimer = setInterval(updateL2Status, 500);
+    }
+
+    return () => {
+      if (l2UpdateTimer) {
+        clearInterval(l2UpdateTimer);
+        l2UpdateTimer = null;
+      }
+    };
+  });
+
   // Use reactive getters for smooth updates
   let bidsWithCumulative = $derived.by(() => {
     const bids = orderbookStore.getBids(12);
@@ -376,6 +458,10 @@
   let updatePending = false;
 
   function handleLevel2Message(data: any) {
+    // Track that we received an update
+    lastL2UpdateTime = Date.now();
+    l2UpdateCount++;
+
     if (data.type === 'snapshot') {
       // Initial orderbook snapshot
       orderbookStore.processSnapshot(data);
@@ -503,7 +589,14 @@
 
 <div class="panel depth-chart-panel">
   <div class="panel-header">
-    <h2>Order Book Depth</h2>
+    <div class="header-left">
+      <h2>Order Book Depth</h2>
+      <!-- L2 Data Flow Traffic Light -->
+      <div class="l2-status-indicator" title="L2 Data Status: {l2Status.message}">
+        <div class="traffic-light traffic-light-{l2Status.state}"></div>
+        <span class="status-text">{l2Status.label}</span>
+      </div>
+    </div>
     <div class="depth-chart-legend">
       <span class="legend-item bid">
         <span class="legend-color bid"></span>
@@ -652,6 +745,83 @@
     font-size: 16px;
     color: #a78bfa;
     font-weight: 500;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* L2 Status Traffic Light */
+  .l2-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    border: 1px solid rgba(74, 0, 224, 0.2);
+  }
+
+  .traffic-light {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+  }
+
+  .traffic-light-disconnected {
+    background: #666;
+    box-shadow: none;
+  }
+
+  .traffic-light-waiting {
+    background: #ffa500;
+    animation: pulse-slow 2s ease-in-out infinite;
+    box-shadow: 0 0 8px rgba(255, 165, 0, 0.6);
+  }
+
+  .traffic-light-active {
+    background: #4caf50;
+    animation: pulse-fast 0.5s ease-in-out infinite;
+    box-shadow: 0 0 12px rgba(76, 175, 80, 0.8);
+  }
+
+  .traffic-light-error {
+    background: #f44336;
+    animation: pulse-slow 3s ease-in-out infinite;
+    box-shadow: 0 0 8px rgba(244, 67, 54, 0.6);
+  }
+
+  @keyframes pulse-slow {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.6;
+      transform: scale(1.1);
+    }
+  }
+
+  @keyframes pulse-fast {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.8;
+      transform: scale(1.15);
+    }
+  }
+
+  .status-text {
+    font-size: 11px;
+    color: #c4b5fd;
+    font-weight: 500;
+    white-space: nowrap;
   }
 
   .panel-content {
