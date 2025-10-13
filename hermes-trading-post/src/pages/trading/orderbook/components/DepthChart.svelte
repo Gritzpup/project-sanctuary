@@ -149,13 +149,23 @@
   });
 
   let priceRange = $derived.by(() => {
-    const summary = orderbookStore.summary;
-    if (summary.bestBid && summary.bestAsk) {
-      const midPrice = (summary.bestBid + summary.bestAsk) / 2;
+    // Get actual orderbook data range from API
+    const depthData = orderbookStore.getDepthData(500);
+
+    if (depthData.bids.length > 0 && depthData.asks.length > 0) {
+      // Get the actual min/max prices from orderbook data
+      const bidPrices = depthData.bids.map(b => b.price);
+      const askPrices = depthData.asks.map(a => a.price);
+      const allPrices = [...bidPrices, ...askPrices];
+
+      const minPrice = Math.min(...allPrices);
+      const maxPrice = Math.max(...allPrices);
+      const midPrice = (minPrice + maxPrice) / 2;
+
       return {
-        left: midPrice - 10000,
+        left: minPrice,
         center: midPrice,
-        right: midPrice + 10000
+        right: maxPrice
       };
     }
     return { left: 0, center: 0, right: 0 };
