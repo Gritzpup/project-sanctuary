@@ -80,43 +80,70 @@
     return { left: 0, center: 0, right: 0 };
   });
 
-  // Calculate valley point offset based on price within $1000 range
-  let valleyOffset = $derived.by(() => {
+  // Find the point of highest volume accumulation closest to current price
+  let volumeHotspot = $derived.by(() => {
     const summary = orderbookStore.summary;
-    if (summary.bestBid && summary.bestAsk) {
-      const midPrice = (summary.bestBid + summary.bestAsk) / 2;
-      const displayedPrice = Math.floor(midPrice / 1000) * 1000; // The price shown in gauge (e.g., 115000)
-      const offset = midPrice - displayedPrice; // How far we are from the displayed thousand
-
-      // Map offset to position within the visible chart area
-      // The chart shows 20k range (-10k to +10k from center)
-      // We want to move within the middle third of the chart
-      const rangeStart = 40; // Start at 40% (slightly left of center)
-      const rangeEnd = 60;   // End at 60% (slightly right of center)
-      const rangeWidth = rangeEnd - rangeStart;
-
-      // Map 0-1000 offset to position within our range
-      const percentOffset = (offset / 1000) * rangeWidth;
-
-      return rangeStart + percentOffset; // Position within 40-60% range
+    if (!summary.bestBid || !summary.bestAsk) {
+      return {
+        offset: 50,
+        price: 0,
+        side: 'neutral',
+        volume: 0
+      };
     }
-    return 50; // Default to center
-  });
 
-  // Calculate buy/sell pressure balance for coloring
-  let pressureBalance = $derived.by(() => {
-    const totalBidVolume = bidsWithCumulative.reduce((sum, bid) => sum + bid.size, 0);
-    const totalAskVolume = asksWithCumulative.reduce((sum, ask) => sum + ask.size, 0);
-    const total = totalBidVolume + totalAskVolume;
+    const midPrice = (summary.bestBid + summary.bestAsk) / 2;
 
-    if (total === 0) return 'neutral';
+    // Get depth data for analysis
+    const depthData = orderbookStore.getDepthData(100);
 
-    const askRatio = totalAskVolume / total;
-    // More asks (sells) = bearish (red), more bids (buys) = bullish (green)
-    // This shows ORDER FLOW - if more people are selling, price likely goes down
-    if (askRatio > 0.55) return 'bearish';  // More selling pressure
-    if (askRatio < 0.45) return 'bullish';  // More buying pressure
-    return 'neutral';
+    // Find the highest volume point within reasonable range of current price
+    let maxBidVolume = 0;
+    let maxBidPrice = summary.bestBid;
+    let maxBidIndex = -1;
+
+    // Check bids (sorted by price descending, so closest to spread is first)
+    depthData.bids.forEach((bid, index) => {
+      // Only consider bids within 2% of current price
+      if (bid.price > midPrice * 0.98 && bid.depth > maxBidVolume) {
+        maxBidVolume = bid.depth;
+        maxBidPrice = bid.price;
+        maxBidIndex = index;
+      }
+    });
+
+    let maxAskVolume = 0;
+    let maxAskPrice = summary.bestAsk;
+    let maxAskIndex = -1;
+
+    // Check asks (sorted by price ascending, so closest to spread is first)
+    depthData.asks.forEach((ask, index) => {
+      // Only consider asks within 2% of current price
+      if (ask.price < midPrice * 1.02 && ask.depth > maxAskVolume) {
+        maxAskVolume = ask.depth;
+        maxAskPrice = ask.price;
+        maxAskIndex = index;
+      }
+    });
+
+    // Determine which side has stronger support/resistance
+    const strongerSide = maxBidVolume > maxAskVolume ? 'bid' : 'ask';
+    const strongerPrice = strongerSide === 'bid' ? maxBidPrice : maxAskPrice;
+    const strongerVolume = strongerSide === 'bid' ? maxBidVolume : maxAskVolume;
+
+    // Calculate position on chart (assuming 20k range centered on midPrice)
+    const rangeStart = midPrice - 10000;
+    const rangeEnd = midPrice + 10000;
+    const positionInRange = (strongerPrice - rangeStart) / (rangeEnd - rangeStart);
+    const offset = Math.max(10, Math.min(90, positionInRange * 100));
+
+    return {
+      offset,
+      price: strongerPrice,
+      side: strongerSide === 'bid' ? 'bullish' : 'bearish',
+      volume: strongerVolume,
+      type: strongerSide === 'bid' ? 'Support' : 'Resistance'
+    };
   });
 
   function formatPrice(price: number): string {
@@ -375,29 +402,25 @@
       lastAskCount = asks.length;
     }
 
-    // Maintain visible range to prevent jumping - keep current zoom level
+    // Always keep chart centered on the spread with consistent range
     try {
-      const timeScale = chart.timeScale();
-      const visibleRange = timeScale.getVisibleRange();
+      const summary = orderbookStore.summary;
+      if (summary.bestBid && summary.bestAsk) {
+        const midPrice = (summary.bestBid + summary.bestAsk) / 2;
 
-      // If we have a visible range, maintain it
-      if (visibleRange && visibleRange.from !== null && visibleRange.to !== null) {
-        // Small adjustment to keep chart centered on spread
-        const spread = asks[0]?.price - bids[bids.length - 1]?.price || 0;
-        const center = (asks[0]?.price + bids[bids.length - 1]?.price) / 2 || 0;
-        const currentCenter = ((visibleRange.from as number) + (visibleRange.to as number)) / 2;
-
-        // Only recenter if we've drifted significantly
-        if (Math.abs(currentCenter - center) > spread * 2) {
-          timeScale.fitContent();
-        }
-      } else {
-        // No visible range set, fit content
-        timeScale.fitContent();
+        // Always show 20k range centered on spread
+        chart.timeScale().setVisibleRange({
+          from: (midPrice - 10000) as any,
+          to: (midPrice + 10000) as any
+        });
       }
     } catch (e) {
-      // Fallback to fit content if range maintenance fails
-      chart.timeScale().fitContent();
+      // If setting range fails, try to fit content
+      try {
+        chart.timeScale().fitContent();
+      } catch (e2) {
+        // Ignore if chart not ready
+      }
     }
   }
 
@@ -433,8 +456,13 @@
       <!-- Mid price indicator line (shows balance of power) -->
       <div class="mid-price-line"></div>
 
-      <!-- Dynamic valley point indicator -->
-      <div class="valley-indicator valley-{pressureBalance}" style="left: {valleyOffset}%">
+      <!-- Dynamic volume hotspot indicator -->
+      <div class="valley-indicator valley-{volumeHotspot.side}" style="left: {volumeHotspot.offset}%">
+        <div class="valley-price-label">
+          <span class="price-type">{volumeHotspot.type}</span>
+          <span class="price-value">${Math.floor(volumeHotspot.price).toLocaleString('en-US')}</span>
+          <span class="volume-value">{volumeHotspot.volume.toFixed(2)} BTC</span>
+        </div>
         <div class="valley-point"></div>
         <div class="valley-line"></div>
       </div>
@@ -617,6 +645,43 @@
     z-index: 100;
   }
 
+  .valley-price-label {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    border: 1px solid currentColor;
+    border-radius: 6px;
+    padding: 4px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 101;
+    pointer-events: none;
+  }
+
+  .valley-price-label .price-type {
+    font-size: 9px;
+    opacity: 0.8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+
+  .valley-price-label .price-value {
+    font-weight: 700;
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+
+  .valley-price-label .volume-value {
+    font-size: 10px;
+    opacity: 0.9;
+  }
+
   .valley-point {
     position: absolute;
     bottom: 8px;
@@ -656,7 +721,7 @@
     }
   }
 
-  /* Pressure balance color variations */
+  /* Volume hotspot color variations */
   .valley-bullish .valley-point {
     border-top-color: #26a69a;
     filter: drop-shadow(0 0 6px rgba(38, 166, 154, 1));
@@ -668,6 +733,12 @@
       rgba(38, 166, 154, 0.2) 30%,
       rgba(38, 166, 154, 0.5) 100%
     );
+  }
+
+  .valley-bullish .valley-price-label {
+    color: #26a69a;
+    border-color: rgba(38, 166, 154, 0.5);
+    background: rgba(0, 0, 0, 0.95);
   }
 
   .valley-bearish .valley-point {
@@ -683,6 +754,12 @@
     );
   }
 
+  .valley-bearish .valley-price-label {
+    color: #ef5350;
+    border-color: rgba(239, 83, 80, 0.5);
+    background: rgba(0, 0, 0, 0.95);
+  }
+
   .valley-neutral .valley-point {
     border-top-color: #a78bfa;
     filter: drop-shadow(0 0 6px rgba(167, 139, 250, 1));
@@ -694,6 +771,12 @@
       rgba(167, 139, 250, 0.2) 30%,
       rgba(167, 139, 250, 0.5) 100%
     );
+  }
+
+  .valley-neutral .valley-price-label {
+    color: #a78bfa;
+    border-color: rgba(167, 139, 250, 0.5);
+    background: rgba(0, 0, 0, 0.95);
   }
 
   /* Custom volume gauge overlay (left side) */
