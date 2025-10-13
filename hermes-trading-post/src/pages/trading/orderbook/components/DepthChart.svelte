@@ -647,13 +647,13 @@
 
   .valley-price-label {
     position: absolute;
-    bottom: 40px;
+    top: 20px;  /* Changed from bottom to top positioning */
     left: 50%;
     transform: translateX(-50%);
     background: rgba(0, 0, 0, 0.9);
     border: 1px solid currentColor;
     border-radius: 6px;
-    padding: 4px 8px;
+    padding: 6px 10px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -661,6 +661,7 @@
     white-space: nowrap;
     z-index: 101;
     pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   }
 
   .valley-price-label .price-type {
