@@ -210,7 +210,7 @@
 
 <style>
   .panel {
-    background: rgba(255, 255, 255, 0.02);
+    background: transparent;
     border: 1px solid rgba(74, 0, 224, 0.3);
     border-radius: 8px;
     overflow: hidden;

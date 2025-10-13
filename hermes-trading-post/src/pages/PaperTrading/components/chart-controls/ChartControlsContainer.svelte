@@ -126,7 +126,7 @@
 <style>
   .chart-controls {
     padding: 0 var(--space-sm);
-    background: var(--surface-elevated);
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.6));
     border-top: 1px solid var(--border-primary);
     border-bottom: 1px solid var(--border-primary);
   }

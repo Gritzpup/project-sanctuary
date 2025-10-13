@@ -405,11 +405,6 @@
       }
     }, 500); // Retry every 500ms
 
-    // Cleanup interval on unmount
-    return () => {
-      clearInterval(connectInterval);
-    };
-
     // Handle resize
     const resizeObserver = new ResizeObserver(() => {
       if (chart && chartContainer) {
@@ -440,8 +435,9 @@
     });
     resizeObserver.observe(chartContainer);
 
-    // Cleanup
+    // Cleanup all resources on unmount
     return () => {
+      clearInterval(connectInterval);
       resizeObserver.disconnect();
       // Clean up WebSocket event listener (don't close the WebSocket - it's shared!)
       if (ws && (ws as any).__depthChartHandler) {
