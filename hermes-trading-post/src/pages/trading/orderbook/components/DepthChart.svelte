@@ -16,6 +16,7 @@
   let isHovering = $state(false);
   let hoverPrice = $state(0);
   let hoverVolume = $state(0);
+  let hoverVolumePercent = $state(0); // Y position as percentage from top
 
   // L2 Data flow status indicator
   let l2Status = $state({
@@ -365,6 +366,23 @@
         }
 
         hoverVolume = foundVolume;
+
+        // Get the actual Y coordinate based on which side (bid or ask) we're hovering over
+        if (foundVolume > 0 && bidSeries && askSeries) {
+          // Determine which series to use based on which side found the volume
+          const useSeries = bidPoint ? bidSeries : askSeries;
+
+          // Use priceToCoordinate to get the Y position for this volume value
+          try {
+            const yCoord = useSeries.priceToCoordinate(foundVolume);
+            if (yCoord !== null) {
+              mouseY = yCoord; // Update mouseY to the actual chart line position
+            }
+          } catch (error) {
+            // Silently ignore coordinate conversion errors
+          }
+        }
+
         isHovering = true;
       }
     });
@@ -546,10 +564,7 @@
     if (bidsChanged || asksChanged) {
       chartUpdateCount++;
 
-      // Log every 20th update to track performance
-      if (chartUpdateCount % 20 === 0) {
-        console.log(`📈 Chart update #${chartUpdateCount} - Bids: ${bids.length}, Asks: ${asks.length}`);
-      }
+      // Chart updates tracked without console spam
 
       // For depth charts, always use setData since prices can change dramatically
       // The chart library doesn't support updating with out-of-order prices

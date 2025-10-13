@@ -59,8 +59,7 @@ class OrderbookStore {
       this._metrics.updatesInCurrentSecond = 0;
       this._metrics.lastSecondTimestamp = now;
 
-      // Log performance metrics every second
-      console.log(`📊 L2 Performance: ${this._metrics.updatesPerSecond} updates/sec, Avg latency: ${this._metrics.avgLatency.toFixed(1)}ms, Min: ${this._metrics.minLatency}ms, Max: ${this._metrics.maxLatency}ms`);
+      // Performance metrics tracked but not logged
     }
     this._metrics.updatesInCurrentSecond++;
 
@@ -72,10 +71,7 @@ class OrderbookStore {
       this._metrics.avgLatency = this._metrics.totalLatency / this._updateCount;
     }
 
-    // Log update frequency every 10th update
-    if (this._updateCount % 10 === 0) {
-      console.log(`📊 Orderbook update #${this._updateCount} (${timeSinceLastUpdate}ms since last)`);
-    }
+    // Update tracking without console spam
 
     this._lastUpdateTime = now;
 
@@ -178,8 +174,7 @@ class OrderbookStore {
       this._metrics.updatesInCurrentSecond = 0;
       this._metrics.lastSecondTimestamp = now;
 
-      // Log performance metrics every second
-      console.log(`📊 L2 Performance: ${this._metrics.updatesPerSecond} updates/sec, Avg latency: ${this._metrics.avgLatency.toFixed(1)}ms, Min: ${this._metrics.minLatency}ms, Max: ${this._metrics.maxLatency}ms`);
+      // Performance metrics tracked but not logged
     }
     this._metrics.updatesInCurrentSecond++;
 
@@ -191,10 +186,7 @@ class OrderbookStore {
       this._metrics.avgLatency = this._metrics.totalLatency / this._updateCount;
     }
 
-    // Log update frequency every 10th update
-    if (this._updateCount % 10 === 0) {
-      console.log(`📊 Orderbook update #${this._updateCount} (${timeSinceLastUpdate}ms since last, ${data.changes.length} changes)`);
-    }
+    // Update tracking without console spam
 
     this._lastUpdateTime = now;
 
