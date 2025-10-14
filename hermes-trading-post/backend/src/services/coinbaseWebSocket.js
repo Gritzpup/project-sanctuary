@@ -141,58 +141,86 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   async connect() {
     if (this.isConnecting || this.isConnected) {
+      console.log(`⚠️ Already ${this.isConnecting ? 'connecting' : 'connected'} to Coinbase WebSocket`);
       return;
     }
 
     this.isConnecting = true;
     console.log('🔌 Connecting to Coinbase Advanced Trade WebSocket...');
 
-    try {
-      // Use Coinbase Advanced Trade WebSocket endpoint with CDP API key support
-      // This endpoint supports Level2 channel with JWT authentication using CDP keys
-      this.ws = new WebSocket('wss://advanced-trade-ws.coinbase.com');
-
-      this.ws.on('open', () => {
-        console.log('✅✅✅ Connected to Coinbase Advanced Trade WebSocket ✅✅✅');
-        this.isConnected = true;
-        this.isConnecting = false;
-        this.reconnectAttempts = 0;
-        this.emit('connected');
-
-        // Resubscribe to any existing subscriptions
-        console.log(`📡 WebSocket connection established - resubscribing to ${this.subscriptions.size} channels`);
-        this.resubscribe();
-      });
-
-      this.ws.on('message', (data) => {
-        try {
-          const message = JSON.parse(data.toString());
-          this.handleMessage(message);
-        } catch (error) {
-          console.error('Error parsing Coinbase WebSocket message:', error);
+    return new Promise((resolve, reject) => {
+      // Add timeout for connection
+      const connectionTimeout = setTimeout(() => {
+        console.error('🔴 Coinbase WebSocket connection timeout (10s)');
+        if (this.ws) {
+          this.ws.terminate();
         }
-      });
+        this.isConnecting = false;
+        reject(new Error('Connection timeout'));
+      }, 10000);
 
-      this.ws.on('close', () => {
-        console.log('🔴 Coinbase WebSocket connection closed');
+      try {
+        // Use Coinbase Advanced Trade WebSocket endpoint with CDP API key support
+        // This endpoint supports Level2 channel with JWT authentication using CDP keys
+        this.ws = new WebSocket('wss://advanced-trade-ws.coinbase.com');
+
+        this.ws.on('open', () => {
+          clearTimeout(connectionTimeout);
+          console.log('✅✅✅ Connected to Coinbase Advanced Trade WebSocket ✅✅✅');
+          console.log(`📊 Connection State: isConnected=true, subscriptions=${this.subscriptions.size}, aggregators=${this.candleAggregators.size}`);
+          this.isConnected = true;
+          this.isConnecting = false;
+          this.reconnectAttempts = 0;
+          this.emit('connected');
+
+          // Resubscribe to any existing subscriptions
+          console.log(`📡 WebSocket connection established - resubscribing to ${this.subscriptions.size} channels`);
+          if (this.subscriptions.size > 0) {
+            this.resubscribe();
+          } else {
+            console.log('⚠️ No subscriptions to resubscribe - waiting for subscription requests');
+          }
+
+          // Resolve the promise
+          resolve();
+        });
+
+        this.ws.on('message', (data) => {
+          try {
+            const message = JSON.parse(data.toString());
+            console.log('📩 [CoinbaseWS] RAW MESSAGE:', message.type || 'unknown', message);
+            this.handleMessage(message);
+          } catch (error) {
+            console.error('Error parsing Coinbase WebSocket message:', error);
+          }
+        });
+
+      this.ws.on('close', (code, reason) => {
+        console.log('🔴 Coinbase WebSocket connection closed:', { code, reason: reason.toString() });
+        console.log(`📊 Close State: isConnected=false, subscriptions=${this.subscriptions.size}, will reconnect`);
         this.isConnected = false;
         this.isConnecting = false;
         this.emit('disconnected');
         this.scheduleReconnect();
       });
 
-      this.ws.on('error', (error) => {
-        console.error('🔴 Coinbase WebSocket error:', error);
-        this.isConnected = false;
+        this.ws.on('error', (error) => {
+          clearTimeout(connectionTimeout);
+          console.error('🔴 Coinbase WebSocket error:', error.message || error);
+          console.log(`📊 Error State: isConnected=${this.isConnected}, isConnecting=${this.isConnecting}`);
+          this.isConnected = false;
+          this.isConnecting = false;
+          this.emit('error', error);
+          reject(error);
+        });
+
+      } catch (error) {
+        console.error('Error creating Coinbase WebSocket:', error);
         this.isConnecting = false;
         this.emit('error', error);
-      });
-
-    } catch (error) {
-      console.error('Error creating Coinbase WebSocket:', error);
-      this.isConnecting = false;
-      this.emit('error', error);
-    }
+        reject(error);
+      }
+    });
   }
 
   /**
@@ -206,16 +234,17 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       return;
     }
 
+    // ✅ FIXED: Advanced Trade API uses 'channel' (string), not 'channels' (array)
     const subscription = {
       type: 'subscribe',
       product_ids: [productId],
-      channels: ['ticker']
+      channel: 'ticker'  // Changed from channels: ['ticker']
     };
 
     this.subscriptions.set(subscriptionKey, subscription);
 
     if (this.isConnected) {
-      console.log(`📡 Subscribing to ticker for ${productId}`);
+      console.log(`📡 Subscribing to ticker for ${productId}`, JSON.stringify(subscription));
       this.ws.send(JSON.stringify(subscription));
     }
   }
@@ -226,6 +255,8 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   subscribeLevel2(productId) {
     const subscriptionKey = `level2:${productId}`;
+
+    console.log(`🔵 subscribeLevel2 called: productId=${productId}, isConnected=${this.isConnected}, existing=${this.subscriptions.has(subscriptionKey)}`);
 
     if (this.subscriptions.has(subscriptionKey)) {
       console.log(`Already subscribed to level2 for ${productId}`);
@@ -260,20 +291,24 @@ export class CoinbaseWebSocketClient extends EventEmitter {
   }
 
   /**
-   * Subscribe to matches (trades) for real-time multi-granularity aggregation
+   * Subscribe to market_trades (trades) for real-time multi-granularity aggregation
+   * Note: Advanced Trade API uses 'market_trades' channel (not 'matches' from old Exchange API)
    */
   subscribeMatches(productId, granularity = '60') {
     const subscriptionKey = `matches:${productId}`;
 
+    console.log(`🔵 subscribeMatches called: productId=${productId}, isConnected=${this.isConnected}, existing=${this.subscriptions.has(subscriptionKey)}`);
+
     if (this.subscriptions.has(subscriptionKey)) {
-      console.log(`Already subscribed to matches for ${productId}`);
+      console.log(`Already subscribed to market_trades for ${productId}`);
       return;
     }
 
+    // ✅ FIXED: Advanced Trade API uses 'channel' (string) and 'market_trades' (not 'matches')
     const subscription = {
       type: 'subscribe',
       product_ids: [productId],
-      channels: ['matches']
+      channel: 'market_trades'  // Changed from channels: ['matches']
     };
 
     this.subscriptions.set(subscriptionKey, subscription);
@@ -293,8 +328,11 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     }
 
     if (this.isConnected) {
-      console.log(`📡 Subscribing to matches for ${productId}`);
+      console.log(`📡 Subscribing to market_trades for ${productId}`, JSON.stringify(subscription));
       this.ws.send(JSON.stringify(subscription));
+    } else {
+      console.log(`⚠️ [CoinbaseWS] Cannot subscribe to market_trades - NOT CONNECTED! isConnected=${this.isConnected}, will subscribe on connection`);
+      // Subscription is already added to this.subscriptions map, will be sent on connection via resubscribe()
     }
   }
 
@@ -303,26 +341,27 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   unsubscribe(productId, channel = 'ticker') {
     const subscriptionKey = `${channel}:${productId}`;
-    
+
     if (!this.subscriptions.has(subscriptionKey)) {
       return;
     }
 
+    // ✅ FIXED: Advanced Trade API uses 'channel' (string), not 'channels' (array)
     const unsubscription = {
       type: 'unsubscribe',
       product_ids: [productId],
-      channels: [channel]
+      channel: channel  // Changed from channels: [channel]
     };
 
     this.subscriptions.delete(subscriptionKey);
-    
+
     if (this.isConnected) {
       console.log(`📡 Unsubscribing from ${channel} for ${productId}`);
       this.ws.send(JSON.stringify(unsubscription));
     }
 
     // Clean up aggregator if it was matches
-    if (channel === 'matches') {
+    if (channel === 'matches' || channel === 'market_trades') {
       // Multi-granularity aggregators are keyed by productId only
       this.candleAggregators.delete(productId);
     }
@@ -330,52 +369,104 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
   /**
    * Handle incoming WebSocket messages
+   * Advanced Trade API uses 'channel' field, not 'type' field
    */
   handleMessage(message) {
-    switch (message.type) {
-      case 'subscriptions':
-        console.log('📡 Coinbase subscription confirmed:', JSON.stringify(message, null, 2));
-        break;
+    // Advanced Trade API uses 'channel' field for routing
+    if (message.channel) {
+      switch (message.channel) {
+        case 'market_trades':
+          this.handleMarketTrades(message);
+          break;
 
-      case 'ticker':
-        this.handleTicker(message);
-        break;
+        case 'ticker':
+          this.handleTicker(message);
+          break;
 
-      case 'match':
-        this.handleMatch(message);
-        break;
+        case 'level2':
+          console.log(`📊 [L2] Received level2 update for ${message.product_id}`);
+          this.handleLevel2(message);
+          break;
 
-      case 'snapshot':
-      case 'l2update':
-      case 'level2':
-        console.log(`📊 [L2] Received ${message.type} for ${message.product_id}`);
-        this.handleLevel2(message);
-        break;
+        case 'subscriptions':
+          console.log('📡 Coinbase subscription confirmed:', JSON.stringify(message, null, 2));
+          break;
 
-      case 'error':
-        console.error('🔴 Coinbase WebSocket error:', JSON.stringify(message, null, 2));
-        break;
+        default:
+          console.log(`❓ Unknown channel: ${message.channel}`, message);
+          break;
+      }
+    }
+    // Fallback for old Exchange API format (if any)
+    else if (message.type) {
+      switch (message.type) {
+        case 'subscriptions':
+          console.log('📡 Coinbase subscription confirmed:', JSON.stringify(message, null, 2));
+          break;
 
-      default:
-        // Log unknown message types for debugging
-        console.log(`❓ Unknown message type: ${message.type}`, message);
-        break;
+        case 'ticker':
+          this.handleTicker(message);
+          break;
+
+        case 'match':
+          this.handleMatch(message);
+          break;
+
+        case 'snapshot':
+        case 'l2update':
+        case 'level2':
+          console.log(`📊 [L2] Received ${message.type} for ${message.product_id}`);
+          this.handleLevel2(message);
+          break;
+
+        case 'error':
+          console.error('🔴 Coinbase WebSocket error:', JSON.stringify(message, null, 2));
+          break;
+
+        default:
+          console.log(`❓ Unknown message type: ${message.type}`, message);
+          break;
+      }
+    } else {
+      console.log(`❓ Unknown message format:`, message);
     }
   }
 
   /**
    * Handle ticker messages
+   * Supports both Advanced Trade API (with events array) and legacy Exchange API
    */
-  handleTicker(ticker) {
-    // Emit ticker update
-    this.emit('ticker', {
-      product_id: ticker.product_id,
-      price: parseFloat(ticker.price),
-      best_bid: parseFloat(ticker.best_bid),
-      best_ask: parseFloat(ticker.best_ask),
-      time: ticker.time,
-      volume_24h: parseFloat(ticker.volume_24h)
-    });
+  handleTicker(message) {
+    // Advanced Trade API format: { channel: "ticker", events: [{ tickers: [...] }] }
+    if (message.events && Array.isArray(message.events)) {
+      message.events.forEach(event => {
+        if (!event.tickers || !Array.isArray(event.tickers)) {
+          return;
+        }
+
+        event.tickers.forEach(ticker => {
+          this.emit('ticker', {
+            product_id: ticker.product_id,
+            price: parseFloat(ticker.price),
+            best_bid: parseFloat(ticker.best_bid || 0),
+            best_ask: parseFloat(ticker.best_ask || 0),
+            time: message.timestamp || ticker.time,
+            volume_24h: parseFloat(ticker.volume_24_h || ticker.volume_24h || 0)
+          });
+        });
+      });
+    }
+    // Legacy Exchange API format: { type: "ticker", product_id, price, ... }
+    else if (message.product_id) {
+      this.emit('ticker', {
+        product_id: message.product_id,
+        price: parseFloat(message.price),
+        best_bid: parseFloat(message.best_bid || 0),
+        best_ask: parseFloat(message.best_ask || 0),
+        time: message.time,
+        volume_24h: parseFloat(message.volume_24h || 0)
+      });
+    }
   }
 
   /**
@@ -487,9 +578,71 @@ export class CoinbaseWebSocketClient extends EventEmitter {
   }
 
   /**
+   * Handle market_trades channel messages from Advanced Trade API
+   * Format: { channel: "market_trades", events: [{ type: "update", trades: [...] }] }
+   */
+  handleMarketTrades(message) {
+    if (!message.events || !Array.isArray(message.events)) {
+      console.warn('⚠️ market_trades message missing events array');
+      return;
+    }
+
+    // Process all events in the message
+    message.events.forEach(event => {
+      if (!event.trades || !Array.isArray(event.trades)) {
+        return;
+      }
+
+      // Process each trade in the event
+      event.trades.forEach(trade => {
+        console.log('🔥 [CoinbaseWS] Received market trade:', trade.product_id, trade.price, 'aggregators:', this.candleAggregators.size);
+
+        const tradeData = {
+          product_id: trade.product_id,
+          price: parseFloat(trade.price),
+          size: parseFloat(trade.size),
+          time: new Date(trade.time).getTime() / 1000, // Convert to seconds
+          side: trade.side.toLowerCase() // Advanced Trade uses uppercase, normalize to lowercase
+        };
+
+        // Update multi-granularity aggregator
+        const aggregator = this.candleAggregators.get(trade.product_id);
+        if (aggregator) {
+          // MultiGranularityAggregator.addTrade() returns array of candles for ALL granularities
+          const candles = aggregator.addTrade(tradeData);
+
+          // Process each granularity's candle
+          candles.forEach(async (candleData) => {
+            const { granularity, granularitySeconds, type, ...candle } = candleData;
+
+            // Store completed candles in Redis
+            if (type === 'complete') {
+              await this.storeCandle(trade.product_id, granularitySeconds, candle);
+            }
+
+            // Emit completed or updated candle for each granularity
+            this.emit('candle', {
+              ...candle,
+              product_id: trade.product_id,
+              granularity: granularitySeconds,
+              granularityKey: granularity,
+              type
+            });
+          });
+        }
+
+        // Also emit raw trade for immediate updates
+        this.emit('trade', tradeData);
+      });
+    });
+  }
+
+  /**
    * Handle match (trade) messages for multi-granularity aggregation
+   * (Legacy Exchange API format - kept for backwards compatibility)
    */
   handleMatch(match) {
+    console.log('🔥 [CoinbaseWS] Received match:', match.product_id, match.price, 'aggregators:', this.candleAggregators.size);
     const trade = {
       product_id: match.product_id,
       price: parseFloat(match.price),

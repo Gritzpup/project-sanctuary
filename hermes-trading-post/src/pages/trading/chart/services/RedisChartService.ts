@@ -208,25 +208,31 @@ export class RedisChartService {
     if (this.ws) {
       this.ws.close();
     }
-    
+
+    console.log('🔌 [RedisChartService] Connecting to backend WebSocket:', this.wsUrl);
     ChartDebug.log('Connecting to backend WebSocket...');
     this.ws = new WebSocket(this.wsUrl);
-    
+
+    console.log('🔌 [RedisChartService] WebSocket object created, readyState:', this.ws.readyState);
+
     this.ws.onopen = () => {
+      console.log('✅ [RedisChartService] WebSocket connection OPENED, readyState:', this.ws?.readyState);
       ChartDebug.log('✅ Connected to backend WebSocket');
-      
+
       // Subscribe to all active subscriptions
       this.wsSubscriptions.forEach((callback, subscriptionKey) => {
         const [pair, granularity] = subscriptionKey.split(':');
+        console.log('🔄 [RedisChartService] Subscribing to:', subscriptionKey);
         this.sendSubscription(pair, granularity);
       });
-      
+
       if (this.onReconnectCallback) {
         this.onReconnectCallback();
       }
     };
-    
+
     this.ws.onmessage = (event) => {
+      console.log('📨 [RedisChartService] Received WebSocket message:', event.data);
       try {
         const message = JSON.parse(event.data);
         this.handleWebSocketMessage(message);
@@ -234,13 +240,23 @@ export class RedisChartService {
         ChartDebug.error('Failed to parse WebSocket message:', error);
       }
     };
-    
-    this.ws.onclose = () => {
+
+    this.ws.onclose = (event) => {
+      console.error('❌ [RedisChartService] WebSocket CLOSED:', {
+        code: event.code,
+        reason: event.reason,
+        wasClean: event.wasClean
+      });
       ChartDebug.warn('❌ Backend WebSocket disconnected');
       this.scheduleReconnect();
     };
-    
+
     this.ws.onerror = (error) => {
+      console.error('🔴 [RedisChartService] WebSocket ERROR:', {
+        error,
+        readyState: this.ws?.readyState,
+        url: this.wsUrl
+      });
       ChartDebug.error('Backend WebSocket error:', error);
     };
   }
@@ -250,12 +266,16 @@ export class RedisChartService {
    */
   private sendSubscription(pair: string, granularity: string) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
+      const message = {
         type: 'subscribe',
         pair,
         granularity
-      }));
+      };
+      console.log('🚀 [RedisChartService] Sending subscribe message:', message);
+      this.ws.send(JSON.stringify(message));
       ChartDebug.log(`📡 Subscribed to ${pair}:${granularity}`);
+    } else {
+      console.error('❌ [RedisChartService] Cannot subscribe - WebSocket not open. State:', this.ws?.readyState);
     }
   }
 

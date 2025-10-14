@@ -227,6 +227,7 @@ setTimeout(monitorMemoryUsage, 10000);
 
   // Set up Coinbase WebSocket event handlers
   coinbaseWebSocket.on('candle', (candleData) => {
+    console.log('🕯️ [Backend] Received candle from Coinbase:', candleData.product_id, candleData.granularity, 's, close:', candleData.close);
 
     // Convert granularity seconds back to string using mapping
     const mappingKey = `${candleData.product_id}:${candleData.granularity}`;
@@ -309,10 +310,11 @@ setTimeout(monitorMemoryUsage, 10000);
 })();
 
 wss.on('connection', (ws) => {
-  // console.log('New WebSocket connection established');
-  
+  console.log('🟢 [Backend] New WebSocket connection established');
+
   // Generate unique client ID for tracking subscriptions
   ws._clientId = Math.random().toString(36).substring(7);
+  console.log('🆔 [Backend] Assigned client ID:', ws._clientId);
   chartSubscriptions.set(ws._clientId, new Set());
 
   botManager.addClient(ws);
@@ -356,12 +358,13 @@ wss.on('connection', (ws) => {
 
   ws.on('message', async (message) => {
     try {
+      console.log('📥 [Backend] RAW MESSAGE from client', ws._clientId || 'unknown', ':', message.toString().substring(0, 200));
       const data = JSON.parse(message.toString());
       // Only log non-status messages to reduce spam
       if (data.type !== 'getStatus' && data.type !== 'getManagerState') {
-        // console.log('Received message:', data.type);
+        console.log('📥 [Backend] Received message:', data.type, JSON.stringify(data));
       }
-      
+
       switch (data.type) {
         // Bot management commands
         case 'createBot':
@@ -690,6 +693,7 @@ app.get('/health', (req, res) => {
       heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + ' MB',
       external: Math.round(memUsage.external / 1024 / 1024) + ' MB'
     },
+    coinbaseWebSocket: coinbaseWebSocket.getStatus(),
     subscriptions: {
       chartSubscriptions: chartSubscriptions.size,
       activeSubscriptions: activeSubscriptions.size,
