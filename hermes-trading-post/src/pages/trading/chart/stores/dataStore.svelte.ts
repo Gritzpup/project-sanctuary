@@ -397,7 +397,23 @@ class DataStore {
       this._latestPrice = price;
       this._dataStats.lastUpdate = Date.now();
 
-      // Notify data update callbacks so header/footer update
+      // ALSO update the current candle with L2 price for instant chart updates
+      if (this._candles.length > 0) {
+        const lastCandle = this._candles[this._candles.length - 1];
+
+        // Update the last candle's close, high, and low based on L2 price
+        const updatedCandle = {
+          ...lastCandle,
+          close: price,
+          high: Math.max(lastCandle.high, price),
+          low: Math.min(lastCandle.low, price)
+        };
+
+        // Update in place for reactivity
+        this._candles[this._candles.length - 1] = updatedCandle;
+      }
+
+      // Notify data update callbacks so header/footer AND chart update
       this.notifyDataUpdate();
     });
   }
