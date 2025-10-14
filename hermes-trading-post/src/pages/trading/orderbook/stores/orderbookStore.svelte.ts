@@ -28,6 +28,9 @@ class OrderbookStore {
   public isReady = $state(false);
   public productId = $state('BTC-USD');
 
+  // Price update subscribers - for chart to get instant L2 price updates
+  private priceSubscribers: Set<(price: number) => void> = new Set();
+
   private _lastUpdateTime = 0;
   private _updateCount = 0;
 
@@ -140,6 +143,11 @@ class OrderbookStore {
     }
 
     this.isReady = true;
+
+    // Notify price subscribers if data changed
+    if (bidsChanged || asksChanged) {
+      this.notifyPriceSubscribers();
+    }
   }
 
   private _updateSortedBids() {
@@ -225,6 +233,11 @@ class OrderbookStore {
     }
     if (asksChanged) {
       this._updateSortedAsks();
+    }
+
+    // Notify price subscribers if either side changed
+    if (bidsChanged || asksChanged) {
+      this.notifyPriceSubscribers();
     }
   }
 
@@ -330,6 +343,39 @@ class OrderbookStore {
       totalUpdates: this._updateCount,
       isReady: this.isReady
     };
+  }
+
+  /**
+   * Subscribe to instant price updates from L2 data (best bid/ask midpoint)
+   * This provides faster price updates than candle/ticker data
+   */
+  subscribeToPriceUpdates(callback: (price: number) => void): () => void {
+    this.priceSubscribers.add(callback);
+
+    // Return unsubscribe function
+    return () => {
+      this.priceSubscribers.delete(callback);
+    };
+  }
+
+  /**
+   * Notify all price subscribers with current midpoint price
+   */
+  private notifyPriceSubscribers() {
+    if (this._sortedBids.length > 0 && this._sortedAsks.length > 0) {
+      const bestBid = this._sortedBids[0][0];
+      const bestAsk = this._sortedAsks[0][0];
+      const midPrice = (bestBid + bestAsk) / 2;
+
+      // Notify all subscribers
+      this.priceSubscribers.forEach(callback => {
+        try {
+          callback(midPrice);
+        } catch (error) {
+          console.error('Error in price subscriber callback:', error);
+        }
+      });
+    }
   }
 }
 

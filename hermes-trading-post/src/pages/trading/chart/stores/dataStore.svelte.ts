@@ -8,6 +8,7 @@ import type { WebSocketCandle } from '../types/data.types';
 import { RedisChartService } from '../services/RedisChartService';
 import { ChartDebug } from '../utils/debug';
 import { chartStore } from './chartStore.svelte';
+import { orderbookStore } from '../../orderbook/stores/orderbookStore.svelte';
 
 class DataStore {
   private dataService = new RedisChartService();
@@ -24,8 +25,9 @@ class DataStore {
     lastUpdate: null as number | null,
     loadingStatus: 'idle' as 'idle' | 'fetching' | 'storing' | 'error' | 'rate-limited'
   });
-  
+
   private realtimeUnsubscribe: (() => void) | null = null;
+  private orderbookPriceUnsubscribe: (() => void) | null = null;
   private newCandleTimeout: NodeJS.Timeout | null = null;
   
   // Subscription mechanism for plugins
@@ -383,12 +385,33 @@ class DataStore {
       },
       onReconnect
     );
+
+    // ALSO subscribe to orderbook L2 data for instant price updates
+    // This is MUCH faster than waiting for candle/ticker updates
+    if (this.orderbookPriceUnsubscribe) {
+      this.orderbookPriceUnsubscribe();
+    }
+
+    this.orderbookPriceUnsubscribe = orderbookStore.subscribeToPriceUpdates((price: number) => {
+      // Update latest price immediately from L2 data
+      this._latestPrice = price;
+      this._dataStats.lastUpdate = Date.now();
+
+      // Notify data update callbacks so header/footer update
+      this.notifyDataUpdate();
+    });
   }
 
   unsubscribeFromRealtime() {
     if (this.realtimeUnsubscribe) {
       this.realtimeUnsubscribe();
       this.realtimeUnsubscribe = null;
+    }
+
+    // Also unsubscribe from orderbook price updates
+    if (this.orderbookPriceUnsubscribe) {
+      this.orderbookPriceUnsubscribe();
+      this.orderbookPriceUnsubscribe = null;
     }
   }
 
