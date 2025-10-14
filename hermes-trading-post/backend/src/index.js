@@ -112,6 +112,9 @@ let memoryMonitorInterval = setInterval(monitorMemoryUsage, 5 * 60 * 1000);
 // Initial memory check
 setTimeout(monitorMemoryUsage, 10000);
 
+// Cache the latest orderbook snapshot for new clients (module-level scope)
+let cachedLevel2Snapshot = null;
+
 // Initialize default bots on startup
 // Use async IIFE to handle async initialization
 (async () => {
@@ -195,6 +198,12 @@ setTimeout(monitorMemoryUsage, 10000);
     }
 
     level2MessageCount++;
+
+    // Cache snapshot for new clients
+    if (orderbookData.type === 'snapshot') {
+      cachedLevel2Snapshot = orderbookData;
+      console.log(`📸 [L2] Cached snapshot: ${orderbookData.bids?.length || 0} bids, ${orderbookData.asks?.length || 0} asks`);
+    }
 
     // Log every second instead of every 100 messages
     const now = Date.now();
@@ -323,6 +332,15 @@ wss.on('connection', (ws) => {
   botManager.bots.forEach(bot => {
     bot.addClient(ws);
   });
+
+  // Send cached level2 snapshot to new client immediately
+  if (cachedLevel2Snapshot) {
+    ws.send(JSON.stringify({
+      type: 'level2',
+      data: cachedLevel2Snapshot
+    }));
+    console.log(`📸 [Backend] Sent cached L2 snapshot to new client ${ws._clientId}: ${cachedLevel2Snapshot.bids?.length || 0} bids, ${cachedLevel2Snapshot.asks?.length || 0} asks`);
+  }
 
   // 🔥 MEMORY LEAK FIX: Clean up on disconnect
   ws.on('close', () => {
@@ -615,6 +633,21 @@ wss.on('connection', (ws) => {
             granularity: data.granularity
           }));
           break;
+
+        case 'requestLevel2Snapshot':
+          // Force refresh of level2 orderbook snapshot by re-subscribing
+          console.log('📸 [Backend] Level2 snapshot requested by client', ws._clientId);
+
+          // Unsubscribe and re-subscribe to force Coinbase to send a fresh snapshot
+          coinbaseWebSocket.unsubscribe('BTC-USD', 'level2');
+
+          // Wait a moment before re-subscribing
+          setTimeout(() => {
+            coinbaseWebSocket.subscribeLevel2('BTC-USD');
+            console.log('📡 [Backend] Re-subscribed to level2 to get fresh snapshot');
+          }, 500);
+          break;
+
         default:
           console.log('Unknown message type:', data.type);
       }

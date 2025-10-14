@@ -641,7 +641,8 @@ export class TradingOrchestrator extends EventEmitter {
         // Sell distance debug logging removed to prevent memory leak
       }
     } else {
-      console.log('❌ Cannot calculate trigger distances: no current price');
+      // Silently skip - price not available yet (normal during startup)
+      // console.log('❌ Cannot calculate trigger distances: no current price');
     }
     
     return {
