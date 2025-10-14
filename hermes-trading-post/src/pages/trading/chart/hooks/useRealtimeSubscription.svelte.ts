@@ -173,11 +173,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // If candle is more than 2 granularity periods old, skip update to prevent
       // "Cannot update oldest data" error
       if (candleAge > granularitySeconds * 2) {
-        // Only log if this is a real timing issue (not the initial case)
-        console.debug(`⚠️ [Realtime] Skipping ticker update - candle timing mismatch`, {
-          candleAge: candleAge.toFixed(0) + 's',
-          maxAge: (granularitySeconds * 2) + 's'
-        });
+        // Silently skip - this is normal behavior when chart hasn't loaded yet
         return;
       }
 
