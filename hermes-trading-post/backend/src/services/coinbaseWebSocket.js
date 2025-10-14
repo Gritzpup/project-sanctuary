@@ -475,9 +475,77 @@ export class CoinbaseWebSocketClient extends EventEmitter {
   }
 
   /**
+   * Process individual l2_data event from Advanced Trade API
+   */
+  processLevel2Event(event) {
+    const productId = event.product_id;
+
+    if (event.type === 'snapshot') {
+      // Full orderbook snapshot
+      const orderbook = {
+        type: 'snapshot',
+        product_id: productId,
+        bids: [],
+        asks: []
+      };
+
+      if (event.updates) {
+        event.updates.forEach(update => {
+          const priceLevel = {
+            price: parseFloat(update.price_level),
+            size: parseFloat(update.new_quantity)
+          };
+
+          if (update.side === 'bid') {
+            orderbook.bids.push(priceLevel);
+          } else if (update.side === 'offer') {
+            orderbook.asks.push(priceLevel);
+          }
+        });
+      }
+
+      // Sort bids descending, asks ascending
+      orderbook.bids.sort((a, b) => b.price - a.price);
+      orderbook.asks.sort((a, b) => a.price - b.price);
+
+      console.log(`📊 [L2] Emitting snapshot: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);
+      this.emit('level2', orderbook);
+
+    } else if (event.type === 'update') {
+      // Incremental update
+      const updates = {
+        type: 'update',
+        product_id: productId,
+        changes: []
+      };
+
+      if (event.updates) {
+        event.updates.forEach(update => {
+          updates.changes.push({
+            side: update.side === 'bid' ? 'buy' : 'sell',
+            price: parseFloat(update.price_level),
+            size: parseFloat(update.new_quantity)
+          });
+        });
+      }
+
+      this.emit('level2', updates);
+    }
+  }
+
+  /**
    * Handle level2 orderbook messages (snapshot and updates)
    */
   handleLevel2(message) {
+    // Advanced Trade API l2_data messages have events array
+    if (message.channel === 'l2_data' && message.events) {
+      message.events.forEach(event => {
+        this.processLevel2Event(event);
+      });
+      return;
+    }
+
+    // Legacy format handling below
     // Level2 messages come in multiple types:
     // 1. snapshot: Full orderbook state with "updates" array
     // 2. l2update: Incremental updates with "changes" array
