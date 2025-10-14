@@ -13,35 +13,42 @@
   let isNewPrice = $state(false);
   let previousPrice = $state<number | null>(null);
 
-  // Simple reactive price display
-  let displayPrice = $state('N/A');
-  let priceColor = $state('#fff');
+  // Reactive derived values - using $derived for proper Svelte 5 reactivity
+  let currentPrice = $derived(dataStore.latestPrice);
 
-  // Update price display when dataStore changes
-  $effect(() => {
-    const currentPrice = dataStore.latestPrice;
-    
+  // Reactive display price
+  let displayPrice = $derived.by(() => {
     if (currentPrice !== null && currentPrice > 0) {
-      // Format the price
-      displayPrice = formatPrice(currentPrice, { decimals: precision });
-      
-      // Determine color based on change
-      if (previousPrice !== null && previousPrice > 0) {
-        if (currentPrice > previousPrice) {
-          priceColor = '#4caf50'; // Green for up
-          triggerAnimation();
-        } else if (currentPrice < previousPrice) {
-          priceColor = '#f44336'; // Red for down
-          triggerAnimation();
-        }
-      } else {
-        priceColor = '#fff'; // White for no change/first load
+      return formatPrice(currentPrice, { decimals: precision });
+    }
+    return 'N/A';
+  });
+
+  // Reactive color
+  let priceColor = $derived.by(() => {
+    if (currentPrice === null || currentPrice <= 0) {
+      return '#fff';
+    }
+
+    if (previousPrice !== null && previousPrice > 0) {
+      if (currentPrice > previousPrice) {
+        return '#4caf50'; // Green for up
+      } else if (currentPrice < previousPrice) {
+        return '#f44336'; // Red for down
       }
-      
+    }
+    return '#fff'; // White for no change/first load
+  });
+
+  // Watch for price changes to trigger animation and update previousPrice
+  $effect(() => {
+    if (currentPrice !== null && currentPrice > 0 && previousPrice !== null && previousPrice > 0) {
+      if (currentPrice !== previousPrice) {
+        triggerAnimation();
+      }
+    }
+    if (currentPrice !== null && currentPrice > 0) {
       previousPrice = currentPrice;
-    } else {
-      displayPrice = 'N/A';
-      priceColor = '#fff';
     }
   });
 

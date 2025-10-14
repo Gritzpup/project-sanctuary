@@ -333,6 +333,8 @@ class DataStore {
     onUpdate?: (candle: CandlestickData) => void,
     onReconnect?: () => void
   ) {
+    console.log('[DataStore] subscribeToRealtime called for', pair, granularity);
+
     // Only unsubscribe if we have an active subscription
     // ChartDataService.subscribeToRealtime() will handle its own cleanup
     if (this.realtimeUnsubscribe) {
@@ -396,6 +398,8 @@ class DataStore {
       // Update latest price immediately from L2 data
       this._latestPrice = price;
       this._dataStats.lastUpdate = Date.now();
+
+      console.log('[DataStore] L2 price update:', price, 'latestPrice:', this._latestPrice);
 
       // ALSO update the current candle with L2 price for instant chart updates
       if (this._candles.length > 0) {

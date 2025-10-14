@@ -350,7 +350,17 @@ class OrderbookStore {
    * This provides faster price updates than candle/ticker data
    */
   subscribeToPriceUpdates(callback: (price: number) => void): () => void {
+    console.log('[OrderbookStore] New price subscriber added, total subscribers:', this.priceSubscribers.size + 1);
     this.priceSubscribers.add(callback);
+
+    // Immediately notify with current price if available
+    if (this._sortedBids.length > 0 && this._sortedAsks.length > 0) {
+      const bestBid = this._sortedBids[0][0];
+      const bestAsk = this._sortedAsks[0][0];
+      const midPrice = (bestBid + bestAsk) / 2;
+      console.log('[OrderbookStore] Sending initial price to new subscriber:', midPrice);
+      callback(midPrice);
+    }
 
     // Return unsubscribe function
     return () => {
@@ -366,6 +376,8 @@ class OrderbookStore {
       const bestBid = this._sortedBids[0][0];
       const bestAsk = this._sortedAsks[0][0];
       const midPrice = (bestBid + bestAsk) / 2;
+
+      console.log(`[OrderbookStore] Notifying ${this.priceSubscribers.size} subscribers with midPrice:`, midPrice);
 
       // Notify all subscribers
       this.priceSubscribers.forEach(callback => {
