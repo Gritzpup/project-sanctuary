@@ -277,6 +277,7 @@
       },
       leftPriceScale: {
         visible: false, // Disable built-in price scale - we'll create our own overlay
+        minimumWidth: 0, // Remove reserved space for hidden price scale
       },
       localization: {
         // Custom price formatter to show abbreviated values like "99k"
@@ -291,6 +292,7 @@
       },
       rightPriceScale: {
         visible: false,
+        minimumWidth: 0, // Remove reserved space for hidden price scale
       },
       crosshair: {
         mode: 1, // Magnet mode for better tracking
@@ -600,13 +602,10 @@
         const baseRange = 10000;
         const adjustedRange = baseRange * rangeMultiplier;
 
-        // Adjust range to account for hidden price scale space (~60px)
-        // Shift the visible range left to visually center the valley
-        const offsetAdjustment = 800; // Compensate for internal layout spacing
-
+        // Set symmetric range around midPrice - NO offset adjustment
         chart.timeScale().setVisibleRange({
-          from: (midPrice - adjustedRange - offsetAdjustment) as any,
-          to: (midPrice + adjustedRange - offsetAdjustment) as any
+          from: (midPrice - adjustedRange) as any,
+          to: (midPrice + adjustedRange) as any
         });
       }
     } catch (e) {
@@ -867,6 +866,7 @@
   .panel-content {
     padding: 15px; /* Restore padding */
     overflow-y: auto;
+    overflow-x: visible;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -904,16 +904,17 @@
     height: 230px;
     position: relative;
     margin-bottom: 15px;
-    overflow: hidden;
+    overflow: visible;
     border: 1px solid rgba(74, 0, 224, 0.3);
     border-radius: 6px;
     background: #0a0a0a; /* Darker background to match gradient */
   }
 
-  /* Remove internal chart padding */
+  /* Remove internal chart padding and shift canvas to center valley */
   .depth-chart :global(.tv-lightweight-charts) {
-    width: 100% !important;
+    width: calc(100% + 200px) !important;
     height: 100% !important;
+    margin-left: 0px;
   }
 
   /* Mid-price vertical line (balance of power indicator) */
