@@ -275,7 +275,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
     // Update product_ids to use the requested productId (not hardcoded BTC-USD)
     subscription.product_ids = [productId];
-    subscription.channels[0].product_ids = [productId];
 
     console.log(`🚀 Subscribing to AUTHENTICATED Level2 channel for ${productId} with CDP JWT`);
     console.log(`📡 This will provide REAL-TIME PUSH updates (no polling!)`);
@@ -381,6 +380,12 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
         case 'ticker':
           this.handleTicker(message);
+          break;
+
+        case 'l2_data':
+          // Advanced Trade API uses 'l2_data' channel (not 'level2')
+          console.log(`📊 [L2] Received l2_data update for BTC-USD`);
+          this.handleLevel2(message);
           break;
 
         case 'level2':
