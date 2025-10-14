@@ -184,7 +184,8 @@
         offset: 50,
         price: 0,
         side: 'neutral',
-        volume: 0
+        volume: 0,
+        yPercent: 50
       };
     }
 
@@ -227,18 +228,34 @@
     const strongerPrice = strongerSide === 'bid' ? maxBidPrice : maxAskPrice;
     const strongerVolume = strongerSide === 'bid' ? maxBidVolume : maxAskVolume;
 
-    // Calculate position on chart using actual visible range
+    // Calculate horizontal position on chart using actual visible range
     const rangeStart = midPrice - visiblePriceRange;
     const rangeEnd = midPrice + visiblePriceRange;
     const positionInRange = (strongerPrice - rangeStart) / (rangeEnd - rangeStart);
     const offset = Math.max(10, Math.min(90, positionInRange * 100));
+
+    // Calculate vertical position based on volume (Y axis)
+    // Use the chart's coordinate system to get actual pixel position
+    let yCoord = 0;
+    try {
+      const useSeries = strongerSide === 'bid' ? bidSeries : askSeries;
+      if (useSeries && strongerVolume > 0) {
+        const coord = useSeries.priceToCoordinate(strongerVolume);
+        if (coord !== null) {
+          yCoord = coord;
+        }
+      }
+    } catch (e) {
+      console.error('Error calculating Y coordinate for volume hotspot:', e);
+    }
 
     return {
       offset,
       price: strongerPrice,
       side: strongerSide === 'bid' ? 'bullish' : 'bearish',
       volume: strongerVolume,
-      type: strongerSide === 'bid' ? 'Support' : 'Resistance'
+      type: strongerSide === 'bid' ? 'Support' : 'Resistance',
+      yCoord
     };
   });
 
@@ -274,8 +291,6 @@
     const chartWidth = containerWidth;
     const chartHeight = containerHeight;
 
-    console.log('[DepthChart] Container dimensions:', { containerWidth, containerHeight });
-    console.log('[DepthChart] Chart dimensions:', { chartWidth, chartHeight });
 
     chart = createChart(chartContainer, {
       layout: {
@@ -454,7 +469,6 @@
             const yCoord = useSeries.priceToCoordinate(foundVolume);
             if (yCoord !== null) {
               mouseY = yCoord; // This is where the actual data point is!
-              console.log('🎯 Snapped to line:', { mouseY: yCoord, volume: foundVolume });
             } else {
               mouseY = y; // Fallback to cursor position
             }
@@ -580,10 +594,24 @@
     }
   }
 
-  // Cache to reduce unnecessary chart updates
-  let lastBidCount = 0;
-  let lastAskCount = 0;
+  // Cache to reduce unnecessary chart updates - use hash for deep comparison
+  let lastBidHash = '';
+  let lastAskHash = '';
   let chartUpdateCount = 0;
+  let firstChartUpdateLogged = false;
+
+  // Fast hash function for orderbook data
+  function hashOrderbookData(data: Array<{ price: number; depth: number }>): string {
+    if (data.length === 0) return '0';
+
+    // Hash based on: length, first 3 levels, last 3 levels, and sum
+    const len = data.length;
+    const first = data.slice(0, 3).map(d => `${d.price.toFixed(2)}:${d.depth.toFixed(4)}`).join('|');
+    const last = data.slice(-3).map(d => `${d.price.toFixed(2)}:${d.depth.toFixed(4)}`).join('|');
+    const sum = data.reduce((acc, d) => acc + d.depth, 0).toFixed(4);
+
+    return `${len}:${first}:${last}:${sum}`;
+  }
 
   function updateChart() {
     if (!bidSeries || !askSeries) return;
@@ -592,7 +620,21 @@
     const { bids, asks } = orderbookStore.getDepthData(50000);
 
     if (bids.length === 0 || asks.length === 0) {
-      console.warn('⚠️ No depth data available yet');
+      return;
+    }
+
+    // Log only the first successful chart update
+    if (!firstChartUpdateLogged) {
+      console.log(`✅ [DepthChart] Chart rendering: ${bids.length} bids, ${asks.length} asks`);
+      firstChartUpdateLogged = true;
+    }
+
+    // Check if data actually changed using hash comparison
+    const currentBidHash = hashOrderbookData(bids);
+    const currentAskHash = hashOrderbookData(asks);
+
+    if (currentBidHash === lastBidHash && currentAskHash === lastAskHash) {
+      // Data hasn't changed, skip expensive chart update
       return;
     }
 
@@ -631,25 +673,16 @@
       });
     }
 
-    // Only update chart if data actually changed (check length and edge values)
-    const bidsChanged = bids.length !== lastBidCount ||
-                       (bids.length > 0 && (bids[0].depth !== bidData[0]?.value));
-    const asksChanged = asks.length !== lastAskCount ||
-                       (asks.length > 0 && (asks[0].depth !== askData[0]?.value));
+    chartUpdateCount++;
 
-    if (bidsChanged || asksChanged) {
-      chartUpdateCount++;
+    // For depth charts, always use setData since prices can change dramatically
+    // The chart library doesn't support updating with out-of-order prices
+    bidSeries.setData(bidData);
+    askSeries.setData(askData);
 
-      // Chart updates tracked without console spam
-
-      // For depth charts, always use setData since prices can change dramatically
-      // The chart library doesn't support updating with out-of-order prices
-      bidSeries.setData(bidData);
-      askSeries.setData(askData);
-
-      lastBidCount = bids.length;
-      lastAskCount = asks.length;
-    }
+    // Update hash cache
+    lastBidHash = currentBidHash;
+    lastAskHash = currentAskHash;
 
     // Always keep chart centered on the spread with consistent range
     try {
@@ -660,18 +693,6 @@
         // Use current visible range from state
         const fromPrice = midPrice - visiblePriceRange;
         const toPrice = midPrice + visiblePriceRange;
-
-        console.log('[DepthChart] Chart data:', {
-          midPrice: midPrice.toFixed(2),
-          chartRange: `${fromPrice.toFixed(0)} to ${toPrice.toFixed(0)}`,
-          visibleRange: visiblePriceRange,
-          bidCount: bids.length,
-          askCount: asks.length,
-          bidRange: bids.length > 0 ? `${bids[bids.length - 1].price.toFixed(0)} to ${bids[0].price.toFixed(0)}` : 'none',
-          askRange: asks.length > 0 ? `${asks[0].price.toFixed(0)} to ${asks[asks.length - 1].price.toFixed(0)}` : 'none',
-          bidSpan: bids.length > 0 ? (bids[0].price - bids[bids.length - 1].price).toFixed(0) : 0,
-          askSpan: asks.length > 0 ? (asks[asks.length - 1].price - asks[0].price).toFixed(0) : 0
-        });
 
         // Always re-center on midPrice with current zoom level
         // This keeps the spread centered even as price moves
@@ -738,8 +759,8 @@
           <span class="price-value">${Math.floor(volumeHotspot.price).toLocaleString('en-US')}</span>
           <span class="volume-value">{volumeHotspot.volume.toFixed(2)} BTC</span>
         </div>
-        <div class="valley-point"></div>
-        <div class="valley-line"></div>
+        <div class="valley-point" style="top: {volumeHotspot.yCoord}px"></div>
+        <div class="valley-line" style="height: {volumeHotspot.yCoord}px"></div>
       </div>
 
       <!-- Hover overlay -->

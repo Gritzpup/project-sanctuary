@@ -13,6 +13,13 @@
   import { useDataLoader } from '../hooks/useDataLoader.svelte';
   import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription.svelte';
   import { useAutoGranularity } from '../hooks/useAutoGranularity.svelte';
+  import {
+    refreshAllPlugins,
+    positionChartForPeriod,
+    getVolumeSeries,
+    forceReadyAfterTimeout,
+    delay
+  } from '../utils/chartCoreHelpers';
 
   export let pair: string = 'BTC-USD';
   export let granularity: string = '1m';
@@ -102,38 +109,15 @@
 
       // CRITICAL: Refresh ALL plugins after granularity change (including volume)
       // Volume needs full refresh when switching granularities, not just real-time updates
-      setTimeout(() => {
-        if (pluginManager) {
-          const enabledPlugins = pluginManager.getEnabled();
-          for (const plugin of enabledPlugins) {
-            try {
-              // Refresh all plugins including volume when granularity changes
-              if (typeof (plugin as any).refreshData === 'function') {
-                (plugin as any).refreshData();
-              }
-            } catch (error) {
-              console.error(`Failed to refresh plugin ${plugin.id}:`, error);
-            }
-          }
-        }
-      }, 500); // Small delay to ensure data is ready
+      refreshAllPlugins(pluginManager, 500);
 
-      // Apply proper positioning for new timeframe
+      // Apply proper positioning for new timeframe, then re-enable real-time updates
       setTimeout(() => {
-        if (chartCanvas && dataStore.candles.length > 0) {
-          // For long-term views (3M, 6M, 1Y, 5Y), show all candles. Otherwise show 60.
-          const longTermPeriods = ['3M', '6M', '1Y', '5Y'];
-          if (longTermPeriods.includes(period)) {
-            chartCanvas.fitContent();
-          } else {
-            chartCanvas.show60Candles();
-          }
-        }
+        positionChartForPeriod(chartCanvas, period, 0);
 
         // Re-enable real-time updates AFTER positioning completes
         // This prevents auto-scroll from interfering with initial positioning
-        const volumePlugin = pluginManager?.get('volume');
-        const volumeSeries = volumePlugin ? (volumePlugin as any).getSeries() : null;
+        const volumeSeries = getVolumeSeries(pluginManager);
 
         realtimeSubscription.subscribeToRealtime({
           pair,
@@ -163,8 +147,7 @@
 
       // Wait a bit for plugins to be registered by ChartContainer, then update volume series
       setTimeout(() => {
-        const volumePlugin = pluginManager?.get('volume');
-        const volumeSeries = volumePlugin ? (volumePlugin as any).getSeries() : null;
+        const volumeSeries = getVolumeSeries(pluginManager);
 
         if (volumeSeries) {
           realtimeSubscription.subscribeToRealtime({
@@ -196,14 +179,12 @@
     try {
       // Initialize chart with proper data flow
       statusStore.setInitializing('Loading chart...');
-      
-      // Force status to ready after a short delay if we don't get data updates
-      setTimeout(() => {
-        statusStore.setReady();
-      }, 3000);
-      
+
+      // Force status to ready after timeout if still initializing
+      forceReadyAfterTimeout(statusStore, 3000);
+
       // Wait for canvas to be available
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await delay(200);
       
       statusStore.setInitializing('Loading chart data...');
       
@@ -217,38 +198,14 @@
       });
       
       // Ensure chart is properly positioned after initial data load
-      setTimeout(() => {
-        if (chartCanvas && dataStore.candles.length > 0) {
-          // For long-term views (3M, 6M, 1Y, 5Y), show all candles. Otherwise show 60.
-          const longTermPeriods = ['3M', '6M', '1Y', '5Y'];
-          if (longTermPeriods.includes(period)) {
-            chartCanvas.fitContent();
-          } else {
-            chartCanvas.show60Candles();
-          }
-        }
-      }, 300);
+      positionChartForPeriod(chartCanvas, period, 300);
 
       // Check for data gaps and fill them
       await dataLoader.checkAndFillDataGaps(chartCanvas?.getChart(), chartCanvas?.getSeries());
 
       // CRITICAL: Refresh ALL plugins after initial data load (including volume for first load)
       // This is the ONLY time volume plugin gets refreshed - after this, real-time updates only
-      setTimeout(() => {
-        if (pluginManager) {
-          const enabledPlugins = pluginManager.getEnabled();
-          for (const plugin of enabledPlugins) {
-            try {
-              // Refresh all plugins including volume on initial load
-              if (typeof (plugin as any).refreshData === 'function') {
-                (plugin as any).refreshData();
-              }
-            } catch (error) {
-              console.error(`Failed to refresh plugin ${plugin.id}:`, error);
-            }
-          }
-        }
-      }, 500); // Small delay to ensure data is ready
+      refreshAllPlugins(pluginManager, 500);
 
       // Enable real-time updates after initial data load
       // Note: Volume plugin may not be registered yet, so start without it
@@ -263,13 +220,9 @@
         isInitialized = true;
         statusStore.setReady();
       }, 100);
-      
-      // Additional safety check - set status again after a longer delay if still initializing
-      setTimeout(() => {
-        if (statusStore.status === 'initializing' || statusStore.status === 'loading') {
-          statusStore.setReady();
-        }
-      }, 1000);
+
+      // Additional safety check - force ready after longer delay if still initializing
+      forceReadyAfterTimeout(statusStore, 1000);
       
     } catch (error) {
       console.error('Chart initialization failed:', error);

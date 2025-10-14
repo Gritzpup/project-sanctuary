@@ -5,11 +5,20 @@
 
 echo "Starting browser monitor..."
 
+# Cleanup any existing Brave processes with remote debugging
+echo "Cleaned up browser-monitor"
+pkill -f "brave.*remote-debugging-port=9222" 2>/dev/null || true
+sleep 1
+
 # Set X11 environment for GUI
 export DISPLAY=:0
 export XAUTHORITY=/home/ubuntubox/.Xauthority
 
+# Grant X11 access to localhost
+xhost +local: >/dev/null 2>&1 || true
+
+echo "Browser monitor starting with improved process handling..."
+
 # Start the Node.js monitoring script which handles everything
 cd ~/browser-monitor
-echo "📊 Running browser monitor (will launch Brave automatically)..."
 node monitor.js

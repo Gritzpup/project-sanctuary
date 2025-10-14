@@ -2,15 +2,18 @@
   import { onMount, onDestroy, getContext } from 'svelte';
   import { dataStore } from '../../stores/dataStore.svelte';
   import { chartStore } from '../../stores/chartStore.svelte';
-  import { performanceStore } from '../../stores/performanceStore.svelte';
   import { statusStore } from '../../stores/statusStore.svelte';
-  import { getGranularitySeconds } from '../../utils/granularityHelpers';
-  import { formatPrice, formatNumber } from '../../../../../utils/formatters/priceFormatters';
-  import { formatCandleTime, getCurrentTimestamp } from '../../utils/timeHelpers';
+  import { formatNumber } from '../../../../../utils/formatters/priceFormatters';
+  import { formatCandleTime } from '../../utils/timeHelpers';
+
+  // Import all indicator components (Phase 2 refactoring)
   import TrafficLight from '../indicators/TrafficLight.svelte';
   import CandleCounter from '../indicators/CandleCounter.svelte';
   import CandleCountdown from '../indicators/CandleCountdown.svelte';
-  
+  import DatabaseTrafficLight from '../indicators/DatabaseTrafficLight.svelte';
+  import ClockDisplay from '../indicators/ClockDisplay.svelte';
+  import PerformanceMonitor from '../indicators/PerformanceMonitor.svelte';
+
   // Get chart context to access chart instance directly (optional when used outside chart)
   const chartContext = getContext('chart') || null;
   
@@ -42,16 +45,12 @@
     tradingStatus?: { isRunning: boolean; isPaused: boolean } | null;
     tradingData?: { totalReturn?: number; trades?: any[] } | null;
   } = $props();
-  
-  let currentTime = $state(new Date());
-  let clockInterval: NodeJS.Timeout;
-  
-  
+
   // Create reactive variables that will trigger updates
   let reactiveCandles = $state(0);
   let reactivePrice = $state(null);
   let reactiveEmpty = $state(true);
-  
+
   // Effect for debugging and updating reactive state
   $effect(() => {
     // Update reactive vars to force re-render
@@ -59,10 +58,8 @@
     reactivePrice = dataStore.latestPrice;
     reactiveEmpty = dataStore.isEmpty;
   });
-  
 
   onMount(() => {
-
     // IMMEDIATE status force - don't wait
     statusStore.forceReady();
 
@@ -72,22 +69,6 @@
         statusStore.forceReady();
       }
     }, 5000);
-    
-    if (showClock) {
-      clockInterval = setInterval(() => {
-        currentTime = new Date();
-      }, 1000);
-    }
-    
-    
-    // Update candle count periodically to catch changes
-    
-  });
-  
-  onDestroy(() => {
-    if (clockInterval) {
-      clearInterval(clockInterval);
-    }
   });
   
   // Format time range
@@ -95,27 +76,13 @@
     from: new Date(dataStore.stats.oldestTime * 1000).toLocaleString(),
     to: new Date(dataStore.stats.newestTime * 1000).toLocaleString()
   } : null);
-  
-  // Format clock with seconds for precise timing
-  const clockDisplay = $derived(currentTime.toLocaleTimeString('en-US', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  }));
-  const dateDisplay = $derived(currentTime.toLocaleDateString());
-  
+
   // Position classes
   const positionClass = $derived(`position-${position}`);
-  
-  
-  
+
   // Get the latest candle time
-  const latestCandleTime = $derived(dataStore.stats.newestTime ? 
+  const latestCandleTime = $derived(dataStore.stats.newestTime ?
     formatCandleTime(dataStore.stats.newestTime) : null);
-    
-  
-  
 </script>
 
 <div class="chart-info {positionClass}">
@@ -123,15 +90,8 @@
   <!-- Traffic lights for status indicators -->
   <div class="info-item">
     <!-- Database loading status traffic light -->
-    <span class="mr-2" title="Database Activity: {statusStore.databaseActivity}">
-      <span
-        class="traffic-light-db size-medium"
-        class:status-idle={statusStore.databaseActivity === 'idle'}
-        class:status-fetching={statusStore.databaseActivity === 'fetching'}
-        class:status-storing={statusStore.databaseActivity === 'storing'}
-        class:status-error={statusStore.databaseActivity === 'error'}
-        class:status-rate-limited={statusStore.databaseActivity === 'rate-limited'}
-      ></span>
+    <span class="mr-2">
+      <DatabaseTrafficLight size="medium" />
     </span>
     <!-- Price/WebSocket traffic light -->
     <span class="mr-4">
@@ -178,7 +138,7 @@
   
   {#if showClock}
     <div class="info-item clock">
-      <span class="info-value time">{clockDisplay}</span>
+      <ClockDisplay showDate={false} showSeconds={true} format24Hour={true} />
     </div>
   {/if}
   
@@ -191,18 +151,10 @@
     </div>
   {/if}
   
-  
-  {#if showPerformance && performanceStore.isMonitoring}
-    <div class="info-item performance">
-      <span class="info-label">FPS:</span>
-      <span class="info-value" class:good={performanceStore.stats.fps >= 45} class:poor={performanceStore.stats.fps < 30}>
-        {performanceStore.stats.fps}
-      </span>
-      {#if performanceStore.stats.cacheHitRate > 0}
-        <span class="info-label">Cache:</span>
-        <span class="info-value">{performanceStore.stats.cacheHitRate}%</span>
-      {/if}
-    </div>
+
+
+  {#if showPerformance}
+    <PerformanceMonitor showFPS={true} showCacheHitRate={true} showMemory={false} />
   {/if}
 </div>
 
@@ -346,15 +298,8 @@
     color: rgba(255, 255, 255, 0.7);
   }
   
-  /* Performance */
-  .performance .info-value.good {
-    color: #4caf50;
-  }
-  
-  .performance .info-value.poor {
-    color: #f44336;
-  }
-  
+  /* Removed: Performance styles moved to PerformanceMonitor.svelte component */
+
   /* Total P/L */
   .total-pnl .info-value.profit {
     color: #4caf50;
@@ -366,103 +311,7 @@
     font-weight: 600;
   }
   
-  /* Loading Status Indicator */
-  .loading-status {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-left: 6px;
-    transition: all 0.3s ease;
-  }
-  
-  .status-idle {
-    background-color: #666;
-  }
-  
-  .status-fetching {
-    background-color: #ffa500;
-    animation: pulse 1s infinite;
-  }
-  
-  .status-storing {
-    background-color: #4caf50;
-    animation: pulse 0.8s infinite;
-  }
-  
-  .status-error {
-    background-color: #f44336;
-    animation: pulse 1.5s infinite;
-  }
-  
-  .status-rate-limited {
-    background-color: #ff5722;
-    animation: pulse 2s infinite;
-  }
-  
-  @keyframes pulse {
-    0%, 100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.5;
-      transform: scale(1.2);
-    }
-  }
-
-  /* Database Loading Traffic Light */
-  .traffic-light-db {
-    display: inline-block;
-    border-radius: 50%;
-    transition: all 0.3s ease;
-    box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
-    border: 2px solid rgba(255, 255, 255, 0.2);
-  }
-
-  .traffic-light-db.size-medium {
-    width: 12px;
-    height: 12px;
-  }
-
-  .traffic-light-db.status-idle {
-    background-color: #666;
-  }
-
-  .traffic-light-db.status-fetching {
-    background-color: #ffa500;
-    animation: pulse-db 0.5s ease-in-out infinite;
-    box-shadow: 0 0 12px rgba(255, 165, 0, 0.9);
-  }
-
-  .traffic-light-db.status-storing {
-    background-color: #4caf50;
-    animation: pulse-db 0.4s ease-in-out infinite;
-    box-shadow: 0 0 12px rgba(76, 175, 80, 0.9);
-  }
-
-  .traffic-light-db.status-error {
-    background-color: #f44336;
-    animation: pulse-db 1.5s ease-in-out infinite;
-    box-shadow: 0 0 8px rgba(244, 67, 54, 0.8);
-  }
-
-  .traffic-light-db.status-rate-limited {
-    background-color: #ff5722;
-    animation: pulse-db 2s ease-in-out infinite;
-    box-shadow: 0 0 8px rgba(255, 87, 34, 0.8);
-  }
-
-  @keyframes pulse-db {
-    0%, 100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.6;
-      transform: scale(1.15);
-    }
-  }
+  /* Removed: Database traffic light styles moved to DatabaseTrafficLight.svelte component */
 
   /* Dark theme adjustments */
   :global(.light) .chart-info {

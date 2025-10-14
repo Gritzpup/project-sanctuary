@@ -1,54 +1,36 @@
 import type { CandlestickData, Time } from 'lightweight-charts';
-import { PERIOD_TO_SECONDS, GRANULARITY_TO_SECONDS } from './constants';
+import { PERIOD_TO_SECONDS } from './constants';
 
-// Time utilities
+// Import shared utilities (Phase 1 refactoring)
+import { getCurrentTimestamp } from './timeHelpers';
+import { alignTimeToGranularity, getGranularitySeconds } from './granularityHelpers';
+import { isValidCandle, validateCandleData } from './validationHelpers';
+
+// Re-export for backward compatibility (will be removed in Phase 2)
+export { isValidCandle, validateCandleData } from './validationHelpers';
+
+// Time utilities using shared helpers
 export function getCurrentTime(): number {
-  return Math.floor(Date.now() / 1000);
+  return getCurrentTimestamp();
 }
 
 export function alignToGranularity(timestamp: number, granularity: string): number {
-  const granularitySeconds = GRANULARITY_TO_SECONDS[granularity] || 60;
-  return Math.floor(timestamp / granularitySeconds) * granularitySeconds;
+  return alignTimeToGranularity(timestamp, granularity);
 }
 
 export function getTimeRange(period: string, endTime?: number): { start: number; end: number } {
-  const end = endTime || getCurrentTime();
+  const end = endTime || getCurrentTimestamp();
   const periodSeconds = PERIOD_TO_SECONDS[period] || 3600;
   const start = end - periodSeconds;
-  
+
   return { start, end };
 }
 
 export function calculateExpectedCandles(period: string, granularity: string): number {
   const periodSeconds = PERIOD_TO_SECONDS[period] || 3600;
-  const granularitySeconds = GRANULARITY_TO_SECONDS[granularity] || 60;
-  
+  const granularitySeconds = getGranularitySeconds(granularity);
+
   return Math.ceil(periodSeconds / granularitySeconds);
-}
-
-// Data validation
-export function isValidCandle(candle: any): candle is CandlestickData {
-  return (
-    candle &&
-    typeof candle.time === 'number' &&
-    typeof candle.open === 'number' &&
-    typeof candle.high === 'number' &&
-    typeof candle.low === 'number' &&
-    typeof candle.close === 'number' &&
-    !isNaN(candle.open) &&
-    !isNaN(candle.high) &&
-    !isNaN(candle.low) &&
-    !isNaN(candle.close) &&
-    candle.high >= candle.low &&
-    candle.high >= candle.open &&
-    candle.high >= candle.close &&
-    candle.low <= candle.open &&
-    candle.low <= candle.close
-  );
-}
-
-export function validateCandleData(data: any[]): CandlestickData[] {
-  return data.filter(isValidCandle);
 }
 
 // Price calculations
@@ -60,12 +42,12 @@ export function calculatePriceChange(oldPrice: number, newPrice: number): {
   const amount = newPrice - oldPrice;
   const percentage = (amount / oldPrice) * 100;
   const direction = amount > 0 ? 'up' : amount < 0 ? 'down' : 'neutral';
-  
+
   return { amount, percentage, direction };
 }
 
 // Price formatting functions moved to priceFormatters.ts
-// Import from there: import { formatPrice, formatPriceDecimal } from './priceFormatters';
+// Import from there: import { formatPrice, formatPriceDecimal } from '../../../utils/formatters/priceFormatters';
 
 // Candle analysis
 export function getCandleType(candle: CandlestickData): 'bullish' | 'bearish' | 'doji' {
@@ -97,18 +79,18 @@ export function aggregateCandles(
   targetGranularity: string,
   sourceGranularity: string
 ): CandlestickData[] {
-  const targetSeconds = GRANULARITY_TO_SECONDS[targetGranularity];
-  const sourceSeconds = GRANULARITY_TO_SECONDS[sourceGranularity];
-  
-  if (!targetSeconds || !sourceSeconds || targetSeconds <= sourceSeconds) {
+  const targetSeconds = getGranularitySeconds(targetGranularity);
+  const sourceSeconds = getGranularitySeconds(sourceGranularity);
+
+  if (targetSeconds <= sourceSeconds) {
     return candles;
   }
-  
+
   const aggregated: Map<number, CandlestickData> = new Map();
-  
+
   candles.forEach(candle => {
-    const alignedTime = alignToGranularity(candle.time as number, targetGranularity);
-    
+    const alignedTime = alignTimeToGranularity(candle.time as number, targetGranularity);
+
     if (!aggregated.has(alignedTime)) {
       aggregated.set(alignedTime, {
         time: alignedTime as Time,
@@ -130,8 +112,8 @@ export function aggregateCandles(
       });
     }
   });
-  
-  return Array.from(aggregated.values()).sort((a, b) => 
+
+  return Array.from(aggregated.values()).sort((a, b) =>
     (a.time as number) - (b.time as number)
   );
 }

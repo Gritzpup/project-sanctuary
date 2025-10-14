@@ -7,6 +7,7 @@ import { RealtimeCandleAggregator } from '../utils/RealtimeCandleAggregator';
 import { ChartDebug } from '../utils/debug';
 import { perfTest } from '../utils/performanceTest';
 import { getGranularitySeconds } from '../utils/granularityHelpers';
+import { isValidCandleBasic } from '../utils/validationHelpers';
 
 export class ChartDataService {
   private apiService: ChartAPIService;
@@ -260,18 +261,7 @@ export class ChartDataService {
   }
 
   private isValidCandle(candle: Candle): boolean {
-    return (
-      candle &&
-      typeof candle.time === 'number' &&
-      typeof candle.open === 'number' &&
-      typeof candle.high === 'number' &&
-      typeof candle.low === 'number' &&
-      typeof candle.close === 'number' &&
-      !isNaN(candle.open) &&
-      !isNaN(candle.high) &&
-      !isNaN(candle.low) &&
-      !isNaN(candle.close)
-    );
+    return isValidCandleBasic(candle);
   }
 
   async clearCache() {

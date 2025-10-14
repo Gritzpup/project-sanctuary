@@ -16,6 +16,7 @@ class DataStore {
   private _visibleCandles = $state<CandlestickDataWithVolume[]>([]);
   private _latestPrice = $state<number | null>(null);
   private _isNewCandle = $state<boolean>(false);
+  private _priceUpdateLoggedOnce = false;
   private _dataStats = $state({
     totalCount: 0,
     totalDatabaseCount: 0, // Total across ALL granularities
@@ -399,7 +400,11 @@ class DataStore {
       this._latestPrice = price;
       this._dataStats.lastUpdate = Date.now();
 
-      console.log('[DataStore] L2 price update:', price, 'latestPrice:', this._latestPrice);
+      // Log only once to confirm price updates are working
+      if (!this._priceUpdateLoggedOnce) {
+        console.log(`✅ [DataStore] L2 price updates active: $${price.toFixed(2)}`);
+        this._priceUpdateLoggedOnce = true;
+      }
 
       // ALSO update the current candle with L2 price for instant chart updates
       if (this._candles.length > 0) {

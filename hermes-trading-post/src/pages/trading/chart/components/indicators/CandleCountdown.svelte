@@ -28,55 +28,22 @@
 
   // Update countdown timer
   function updateCandleCountdown() {
-    // Use precise millisecond timing for accuracy
-    const nowMs = Date.now();
-    const now = getCurrentTimestamp();
+    // Always use fresh timestamp - never cache
+    const now = Math.floor(Date.now() / 1000);
     const currentGranularity = chartStore.config.granularity;
-    
+
     // Calculate granularity in seconds
     const granularitySeconds = getGranularitySeconds(currentGranularity);
-    
-    // For precise timing, we need to consider that candles are created at exact intervals
-    let nextCandleTime: number;
-    
-    if (currentGranularity === '1m') {
-      // For 1-minute candles, next candle is at the next minute boundary
-      const currentMinute = Math.floor(now / 60);
-      nextCandleTime = (currentMinute + 1) * 60;
-    } else if (currentGranularity === '5m') {
-      // For 5-minute candles, next candle is at the next 5-minute boundary
-      const current5Min = Math.floor(now / 300);
-      nextCandleTime = (current5Min + 1) * 300;
-    } else if (currentGranularity === '15m') {
-      // For 15-minute candles, next candle is at the next 15-minute boundary
-      const current15Min = Math.floor(now / 900);
-      nextCandleTime = (current15Min + 1) * 900;
-    } else if (currentGranularity === '1h') {
-      // For 1-hour candles, next candle is at the next hour boundary
-      const currentHour = Math.floor(now / 3600);
-      nextCandleTime = (currentHour + 1) * 3600;
-    } else {
-      // For other granularities, use granularity-based calculation
-      const alignedTime = Math.floor(now / granularitySeconds) * granularitySeconds;
-      nextCandleTime = alignedTime + granularitySeconds;
-    }
-    
-    // Calculate remaining time
-    const remainingSeconds = nextCandleTime - now;
-    const remainingMs = remainingSeconds * 1000;
-    
-    // Convert to countdown seconds
-    timeToNextCandle = Math.ceil(remainingMs / 1000);
-    
-    // Reset if countdown goes to 0 or negative
-    if (timeToNextCandle <= 0) {
-      timeToNextCandle = granularitySeconds;
-    }
-    
-    // Debug for 1-minute granularity when close to completion
-    if (currentGranularity === '1m' && timeToNextCandle <= 5) {
-      // Optional: add debug logging here if needed
-    }
+
+    // Calculate next candle time based on aligned boundaries
+    const alignedTime = Math.floor(now / granularitySeconds) * granularitySeconds;
+    const nextCandleTime = alignedTime + granularitySeconds;
+
+    // Calculate remaining time (always positive)
+    const remainingSeconds = Math.max(1, nextCandleTime - now);
+
+    // Update state
+    timeToNextCandle = remainingSeconds;
   }
 
   // Urgency styling classes

@@ -30,6 +30,7 @@ class OrderbookStore {
 
   // Price update subscribers - for chart to get instant L2 price updates
   private priceSubscribers: Set<(price: number) => void> = new Set();
+  private _lastNotifiedMidPrice: number | null = null;  // Track last notified price to avoid redundant updates
 
   private _lastUpdateTime = 0;
   private _updateCount = 0;
@@ -78,12 +79,12 @@ class OrderbookStore {
 
     this._lastUpdateTime = now;
 
-    // Remove debug spam - only log on first connection
-    if (!this.isReady) {
-      console.log(`📊 Connected to orderbook for ${data.product_id}`);
-    }
-
     this.productId = data.product_id;
+
+    // Log only on first snapshot
+    if (!this.isReady) {
+      console.log(`📊 [Orderbook] Received snapshot: ${data.bids.length} bids, ${data.asks.length} asks`);
+    }
 
     // Track if data actually changed
     let bidsChanged = false;
@@ -167,7 +168,6 @@ class OrderbookStore {
    */
   processUpdate(data: { product_id: string; changes: Array<{ side: string; price: number; size: number }> }) {
     if (!this.isReady) {
-      console.warn('⚠️ Received update before snapshot, ignoring');
       return;
     }
 
@@ -350,7 +350,6 @@ class OrderbookStore {
    * This provides faster price updates than candle/ticker data
    */
   subscribeToPriceUpdates(callback: (price: number) => void): () => void {
-    console.log('[OrderbookStore] New price subscriber added, total subscribers:', this.priceSubscribers.size + 1);
     this.priceSubscribers.add(callback);
 
     // Immediately notify with current price if available
@@ -358,7 +357,6 @@ class OrderbookStore {
       const bestBid = this._sortedBids[0][0];
       const bestAsk = this._sortedAsks[0][0];
       const midPrice = (bestBid + bestAsk) / 2;
-      console.log('[OrderbookStore] Sending initial price to new subscriber:', midPrice);
       callback(midPrice);
     }
 
@@ -370,6 +368,7 @@ class OrderbookStore {
 
   /**
    * Notify all price subscribers with current midpoint price
+   * Only notifies if price actually changed to avoid redundant updates
    */
   private notifyPriceSubscribers() {
     if (this._sortedBids.length > 0 && this._sortedAsks.length > 0) {
@@ -377,7 +376,12 @@ class OrderbookStore {
       const bestAsk = this._sortedAsks[0][0];
       const midPrice = (bestBid + bestAsk) / 2;
 
-      console.log(`[OrderbookStore] Notifying ${this.priceSubscribers.size} subscribers with midPrice:`, midPrice);
+      // Only notify if price actually changed
+      if (this._lastNotifiedMidPrice === midPrice) {
+        return;  // Skip redundant notifications
+      }
+
+      this._lastNotifiedMidPrice = midPrice;
 
       // Notify all subscribers
       this.priceSubscribers.forEach(callback => {
