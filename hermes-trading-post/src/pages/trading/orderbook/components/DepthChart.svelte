@@ -474,6 +474,9 @@
     // Store the handler for cleanup
     (ws as any).__depthChartHandler = messageHandler;
 
+    // Request fresh level2 snapshot from backend
+    ws.send(JSON.stringify({ type: 'requestLevel2Snapshot' }));
+
     return true; // Successfully connected
   }
 
