@@ -272,8 +272,8 @@
       timeScale: {
         visible: false, // Hide built-in time scale - we'll use custom overlay
         borderVisible: false,
-        leftOffset: 10, // Center the valley by offsetting for hidden price scales
-        rightOffset: 10,
+        leftOffset: 0,
+        rightOffset: 0,
       },
       leftPriceScale: {
         visible: false, // Disable built-in price scale - we'll create our own overlay
@@ -600,9 +600,13 @@
         const baseRange = 10000;
         const adjustedRange = baseRange * rangeMultiplier;
 
+        // Adjust range to account for hidden price scale space (~60px)
+        // Shift the visible range left to visually center the valley
+        const offsetAdjustment = 800; // Compensate for internal layout spacing
+
         chart.timeScale().setVisibleRange({
-          from: (midPrice - adjustedRange) as any,
-          to: (midPrice + adjustedRange) as any
+          from: (midPrice - adjustedRange - offsetAdjustment) as any,
+          to: (midPrice + adjustedRange - offsetAdjustment) as any
         });
       }
     } catch (e) {
