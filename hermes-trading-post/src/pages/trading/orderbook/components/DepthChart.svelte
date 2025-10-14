@@ -84,7 +84,7 @@
   // Start monitoring L2 status
   $effect(() => {
     if (!l2UpdateTimer) {
-      l2UpdateTimer = setInterval(updateL2Status, 500);
+      l2UpdateTimer = setInterval(updateL2Status, 50);
     }
 
     return () => {

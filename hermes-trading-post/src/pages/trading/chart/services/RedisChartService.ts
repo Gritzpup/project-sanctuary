@@ -232,7 +232,7 @@ export class RedisChartService {
     };
 
     this.ws.onmessage = (event) => {
-      console.log('📨 [RedisChartService] Received WebSocket message:', event.data);
+      // Removed excessive logging that was causing performance issues
       try {
         const message = JSON.parse(event.data);
         this.handleWebSocketMessage(message);
