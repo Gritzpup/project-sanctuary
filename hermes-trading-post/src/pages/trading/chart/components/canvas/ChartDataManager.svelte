@@ -84,16 +84,28 @@
   
   export function handleRealtimeUpdate(candle: any) {
     if (!candleSeries) return;
-    
+
     try {
+      // Ensure high/low are valid (prevent flat line flashing)
+      const open = candle.open;
+      const close = candle.close;
+      let high = candle.high;
+      let low = candle.low;
+
+      // If high/low are same or invalid, calculate from open/close
+      if (high === low || high < low) {
+        high = Math.max(open, close);
+        low = Math.min(open, close);
+      }
+
       const formattedCandle = {
         time: candle.time as any,
-        open: candle.open,
-        high: candle.high,
-        low: candle.low,
-        close: candle.close,
+        open,
+        high,
+        low,
+        close,
       };
-      
+
       candleSeries.update(formattedCandle);
       
       // Volume updates are handled by VolumePlugin

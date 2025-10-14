@@ -272,6 +272,8 @@
       timeScale: {
         visible: false, // Hide built-in time scale - we'll use custom overlay
         borderVisible: false,
+        leftOffset: 10, // Center the valley by offsetting for hidden price scales
+        rightOffset: 10,
       },
       leftPriceScale: {
         visible: false, // Disable built-in price scale - we'll create our own overlay
