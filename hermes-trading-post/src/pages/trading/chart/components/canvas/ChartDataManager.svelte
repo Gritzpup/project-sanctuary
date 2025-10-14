@@ -86,24 +86,14 @@
     if (!candleSeries) return;
 
     try {
-      // Ensure high/low are valid (prevent flat line flashing)
-      const open = candle.open;
-      const close = candle.close;
-      let high = candle.high;
-      let low = candle.low;
-
-      // If high/low are same or invalid, calculate from open/close
-      if (high === low || high < low) {
-        high = Math.max(open, close);
-        low = Math.min(open, close);
-      }
-
+      // Use candle data directly - don't modify high/low
+      // The backend provides correct high/low values
       const formattedCandle = {
         time: candle.time as any,
-        open,
-        high,
-        low,
-        close,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
       };
 
       candleSeries.update(formattedCandle);

@@ -3,7 +3,7 @@ import type { WebSocketCandle, AggregatedCandle } from '../types/data.types';
 export class RealtimeCandleAggregator {
   private currentCandle: AggregatedCandle | null = null;
   private lastUpdateTime: number = 0;
-  private updateThrottleMs: number = 100; // Throttle updates to 100ms
+  private updateThrottleMs: number = 50; // Throttle updates to 50ms for faster response
 
   addUpdate(update: WebSocketCandle): AggregatedCandle | null {
     const now = Date.now();
