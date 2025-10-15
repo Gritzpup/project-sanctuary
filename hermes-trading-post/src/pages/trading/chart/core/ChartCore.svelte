@@ -13,6 +13,7 @@
   import { useDataLoader } from '../hooks/useDataLoader.svelte';
   import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription.svelte';
   import { useAutoGranularity } from '../hooks/useAutoGranularity.svelte';
+  import { chartPrefetcher } from '../services/ChartPrefetcher';
   import {
     refreshAllPlugins,
     positionChartForPeriod,
@@ -107,6 +108,9 @@
         series: chartCanvas?.getSeries()
       });
 
+      // Track new usage and update prefetch queue
+      chartPrefetcher.trackUsage(pair, granularity);
+
       // CRITICAL: Refresh ALL plugins after granularity change (including volume)
       // Volume needs full refresh when switching granularities, not just real-time updates
       refreshAllPlugins(pluginManager, 500);
@@ -175,19 +179,22 @@
   }
 
   onMount(async () => {
-    
+
     try {
       // Initialize chart with proper data flow
       statusStore.setInitializing('Loading chart...');
+
+      // Initialize prefetcher
+      await chartPrefetcher.initialize();
 
       // Force status to ready after timeout if still initializing
       forceReadyAfterTimeout(statusStore, 3000);
 
       // Wait for canvas to be available
       await delay(200);
-      
+
       statusStore.setInitializing('Loading chart data...');
-      
+
       // Use the data loader hook
       await dataLoader.loadData({
         pair,
@@ -196,6 +203,9 @@
         chart: chartCanvas?.getChart(),
         series: chartCanvas?.getSeries()
       });
+
+      // Track usage and trigger pre-fetching for likely next selections
+      chartPrefetcher.trackUsage(pair, granularity);
       
       // Ensure chart is properly positioned after initial data load
       positionChartForPeriod(chartCanvas, period, 300);
@@ -238,6 +248,9 @@
     if (autoGranularity && typeof autoGranularity.cleanup === 'function') {
       autoGranularity.cleanup();
     }
+
+    // Cleanup prefetcher
+    chartPrefetcher.destroy();
 
     if (pluginManager) {
       await pluginManager.destroy();
