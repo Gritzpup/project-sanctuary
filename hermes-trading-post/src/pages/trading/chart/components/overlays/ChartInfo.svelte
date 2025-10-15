@@ -14,6 +14,7 @@
   import ClockDisplay from '../indicators/ClockDisplay.svelte';
   import PerformanceMonitor from '../indicators/PerformanceMonitor.svelte';
   import CacheIndicator from '../indicators/CacheIndicator.svelte';
+  import ServiceWorkerIndicator from '../indicators/ServiceWorkerIndicator.svelte';
 
   // Get chart context to access chart instance directly (optional when used outside chart)
   const chartContext = getContext('chart') || null;
@@ -99,8 +100,12 @@
       <TrafficLight size="medium" flashDuration={500} tradingStatus={tradingStatus} />
     </span>
     <!-- IndexedDB cache indicator -->
-    <span class="mr-4">
+    <span class="mr-2">
       <CacheIndicator />
+    </span>
+    <!-- Service Worker indicator -->
+    <span class="mr-4">
+      <ServiceWorkerIndicator />
     </span>
   </div>
 
