@@ -4,6 +4,7 @@ import { ChartDebug } from '../utils/debug';
 import { logger } from '../../../../services/logging';
 import { statusStore } from '../stores/statusStore.svelte';
 import { dataStore } from '../stores/dataStore.svelte';
+import { fetchCandlesBinary, isBinaryFormat, calculateSavings, formatBytes } from '../../../../utils/binaryFormat';
 
 interface RedisChartDataResponse {
   success: boolean;
@@ -51,7 +52,7 @@ export class RedisChartService {
   }
 
   /**
-   * Fetch historical candles from Redis backend
+   * Fetch historical candles from Redis backend with binary format support
    */
   async fetchCandles(request: DataRequest): Promise<Candle[]> {
     const { pair, granularity, start, end, limit = 1000 } = request;
@@ -60,7 +61,8 @@ export class RedisChartService {
       const params = new URLSearchParams({
         pair: pair || 'BTC-USD',
         granularity: granularity || '1m',
-        maxCandles: (limit || 10000).toString() // Use provided limit or 10k for large datasets
+        maxCandles: (limit || 10000).toString(), // Use provided limit or 10k for large datasets
+        format: 'msgpack' // Request binary format
       });
 
       if (start) {
@@ -73,7 +75,32 @@ export class RedisChartService {
 
       const url = `${this.backendUrl}/api/trading/chart-data?${params}`;
 
-      const response = await fetch(url);
+      // Try binary format first (3-5x smaller)
+      try {
+        const binaryCandles = await fetchCandlesBinary(url);
+
+        if (binaryCandles.length > 0) {
+          // Calculate and log savings
+          const savings = calculateSavings(binaryCandles);
+          ChartDebug.log(`📦 Binary format: ${formatBytes(savings.binarySize)} vs JSON: ${formatBytes(savings.jsonSize)} - ${savings.savingsPercent.toFixed(1)}% smaller`);
+
+          // Convert to Candle format
+          return binaryCandles.map(c => ({
+            time: c.time as number,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+            volume: c.volume || 0
+          }));
+        }
+      } catch (binaryError) {
+        // Binary format not supported by backend, fallback to JSON
+        ChartDebug.log('Binary format not available, using JSON fallback');
+      }
+
+      // Fallback to JSON
+      const response = await fetch(url.replace('format=msgpack', 'format=json'));
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

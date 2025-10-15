@@ -38,6 +38,7 @@
     "@types/ws": "^8.18.1",
     "axios": "^1.10.0",
     "lightweight-charts": "^4.1.0",
+    "msgpackr": "^1.11.5",
     "p-limit": "^6.2.0",
     "svelte-routing": "^2.13.0",
     "ws": "^8.18.3"
