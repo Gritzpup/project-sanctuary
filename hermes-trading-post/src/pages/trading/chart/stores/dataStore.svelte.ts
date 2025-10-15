@@ -6,6 +6,7 @@ interface CandlestickDataWithVolume extends CandlestickData {
 }
 import type { WebSocketCandle } from '../types/data.types';
 import { RedisChartService } from '../services/RedisChartService';
+import { chartIndexedDBCache } from '../services/ChartIndexedDBCache';
 import { ChartDebug } from '../utils/debug';
 import { chartStore } from './chartStore.svelte';
 import { orderbookStore } from '../../orderbook/stores/orderbookStore.svelte';
@@ -17,6 +18,8 @@ class DataStore {
   private _latestPrice = $state<number | null>(null);
   private _isNewCandle = $state<boolean>(false);
   private _priceUpdateLoggedOnce = false;
+  private _currentPair = $state<string>('BTC-USD'); // Track current pair
+  private _currentGranularity = $state<string>('1m'); // Track current granularity
   private _dataStats = $state({
     totalCount: 0,
     totalDatabaseCount: 0, // Total across ALL granularities
@@ -30,7 +33,7 @@ class DataStore {
   private realtimeUnsubscribe: (() => void) | null = null;
   private orderbookPriceUnsubscribe: (() => void) | null = null;
   private newCandleTimeout: NodeJS.Timeout | null = null;
-  
+
   // Subscription mechanism for plugins
   private dataUpdateCallbacks: Set<() => void> = new Set();
   private historicalDataLoadedCallbacks: Set<() => void> = new Set();
@@ -38,8 +41,8 @@ class DataStore {
   // Helper method to get current chart config
   private getCurrentConfig() {
     return {
-      pair: chartStore.config?.pair || 'BTC-USD',
-      granularity: chartStore.config?.granularity || '1m'
+      pair: this._currentPair,
+      granularity: this._currentGranularity
     };
   }
 
@@ -179,7 +182,7 @@ class DataStore {
     }
   }
 
-  // Data management
+  // Data management with IndexedDB cache + delta sync
   async loadData(
     pair: string,
     granularity: string,
@@ -187,19 +190,105 @@ class DataStore {
     endTime: number,
     maxCandles?: number
   ): Promise<void> {
+    const perfStart = performance.now();
+
+    // Update current pair/granularity
+    this._currentPair = pair;
+    this._currentGranularity = granularity;
+
     try {
-      await this.dataService.initialize(pair, granularity);
+      await this.dataService.initialize();
 
-      const data = await this.dataService.fetchCandles({
-        pair,
-        granularity,
-        start: startTime,
-        end: endTime,
-        limit: maxCandles || 10000 // Support 5 years of data (5 years ≈ 2.6M 1m candles, but start with 10k for performance)
-      });
+      // 🚀 PHASE 1: Check IndexedDB cache first (instant load)
+      const cachedData = await chartIndexedDBCache.get(pair, granularity);
 
-      this.setCandles(data);
-      this.updateStats();
+      if (cachedData && cachedData.candles.length > 0) {
+        // ✅ Cache hit! Show cached data immediately (0ms perceived load time)
+        ChartDebug.log(`⚡ INSTANT LOAD from IndexedDB: ${cachedData.candles.length} candles (${performance.now() - perfStart}ms)`);
+
+        this.setCandles(cachedData.candles);
+        this.updateStats();
+
+        // 🔄 DELTA SYNC: Only fetch new candles since last cache
+        const lastCandleTime = cachedData.lastCandleTime;
+        const now = Math.floor(Date.now() / 1000);
+        const timeSinceLastCandle = now - lastCandleTime;
+
+        // If cache is fresh (< 5 minutes old), skip network fetch
+        const isFresh = await chartIndexedDBCache.isFresh(pair, granularity);
+
+        if (isFresh && timeSinceLastCandle < 300) {
+          ChartDebug.log(`✅ Cache is fresh, skipping network fetch`);
+
+          // Still update DB count
+          setTimeout(() => {
+            this.updateDatabaseCount();
+          }, 100);
+
+          return;
+        }
+
+        // Cache is stale, fetch only NEW candles (delta sync)
+        ChartDebug.log(`🔄 Fetching delta: from ${new Date(lastCandleTime * 1000).toISOString()} to now`);
+
+        const deltaData = await this.dataService.fetchCandles({
+          pair,
+          granularity,
+          start: lastCandleTime + 60, // Start from next candle after last cached
+          end: endTime,
+          limit: 1000 // Should be small (only recent candles)
+        });
+
+        if (deltaData.length > 0) {
+          ChartDebug.log(`📊 Delta sync: fetched ${deltaData.length} new candles`);
+
+          // Convert Candle[] to CandlestickData[] for cache
+          const deltaAsChartData: CandlestickDataWithVolume[] = deltaData.map(c => ({
+            time: c.time as any,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+            volume: c.volume
+          }));
+
+          // Merge delta with cached data
+          await chartIndexedDBCache.appendCandles(pair, granularity, deltaAsChartData);
+
+          // Update UI with merged data
+          const mergedCandles = [...cachedData.candles, ...deltaAsChartData].sort(
+            (a, b) => (a.time as number) - (b.time as number)
+          );
+
+          this.setCandles(mergedCandles as CandlestickDataWithVolume[]);
+          this.updateStats();
+        }
+
+        ChartDebug.log(`⚡ Total load time with delta sync: ${performance.now() - perfStart}ms`);
+
+      } else {
+        // ❌ Cache miss - fetch full data from backend
+        ChartDebug.log(`❌ Cache miss - fetching full data from backend`);
+
+        const data = await this.dataService.fetchCandles({
+          pair,
+          granularity,
+          start: startTime,
+          end: endTime,
+          limit: maxCandles || 10000
+        });
+
+        this.setCandles(data);
+        this.updateStats();
+
+        // Cache the data for next time
+        if (data.length > 0) {
+          await chartIndexedDBCache.set(pair, granularity, data);
+          ChartDebug.log(`💾 Cached ${data.length} candles to IndexedDB`);
+        }
+
+        ChartDebug.log(`⏱️ Full load time (cache miss): ${performance.now() - perfStart}ms`);
+      }
 
       // Delay DB count update to avoid interfering with initial render
       setTimeout(() => {
@@ -221,9 +310,14 @@ class DataStore {
       end: endTime,
       limit: 5000
     });
-    
+
     this.setCandles(data);
     this.updateStats();
+
+    // Update IndexedDB cache
+    if (data.length > 0) {
+      await chartIndexedDBCache.set(config.pair, config.granularity, data);
+    }
   }
 
   async fetchGapData(fromTime: number, toTime: number): Promise<CandlestickData[]> {

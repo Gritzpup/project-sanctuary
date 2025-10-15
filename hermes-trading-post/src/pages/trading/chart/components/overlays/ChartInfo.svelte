@@ -13,6 +13,7 @@
   import DatabaseTrafficLight from '../indicators/DatabaseTrafficLight.svelte';
   import ClockDisplay from '../indicators/ClockDisplay.svelte';
   import PerformanceMonitor from '../indicators/PerformanceMonitor.svelte';
+  import CacheIndicator from '../indicators/CacheIndicator.svelte';
 
   // Get chart context to access chart instance directly (optional when used outside chart)
   const chartContext = getContext('chart') || null;
@@ -94,8 +95,12 @@
       <DatabaseTrafficLight size="medium" />
     </span>
     <!-- Price/WebSocket traffic light -->
-    <span class="mr-4">
+    <span class="mr-2">
       <TrafficLight size="medium" flashDuration={500} tradingStatus={tradingStatus} />
+    </span>
+    <!-- IndexedDB cache indicator -->
+    <span class="mr-4">
+      <CacheIndicator />
     </span>
   </div>
 
