@@ -188,7 +188,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         this.ws.on('message', (data) => {
           try {
             const message = JSON.parse(data.toString());
-            console.log('📩 [CoinbaseWS] RAW MESSAGE:', message.type || 'unknown', message);
             this.handleMessage(message);
           } catch (error) {
             console.error('Error parsing Coinbase WebSocket message:', error);
@@ -668,7 +667,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
       // Process each trade in the event
       event.trades.forEach(trade => {
-        console.log('🔥 [CoinbaseWS] Received market trade:', trade.product_id, trade.price, 'aggregators:', this.candleAggregators.size);
 
         const tradeData = {
           product_id: trade.product_id,

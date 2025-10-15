@@ -217,7 +217,7 @@
 
   .valley-point {
     position: absolute;
-    bottom: 8px;
+    bottom: -2px;
     left: 50%;
     transform: translateX(-50%);
     width: 0;
@@ -231,11 +231,11 @@
 
   .valley-line {
     position: absolute;
-    bottom: 20px;
+    bottom: 10px;
     left: 50%;
     transform: translateX(-50%);
     width: 2px;
-    height: calc(100% - 25px);
+    height: calc(100% - 15px);
     background: linear-gradient(180deg,
       transparent 0%,
       rgba(167, 139, 250, 0.2) 30%,

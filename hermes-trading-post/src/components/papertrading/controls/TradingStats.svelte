@@ -13,17 +13,6 @@
   export let nextSellDistance: number | null = null;
   export let nextBuyPrice: number | null = null;
   export let nextSellPrice: number | null = null;
-  
-  // Debug logging
-  $: {
-    console.log('🔍 TradingStats props:', { nextBuyPrice, nextSellPrice, nextBuyDistance, nextSellDistance });
-    console.log('TradingStats props:', {
-      nextBuyDistance,
-      nextSellDistance, 
-      nextBuyPrice,
-      nextSellPrice
-    });
-  }
 
   // Calculate derived stats
   $: growth = balance - startingBalance;

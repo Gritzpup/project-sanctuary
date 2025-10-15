@@ -18,24 +18,19 @@ export class CoinbaseWebSocket {
   private subscribedSymbols: Set<string> = new Set();
 
   constructor() {
-    // console.log('CoinbaseWebSocket constructor called');
   }
 
   connect() {
     try {
       // Don't create a new connection if one already exists and is open/connecting
       if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
-        // console.log('CoinbaseWebSocket: Connection already exists, state:', this.ws.readyState);
         return;
       }
       
-      // console.log('CoinbaseWebSocket: Creating new connection to:', this.url);
       this.onStatusCallback?.('loading');
       this.ws = new WebSocket(this.url);
 
       this.ws.onopen = () => {
-        // console.log('WebSocket opened successfully');
-        // console.log(`WebSocket onopen: subscribedSymbols = ${Array.from(this.subscribedSymbols).join(', ')}`);
         
         // Reset connection state
         this.isSubscribed = false;
@@ -61,13 +56,11 @@ export class CoinbaseWebSocket {
           const data: WebSocketMessage = JSON.parse(event.data);
           // Only log important messages, not ticker updates
           if (data.type === 'error' || data.type === 'subscriptions') {
-            // console.log('WebSocket message:', data.type, data);
           }
           
           switch (data.type) {
             case 'ticker':
               const tickerData = data as TickerMessage;
-              // console.log(`CoinbaseWebSocket: Received ticker for ${tickerData.product_id} - price: ${tickerData.price}, listeners: ${this.messageListeners.size}`);
               
               // Update last ticker time
               this.lastTickerTime = Date.now();
@@ -117,7 +110,6 @@ export class CoinbaseWebSocket {
       };
 
       this.ws.onclose = () => {
-        console.log('WebSocket disconnected');
         this.isSubscribed = false; // Reset subscription state
         this.onStatusCallback?.('disconnected');
         this.stopHeartbeat();
@@ -137,7 +129,6 @@ export class CoinbaseWebSocket {
   }
 
   private subscribeToChannels() {
-    // console.log(`CoinbaseWebSocket: subscribeToChannels called, symbols: ${Array.from(this.subscribedSymbols).join(', ')}, ws state: ${this.ws?.readyState}`);
     if (this.ws?.readyState === WebSocket.OPEN && this.subscribedSymbols.size > 0) {
       try {
         const subscribeMessage: SubscribeMessage = {
@@ -145,7 +136,6 @@ export class CoinbaseWebSocket {
           product_ids: Array.from(this.subscribedSymbols),
           channels: ['ticker']
         };
-        // console.log('CoinbaseWebSocket: Sending subscribe message:', JSON.stringify(subscribeMessage));
         this.ws.send(JSON.stringify(subscribeMessage));
         this.isSubscribed = true;
       } catch (error) {
@@ -154,9 +144,7 @@ export class CoinbaseWebSocket {
         this.ws?.close();
       }
     } else if (this.subscribedSymbols.size === 0) {
-      console.log('CoinbaseWebSocket: No symbols to subscribe to yet');
     } else {
-      console.log('CoinbaseWebSocket: WebSocket not ready for subscription, will retry on connection');
     }
   }
 
@@ -177,13 +165,11 @@ export class CoinbaseWebSocket {
             channels: []
           };
           this.ws.send(JSON.stringify(keepAliveMessage));
-          // console.log(`WebSocket heartbeat ping sent at ${new Date().toISOString()}`);
         } catch (error) {
           console.error('Heartbeat failed:', error);
           this.ws?.close();
         }
       } else {
-        console.log(`WebSocket heartbeat check - connection lost (state: ${this.ws?.readyState}), will reconnect`);
         this.ws?.close();
       }
     }, 15000); // Check every 15 seconds instead of 30
@@ -201,8 +187,6 @@ export class CoinbaseWebSocket {
         
         // If we haven't received a ticker in 30 seconds but are subscribed, resubscribe
         if (timeSinceLastTicker > 30000) {
-          // console.log(`No ticker messages received for ${timeSinceLastTicker}ms, resubscribing to all symbols`);
-          // console.log(`Last ticker time: ${new Date(this.lastTickerTime).toISOString()}`);
           
           // Resubscribe to all symbols
           this.subscribeToChannels();
@@ -235,7 +219,6 @@ export class CoinbaseWebSocket {
       const now = Date.now();
       const timeSinceLastMessage = now - this.lastMessageTime;
       console.log(`Connection timeout at ${new Date().toISOString()} - no messages received for ${timeSinceLastMessage}ms (last message: ${new Date(this.lastMessageTime).toISOString()})`);
-      console.log(`WebSocket state: ${this.ws?.readyState}, subscribed symbols: ${Array.from(this.subscribedSymbols).join(', ')}`);
       
       // Force close and reconnect
       if (this.ws) {
@@ -290,11 +273,9 @@ export class CoinbaseWebSocket {
   }
 
   subscribeTicker(symbol: string) {
-    // console.log(`CoinbaseWebSocket: subscribeTicker called for ${symbol}`);
     
     // Check if already subscribed
     if (this.subscribedSymbols.has(symbol)) {
-      // console.log(`CoinbaseWebSocket: Already subscribed to ${symbol}, skipping`);
       return;
     }
     
@@ -309,7 +290,6 @@ export class CoinbaseWebSocket {
           product_ids: [symbol],
           channels: ['ticker']
         };
-        // console.log(`CoinbaseWebSocket: Sending immediate subscribe message for ${symbol}:`, JSON.stringify(subscribeMessage));
         this.ws.send(JSON.stringify(subscribeMessage));
         this.isSubscribed = true;
       } catch (error) {
@@ -318,7 +298,6 @@ export class CoinbaseWebSocket {
         this.ws?.close();
       }
     } else {
-      console.log(`CoinbaseWebSocket: WebSocket not open (state: ${this.ws?.readyState}), symbol added to queue for connection`);
       // Ensure we're trying to connect
       if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
         this.connect();

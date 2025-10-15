@@ -176,7 +176,6 @@ let cachedLevel2Snapshot = null;
 
   // 🚀 RADICAL OPTIMIZATION: Subscribe to ticker for INSTANT price updates
   coinbaseWebSocket.subscribeTicker('BTC-USD');
-  console.log('⚡ Auto-subscribed to BTC-USD ticker for instant price updates');
 
   // 📊 Try WebSocket level2 first for real-time orderbook (public feed, no auth needed!)
   console.log('🚀 Starting AUTHENTICATED WebSocket level2 for real-time orderbook updates...');
@@ -202,13 +201,11 @@ let cachedLevel2Snapshot = null;
     // Cache snapshot for new clients
     if (orderbookData.type === 'snapshot') {
       cachedLevel2Snapshot = orderbookData;
-      console.log(`📸 [L2] Cached snapshot: ${orderbookData.bids?.length || 0} bids, ${orderbookData.asks?.length || 0} asks`);
     }
 
     // Log every second instead of every 100 messages
     const now = Date.now();
     if (now - lastLevel2Log >= 1000) {
-      console.log(`📊 [L2 WebSocket] Received ${level2MessageCount} total updates (real-time streaming active)`);
       lastLevel2Log = now;
     }
 
@@ -236,7 +233,6 @@ let cachedLevel2Snapshot = null;
 
   // Set up Coinbase WebSocket event handlers
   coinbaseWebSocket.on('candle', (candleData) => {
-    console.log('🕯️ [Backend] Received candle from Coinbase:', candleData.product_id, candleData.granularity, 's, close:', candleData.close);
 
     // Convert granularity seconds back to string using mapping
     const mappingKey = `${candleData.product_id}:${candleData.granularity}`;
@@ -279,7 +275,6 @@ let cachedLevel2Snapshot = null;
               candleType: candleData.type
             };
 
-            console.log(`📤 Emitting ${candleData.type} candle to client ${clientId}:`, subscriptionKey, candleData.close);
             client.send(JSON.stringify(messageToSend));
           }
         }
@@ -319,11 +314,9 @@ let cachedLevel2Snapshot = null;
 })();
 
 wss.on('connection', (ws) => {
-  console.log('🟢 [Backend] New WebSocket connection established');
 
   // Generate unique client ID for tracking subscriptions
   ws._clientId = Math.random().toString(36).substring(7);
-  console.log('🆔 [Backend] Assigned client ID:', ws._clientId);
   chartSubscriptions.set(ws._clientId, new Set());
 
   botManager.addClient(ws);
@@ -339,7 +332,6 @@ wss.on('connection', (ws) => {
       type: 'level2',
       data: cachedLevel2Snapshot
     }));
-    console.log(`📸 [Backend] Sent cached L2 snapshot to new client ${ws._clientId}: ${cachedLevel2Snapshot.bids?.length || 0} bids, ${cachedLevel2Snapshot.asks?.length || 0} asks`);
   }
 
   // 🔥 MEMORY LEAK FIX: Clean up on disconnect
@@ -376,7 +368,6 @@ wss.on('connection', (ws) => {
 
   ws.on('message', async (message) => {
     try {
-      console.log('📥 [Backend] RAW MESSAGE from client', ws._clientId || 'unknown', ':', message.toString().substring(0, 200));
       const data = JSON.parse(message.toString());
       // Only log non-status messages to reduce spam
       if (data.type !== 'getStatus' && data.type !== 'getManagerState') {
@@ -583,7 +574,6 @@ wss.on('connection', (ws) => {
             // Subscribe to Coinbase WebSocket for this pair
             coinbaseWebSocket.subscribeMatches(data.pair, granularitySeconds);
             
-            console.log(`📡 Subscribed client ${ws._clientId} to ${subscriptionKey} (${granularitySeconds}s)`);
           }
           
           ws.send(JSON.stringify({
@@ -661,7 +651,6 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    console.log('WebSocket connection closed');
     
     // Clean up chart subscriptions for this client
     const clientSubs = chartSubscriptions.get(ws._clientId);
