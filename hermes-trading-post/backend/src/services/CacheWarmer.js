@@ -14,7 +14,7 @@
 const logger = require('../utils/logger');
 
 class CacheWarmer {
-  constructor(redis CandleStorage, coinbaseAPI) {
+  constructor(redisCandleStorage, coinbaseAPI) {
     this.candleStorage = redisCandleStorage;
     this.coinbaseAPI = coinbaseAPI;
     this.warmupInterval = null;
