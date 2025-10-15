@@ -17,10 +17,6 @@
     dispatch('granularityChange', { granularity });
   }
 
-  function handleZoomReset() {
-    dispatch('zoomReset');
-  }
-
   function handleSeparatorClick() {
     // Could add functionality here if needed for header separator
     console.log('Header separator clicked');
@@ -50,11 +46,7 @@
       <option value={option.value}>{option.label}</option>
     {/each}
   </select>
-  
-  <button class="magnifier-btn" on:click={handleZoomReset} title="Reset zoom to 60 candles">
-    <span class="magnifier-icon">🔍</span>
-  </button>
-  
+
   <div class="timeframe-separator">
     <div class="separator-line left-line"></div>
     <button 
@@ -105,26 +97,6 @@
     border-radius: 4px;
   }
 
-  .magnifier-btn {
-    width: 28px;
-    height: 28px;
-    border: 1px solid var(--border-primary);
-    background: var(--bg-primary);
-    color: #c4b5fd;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.2s ease;
-  }
-
-  .magnifier-btn:hover {
-    background: rgba(74, 0, 224, 0.2);
-    border-color: rgba(74, 0, 224, 0.5);
-  }
-
   .timeframe-separator {
     display: flex;
     flex-direction: row;
@@ -161,7 +133,7 @@
 
   .timeframe-buttons {
     display: flex;
-    gap: 4px;
+    gap: var(--space-sm);
   }
 
   .btn-timeframe {
@@ -211,22 +183,16 @@
     .left-controls {
       gap: var(--space-xs);
     }
-    
+
     .pair-selector {
       min-width: 120px;
       font-size: 11px;
     }
-    
+
     .btn-timeframe {
       min-width: 28px;
       padding: 2px 4px;
       font-size: 10px;
-    }
-    
-    .magnifier-btn {
-      width: 24px;
-      height: 24px;
-      font-size: 12px;
     }
   }
 </style>

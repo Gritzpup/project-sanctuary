@@ -49,7 +49,7 @@
       <div class="stat-item">Balance: <span class="stat-value">${balance.toLocaleString()}</span></div>
       <div class="stat-item">USDC Vault: <span class="stat-value" class:profit={vaultBalance > 0}>${vaultBalance.toFixed(2)}</span></div>
       <div class="stat-item">BTC Vault: <span class="stat-value" class:profit={btcVaultBalance > 0}>{btcVaultBalance.toFixed(6)} BTC</span></div>
-      <div class="stat-item">Position Size: <span class="stat-value">{totalPositionSize.toFixed(6)} BTC (${(totalPositionSize * currentPrice).toLocaleString()})</span></div>
+      <div class="stat-item">Position Size: <span class="stat-value">${(totalPositionSize * currentPrice).toLocaleString()}</span></div>
       <div class="stat-item">Avg Entry: <span class="stat-value">${averageEntryPrice > 0 ? averageEntryPrice.toLocaleString() : 'N/A'}</span></div>
       <div class="stat-item">Fees: <span class="stat-value">${totalFees.toFixed(2)}</span></div>
       <div class="stat-item">Net Fees: <span class="stat-value">${netFeesAfterRebase.toFixed(2)}</span></div>

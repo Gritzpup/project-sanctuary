@@ -7,14 +7,10 @@
   import { formatCandleTime } from '../../utils/timeHelpers';
 
   // Import all indicator components (Phase 2 refactoring)
-  import TrafficLight from '../indicators/TrafficLight.svelte';
   import CandleCounter from '../indicators/CandleCounter.svelte';
   import CandleCountdown from '../indicators/CandleCountdown.svelte';
-  import DatabaseTrafficLight from '../indicators/DatabaseTrafficLight.svelte';
   import ClockDisplay from '../indicators/ClockDisplay.svelte';
   import PerformanceMonitor from '../indicators/PerformanceMonitor.svelte';
-  import CacheIndicator from '../indicators/CacheIndicator.svelte';
-  import ServiceWorkerIndicator from '../indicators/ServiceWorkerIndicator.svelte';
 
   // Get chart context to access chart instance directly (optional when used outside chart)
   const chartContext = getContext('chart') || null;
@@ -88,26 +84,6 @@
 </script>
 
 <div class="chart-info {positionClass}">
-
-  <!-- Traffic lights for status indicators -->
-  <div class="info-item">
-    <!-- Database loading status traffic light -->
-    <span class="mr-2">
-      <DatabaseTrafficLight size="medium" />
-    </span>
-    <!-- Price/WebSocket traffic light -->
-    <span class="mr-2">
-      <TrafficLight size="medium" flashDuration={500} tradingStatus={tradingStatus} />
-    </span>
-    <!-- IndexedDB cache indicator -->
-    <span class="mr-2">
-      <CacheIndicator />
-    </span>
-    <!-- Service Worker indicator -->
-    <span class="mr-4">
-      <ServiceWorkerIndicator />
-    </span>
-  </div>
 
   {#if showLatestCandleTime && latestCandleTime}
     <div class="info-item candle-time">

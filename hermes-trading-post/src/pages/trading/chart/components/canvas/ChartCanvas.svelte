@@ -161,6 +161,11 @@
     container.addEventListener('wheel', markUserInteraction);
     container.addEventListener('touchstart', markUserInteraction);
 
+    // Add double-click to reset zoom to 60 candles
+    container.addEventListener('dblclick', () => {
+      resetZoomTo60Candles();
+    });
+
     // Track chart-specific zoom/pan events
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
       markUserInteraction();
@@ -259,7 +264,36 @@
       }, 50);
     }
   }
-  
+
+  /**
+   * Reset zoom to show exactly 60 candles (triggered by double-click)
+   */
+  function resetZoomTo60Candles() {
+    if (!chart || !candles || candles.length === 0) return;
+
+    const STANDARD_VISIBLE_CANDLES = 60;
+    const showCandles = Math.min(candles.length, STANDARD_VISIBLE_CANDLES);
+    const startIndex = Math.max(0, candles.length - showCandles);
+
+    // Set visible logical range to show exactly 60 candles
+    chart.timeScale().setVisibleLogicalRange({
+      from: startIndex,
+      to: candles.length + 2 // +2 for right padding
+    });
+
+    // Calculate appropriate bar spacing for exactly 60 candles
+    const chartWidth = chart.options().width || container?.clientWidth || 800;
+    const barSpacing = Math.floor(chartWidth / (showCandles + 5)); // +5 for padding
+
+    chart.timeScale().applyOptions({
+      barSpacing: Math.max(6, barSpacing), // Minimum 6px per bar
+      rightOffset: 3 // Keep 3 candles of space on the right
+    });
+
+    // Scroll to real-time
+    chart.timeScale().scrollToRealTime();
+  }
+
   // Export functions for parent component
   export function getChart(): IChartApi | null {
     return chart;
