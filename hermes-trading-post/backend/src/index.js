@@ -369,8 +369,8 @@ wss.on('connection', (ws) => {
   ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message.toString());
-      // Only log non-status messages to reduce spam
-      if (data.type !== 'getStatus' && data.type !== 'getManagerState') {
+      // 🔇 Only log important messages (exclude status polls and real-time price spam)
+      if (data.type !== 'getStatus' && data.type !== 'getManagerState' && data.type !== 'realtimePrice') {
         console.log('📥 [Backend] Received message:', data.type, JSON.stringify(data));
       }
 

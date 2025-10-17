@@ -383,7 +383,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
         case 'l2_data':
           // Advanced Trade API uses 'l2_data' channel (not 'level2')
-          console.log(`📊 [L2] Received l2_data update for BTC-USD`);
+          // 🔇 Removed verbose logging - fires 100+ times/sec
           this.handleLevel2(message);
           break;
 
