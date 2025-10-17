@@ -8,6 +8,7 @@
   import ChartInfo from './components/overlays/ChartInfo.svelte';
   import ChartError from './components/overlays/ChartError.svelte';
   import ChartDebug from './components/overlays/ChartDebug.svelte';
+  import LoadingOverlay from './components/overlays/LoadingOverlay.svelte';
   import { 
     PluginManager,
     VolumePlugin,
@@ -260,7 +261,7 @@
             <div slot="main-pane" class="main-pane">
               <!-- Main chart is rendered by ChartCore -->
             </div>
-            
+
             <div slot="indicator-pane" let:pane class="indicator-pane">
               <!-- Indicator panes would be rendered here based on pane.id -->
               {#if pane.id === 'rsi'}
@@ -269,6 +270,8 @@
             </div>
           </ChartPanes>
         {/if}
+
+        <LoadingOverlay />
 
         <ChartError
           position="center"

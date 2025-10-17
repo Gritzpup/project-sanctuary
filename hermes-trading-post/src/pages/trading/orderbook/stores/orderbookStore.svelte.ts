@@ -81,21 +81,41 @@ class OrderbookStore {
 
     this.productId = data.product_id;
 
+    // Calculate mid-price for depth filtering (only if we have data)
+    let midPrice = 0;
+    if (data.bids.length > 0 && data.asks.length > 0) {
+      midPrice = (data.bids[0].price + data.asks[0].price) / 2;
+    }
+
+    // Define depth limit: ±5% from mid-price (configurable)
+    const depthPercentage = 0.05; // 5%
+    const minPrice = midPrice * (1 - depthPercentage);
+    const maxPrice = midPrice * (1 + depthPercentage);
+
     // Log only on first snapshot
     if (!this.isReady) {
       console.log(`📊 [Orderbook] Received snapshot: ${data.bids.length} bids, ${data.asks.length} asks`);
+      if (midPrice > 0) {
+        console.log(`📊 [Orderbook] Filtering to ±${(depthPercentage * 100).toFixed(0)}% of mid-price $${midPrice.toFixed(2)} (range: $${minPrice.toFixed(2)}-$${maxPrice.toFixed(2)})`);
+      }
     }
 
     // Track if data actually changed
     let bidsChanged = false;
     let asksChanged = false;
 
-    // Smart update for bids - only if different
+    // Smart update for bids - only if different AND within depth limit
     const newBids = new Map<number, number>();
+    let filteredBidCount = 0;
     for (let i = 0; i < data.bids.length; i++) {
       const level = data.bids[i];
       if (level.size > 0) {
-        newBids.set(level.price, level.size);
+        // Only keep bids within 5% of mid-price
+        if (midPrice === 0 || level.price >= minPrice) {
+          newBids.set(level.price, level.size);
+        } else {
+          filteredBidCount++;
+        }
       }
     }
 
@@ -111,12 +131,18 @@ class OrderbookStore {
       }
     }
 
-    // Smart update for asks - only if different
+    // Smart update for asks - only if different AND within depth limit
     const newAsks = new Map<number, number>();
+    let filteredAskCount = 0;
     for (let i = 0; i < data.asks.length; i++) {
       const level = data.asks[i];
       if (level.size > 0) {
-        newAsks.set(level.price, level.size);
+        // Only keep asks within 5% of mid-price
+        if (midPrice === 0 || level.price <= maxPrice) {
+          newAsks.set(level.price, level.size);
+        } else {
+          filteredAskCount++;
+        }
       }
     }
 
@@ -130,6 +156,12 @@ class OrderbookStore {
           break;
         }
       }
+    }
+
+    // Log filtering stats on first snapshot or significant changes
+    if (!this.isReady && (filteredBidCount > 0 || filteredAskCount > 0)) {
+      console.log(`📊 [Orderbook] Filtered out ${filteredBidCount} bids and ${filteredAskCount} asks beyond ±${(depthPercentage * 100).toFixed(0)}% depth`);
+      console.log(`📊 [Orderbook] Keeping ${newBids.size} bids and ${newAsks.size} asks in memory`);
     }
 
     // Only update if data changed
@@ -198,13 +230,35 @@ class OrderbookStore {
 
     this._lastUpdateTime = now;
 
+    // Calculate current mid-price for depth filtering
+    let midPrice = 0;
+    if (this._sortedBids.length > 0 && this._sortedAsks.length > 0) {
+      midPrice = (this._sortedBids[0][0] + this._sortedAsks[0][0]) / 2;
+    }
+
+    // Define depth limit: ±5% from mid-price
+    const depthPercentage = 0.05; // 5%
+    const minPrice = midPrice * (1 - depthPercentage);
+    const maxPrice = midPrice * (1 + depthPercentage);
+
     let bidsChanged = false;
     let asksChanged = false;
+    let filteredUpdateCount = 0;
 
     data.changes.forEach(change => {
       const { side, price, size } = change;
 
       if (side === 'buy' || side === 'bid') {
+        // Skip bid updates that are too far from mid-price
+        if (midPrice > 0 && price < minPrice) {
+          filteredUpdateCount++;
+          // Also remove from our map if it exists
+          if (this.bids.delete(price)) {
+            bidsChanged = true;
+          }
+          return;
+        }
+
         const oldSize = this.bids.get(price);
         if (size === 0) {
           if (this.bids.delete(price)) {
@@ -215,6 +269,16 @@ class OrderbookStore {
           bidsChanged = true;
         }
       } else if (side === 'sell' || side === 'offer' || side === 'ask') {
+        // Skip ask updates that are too far from mid-price
+        if (midPrice > 0 && price > maxPrice) {
+          filteredUpdateCount++;
+          // Also remove from our map if it exists
+          if (this.asks.delete(price)) {
+            asksChanged = true;
+          }
+          return;
+        }
+
         const oldSize = this.asks.get(price);
         if (size === 0) {
           if (this.asks.delete(price)) {
@@ -226,6 +290,27 @@ class OrderbookStore {
         }
       }
     });
+
+    // Also cleanup levels that have drifted beyond our depth limit
+    if (midPrice > 0) {
+      // Clean up bids that are now too far
+      for (const [price] of this.bids) {
+        if (price < minPrice) {
+          this.bids.delete(price);
+          bidsChanged = true;
+          filteredUpdateCount++;
+        }
+      }
+
+      // Clean up asks that are now too far
+      for (const [price] of this.asks) {
+        if (price > maxPrice) {
+          this.asks.delete(price);
+          asksChanged = true;
+          filteredUpdateCount++;
+        }
+      }
+    }
 
     // Only update sorted arrays if data actually changed
     if (bidsChanged) {

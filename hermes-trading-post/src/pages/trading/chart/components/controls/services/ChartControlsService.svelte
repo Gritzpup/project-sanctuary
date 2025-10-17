@@ -13,12 +13,12 @@
 
     async handleTimeframeChange(timeframe: string) {
       chartStore.setTimeframe(timeframe);
-      
+
       // Auto-select appropriate granularity if current one isn't valid for new timeframe
       const currentGranularity = chartStore.config.granularity;
       const validForTimeframe = VALID_GRANULARITIES[timeframe] || [];
       const recommended = RECOMMENDED_GRANULARITIES[timeframe] || [];
-      
+
       if (!validForTimeframe.includes(currentGranularity)) {
         // Current granularity is invalid for new timeframe, select first recommended
         const newGranularity = recommended[0] || validForTimeframe[0];
@@ -26,6 +26,9 @@
           chartStore.setGranularity(newGranularity);
         }
       }
+
+      // The chart will automatically reload with the correct amount of data for the new timeframe
+      // No need for special handling - useDataLoader will handle it based on the timeframe
     }
 
     handleGranularityChange(granularity: string) {

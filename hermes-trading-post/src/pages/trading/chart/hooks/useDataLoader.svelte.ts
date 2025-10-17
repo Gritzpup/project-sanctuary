@@ -104,9 +104,11 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       const alignedNow = alignTimeToGranularity(now, config.granularity);
       
       // Calculate appropriate start time based on timeframe
-      // Request data for the exact timeframe period
+      // Always load the exact amount of data needed for the selected timeframe
       const timeRange = getPeriodSeconds(config.timeframe);
       const startTime = alignedNow - timeRange;
+
+      ChartDebug.log(`📊 Loading ${config.timeframe} data: ${candleCount} candles for ${config.granularity}`);
       
       // Load data
       perfTest.mark('dataStore-loadData-start');

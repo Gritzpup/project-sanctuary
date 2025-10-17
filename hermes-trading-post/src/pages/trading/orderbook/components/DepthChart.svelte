@@ -310,6 +310,7 @@
         rightOffset: 0,
         fixLeftEdge: true,
         fixRightEdge: true,
+        lockVisibleTimeRangeOnResize: true, // Keep the same price range when resizing
       },
       leftPriceScale: {
         visible: false, // Disable built-in price scale - we'll create our own overlay
@@ -694,12 +695,23 @@
         const fromPrice = midPrice - visiblePriceRange;
         const toPrice = midPrice + visiblePriceRange;
 
-        // Always re-center on midPrice with current zoom level
-        // This keeps the spread centered even as price moves
-        chart.timeScale().setVisibleRange({
-          from: fromPrice as any,
-          to: toPrice as any
-        });
+        // Ensure we have data on both sides by checking actual data bounds
+        const allPrices = [...bidData, ...askData].map(d => d.time as number).filter(p => p > 0);
+        if (allPrices.length > 0) {
+          const minDataPrice = Math.min(...allPrices);
+          const maxDataPrice = Math.max(...allPrices);
+
+          // Adjust range to ensure both edges are visible and anchored
+          const adjustedFrom = Math.max(fromPrice, minDataPrice - 100); // Add small padding
+          const adjustedTo = Math.min(toPrice, maxDataPrice + 100); // Add small padding
+
+          // Always re-center on midPrice with current zoom level
+          // This keeps the spread centered even as price moves
+          chart.timeScale().setVisibleRange({
+            from: adjustedFrom as any,
+            to: adjustedTo as any
+          });
+        }
       }
     } catch (e) {
       // If setting range fails, try to fit content
