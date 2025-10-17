@@ -3,8 +3,8 @@
   import { statusStore } from '../../stores/statusStore.svelte';
   import { dataStore } from '../../stores/dataStore.svelte';
 
-  // Loading progress calculation
-  const loadingProgress = $derived(() => {
+  // Loading progress calculation - use $derived.by for complex derivations
+  const loadingProgress = $derived.by(() => {
     const stats = dataStore.stats;
 
     // Estimate progress based on loaded candles
@@ -23,7 +23,7 @@
     statusStore.status === 'initializing'
   );
 
-  const statusMessage = $derived(() => {
+  const statusMessage = $derived.by(() => {
     if (statusStore.message) {
       return statusStore.message;
     }
@@ -42,15 +42,15 @@
 
       <div class="loading-text">{statusMessage}</div>
 
-      {#if loadingProgress() > 0}
+      {#if loadingProgress > 0}
         <div class="progress-container">
           <div class="progress-bar">
             <div
               class="progress-fill"
-              style="width: {loadingProgress()}%"
+              style="width: {loadingProgress}%"
             ></div>
           </div>
-          <div class="progress-text">{Math.round(loadingProgress())}%</div>
+          <div class="progress-text">{Math.round(loadingProgress)}%</div>
         </div>
       {/if}
     </div>
