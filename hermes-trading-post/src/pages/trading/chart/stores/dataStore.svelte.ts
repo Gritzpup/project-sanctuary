@@ -97,18 +97,23 @@ class DataStore {
         return;
       }
 
-      // Process cached candles
-      this._candles = result.data;
-      this._visibleCandles = result.data;
+      // Process cached candles - MUST be sorted for lightweight-charts
+      // Sort by time and remove any invalid entries
+      const sortedCandles = result.data
+        .filter(c => c && typeof c.time === 'number' && c.time > 0 && c.close > 0)
+        .sort((a, b) => a.time - b.time);
+
+      this._candles = sortedCandles;
+      this._visibleCandles = sortedCandles;
       this._currentPair = pair;
       this._currentGranularity = granularity;
 
       // Update stats
-      this._dataStats.totalCount = result.data.length;
-      this._dataStats.visibleCount = result.data.length;
-      if (result.data.length > 0) {
-        this._dataStats.oldestTime = result.data[0].time;
-        this._dataStats.newestTime = result.data[result.data.length - 1].time;
+      this._dataStats.totalCount = sortedCandles.length;
+      this._dataStats.visibleCount = sortedCandles.length;
+      if (sortedCandles.length > 0) {
+        this._dataStats.oldestTime = sortedCandles[0].time;
+        this._dataStats.newestTime = sortedCandles[sortedCandles.length - 1].time;
       }
       this._dataStats.lastUpdate = Date.now();
       this._dataStats.loadingStatus = 'idle';
@@ -322,12 +327,25 @@ class DataStore {
   }
 
   setCandles(candles: CandlestickDataWithVolume[]) {
-    this._candles = candles;
-    this._visibleCandles = candles; // Initially all candles are visible
+    // Filter out invalid candles (must have valid time > 0) and sort
+    // This prevents lightweight-charts assertion errors
+    const validCandles = candles.filter(c =>
+      c &&
+      typeof c.time === 'number' &&
+      c.time > 0 &&
+      typeof c.close === 'number' &&
+      c.close > 0
+    );
+
+    // Ensure candles are sorted by time (required by lightweight-charts)
+    const sortedCandles = [...validCandles].sort((a, b) => (a.time as number) - (b.time as number));
+
+    this._candles = sortedCandles;
+    this._visibleCandles = sortedCandles; // Initially all candles are visible
 
     // Update latest price
-    if (candles.length > 0) {
-      const lastCandle = candles[candles.length - 1];
+    if (sortedCandles.length > 0) {
+      const lastCandle = sortedCandles[sortedCandles.length - 1];
       this._latestPrice = lastCandle.close;
     }
 
@@ -415,6 +433,12 @@ class DataStore {
       pair,
       granularity,
       (update: WebSocketCandle) => {
+        // Validate that update.time is a valid number (Unix timestamp in seconds)
+        if (!update.time || typeof update.time !== 'number' || update.time <= 0) {
+          console.warn(`⚠️ Invalid candle time from WebSocket:`, update);
+          return;
+        }
+
         const candleData: CandlestickData = {
           time: update.time,
           open: update.open,

@@ -197,33 +197,33 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         
         if (gapData.length > 0) {
           // Merge gap data with existing candles
-          const mergedCandles = [...candles, ...gapData].sort(
-            (a, b) => (a.time as number) - (b.time as number)
-          );
-          
+          const mergedCandles = [...candles, ...gapData];
+
+          // Let dataStore.setCandles handle validation and sorting
           dataStore.setCandles(mergedCandles);
-          
-          // Update chart series if provided
+
+          // Now get the validated sorted data from dataStore
           if (series) {
-            series.setData(mergedCandles);
+            series.setData(dataStore.candles);
           }
-          
+
           statusStore.setReady();
           ChartDebug.log(`Gap filled with ${gapData.length} candles`);
-          
+
           if (onGapFilled) {
             onGapFilled(gapData);
           }
         } else {
           // Create bridge candles if no API data available
           const bridgeCandles = createBridgeCandles(lastCandleTime, currentTime, candleInterval);
-          
+
           if (bridgeCandles.length > 0) {
             const mergedCandles = [...candles, ...bridgeCandles];
             dataStore.setCandles(mergedCandles);
-            
+
+            // Use validated sorted data from dataStore
             if (series) {
-              series.setData(mergedCandles);
+              series.setData(dataStore.candles);
             }
             
             ChartDebug.log(`Created ${bridgeCandles.length} bridge candles`);
