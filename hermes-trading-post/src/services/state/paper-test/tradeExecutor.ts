@@ -188,7 +188,20 @@ export class TradeExecutor {
     try {
       const audio = new Audio('/sounds/coins_cave01.wav');
       audio.volume = 0.3;
-      audio.play().catch(e => this.stateManager.log('Coin sound play failed:', e));
+
+      // Attempt to play, with error handling for browser audio policies
+      const playPromise = audio.play();
+
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            // Sound played successfully
+          })
+          .catch(e => {
+            // Autoplay policy or audio device issue
+            this.stateManager.log('Sound play failed (likely browser autoplay policy):', e.name);
+          });
+      }
     } catch (e) {
       this.stateManager.log('Failed to create audio:', e);
     }
