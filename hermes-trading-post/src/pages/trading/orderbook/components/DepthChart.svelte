@@ -138,7 +138,7 @@
   });
 
   let volumeRange = $derived.by(() => {
-    const depthData = orderbookStore.getDepthData(10000);
+    const depthData = orderbookStore.getDepthData(25000);
     if (depthData.bids.length > 0 && depthData.asks.length > 0) {
       const maxBidDepth = depthData.bids[depthData.bids.length - 1]?.depth || 0;
       const maxAskDepth = depthData.asks[depthData.asks.length - 1]?.depth || 0;
@@ -157,9 +157,9 @@
     if (summary.bestBid && summary.bestAsk) {
       const midPrice = (summary.bestBid + summary.bestAsk) / 2;
       return {
-        left: midPrice - 10000,
+        left: midPrice - 25000,
         center: midPrice,
-        right: midPrice + 10000
+        right: midPrice + 25000
       };
     }
     return { left: 0, center: 0, right: 0 };
@@ -216,9 +216,9 @@
     const strongerPrice = strongerSide === 'bid' ? maxBidPrice : maxAskPrice;
     const strongerVolume = strongerSide === 'bid' ? maxBidVolume : maxAskVolume;
 
-    // Calculate position on chart (assuming 20k range centered on midPrice)
-    const rangeStart = midPrice - 10000;
-    const rangeEnd = midPrice + 10000;
+    // Calculate position on chart (assuming 50k range centered on midPrice)
+    const rangeStart = midPrice - 25000;
+    const rangeEnd = midPrice + 25000;
     const positionInRange = (strongerPrice - rangeStart) / (rangeEnd - rangeStart);
     const offset = Math.max(10, Math.min(90, positionInRange * 100));
 
@@ -426,14 +426,12 @@
         if (summary.bestBid && summary.bestAsk) {
           const midPrice = (summary.bestBid + summary.bestAsk) / 2;
 
-          // Calculate range based on new chart width for responsive scaling
-          const rangeMultiplier = Math.max(0.5, Math.min(1.5, newWidth / 500));
-          const baseRange = 10000;
-          const adjustedRange = baseRange * rangeMultiplier;
+          // Always show full ±$25,000 range regardless of chart width
+          const baseRange = 25000;
 
           chart.timeScale().setVisibleRange({
-            from: (midPrice - adjustedRange) as any,
-            to: (midPrice + adjustedRange) as any
+            from: (midPrice - baseRange) as any,
+            to: (midPrice + baseRange) as any
           });
         }
       }
@@ -526,12 +524,12 @@
   function updateChart() {
     if (!bidSeries || !askSeries) return;
 
-    // Get depth data from store (use reasonable number of levels for performance)
-    // 500 levels is enough to show immediate depth while maintaining performance
-    const { bids, asks } = orderbookStore.getDepthData(500);
+    // Get depth data from store - request all available data to fill ±$25,000 range
+    // All data in store is already filtered to ±$25,000, so show it all
+    const { bids, asks } = orderbookStore.getDepthData(50000);
 
     if (bids.length === 0 || asks.length === 0) {
-      console.warn('⚠️ No depth data available yet');
+      console.warn(`⚠️ No depth data available yet (isReady=${orderbookStore.isReady})`);
       return;
     }
 
@@ -595,16 +593,12 @@
       if (summary.bestBid && summary.bestAsk) {
         const midPrice = (summary.bestBid + summary.bestAsk) / 2;
 
-        // Calculate range based on chart width for better responsiveness
-        // Wider charts show more depth, narrower charts show less
-        const chartWidth = chartContainer?.clientWidth || 500;
-        const rangeMultiplier = Math.max(0.5, Math.min(1.5, chartWidth / 500));
-        const baseRange = 10000;
-        const adjustedRange = baseRange * rangeMultiplier;
+        // Always show full ±$25,000 range regardless of chart width
+        const baseRange = 25000;
 
         chart.timeScale().setVisibleRange({
-          from: (midPrice - adjustedRange) as any,
-          to: (midPrice + adjustedRange) as any
+          from: (midPrice - baseRange) as any,
+          to: (midPrice + baseRange) as any
         });
       }
     } catch (e) {

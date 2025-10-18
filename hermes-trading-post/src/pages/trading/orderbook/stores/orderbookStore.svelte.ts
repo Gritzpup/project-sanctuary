@@ -87,16 +87,16 @@ class OrderbookStore {
       midPrice = (data.bids[0].price + data.asks[0].price) / 2;
     }
 
-    // Define depth limit: ±5% from mid-price (configurable)
-    const depthPercentage = 0.05; // 5%
-    const minPrice = midPrice * (1 - depthPercentage);
-    const maxPrice = midPrice * (1 + depthPercentage);
+    // Define depth limit: ±25000 absolute price range from mid-price
+    const depthRange = 25000;
+    const minPrice = midPrice - depthRange;
+    const maxPrice = midPrice + depthRange;
 
     // Log only on first snapshot
     if (!this.isReady) {
       console.log(`📊 [Orderbook] Received snapshot: ${data.bids.length} bids, ${data.asks.length} asks`);
       if (midPrice > 0) {
-        console.log(`📊 [Orderbook] Filtering to ±${(depthPercentage * 100).toFixed(0)}% of mid-price $${midPrice.toFixed(2)} (range: $${minPrice.toFixed(2)}-$${maxPrice.toFixed(2)})`);
+        console.log(`📊 [Orderbook] Filtering to ±$${depthRange.toLocaleString()} of mid-price $${midPrice.toFixed(2)} (range: $${minPrice.toFixed(2)}-$${maxPrice.toFixed(2)})`);
       }
     }
 
@@ -110,7 +110,7 @@ class OrderbookStore {
     for (let i = 0; i < data.bids.length; i++) {
       const level = data.bids[i];
       if (level.size > 0) {
-        // Only keep bids within 5% of mid-price
+        // Only keep bids within ±$25,000 of mid-price
         if (midPrice === 0 || level.price >= minPrice) {
           newBids.set(level.price, level.size);
         } else {
@@ -120,6 +120,9 @@ class OrderbookStore {
     }
 
     // Check if bids actually changed
+    if (!this.isReady && newBids.size < 100) {
+      console.log(`📊 [DEBUG] newBids.size=${newBids.size}, this.bids.size=${this.bids.size}, filtered=${filteredBidCount}`);
+    }
     if (newBids.size !== this.bids.size) {
       bidsChanged = true;
     } else {
@@ -137,7 +140,7 @@ class OrderbookStore {
     for (let i = 0; i < data.asks.length; i++) {
       const level = data.asks[i];
       if (level.size > 0) {
-        // Only keep asks within 5% of mid-price
+        // Only keep asks within ±$25,000 of mid-price
         if (midPrice === 0 || level.price <= maxPrice) {
           newAsks.set(level.price, level.size);
         } else {
@@ -160,19 +163,26 @@ class OrderbookStore {
 
     // Log filtering stats on first snapshot or significant changes
     if (!this.isReady && (filteredBidCount > 0 || filteredAskCount > 0)) {
-      console.log(`📊 [Orderbook] Filtered out ${filteredBidCount} bids and ${filteredAskCount} asks beyond ±${(depthPercentage * 100).toFixed(0)}% depth`);
+      console.log(`📊 [Orderbook] Filtered out ${filteredBidCount} bids and ${filteredAskCount} asks beyond ±$${depthRange.toLocaleString()} depth`);
       console.log(`📊 [Orderbook] Keeping ${newBids.size} bids and ${newAsks.size} asks in memory`);
     }
 
-    // Only update if data changed
-    if (bidsChanged) {
+    // Update maps (always on first snapshot, then only if changed)
+    if (!this.isReady || bidsChanged) {
       this.bids = newBids;
-      this._updateSortedBids();
     }
 
-    if (asksChanged) {
+    if (!this.isReady || asksChanged) {
       this.asks = newAsks;
+    }
+
+    // ALWAYS update sorted arrays on first snapshot to ensure data is available
+    if (!this.isReady) {
+      this._updateSortedBids();
       this._updateSortedAsks();
+    } else {
+      if (bidsChanged) this._updateSortedBids();
+      if (asksChanged) this._updateSortedAsks();
     }
 
     this.isReady = true;
@@ -184,8 +194,10 @@ class OrderbookStore {
   }
 
   private _updateSortedBids() {
+    const before = this._sortedBids.length;
     this._sortedBids = Array.from(this.bids.entries())
       .sort(([a], [b]) => b - a); // Descending
+    console.log(`📊 [OrderbookStore] Updated _sortedBids: ${before} -> ${this._sortedBids.length} items`);
     this._lastBidVersion++;
   }
 
@@ -236,10 +248,10 @@ class OrderbookStore {
       midPrice = (this._sortedBids[0][0] + this._sortedAsks[0][0]) / 2;
     }
 
-    // Define depth limit: ±5% from mid-price
-    const depthPercentage = 0.05; // 5%
-    const minPrice = midPrice * (1 - depthPercentage);
-    const maxPrice = midPrice * (1 + depthPercentage);
+    // Define depth limit: ±25000 absolute price range from mid-price
+    const depthRange = 25000;
+    const minPrice = midPrice - depthRange;
+    const maxPrice = midPrice + depthRange;
 
     let bidsChanged = false;
     let asksChanged = false;
@@ -340,6 +352,10 @@ class OrderbookStore {
     const sortedBids = this._sortedBids.slice(0, maxLevels);
     const sortedAsks = this._sortedAsks.slice(0, maxLevels);
 
+    if (sortedBids.length === 0 || sortedAsks.length === 0) {
+      console.warn(`📊 [OrderbookStore] getDepthData sliced empty: sortedBids=${sortedBids.length} (total=${this._sortedBids.length}), sortedAsks=${sortedAsks.length} (total=${this._sortedAsks.length}), maxLevels=${maxLevels}`);
+    }
+
     // Calculate cumulative depth for BIDS starting from best bid (highest price)
     // Going OUTWARD (toward lower prices), accumulating depth
     // This creates the rising hill: low depth near spread → high depth far away
@@ -358,6 +374,9 @@ class OrderbookStore {
       return { price, depth: cumulativeDepth };
     });
 
+    if (bidsWithDepth.length === 0 || asksWithDepth.length === 0) {
+      console.warn(`📊 [OrderbookStore] returning empty depth: bids=${bidsWithDepth.length}, asks=${asksWithDepth.length}`);
+    }
     return { bids: bidsWithDepth, asks: asksWithDepth };
   }
 
