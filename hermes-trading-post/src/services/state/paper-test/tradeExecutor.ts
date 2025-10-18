@@ -186,7 +186,7 @@ export class TradeExecutor {
 
   private playCoinSound(): void {
     try {
-      const audio = new Audio('/sounds/coin-drop.mp3');
+      const audio = new Audio('/sounds/coins_cave01.wav');
       audio.volume = 0.3;
       audio.play().catch(e => this.stateManager.log('Coin sound play failed:', e));
     } catch (e) {
