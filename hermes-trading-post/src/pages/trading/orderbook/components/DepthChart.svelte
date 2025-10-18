@@ -558,6 +558,7 @@
   // Cache to reduce unnecessary chart updates
   let lastBidCount = 0;
   let lastAskCount = 0;
+  let lastMidPrice: number | undefined = undefined;
   let chartUpdateCount = 0;
 
   function updateChart() {
@@ -626,19 +627,25 @@
       lastAskCount = asks.length;
     }
 
-    // Always keep chart centered on the spread with consistent range
+    // Only update visible range if mid-price changed significantly (>$100)
+    // This prevents constant redraws that cause UI lag
     try {
       const summary = orderbookStore.summary;
       if (summary.bestBid && summary.bestAsk) {
         const midPrice = (summary.bestBid + summary.bestAsk) / 2;
 
-        // Always show full ±$25,000 range regardless of chart width
-        const baseRange = 25000;
+        // Only update if price moved more than $100 to avoid constant redraws
+        if (lastMidPrice === undefined || Math.abs(midPrice - lastMidPrice) > 100) {
+          lastMidPrice = midPrice;
 
-        chart.timeScale().setVisibleRange({
-          from: (midPrice - baseRange) as any,
-          to: (midPrice + baseRange) as any
-        });
+          // Always show full ±$25,000 range regardless of chart width
+          const baseRange = 25000;
+
+          chart.timeScale().setVisibleRange({
+            from: (midPrice - baseRange) as any,
+            to: (midPrice + baseRange) as any
+          });
+        }
       }
     } catch (e) {
       // If setting range fails, try to fit content
