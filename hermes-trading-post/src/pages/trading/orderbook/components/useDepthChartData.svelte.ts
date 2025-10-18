@@ -170,12 +170,20 @@ export function useDepthChartData() {
     const depthData = orderbookStore.getDepthData(500);
 
     if (depthData.bids.length > 0 && depthData.asks.length > 0) {
-      const bidPrices = depthData.bids.map(b => b.price);
-      const askPrices = depthData.asks.map(a => a.price);
-      const allPrices = [...bidPrices, ...askPrices];
+      // 🚀 PERF: Avoid spread operators in hot path - directly find min/max from both arrays
+      let minPrice = Infinity;
+      let maxPrice = -Infinity;
 
-      const minPrice = Math.min(...allPrices);
-      const maxPrice = Math.max(...allPrices);
+      for (const bid of depthData.bids) {
+        if (bid.price < minPrice) minPrice = bid.price;
+        if (bid.price > maxPrice) maxPrice = bid.price;
+      }
+
+      for (const ask of depthData.asks) {
+        if (ask.price < minPrice) minPrice = ask.price;
+        if (ask.price > maxPrice) maxPrice = ask.price;
+      }
+
       const midPrice = (minPrice + maxPrice) / 2;
 
       return {
