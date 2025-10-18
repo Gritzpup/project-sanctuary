@@ -64,15 +64,24 @@
         // Use server time for accurate timing across all clients
         const timeSinceInteraction = ServerTimeService.getNow() - lastUserInteraction;
         if (!userHasInteracted || timeSinceInteraction > 10000) {
-          // Apply positioning immediately, with optional debouncing
-          applyOptimalPositioning();
+          // 🚀 PERF: Debounce positioning logic to avoid redundant calculations
+          // Clear any pending positioning timeout
+          if (positioningTimeout) {
+            clearTimeout(positioningTimeout);
+          }
 
-          // Also ensure we scroll to real-time after a brief delay to account for chart rendering
-          setTimeout(() => {
-            if (chart && !userHasInteracted) {
-              chart.timeScale().scrollToRealTime();
-            }
-          }, 150);
+          // Schedule positioning after 50ms to batch rapid data updates
+          positioningTimeout = setTimeout(() => {
+            applyOptimalPositioning();
+            positioningTimeout = null;
+
+            // Also ensure we scroll to real-time after a brief delay to account for chart rendering
+            setTimeout(() => {
+              if (chart && !userHasInteracted) {
+                chart.timeScale().scrollToRealTime();
+              }
+            }, 150);
+          }, 50);
         }
       }
     }
