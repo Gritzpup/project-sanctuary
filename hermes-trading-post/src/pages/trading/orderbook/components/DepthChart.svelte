@@ -36,15 +36,6 @@
   let l2UpdateCount = 0;
   let l2UpdateTimer: NodeJS.Timeout | null = null;
 
-  // Track if user has manually zoomed (to prevent auto-centering)
-  let userHasZoomed = false;
-
-  // Visual zoom level - controls what price range is VISIBLE on screen (does NOT change data fetching)
-  let visiblePriceRange = $state(20000); // Half-width of visible price range (±20k = 40k total visible)
-  const DEFAULT_VISIBLE_RANGE = 20000;
-  const MIN_VISIBLE_RANGE = 1000;  // Most zoomed in
-  const MAX_VISIBLE_RANGE = 50000; // Most zoomed out
-
   // Monitor L2 data flow status
   function updateL2Status() {
     const now = Date.now();
@@ -93,7 +84,7 @@
   // Start monitoring L2 status
   $effect(() => {
     if (!l2UpdateTimer) {
-      l2UpdateTimer = setInterval(updateL2Status, 50);
+      l2UpdateTimer = setInterval(updateL2Status, 500);
     }
 
     return () => {
@@ -165,12 +156,10 @@
     const summary = orderbookStore.summary;
     if (summary.bestBid && summary.bestAsk) {
       const midPrice = (summary.bestBid + summary.bestAsk) / 2;
-
-      // Use the visible price range from state
       return {
-        left: midPrice - visiblePriceRange,
+        left: midPrice - 10000,
         center: midPrice,
-        right: midPrice + visiblePriceRange
+        right: midPrice + 10000
       };
     }
     return { left: 0, center: 0, right: 0 };
@@ -184,8 +173,7 @@
         offset: 50,
         price: 0,
         side: 'neutral',
-        volume: 0,
-        yPercent: 50
+        volume: 0
       };
     }
 
@@ -228,34 +216,18 @@
     const strongerPrice = strongerSide === 'bid' ? maxBidPrice : maxAskPrice;
     const strongerVolume = strongerSide === 'bid' ? maxBidVolume : maxAskVolume;
 
-    // Calculate horizontal position on chart using actual visible range
-    const rangeStart = midPrice - visiblePriceRange;
-    const rangeEnd = midPrice + visiblePriceRange;
+    // Calculate position on chart (assuming 20k range centered on midPrice)
+    const rangeStart = midPrice - 10000;
+    const rangeEnd = midPrice + 10000;
     const positionInRange = (strongerPrice - rangeStart) / (rangeEnd - rangeStart);
     const offset = Math.max(10, Math.min(90, positionInRange * 100));
-
-    // Calculate vertical position based on volume (Y axis)
-    // Use the chart's coordinate system to get actual pixel position
-    let yCoord = 0;
-    try {
-      const useSeries = strongerSide === 'bid' ? bidSeries : askSeries;
-      if (useSeries && strongerVolume > 0) {
-        const coord = useSeries.priceToCoordinate(strongerVolume);
-        if (coord !== null) {
-          yCoord = coord;
-        }
-      }
-    } catch (e) {
-      console.error('Error calculating Y coordinate for volume hotspot:', e);
-    }
 
     return {
       offset,
       price: strongerPrice,
       side: strongerSide === 'bid' ? 'bullish' : 'bearish',
       volume: strongerVolume,
-      type: strongerSide === 'bid' ? 'Support' : 'Resistance',
-      yCoord
+      type: strongerSide === 'bid' ? 'Support' : 'Resistance'
     };
   });
 
@@ -286,12 +258,6 @@
 
   onMount(() => {
     // Initialize chart
-    const containerWidth = chartContainer.clientWidth;
-    const containerHeight = chartContainer.clientHeight || 230;
-    const chartWidth = containerWidth;
-    const chartHeight = containerHeight;
-
-
     chart = createChart(chartContainer, {
       layout: {
         background: { type: ColorType.Solid, color: '#0a0a0a' },
@@ -301,21 +267,19 @@
         vertLines: { visible: false },
         horzLines: { visible: false },
       },
-      width: chartWidth,
-      height: chartHeight,
+      width: chartContainer.clientWidth,
+      height: (chartContainer.clientHeight || 230) - 5, // Reduce height by 5px to lift bottom
       timeScale: {
         visible: false, // Hide built-in time scale - we'll use custom overlay
         borderVisible: false,
-        barSpacing: 6, // Add some spacing between data points
-        rightOffset: 50, // Large right offset to pull data away from edge
-        leftOffset: 5, // Small left offset
-        fixLeftEdge: false, // Allow left edge to move
-        fixRightEdge: false, // Allow right edge to move
-        lockVisibleTimeRangeOnResize: true, // Keep the same price range when resizing
+        leftOffset: 10,  // Center the valley by offsetting for hidden price scales
+        rightOffset: 10,
+        fixLeftEdge: true,
+        fixRightEdge: true,
+        lockVisibleTimeRangeOnResize: true,
       },
       leftPriceScale: {
         visible: false, // Disable built-in price scale - we'll create our own overlay
-        minimumWidth: 0, // Remove reserved space for hidden price scale
       },
       localization: {
         // Custom price formatter to show abbreviated values like "99k"
@@ -330,7 +294,6 @@
       },
       rightPriceScale: {
         visible: false,
-        minimumWidth: 0, // Remove reserved space for hidden price scale
       },
       crosshair: {
         mode: 1, // Magnet mode for better tracking
@@ -380,52 +343,6 @@
       lineType: 2, // Curved line for smoother appearance
     });
 
-    // Add mouse wheel zoom support
-    chartContainer.addEventListener('wheel', (event) => {
-      event.preventDefault();
-      const summary = orderbookStore.summary;
-      if (!summary.bestBid || !summary.bestAsk) return;
-
-      const midPrice = (summary.bestBid + summary.bestAsk) / 2;
-
-      // Mark that user has manually zoomed
-      userHasZoomed = true;
-
-      // Zoom in/out by 10% per wheel tick
-      // deltaY > 0 = scroll down = zoom OUT (see MORE data)
-      // deltaY < 0 = scroll up = zoom IN (see LESS data)
-      const zoomFactor = event.deltaY > 0 ? 1.1 : 0.9;
-
-      // Calculate new visible range
-      visiblePriceRange = visiblePriceRange * zoomFactor;
-
-      // Clamp to min/max zoom levels
-      visiblePriceRange = Math.max(MIN_VISIBLE_RANGE, Math.min(MAX_VISIBLE_RANGE, visiblePriceRange));
-
-      // Apply new visible range centered on midPrice
-      chart.timeScale().setVisibleRange({
-        from: (midPrice - visiblePriceRange) as any,
-        to: (midPrice + visiblePriceRange) as any
-      });
-    });
-
-    // Add double-click to reset zoom and center
-    chartContainer.addEventListener('dblclick', () => {
-      const summary = orderbookStore.summary;
-      if (!summary.bestBid || !summary.bestAsk) return;
-
-      const midPrice = (summary.bestBid + summary.bestAsk) / 2;
-
-      // Reset zoom to default range
-      visiblePriceRange = DEFAULT_VISIBLE_RANGE;
-      userHasZoomed = false;
-
-      chart.timeScale().setVisibleRange({
-        from: (midPrice - visiblePriceRange) as any,
-        to: (midPrice + visiblePriceRange) as any
-      });
-    });
-
     // Subscribe to crosshair movement for custom hover display
     chart.subscribeCrosshairMove((param) => {
       if (!param || param.point === undefined) {
@@ -471,6 +388,7 @@
             const yCoord = useSeries.priceToCoordinate(foundVolume);
             if (yCoord !== null) {
               mouseY = yCoord; // This is where the actual data point is!
+              console.log('🎯 Snapped to line:', { mouseY: yCoord, volume: foundVolume });
             } else {
               mouseY = y; // Fallback to cursor position
             }
@@ -496,22 +414,26 @@
     const resizeObserver = new ResizeObserver(() => {
       if (chart && chartContainer) {
         const newWidth = chartContainer.clientWidth;
-        const newHeight = chartContainer.clientHeight || 230;
+        const newHeight = (chartContainer.clientHeight || 230) - 5;
 
         chart.applyOptions({
           width: newWidth,
           height: newHeight,
         });
 
-        // Re-apply current zoom range without changing it
+        // Re-fit the visible range after resize to maintain proper view
         const summary = orderbookStore.summary;
         if (summary.bestBid && summary.bestAsk) {
           const midPrice = (summary.bestBid + summary.bestAsk) / 2;
 
-          // Use current visible range - don't reset on resize
+          // Calculate range based on new chart width for responsive scaling
+          const rangeMultiplier = Math.max(0.5, Math.min(1.5, newWidth / 500));
+          const baseRange = 10000;
+          const adjustedRange = baseRange * rangeMultiplier;
+
           chart.timeScale().setVisibleRange({
-            from: (midPrice - visiblePriceRange) as any,
-            to: (midPrice + visiblePriceRange) as any
+            from: (midPrice - adjustedRange) as any,
+            to: (midPrice + adjustedRange) as any
           });
         }
       }
@@ -596,47 +518,20 @@
     }
   }
 
-  // Cache to reduce unnecessary chart updates - use hash for deep comparison
-  let lastBidHash = '';
-  let lastAskHash = '';
+  // Cache to reduce unnecessary chart updates
+  let lastBidCount = 0;
+  let lastAskCount = 0;
   let chartUpdateCount = 0;
-  let firstChartUpdateLogged = false;
-
-  // Fast hash function for orderbook data
-  function hashOrderbookData(data: Array<{ price: number; depth: number }>): string {
-    if (data.length === 0) return '0';
-
-    // Hash based on: length, first 3 levels, last 3 levels, and sum
-    const len = data.length;
-    const first = data.slice(0, 3).map(d => `${d.price.toFixed(2)}:${d.depth.toFixed(4)}`).join('|');
-    const last = data.slice(-3).map(d => `${d.price.toFixed(2)}:${d.depth.toFixed(4)}`).join('|');
-    const sum = data.reduce((acc, d) => acc + d.depth, 0).toFixed(4);
-
-    return `${len}:${first}:${last}:${sum}`;
-  }
 
   function updateChart() {
     if (!bidSeries || !askSeries) return;
 
-    // Get depth data from store - fetch more levels to span wider range
-    const { bids, asks } = orderbookStore.getDepthData(50000);
+    // Get depth data from store (use reasonable number of levels for performance)
+    // 500 levels is enough to show immediate depth while maintaining performance
+    const { bids, asks } = orderbookStore.getDepthData(500);
 
     if (bids.length === 0 || asks.length === 0) {
-      return;
-    }
-
-    // Log only the first successful chart update
-    if (!firstChartUpdateLogged) {
-      console.log(`✅ [DepthChart] Chart rendering: ${bids.length} bids, ${asks.length} asks`);
-      firstChartUpdateLogged = true;
-    }
-
-    // Check if data actually changed using hash comparison
-    const currentBidHash = hashOrderbookData(bids);
-    const currentAskHash = hashOrderbookData(asks);
-
-    if (currentBidHash === lastBidHash && currentAskHash === lastAskHash) {
-      // Data hasn't changed, skip expensive chart update
+      console.warn('⚠️ No depth data available yet');
       return;
     }
 
@@ -675,16 +570,25 @@
       });
     }
 
-    chartUpdateCount++;
+    // Only update chart if data actually changed (check length and edge values)
+    const bidsChanged = bids.length !== lastBidCount ||
+                       (bids.length > 0 && (bids[0].depth !== bidData[0]?.value));
+    const asksChanged = asks.length !== lastAskCount ||
+                       (asks.length > 0 && (asks[0].depth !== askData[0]?.value));
 
-    // For depth charts, always use setData since prices can change dramatically
-    // The chart library doesn't support updating with out-of-order prices
-    bidSeries.setData(bidData);
-    askSeries.setData(askData);
+    if (bidsChanged || asksChanged) {
+      chartUpdateCount++;
 
-    // Update hash cache
-    lastBidHash = currentBidHash;
-    lastAskHash = currentAskHash;
+      // Chart updates tracked without console spam
+
+      // For depth charts, always use setData since prices can change dramatically
+      // The chart library doesn't support updating with out-of-order prices
+      bidSeries.setData(bidData);
+      askSeries.setData(askData);
+
+      lastBidCount = bids.length;
+      lastAskCount = asks.length;
+    }
 
     // Always keep chart centered on the spread with consistent range
     try {
@@ -692,15 +596,16 @@
       if (summary.bestBid && summary.bestAsk) {
         const midPrice = (summary.bestBid + summary.bestAsk) / 2;
 
-        // Use current visible range from state - ALWAYS show full symmetric range
-        const fromPrice = midPrice - visiblePriceRange;
-        const toPrice = midPrice + visiblePriceRange;
+        // Calculate range based on chart width for better responsiveness
+        // Wider charts show more depth, narrower charts show less
+        const chartWidth = chartContainer?.clientWidth || 500;
+        const rangeMultiplier = Math.max(0.5, Math.min(1.5, chartWidth / 500));
+        const baseRange = 10000;
+        const adjustedRange = baseRange * rangeMultiplier;
 
-        // Always set the full symmetric range centered on midPrice
-        // The rightOffset and leftOffset in timeScale config ensure edges stay within bounds
         chart.timeScale().setVisibleRange({
-          from: fromPrice as any,
-          to: toPrice as any
+          from: (midPrice - adjustedRange) as any,
+          to: (midPrice + adjustedRange) as any
         });
       }
     } catch (e) {
@@ -761,8 +666,8 @@
           <span class="price-value">${Math.floor(volumeHotspot.price).toLocaleString('en-US')}</span>
           <span class="volume-value">{volumeHotspot.volume.toFixed(2)} BTC</span>
         </div>
-        <div class="valley-point" style="top: {volumeHotspot.yCoord}px"></div>
-        <div class="valley-line" style="height: {volumeHotspot.yCoord}px"></div>
+        <div class="valley-point"></div>
+        <div class="valley-line"></div>
       </div>
 
       <!-- Hover overlay -->
@@ -961,7 +866,6 @@
   .panel-content {
     padding: 15px; /* Restore padding */
     overflow-y: auto;
-    overflow-x: visible;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -999,25 +903,16 @@
     height: 230px;
     position: relative;
     margin-bottom: 15px;
-    overflow: hidden; /* Constrain chart within border */
+    overflow: hidden;
     border: 1px solid rgba(74, 0, 224, 0.3);
     border-radius: 6px;
     background: #0a0a0a; /* Darker background to match gradient */
-    box-sizing: border-box;
   }
 
-  /* Ensure chart fits container properly */
+  /* Remove internal chart padding */
   .depth-chart :global(.tv-lightweight-charts) {
     width: 100% !important;
     height: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  /* Ensure canvas element also respects container bounds */
-  .depth-chart :global(canvas) {
-    max-width: 100% !important;
-    max-height: 100% !important;
   }
 
   /* Mid-price vertical line (balance of power indicator) */
@@ -1240,10 +1135,10 @@
   /* Custom volume gauge overlay (left side) */
   .volume-gauge-overlay {
     position: absolute;
-    left: 5px;
+    left: 0;
     top: 0;
     bottom: 0;
-    width: 50px;
+    width: 60px;
     pointer-events: none;
     z-index: 100;
     display: flex;
