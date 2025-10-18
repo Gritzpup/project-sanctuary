@@ -150,6 +150,11 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     // Ticker detection: type='ticker' OR time=0 (we set time=0 for tickers to prevent timestamp issues)
     const isTicker = fullCandleData?.type === 'ticker' || fullCandleData?.time === 0 || (!fullCandleData?.volume && fullCandleData?.type === 'ticker');
 
+    // 🔍 DEBUG: Log ticker detection once per minute
+    if (Date.now() % 60000 < 100 && isTicker) {
+      console.log(`[Realtime] 🔍 Ticker detected: price=${price}, isTicker=${isTicker}, fullCandleData.time=${fullCandleData?.time}`);
+    }
+
     if (isTicker) {
       // Ticker update: ALWAYS update the last candle, never create new ones
       // 🔒 Lock the candle reference to prevent race conditions

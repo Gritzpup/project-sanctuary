@@ -232,10 +232,8 @@ class OrderbookStore {
   }
 
   private _updateSortedBids() {
-    const before = this._sortedBids.length;
     this._sortedBids = Array.from(this.bids.entries())
       .sort(([a], [b]) => b - a); // Descending
-    console.log(`📊 [OrderbookStore] Updated _sortedBids: ${before} -> ${this._sortedBids.length} items`);
     this._lastBidVersion++;
   }
 

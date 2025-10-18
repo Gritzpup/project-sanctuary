@@ -125,10 +125,44 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
 
       // Update chart with loaded data if series is provided
       if (config.series && candles.length > 0) {
-        config.series.setData(candles);
+        // CRITICAL: Validate and normalize candles before passing to chart to prevent assertion errors
+        // lightweight-charts requires:
+        // 1. All times must be valid Unix timestamps (in SECONDS, not milliseconds)
+        // 2. Data must be sorted ascending by time
+        // 3. No duplicate times
+        // 4. No zero or negative times
+        const validCandles = candles
+          .map(c => {
+            // Normalize timestamps: convert milliseconds to seconds if needed
+            // Timestamps after year 2286 (> 10^10) are in milliseconds
+            if (typeof c.time === 'number' && c.time > 10000000000) {
+              return { ...c, time: Math.floor(c.time / 1000) };
+            }
+            return c;
+          })
+          .filter(c => {
+            if (!c || typeof c.time !== 'number') return false;
+            // Valid range: year 2020 (1577836800) to year 2030 (1893456000)
+            if (c.time < 1577836800 || c.time > 1893456000) return false;
+            if (typeof c.close !== 'number' || c.close <= 0) return false;
+            return true;
+          })
+          .sort((a, b) => (a.time as number) - (b.time as number)); // Ensure sorted
+
+        if (validCandles.length === 0) {
+          console.warn('⚠️ [DataLoader] No valid candles to display after filtering');
+          statusStore.setError('No valid chart data available');
+          return;
+        }
+
+        if (validCandles.length < candles.length) {
+          console.warn(`⚠️ [DataLoader] Filtered out ${candles.length - validCandles.length} invalid candles before chart display`);
+        }
+
+        config.series.setData(validCandles);
 
         // Positioning after setting data - let ChartCanvas handle it
-        if (config.chart && candles.length > 0) {
+        if (config.chart && validCandles.length > 0) {
           setTimeout(() => {
             // For 1H timeframes, scroll to real-time but don't override chart positioning
             if (config.timeframe === '1H') {
@@ -203,8 +237,26 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
           dataStore.setCandles(mergedCandles);
 
           // Now get the validated sorted data from dataStore
-          if (series) {
-            series.setData(dataStore.candles);
+          if (series && dataStore.candles.length > 0) {
+            // Double-validate before setting on chart
+            const validGapCandles = dataStore.candles
+              .map(c => {
+                if (typeof c.time === 'number' && c.time > 10000000000) {
+                  return { ...c, time: Math.floor(c.time / 1000) };
+                }
+                return c;
+              })
+              .filter(c => {
+                if (!c || typeof c.time !== 'number') return false;
+                if (c.time < 1577836800 || c.time > 1893456000) return false;
+                if (typeof c.close !== 'number' || c.close <= 0) return false;
+                return true;
+              })
+              .sort((a, b) => (a.time as number) - (b.time as number));
+
+            if (validGapCandles.length > 0) {
+              series.setData(validGapCandles);
+            }
           }
 
           statusStore.setReady();
@@ -222,13 +274,31 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
             dataStore.setCandles(mergedCandles);
 
             // Use validated sorted data from dataStore
-            if (series) {
-              series.setData(dataStore.candles);
+            if (series && dataStore.candles.length > 0) {
+              // Double-validate before setting on chart
+              const validBridgeCandles = dataStore.candles
+                .map(c => {
+                  if (typeof c.time === 'number' && c.time > 10000000000) {
+                    return { ...c, time: Math.floor(c.time / 1000) };
+                  }
+                  return c;
+                })
+                .filter(c => {
+                  if (!c || typeof c.time !== 'number') return false;
+                  if (c.time < 1577836800 || c.time > 1893456000) return false;
+                  if (typeof c.close !== 'number' || c.close <= 0) return false;
+                  return true;
+                })
+                .sort((a, b) => (a.time as number) - (b.time as number));
+
+              if (validBridgeCandles.length > 0) {
+                series.setData(validBridgeCandles);
+              }
             }
-            
+
             ChartDebug.log(`Created ${bridgeCandles.length} bridge candles`);
           }
-          
+
           statusStore.setReady();
         }
       } catch (error) {

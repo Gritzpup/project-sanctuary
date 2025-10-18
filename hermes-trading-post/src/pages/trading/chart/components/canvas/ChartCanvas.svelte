@@ -51,15 +51,28 @@
     if (chart && candleSeries && dataStore.candles.length > 0) {
       dataManager?.updateChartData();
 
-      // Only apply positioning if candle count actually changed AND user hasn't recently interacted
-      if (dataStore.candles.length !== lastCandleCount) {
+      // Track if candle count changed
+      const candleCountChanged = dataStore.candles.length !== lastCandleCount;
+
+      // Apply positioning if:
+      // 1. Candle count changed, OR
+      // 2. This is the first time we have data (lastCandleCount === 0)
+      if (candleCountChanged || lastCandleCount === 0) {
         lastCandleCount = dataStore.candles.length;
 
         // Don't auto-position if user has interacted in the last 10 seconds
         // Use server time for accurate timing across all clients
         const timeSinceInteraction = ServerTimeService.getNow() - lastUserInteraction;
         if (!userHasInteracted || timeSinceInteraction > 10000) {
+          // Apply positioning immediately, with optional debouncing
           applyOptimalPositioning();
+
+          // Also ensure we scroll to real-time after a brief delay to account for chart rendering
+          setTimeout(() => {
+            if (chart && !userHasInteracted) {
+              chart.timeScale().scrollToRealTime();
+            }
+          }, 150);
         }
       }
     }

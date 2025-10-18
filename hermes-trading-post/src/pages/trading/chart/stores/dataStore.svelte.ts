@@ -98,8 +98,16 @@ class DataStore {
       }
 
       // Process cached candles - MUST be sorted for lightweight-charts
-      // Sort by time and remove any invalid entries
+      // Normalize timestamps and sort by time, removing any invalid entries
       const sortedCandles = result.data
+        .map(c => {
+          // Normalize timestamps: convert milliseconds to seconds if needed
+          // Timestamps after year 2286 (> 10^10) are in milliseconds
+          if (typeof c.time === 'number' && c.time > 10000000000) {
+            return { ...c, time: Math.floor(c.time / 1000) };
+          }
+          return c;
+        })
         .filter(c => {
           // Validate that time is a reasonable Unix timestamp (seconds, not milliseconds)
           // Valid range: year 2020 (1577836800) to year 2030 (1893456000)
@@ -338,16 +346,25 @@ class DataStore {
   }
 
   setCandles(candles: CandlestickDataWithVolume[]) {
-    // Filter out invalid candles and sort
+    // Filter out invalid candles, normalize timestamps, and sort
     // This prevents lightweight-charts assertion errors
-    const validCandles = candles.filter(c => {
-      // Validate that time is a reasonable Unix timestamp (seconds, not milliseconds)
-      // Valid range: year 2020 (1577836800) to year 2030 (1893456000)
-      if (!c || typeof c.time !== 'number') return false;
-      if (c.time < 1577836800 || c.time > 1893456000) return false;
-      if (typeof c.close !== 'number' || c.close <= 0) return false;
-      return true;
-    });
+    const validCandles = candles
+      .map(c => {
+        // Normalize timestamps: convert milliseconds to seconds if needed
+        // Timestamps after year 2286 (> 10^10) are in milliseconds
+        if (typeof c.time === 'number' && c.time > 10000000000) {
+          return { ...c, time: Math.floor(c.time / 1000) } as CandlestickDataWithVolume;
+        }
+        return c;
+      })
+      .filter(c => {
+        // Validate that time is a reasonable Unix timestamp (seconds, not milliseconds)
+        // Valid range: year 2020 (1577836800) to year 2030 (1893456000)
+        if (!c || typeof c.time !== 'number') return false;
+        if (c.time < 1577836800 || c.time > 1893456000) return false;
+        if (typeof c.close !== 'number' || c.close <= 0) return false;
+        return true;
+      });
 
     if (validCandles.length < candles.length) {
       console.warn(`⚠️ [DataStore] Filtered out ${candles.length - validCandles.length} invalid candles`);
@@ -449,38 +466,44 @@ class DataStore {
       pair,
       granularity,
       (update: WebSocketCandle) => {
-        // Validate that update.time is a valid number (Unix timestamp in seconds)
-        if (!update.time || typeof update.time !== 'number' || update.time <= 0) {
-          console.warn(`⚠️ Invalid candle time from WebSocket:`, update);
+        // Allow ticker updates with time=0 (they update the current open candle)
+        // Only reject completely invalid data
+        if (!update || typeof update.open !== 'number' || typeof update.close !== 'number') {
           return;
         }
 
-        const candleData: CandlestickData = {
-          time: update.time,
-          open: update.open,
-          high: update.high,
-          low: update.low,
-          close: update.close,
-          volume: update.volume || 0
-        };
+        // For ticker updates (time=0), pass them through to the callback handler
+        // which will update the current open candle with new price data
+        // For full candle updates (time > 0), store them in the candles array
+        if (update.time && update.time > 0) {
+          // Full candle update with valid timestamp
+          const candleData: CandlestickData = {
+            time: update.time,
+            open: update.open,
+            high: update.high,
+            low: update.low,
+            close: update.close,
+            volume: update.volume || 0
+          };
 
-        // Update or add candle IN-PLACE without triggering Svelte reactivity on historical candles
-        const existingIndex = this._candles.findIndex(c => c.time === update.time);
+          // Update or add candle IN-PLACE without triggering Svelte reactivity on historical candles
+          const existingIndex = this._candles.findIndex(c => c.time === update.time);
 
-        if (existingIndex >= 0) {
-          // Update existing candle IN-PLACE (last candle only)
-          // This is safe because it's always the most recent candle
-          const lastIndex = this._candles.length - 1;
-          if (existingIndex === lastIndex) {
-            // Update the last candle directly - this won't trigger historical candle re-renders
-            this._candles[lastIndex] = candleData;
+          if (existingIndex >= 0) {
+            // Update existing candle IN-PLACE (last candle only)
+            // This is safe because it's always the most recent candle
+            const lastIndex = this._candles.length - 1;
+            if (existingIndex === lastIndex) {
+              // Update the last candle directly - this won't trigger historical candle re-renders
+              this._candles[lastIndex] = candleData;
+            }
+          } else {
+            // New candle - append without replacing the entire array
+            this._candles.push(candleData);
           }
-        } else {
-          // New candle - append without replacing the entire array
-          this._candles.push(candleData);
         }
 
-        // Update latest price for status display
+        // Update latest price for status display (for both ticker AND full candle updates)
         this._latestPrice = update.close;
 
         // Update stats timestamp only
@@ -489,9 +512,10 @@ class DataStore {
         // Notify data update callbacks for price updates (e.g., chart header)
         this.notifyDataUpdate();
 
-        // Notify callback if provided
+        // Notify callback with the update (ticker or full candle)
+        // The callback handler will decide how to handle it
         if (onUpdate) {
-          onUpdate(candleData);
+          onUpdate(update as CandlestickData);
         }
       },
       onReconnect
@@ -564,14 +588,13 @@ class DataStore {
 
   private updateStats() {
     const count = this._candles.length;
-    
-    // Update all stats EXCEPT totalCount - that's managed separately by updateDatabaseCount
+
+    // Update all stats directly from candles
+    this._dataStats.totalCount = count; // Use candle count directly - it's already accurate!
     this._dataStats.visibleCount = this._visibleCandles.length;
     this._dataStats.oldestTime = count > 0 ? this._candles[0].time as number : null;
     this._dataStats.newestTime = count > 0 ? this._candles[count - 1].time as number : null;
     this._dataStats.lastUpdate = Date.now();
-    
-    // totalCount is NOT updated here - only by updateDatabaseCount()
   }
   
   // Get actual count from database via the existing Redis service
