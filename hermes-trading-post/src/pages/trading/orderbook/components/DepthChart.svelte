@@ -306,10 +306,11 @@
       timeScale: {
         visible: false, // Hide built-in time scale - we'll use custom overlay
         borderVisible: false,
-        leftOffset: 0,
-        rightOffset: 0,
-        fixLeftEdge: true,
-        fixRightEdge: true,
+        barSpacing: 6, // Add some spacing between data points
+        rightOffset: 50, // Large right offset to pull data away from edge
+        leftOffset: 5, // Small left offset
+        fixLeftEdge: false, // Allow left edge to move
+        fixRightEdge: false, // Allow right edge to move
         lockVisibleTimeRangeOnResize: true, // Keep the same price range when resizing
       },
       leftPriceScale: {
@@ -691,27 +692,16 @@
       if (summary.bestBid && summary.bestAsk) {
         const midPrice = (summary.bestBid + summary.bestAsk) / 2;
 
-        // Use current visible range from state
+        // Use current visible range from state - ALWAYS show full symmetric range
         const fromPrice = midPrice - visiblePriceRange;
         const toPrice = midPrice + visiblePriceRange;
 
-        // Ensure we have data on both sides by checking actual data bounds
-        const allPrices = [...bidData, ...askData].map(d => d.time as number).filter(p => p > 0);
-        if (allPrices.length > 0) {
-          const minDataPrice = Math.min(...allPrices);
-          const maxDataPrice = Math.max(...allPrices);
-
-          // Adjust range to ensure both edges are visible and anchored
-          const adjustedFrom = Math.max(fromPrice, minDataPrice - 100); // Add small padding
-          const adjustedTo = Math.min(toPrice, maxDataPrice + 100); // Add small padding
-
-          // Always re-center on midPrice with current zoom level
-          // This keeps the spread centered even as price moves
-          chart.timeScale().setVisibleRange({
-            from: adjustedFrom as any,
-            to: adjustedTo as any
-          });
-        }
+        // Always set the full symmetric range centered on midPrice
+        // The rightOffset and leftOffset in timeScale config ensure edges stay within bounds
+        chart.timeScale().setVisibleRange({
+          from: fromPrice as any,
+          to: toPrice as any
+        });
       }
     } catch (e) {
       // If setting range fails, try to fit content

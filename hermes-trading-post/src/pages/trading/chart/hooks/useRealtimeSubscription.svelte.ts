@@ -187,6 +187,14 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         return;
       }
 
+      // Additional validation: ensure high >= low to prevent flickering
+      if (currentCandle.high < currentCandle.low) {
+        console.warn('[Realtime] Fixing invalid candle - high < low:', currentCandle);
+        // Fix the candle by setting high = low = close
+        currentCandle.high = currentCandle.close;
+        currentCandle.low = currentCandle.close;
+      }
+
       const updatedCandle: CandlestickData = {
         ...currentCandle,
         high: Math.max(currentCandle.high, price),
@@ -224,6 +232,12 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
 
     if (currentCandleTime > lastCandleTime) {
       // New candle needed
+      // Ensure price is valid before creating candle
+      if (!price || price <= 0 || isNaN(price)) {
+        console.warn('[Realtime] Skipping new candle creation - invalid price:', price);
+        return;
+      }
+
       const newCandle: CandlestickData = {
         time: currentCandleTime as any,
         open: price,
@@ -272,6 +286,22 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     } else {
       // Update current candle - no array copy needed, just get reference
       const currentCandle = candles[candles.length - 1];
+
+      // Validate currentCandle before updating
+      if (!currentCandle ||
+          currentCandle.open == null ||
+          currentCandle.high == null ||
+          currentCandle.low == null ||
+          currentCandle.close == null) {
+        console.warn('[Realtime] Skipping update - currentCandle has null values:', currentCandle);
+        return;
+      }
+
+      // Validate price before updating
+      if (!price || price <= 0 || isNaN(price)) {
+        console.warn('[Realtime] Skipping update - invalid price:', price);
+        return;
+      }
 
       const updatedCandle: CandlestickData = {
         ...currentCandle,

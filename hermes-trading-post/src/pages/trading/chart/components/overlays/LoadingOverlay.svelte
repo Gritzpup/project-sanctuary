@@ -2,6 +2,7 @@
   import { fade } from 'svelte/transition';
   import { statusStore } from '../../stores/statusStore.svelte';
   import { dataStore } from '../../stores/dataStore.svelte';
+  import { chartStore } from '../../stores/chartStore.svelte';
 
   // Loading progress calculation - use $derived.by for complex derivations
   const loadingProgress = $derived.by(() => {
@@ -9,9 +10,31 @@
 
     // Estimate progress based on loaded candles
     if (statusStore.status === 'loading' || statusStore.status === 'initializing') {
-      const targetCandles = 100; // Expected candles for initial load
+      // Get expected candle count based on granularity and timeframe
+      const config = chartStore?.config;
+      let targetCandles = 100; // Default expected candles
+
+      // Adjust target based on granularity
+      if (config?.granularity === '1m' && config?.timeframe === '1H') {
+        targetCandles = 60; // 60 1-minute candles for 1 hour
+      } else if (config?.granularity === '5m' && config?.timeframe === '1H') {
+        targetCandles = 12; // 12 5-minute candles for 1 hour
+      } else if (config?.granularity === '1m' && config?.timeframe === '24H') {
+        targetCandles = 1440; // 1440 1-minute candles for 24 hours
+      }
+
       const currentCandles = stats.totalCount || 0;
-      return Math.min(100, (currentCandles / targetCandles) * 100);
+
+      // Calculate progress (0-100)
+      if (currentCandles === 0) {
+        return 0; // Start at 0%
+      } else if (currentCandles >= targetCandles) {
+        return 100; // Cap at 100%
+      } else {
+        // Linear progress based on loaded candles
+        const progress = (currentCandles / targetCandles) * 100;
+        return Math.floor(progress); // Round down to avoid showing 100% too early
+      }
     }
 
     return 0;
