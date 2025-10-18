@@ -589,27 +589,43 @@ class RedisCandleStorage {
   }
 
   /**
-   * Get storage statistics
+   * Get storage statistics - optimized with SCAN instead of KEYS
+   * 🚀 PERFORMANCE: SCAN is non-blocking, KEYS blocks entire Redis instance
    */
   async getStorageStats() {
     const info = await this.redis.info('memory');
     const memoryMatch = info.match(/used_memory_human:(.+)/);
     const memoryUsage = memoryMatch ? memoryMatch[1].trim() : 'unknown';
 
-    const keys = await this.redis.keys(`${CANDLE_STORAGE_CONFIG.keyPrefixes.candles}:*`);
     const pairs = new Set();
     const granularities = new Set();
+    let keyCount = 0;
+    let cursor = '0';
 
-    keys.forEach(key => {
-      const parts = key.split(':');
-      if (parts.length >= 3) {
-        pairs.add(parts[1]);
-        granularities.add(parts[2]);
-      }
-    });
+    // 🚀 Use non-blocking SCAN instead of KEYS for massive performance improvement
+    // KEYS blocks the entire Redis instance, SCAN iterates without blocking
+    do {
+      const [newCursor, keys] = await this.redis.scan(
+        cursor,
+        'MATCH',
+        `${CANDLE_STORAGE_CONFIG.keyPrefixes.candles}:*`,
+        'COUNT',
+        100
+      );
+      cursor = newCursor;
+
+      keys.forEach(key => {
+        const parts = key.split(':');
+        if (parts.length >= 3) {
+          pairs.add(parts[1]);
+          granularities.add(parts[2]);
+        }
+        keyCount++;
+      });
+    } while (cursor !== '0');
 
     return {
-      totalKeys: keys.length,
+      totalKeys: keyCount,
       memoryUsage,
       pairs: Array.from(pairs),
       granularities: Array.from(granularities)
