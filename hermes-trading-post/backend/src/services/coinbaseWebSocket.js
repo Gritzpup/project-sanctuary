@@ -494,7 +494,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
   /**
    * Process individual l2_data event from Advanced Trade API
    */
-  processLevel2Event(event) {
+  async processLevel2Event(event) {
     const productId = event.product_id;
 
     if (event.type === 'snapshot') {
@@ -524,6 +524,29 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       // Sort bids descending, asks ascending
       orderbook.bids.sort((a, b) => b.price - a.price);
       orderbook.asks.sort((a, b) => a.price - b.price);
+
+      // 🚀 PERFORMANCE: Cache snapshot in Redis and check if it has changed
+      if (this.orderbookCacheEnabled) {
+        await redisOrderbookCache.storeOrderbookSnapshot(productId, orderbook.bids, orderbook.asks);
+
+        // Only emit if data has actually changed
+        if (!redisOrderbookCache.hasOrderbookChanged(productId)) {
+          console.log(`⏭️ [L2] Skipping duplicate snapshot for ${productId}`);
+          return;
+        }
+      }
+
+      // Check throttling - only forward max 10 updates/sec per product
+      if (redisOrderbookCache.shouldThrottle(productId, 10)) {
+        console.log(`⏸️ [L2] Throttling snapshot for ${productId}`);
+        return;
+      }
+
+      // 🚀 PERF: Publish orderbook deltas via Redis Pub/Sub (only changed levels)
+      const changedLevels = await redisOrderbookCache.getChangedLevels(productId);
+      if (changedLevels.bids.length > 0 || changedLevels.asks.length > 0) {
+        redisOrderbookCache.publishOrderbookDelta(productId, changedLevels.bids, changedLevels.asks);
+      }
 
       console.log(`📊 [L2] Emitting snapshot: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);
       this.emit('level2', orderbook);
@@ -557,9 +580,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
   async handleLevel2(message) {
     // Advanced Trade API l2_data messages have events array
     if (message.channel === 'l2_data' && message.events) {
-      message.events.forEach(event => {
-        this.processLevel2Event(event);
-      });
+      await Promise.all(message.events.map(event => this.processLevel2Event(event)));
       return;
     }
 

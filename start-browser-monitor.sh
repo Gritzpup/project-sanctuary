@@ -12,7 +12,7 @@ sleep 1
 
 # Set X11 environment for GUI
 export DISPLAY=:0
-export XAUTHORITY=/home/ubuntubox/.Xauthority
+export XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.UD5RE3
 
 # Grant X11 access to localhost
 xhost +local: >/dev/null 2>&1 || true

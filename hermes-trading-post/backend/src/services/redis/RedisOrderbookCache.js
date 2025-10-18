@@ -158,22 +158,24 @@ class RedisOrderbookCache {
 
       // Get bids in range (using score as price)
       // Bids are highest prices first, so we need reverse range
+      // NOTE: WITHSCORES returns [member, score] pairs, so [size, price, size, price...]
       const bidsRaw = await this.redis.zrevrangebyscore(bidsKey, maxPrice, minPrice, 'WITHSCORES');
       const bids = [];
       for (let i = 0; i < bidsRaw.length; i += 2) {
         bids.push({
-          price: parseFloat(bidsRaw[i + 1]),
-          size: parseFloat(bidsRaw[i])
+          size: parseFloat(bidsRaw[i]),       // bidsRaw[i] is MEMBER (size)
+          price: parseFloat(bidsRaw[i + 1])   // bidsRaw[i+1] is SCORE (price)
         });
       }
 
       // Get asks in range
+      // NOTE: WITHSCORES returns [member, score] pairs, so [size, price, size, price...]
       const asksRaw = await this.redis.zrangebyscore(asksKey, minPrice, maxPrice, 'WITHSCORES');
       const asks = [];
       for (let i = 0; i < asksRaw.length; i += 2) {
         asks.push({
-          price: parseFloat(asksRaw[i + 1]),
-          size: parseFloat(asksRaw[i])
+          size: parseFloat(asksRaw[i]),       // asksRaw[i] is MEMBER (size)
+          price: parseFloat(asksRaw[i + 1])   // asksRaw[i+1] is SCORE (price)
         });
       }
 
@@ -325,22 +327,24 @@ class RedisOrderbookCache {
       const metaKey = `orderbook:${productId}:meta`;
 
       // Get full orderbook (not just a range)
+      // NOTE: We store with zadd(key, price, size) where price is SCORE and size is MEMBER
+      // WITHSCORES returns [member, score] pairs, so [size, price, size, price...]
       const bidsRaw = await this.redis.zrevrange(bidsKey, 0, -1, 'WITHSCORES');
       const asksRaw = await this.redis.zrange(asksKey, 0, -1, 'WITHSCORES');
 
       const bids = [];
       for (let i = 0; i < bidsRaw.length; i += 2) {
         bids.push({
-          price: parseFloat(bidsRaw[i + 1]),
-          size: parseFloat(bidsRaw[i])
+          size: parseFloat(bidsRaw[i]),       // bidsRaw[i] is MEMBER (size)
+          price: parseFloat(bidsRaw[i + 1])   // bidsRaw[i+1] is SCORE (price)
         });
       }
 
       const asks = [];
       for (let i = 0; i < asksRaw.length; i += 2) {
         asks.push({
-          price: parseFloat(asksRaw[i + 1]),
-          size: parseFloat(asksRaw[i])
+          size: parseFloat(asksRaw[i]),       // asksRaw[i] is MEMBER (size)
+          price: parseFloat(asksRaw[i + 1])   // asksRaw[i+1] is SCORE (price)
         });
       }
 
@@ -414,23 +418,25 @@ class RedisOrderbookCache {
 
       // Get top bids (highest prices first)
       // zrevrange returns from highest to lowest score (which is price for bids)
+      // NOTE: WITHSCORES returns [member, score] pairs, so [size, price, size, price...]
       const bidsRaw = await this.redis.zrevrange(bidsKey, 0, count - 1, 'WITHSCORES');
       const bids = [];
       for (let i = 0; i < bidsRaw.length; i += 2) {
         bids.push({
-          price: parseFloat(bidsRaw[i + 1]),
-          size: parseFloat(bidsRaw[i])
+          size: parseFloat(bidsRaw[i]),       // bidsRaw[i] is MEMBER (size)
+          price: parseFloat(bidsRaw[i + 1])   // bidsRaw[i+1] is SCORE (price)
         });
       }
 
       // Get top asks (lowest prices first)
       // zrange returns from lowest to highest score (which is price for asks)
+      // NOTE: WITHSCORES returns [member, score] pairs, so [size, price, size, price...]
       const asksRaw = await this.redis.zrange(asksKey, 0, count - 1, 'WITHSCORES');
       const asks = [];
       for (let i = 0; i < asksRaw.length; i += 2) {
         asks.push({
-          price: parseFloat(asksRaw[i + 1]),
-          size: parseFloat(asksRaw[i])
+          size: parseFloat(asksRaw[i]),       // asksRaw[i] is MEMBER (size)
+          price: parseFloat(asksRaw[i + 1])   // asksRaw[i+1] is SCORE (price)
         });
       }
 
@@ -456,22 +462,23 @@ class RedisOrderbookCache {
       const asksKey = `orderbook:${productId}:asks`;
 
       // Get current top levels (top 50 is plenty for most UIs)
+      // NOTE: WITHSCORES returns [member, score] pairs, so [size, price, size, price...]
       const topBidsRaw = await this.redis.zrevrange(bidsKey, 0, 49, 'WITHSCORES');
       const topAsksRaw = await this.redis.zrange(asksKey, 0, 49, 'WITHSCORES');
 
       const bids = [];
       for (let i = 0; i < topBidsRaw.length; i += 2) {
         bids.push({
-          price: parseFloat(topBidsRaw[i + 1]),
-          size: parseFloat(topBidsRaw[i])
+          size: parseFloat(topBidsRaw[i]),       // topBidsRaw[i] is MEMBER (size)
+          price: parseFloat(topBidsRaw[i + 1])   // topBidsRaw[i+1] is SCORE (price)
         });
       }
 
       const asks = [];
       for (let i = 0; i < topAsksRaw.length; i += 2) {
         asks.push({
-          price: parseFloat(topAsksRaw[i + 1]),
-          size: parseFloat(topAsksRaw[i])
+          size: parseFloat(topAsksRaw[i]),       // topAsksRaw[i] is MEMBER (size)
+          price: parseFloat(topAsksRaw[i + 1])   // topAsksRaw[i+1] is SCORE (price)
         });
       }
 

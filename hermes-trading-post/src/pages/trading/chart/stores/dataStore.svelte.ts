@@ -427,8 +427,10 @@ class DataStore {
     // Update latest price
     this._latestPrice = validCandle.close;
 
-    // 🔥 UPDATE STATS WITH PROPER SVELTE 5 REACTIVITY
-    // Must reassign the entire object to trigger reactivity, not just modify properties
+    // 🔥 PERFORMANCE: Only update stats on REAL CANDLES, not on every ticker update
+    // Stats update happens rarely (new candle every 1-60 seconds depending on granularity)
+    // Tickers arrive 10-100x per second, so NOT updating on every ticker = huge performance win
+    // This prevents stats counter from thrashing and blocking the UI thread
     this._dataStats = {
       ...this._dataStats,
       totalCount: this._candles.length,
