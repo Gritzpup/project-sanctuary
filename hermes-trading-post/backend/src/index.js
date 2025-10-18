@@ -852,17 +852,60 @@ app.get('/api/candles/:pair/:granularity', async (req, res) => {
     const startTime = endTime - (hours * 60 * 60); // Subtract hours in seconds
 
     // Get candles from Redis cache
-    const candles = await redisCandleStorage.getCandles(pair, granularity, startTime, endTime);
+    let candles = await redisCandleStorage.getCandles(pair, granularity, startTime, endTime);
 
+    // 🚀 FALLBACK: If Redis cache is empty, fetch from Coinbase API
     if (!candles || candles.length === 0) {
-      return res.json({
-        success: false,
-        message: `No cached candles for ${pair} at ${granularity}`,
-        data: []
-      });
+      console.log(`⚠️ [API] Redis cache empty for ${pair}:${granularity}, fetching from Coinbase...`);
+
+      try {
+        // Convert granularity string to seconds
+        const granularityMap = {
+          '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '6h': 21600, '1d': 86400
+        };
+        const granularitySeconds = granularityMap[granularity] || 60;
+
+        // Fetch from Coinbase
+        const url = `https://api.exchange.coinbase.com/products/${pair}/candles?start=${startTime}&end=${endTime}&granularity=${granularitySeconds}`;
+        const response = await fetch(url);
+        const coinbaseData = await response.json();
+
+        if (Array.isArray(coinbaseData) && coinbaseData.length > 0) {
+          // Convert Coinbase format [time, low, high, open, close, volume] to our format
+          candles = coinbaseData.map(([time, low, high, open, close, volume]) => ({
+            time: Math.floor(time),
+            open: parseFloat(open),
+            high: parseFloat(high),
+            low: parseFloat(low),
+            close: parseFloat(close),
+            volume: parseFloat(volume)
+          })).sort((a, b) => a.time - b.time);
+
+          console.log(`✅ [API] Fetched ${candles.length} candles from Coinbase for ${pair}:${granularity}`);
+
+          // Store in Redis for future requests
+          await redisCandleStorage.storeCandles(pair, granularity, candles).catch(err => {
+            console.warn(`⚠️ Failed to cache candles in Redis: ${err.message}`);
+          });
+        } else {
+          console.log(`⚠️ [API] Coinbase returned no data for ${pair}:${granularity}`);
+          return res.json({
+            success: false,
+            message: `No candles available for ${pair} at ${granularity}`,
+            data: []
+          });
+        }
+      } catch (coinbaseError) {
+        console.error(`❌ Failed to fetch from Coinbase: ${coinbaseError.message}`);
+        return res.json({
+          success: false,
+          message: `No cached candles and Coinbase fetch failed for ${pair} at ${granularity}`,
+          data: []
+        });
+      }
     }
 
-    console.log(`📊 [API] Returning ${candles.length} cached candles for ${pair}:${granularity}`);
+    console.log(`📊 [API] Returning ${candles.length} candles for ${pair}:${granularity}`);
 
     res.json({
       success: true,
