@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { chartStore } from '../../stores/chartStore.svelte';
   import { getGranularitySeconds } from '../../utils/granularityHelpers';
-  import ServerTimeService from '../../../../services/ServerTimeService';
+  import ServerTimeService from '../../../../../services/ServerTimeService';
 
   // Props using Svelte 5 runes syntax
   const {
