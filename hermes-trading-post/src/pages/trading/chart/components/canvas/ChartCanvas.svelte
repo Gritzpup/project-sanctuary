@@ -113,6 +113,12 @@
     dataManager.updateChartData();
     dataManager.updateVolumeData();
 
+    // Subscribe to real-time candle updates
+    // This updates the current candle as WebSocket data arrives
+    dataStore.subscribeToRealtime('BTC-USD', '1m', (candle) => {
+      dataManager.handleRealtimeUpdate(candle);
+    });
+
     // Initialize historical data loader
     historicalDataLoader = useHistoricalDataLoader({
       chart,
