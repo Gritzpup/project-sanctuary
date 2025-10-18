@@ -195,27 +195,39 @@
 
       statusStore.setInitializing('Loading chart data...');
 
-      // Use the data loader hook
-      await dataLoader.loadData({
+      // 🚀 PERF: ChartCanvas will handle fast hydration from Redis cache
+      // Chart displays instantly with cached data (already happening)
+      // Mark chart as ready immediately to allow user interaction
+      isInitialized = true;
+      statusStore.setReady();
+
+      // ⏮️ BACKGROUND: Load additional data in the background without blocking render
+      // This does IndexedDB checks, sorting, and merging - expensive operations
+      // Don't await this - let it run asynchronously so chart renders first
+      dataLoader.loadData({
         pair,
         granularity,
         timeframe: period,
         chart: chartCanvas?.getChart(),
         series: chartCanvas?.getSeries()
+      }).catch(error => {
+        console.warn('Background data load failed (non-critical):', error);
       });
 
       // Track usage and trigger pre-fetching for likely next selections
       chartPrefetcher.trackUsage(pair, granularity);
-      
-      // Ensure chart is properly positioned after initial data load
-      positionChartForPeriod(chartCanvas, period, 300);
 
-      // Check for data gaps and fill them
-      await dataLoader.checkAndFillDataGaps(chartCanvas?.getChart(), chartCanvas?.getSeries());
+      // Check for data gaps in the background (after initial render)
+      setTimeout(() => {
+        dataLoader.checkAndFillDataGaps(chartCanvas?.getChart(), chartCanvas?.getSeries())
+          .catch(error => console.warn('Gap fill failed (non-critical):', error));
+      }, 1000);
 
       // CRITICAL: Refresh ALL plugins after initial data load (including volume for first load)
-      // This is the ONLY time volume plugin gets refreshed - after this, real-time updates only
-      refreshAllPlugins(pluginManager, 500);
+      // Do this async so it doesn't block chart display
+      setTimeout(() => {
+        refreshAllPlugins(pluginManager, 500);
+      }, 500);
 
       // Enable real-time updates after initial data load
       // Note: Volume plugin may not be registered yet, so start without it
@@ -225,15 +237,6 @@
         granularity
       }, chartCanvas?.getSeries(), null);
 
-      // Set status to ready after data loads and chart is updated
-      setTimeout(() => {
-        isInitialized = true;
-        statusStore.setReady();
-      }, 100);
-
-      // Additional safety check - force ready after longer delay if still initializing
-      forceReadyAfterTimeout(statusStore, 1000);
-      
     } catch (error) {
       console.error('Chart initialization failed:', error);
       statusStore.setError('Failed to initialize chart: ' + error.message);
