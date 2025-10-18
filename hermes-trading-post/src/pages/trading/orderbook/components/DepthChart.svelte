@@ -471,9 +471,13 @@
         const message = JSON.parse(event.data);
         if (message.type === 'level2') {
           handleLevel2Message(message.data);
+        } else if (message.type === 'orderbook-delta') {
+          // 🚀 PERF: Handle orderbook deltas from Redis Pub/Sub
+          // Only the changed price levels - ultra-efficient
+          handleOrderbookDelta(message.data);
         }
       } catch (error) {
-        console.error('Error parsing level2 message:', error);
+        console.error('Error parsing orderbook message:', error);
       }
     };
 
@@ -518,6 +522,30 @@
           updatePending = false;
         });
       }
+    }
+  }
+
+  // 🚀 PERF: Handle orderbook deltas from Redis Pub/Sub
+  // Only updates changed levels - no full re-sorts needed
+  function handleOrderbookDelta(delta: any) {
+    // Track that we received an update
+    lastL2UpdateTime = Date.now();
+    l2UpdateCount++;
+
+    // 🚀 PERF: Process delta in orderbook store (efficient - only changed levels)
+    orderbookStore.processDelta(delta);
+    hasPendingData = true;
+
+    // Use RAF to batch chart rendering
+    if (!updatePending) {
+      updatePending = true;
+      requestAnimationFrame(() => {
+        if (hasPendingData) {
+          updateChart();
+          hasPendingData = false;
+        }
+        updatePending = false;
+      });
     }
   }
 

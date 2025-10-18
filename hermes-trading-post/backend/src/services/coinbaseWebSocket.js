@@ -618,6 +618,12 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         return;
       }
 
+      // 🚀 PERF: Publish orderbook deltas via Redis Pub/Sub (only changed levels)
+      const changedLevels = await redisOrderbookCache.getChangedLevels(productId);
+      if (changedLevels.bids.length > 0 || changedLevels.asks.length > 0) {
+        redisOrderbookCache.publishOrderbookDelta(productId, changedLevels.bids, changedLevels.asks);
+      }
+
       this.emit('level2', orderbook);
 
     } else if (message.type === 'l2update') {
@@ -657,6 +663,12 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         // Check throttling - only forward max 10 updates/sec per product
         if (redisOrderbookCache.shouldThrottle(productId, 10)) {
           return; // Skip this update
+        }
+
+        // 🚀 PERF: Publish orderbook deltas via Redis Pub/Sub (only changed levels)
+        const changedLevels = await redisOrderbookCache.getChangedLevels(productId);
+        if (changedLevels.bids.length > 0 || changedLevels.asks.length > 0) {
+          redisOrderbookCache.publishOrderbookDelta(productId, changedLevels.bids, changedLevels.asks);
         }
       }
 
@@ -704,6 +716,12 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         if (redisOrderbookCache.shouldThrottle(productId, 10)) {
           console.log(`⏸️ [L2] Throttling snapshot for ${productId}`);
           return;
+        }
+
+        // 🚀 PERF: Publish orderbook deltas via Redis Pub/Sub (only changed levels)
+        const changedLevels = await redisOrderbookCache.getChangedLevels(productId);
+        if (changedLevels.bids.length > 0 || changedLevels.asks.length > 0) {
+          redisOrderbookCache.publishOrderbookDelta(productId, changedLevels.bids, changedLevels.asks);
         }
       }
 

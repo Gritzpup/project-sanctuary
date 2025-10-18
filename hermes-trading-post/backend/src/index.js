@@ -221,6 +221,46 @@ let cachedLevel2Snapshot = null;
     });
   });
 
+  // 🚀 PERF: Subscribe to Redis Pub/Sub for orderbook deltas
+  // These are ONLY the changed price levels, not full snapshots
+  // Frontend receives minimal data - only what changed
+  const deltaSubscriber = new (await import('ioredis')).default({
+    host: process.env.REDIS_HOST || 'localhost',
+    port: process.env.REDIS_PORT || 6379,
+    password: process.env.REDIS_PASSWORD
+  });
+
+  deltaSubscriber.on('message', (channel, message) => {
+    try {
+      const delta = JSON.parse(message);
+
+      // Broadcast delta to all connected WebSocket clients
+      wss.clients.forEach(client => {
+        if (client.readyState === client.OPEN) {
+          client.send(JSON.stringify({
+            type: 'orderbook-delta',
+            data: delta
+          }));
+        }
+      });
+    } catch (error) {
+      console.error(`❌ Failed to parse orderbook delta:`, error.message);
+    }
+  });
+
+  deltaSubscriber.on('error', (error) => {
+    console.error('❌ Redis delta subscriber error:', error.message);
+  });
+
+  // Subscribe to all orderbook delta channels (wildcard pattern)
+  deltaSubscriber.psubscribe('orderbook:*:delta', (err, count) => {
+    if (err) {
+      console.error('❌ Failed to subscribe to orderbook deltas:', err.message);
+    } else {
+      console.log(`✅ Subscribed to orderbook delta channels (pattern: orderbook:*:delta)`);
+    }
+  });
+
   // ✅ Using Advanced Trade WebSocket with CDP JWT authentication for real-time push updates
   // No polling fallback needed - WebSocket provides instant updates
   setTimeout(() => {
@@ -758,6 +798,40 @@ app.get('/api/orderbook/:productId/range', async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+// 🚀 Get top N orders for orderbook list display (ultra-fast Redis query for frontend list)
+// This endpoint is optimized for real-time orderbook list rendering with minimal latency
+app.get('/api/orderbook/:productId/top', async (req, res) => {
+  const { productId } = req.params;
+  const count = Math.min(parseInt(req.query.count) || 12, 50); // Limit to max 50 rows
+
+  try {
+    // Get just the top N bids and asks from Redis (sorted sets)
+    // This is extremely fast - O(log N) + O(K) where K is the number of results
+    const orderbook = await redisOrderbookCache.getTopOrders(productId, count);
+
+    if (!orderbook) {
+      return res.json({
+        success: false,
+        message: 'No orderbook data available',
+        data: { bids: [], asks: [] }
+      });
+    }
+
+    res.json({
+      success: true,
+      count: count,
+      data: orderbook
+    });
+  } catch (error) {
+    console.error(`❌ Failed to get top orders for ${productId}:`, error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      data: { bids: [], asks: [] }
     });
   }
 });

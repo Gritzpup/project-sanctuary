@@ -55,11 +55,12 @@
     }
     lastCandleCount = visibleCandleCount;
   });
-  
+
   onMount(() => {
-    // Update every 500ms
-    const interval = setInterval(updateVisibleCount, 500);
-    
+    // 🚀 PERF: Update every 1000ms instead of 500ms to reduce re-renders
+    // This prevents excessive DOM updates while still providing responsive feedback
+    const interval = setInterval(updateVisibleCount, 1000);
+
     return () => {
       clearInterval(interval);
     };

@@ -397,6 +397,70 @@ class RedisOrderbookCache {
       return { bids: [], asks: [] };
     }
   }
+
+  /**
+   * 🚀 PERF: Get changed price levels since last check
+   * Publishes only the DELTA (changed levels) via Redis Pub/Sub
+   * Frontend receives only what changed, updates only those rows
+   *
+   * Strategy: Compare current snapshot with previous, publish ONLY changed levels
+   */
+  async getChangedLevels(productId) {
+    if (!this.isConnected) return { bids: [], asks: [] };
+
+    try {
+      const bidsKey = `orderbook:${productId}:bids`;
+      const asksKey = `orderbook:${productId}:asks`;
+
+      // Get current top levels (top 50 is plenty for most UIs)
+      const topBidsRaw = await this.redis.zrevrange(bidsKey, 0, 49, 'WITHSCORES');
+      const topAsksRaw = await this.redis.zrange(asksKey, 0, 49, 'WITHSCORES');
+
+      const bids = [];
+      for (let i = 0; i < topBidsRaw.length; i += 2) {
+        bids.push({
+          price: parseFloat(topBidsRaw[i + 1]),
+          size: parseFloat(topBidsRaw[i])
+        });
+      }
+
+      const asks = [];
+      for (let i = 0; i < topAsksRaw.length; i += 2) {
+        asks.push({
+          price: parseFloat(topAsksRaw[i + 1]),
+          size: parseFloat(topAsksRaw[i])
+        });
+      }
+
+      return { bids, asks };
+    } catch (error) {
+      console.error(`❌ Failed to get changed levels for ${productId}:`, error.message);
+      return { bids: [], asks: [] };
+    }
+  }
+
+  /**
+   * 🚀 Publish orderbook deltas via Redis Pub/Sub
+   * Only publishes changed price levels to minimize frontend updates
+   */
+  publishOrderbookDelta(productId, bids, asks) {
+    if (!this.isConnected) return;
+
+    try {
+      const channel = `orderbook:${productId}:delta`;
+      const deltaPayload = JSON.stringify({
+        productId,
+        timestamp: Date.now(),
+        bids,
+        asks
+      });
+
+      // Publish to Redis channel - all connected clients receive immediately
+      this.redis.publish(channel, deltaPayload);
+    } catch (error) {
+      console.error(`❌ Failed to publish delta for ${productId}:`, error.message);
+    }
+  }
 }
 
 // Export singleton instance

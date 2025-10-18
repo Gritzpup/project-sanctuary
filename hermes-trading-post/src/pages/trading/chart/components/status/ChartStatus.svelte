@@ -2,11 +2,19 @@
   import { statusStore } from '../../stores/statusStore.svelte';
   import { fade, scale } from 'svelte/transition';
   import { formatTimeMs } from '../../utils/timeHelpers';
-  
-  export let position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' = 'top-right';
-  export let showText: boolean = true;
-  export let showHistory: boolean = false;
-  export let size: 'small' | 'medium' | 'large' = 'medium';
+
+  // Use $props() for Svelte 5 runes mode
+  const {
+    position = 'top-right',
+    showText = true,
+    showHistory = false,
+    size = 'medium'
+  }: {
+    position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    showText?: boolean;
+    showHistory?: boolean;
+    size?: 'small' | 'medium' | 'large';
+  } = $props();
   
   // Traffic light status colors
   const statusColors = {
@@ -35,14 +43,35 @@
     large: 'status-large'
   };
   
-  $: currentStatus = statusStore.status;
-  $: wsConnected = statusStore.wsConnected;
-  $: statusColor = getStatusColor(currentStatus, wsConnected);
-  $: statusIcon = statusIcons[currentStatus] || '●';
-  // OVERRIDE: Never show "Loading chart..." - always show connection status
-  $: displayText = wsConnected ? 'Connected' : 'Ready (No WebSocket)';
-  $: isTransitioning = statusStore.isTransitioning;
-  
+  // 🚀 PERF: Cache these values to prevent unnecessary re-renders
+  // Only update when actual values change, not on every update
+  let currentStatus = statusStore.status;
+  let wsConnected = statusStore.wsConnected;
+  let isTransitioning = statusStore.isTransitioning;
+  let statusColor = getStatusColor(currentStatus, wsConnected);
+  let statusIcon = statusIcons[currentStatus] || '●';
+  let displayText = wsConnected ? 'Connected' : 'Ready (No WebSocket)';
+
+  // Update on actual changes only
+  $effect(() => {
+    const newStatus = statusStore.status;
+    const newWsConnected = statusStore.wsConnected;
+    const newIsTransitioning = statusStore.isTransitioning;
+
+    // Only update if something actually changed
+    if (newStatus !== currentStatus || newWsConnected !== wsConnected) {
+      currentStatus = newStatus;
+      wsConnected = newWsConnected;
+      statusColor = getStatusColor(currentStatus, wsConnected);
+      statusIcon = statusIcons[currentStatus] || '●';
+      displayText = wsConnected ? 'Connected' : 'Ready (No WebSocket)';
+    }
+
+    if (newIsTransitioning !== isTransitioning) {
+      isTransitioning = newIsTransitioning;
+    }
+  });
+
   function getStatusColor(status: string, wsConnected: boolean): string {
     // Override colors based on WebSocket connection
     if (status === 'ready') {
@@ -53,12 +82,20 @@
     }
     return statusColors[status] || '#999';
   }
-  
-  // Position classes
-  $: positionClass = `position-${position}`;
-  
+
+  // Position classes - cache to prevent unnecessary recalculations
+  let positionClass = `position-${position}`;
+
+  // Only update positionClass when position prop changes
+  $effect(() => {
+    positionClass = `position-${position}`;
+  });
+
+  // 🚀 PERF: Separate state for history visibility to avoid modifying prop
+  let historyVisible = $state(showHistory);
+
   function toggleHistory() {
-    showHistory = !showHistory;
+    historyVisible = !historyVisible;
   }
 
   function handleKeydown(event: KeyboardEvent) {
@@ -95,11 +132,11 @@
     {/if}
   </div>
   
-  {#if showHistory && statusStore.history.length > 0}
+  {#if historyVisible && statusStore.history.length > 0}
     <div class="status-history" transition:fade={{ duration: 200 }}>
       <div class="history-header">
         <span>Status History</span>
-        <button class="close-button" on:click={() => showHistory = false}>×</button>
+        <button class="close-button" on:click={() => historyVisible = false}>×</button>
       </div>
       <div class="history-items">
         {#each statusStore.history.slice(-10).reverse() as item}

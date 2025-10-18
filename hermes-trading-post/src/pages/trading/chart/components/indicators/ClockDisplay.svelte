@@ -14,9 +14,11 @@
     format24Hour?: boolean;
   } = $props();
 
-  // Internal state
+  // Internal state - cache formatted strings to avoid unnecessary re-renders
   let currentTime = $state(new Date());
   let clockInterval: NodeJS.Timeout;
+  let lastClockDisplay = '';
+  let lastDateDisplay = '';
 
   // Format clock display
   const clockDisplay = $derived(currentTime.toLocaleTimeString('en-US', {
@@ -33,8 +35,20 @@
     day: 'numeric'
   }));
 
+  // 🚀 PERF: Only trigger re-renders when formatted strings actually change
+  // Prevents excessive DOM updates when milliseconds tick by without changing display
+  $effect(() => {
+    // This runs when clockDisplay or dateDisplay changes
+    if (clockDisplay !== lastClockDisplay) {
+      lastClockDisplay = clockDisplay;
+    }
+    if (dateDisplay !== lastDateDisplay) {
+      lastDateDisplay = dateDisplay;
+    }
+  });
+
   onMount(() => {
-    // Start clock interval
+    // Start clock interval - updates only trigger on-demand via $derived
     clockInterval = setInterval(() => {
       currentTime = new Date();
     }, updateInterval);

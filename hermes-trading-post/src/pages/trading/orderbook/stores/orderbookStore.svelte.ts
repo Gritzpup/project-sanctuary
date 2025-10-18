@@ -377,6 +377,55 @@ class OrderbookStore {
   }
 
   /**
+   * 🚀 PERF: Process orderbook deltas from Redis Pub/Sub
+   * Only updates the top N price levels that changed
+   * This is extremely efficient - no full re-sort needed
+   */
+  processDelta(data: { bids: Array<{price: number, size: number}>; asks: Array<{price: number, size: number}> }) {
+    let bidsChanged = false;
+    let asksChanged = false;
+
+    // Update changed bid levels
+    data.bids.forEach(({price, size}) => {
+      const oldSize = this.bids.get(price);
+      if (oldSize !== size) {
+        if (size === 0) {
+          this.bids.delete(price);
+        } else {
+          this.bids.set(price, size);
+        }
+        bidsChanged = true;
+      }
+    });
+
+    // Update changed ask levels
+    data.asks.forEach(({price, size}) => {
+      const oldSize = this.asks.get(price);
+      if (oldSize !== size) {
+        if (size === 0) {
+          this.asks.delete(price);
+        } else {
+          this.asks.set(price, size);
+        }
+        asksChanged = true;
+      }
+    });
+
+    // Only resort if levels actually changed
+    if (bidsChanged) {
+      this._updateSortedBids();
+    }
+    if (asksChanged) {
+      this._updateSortedAsks();
+    }
+
+    // Notify subscribers
+    if (bidsChanged || asksChanged) {
+      this.notifyPriceSubscribers();
+    }
+  }
+
+  /**
    * Get formatted orderbook data for depth chart
    * Returns top N levels on each side with cumulative depth
    *
