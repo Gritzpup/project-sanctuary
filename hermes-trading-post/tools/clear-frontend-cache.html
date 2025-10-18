@@ -2,6 +2,49 @@
 <html>
 <head>
     <title>Clear Frontend Cache</title>
+    <!--
+    ===============================================================================
+    clear-frontend-cache.html - Reset browser localStorage and strategy state
+    ===============================================================================
+    Purpose:
+      Clears all browser localStorage entries and reinitializes paper trading
+      state with default strategy configuration (reverse-ratio strategy).
+
+    Use Cases:
+      - Reset paper trading to clean state
+      - Clear corrupted localStorage data
+      - Start fresh strategy testing
+      - Clear strategy presets and custom configurations
+
+    What it does:
+      1. Clears all localStorage entries
+      2. Removes paper trading state
+      3. Removes active strategy configuration
+      4. Removes bot manager state
+      5. Sets default reverse-ratio strategy with initial parameters
+      6. Redirects to paper trading page
+
+    Usage:
+      1. Open this file in browser: file:///path/to/tools/clear-frontend-cache.html
+      2. Page auto-runs on load
+      3. Shows success message with link to paper trading page
+      4. Click link or manually navigate to /paper-trading
+
+    Default Strategy Parameters (set after clear):
+      - Strategy Type: reverse-ratio
+      - Initial Drop: 10% (0.1)
+      - Level Drop: 10% (0.1)
+      - Profit Target: 85% (0.85)
+      - Max Levels: 12
+      - Base Position: 6%
+
+    Notes:
+      - This clears ALL browser storage - use with caution
+      - Custom strategies and presets will be lost
+      - Trade history in localStorage will be cleared
+      - Changes only affect this browser/device
+    ===============================================================================
+    -->
 </head>
 <body>
     <h1>Clearing Frontend Cache...</h1>

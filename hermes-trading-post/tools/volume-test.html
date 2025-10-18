@@ -4,6 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Volume Data Test</title>
+    <!--
+    ===============================================================================
+    volume-test.html - Test and debug volume candle data integrity
+    ===============================================================================
+    Purpose:
+      Tests volume data in historical candles from Coinbase API and monitors
+      real-time volume updates to ensure trading chart has complete data.
+
+    Features:
+      - Historical Volume Test: Fetches 50 recent candles and analyzes volume
+      - Real-time Monitoring: Polls ticker data every 2 seconds for volume updates
+      - Statistics: Shows breakdown of candles with/without/zero volume
+      - Visual Indicators: Color-coded results (green=present, red=missing, yellow=zero)
+
+    Use Cases:
+      - Debug "No volume data" chart errors
+      - Verify Coinbase API returns complete OHLCV data
+      - Monitor real-time ticker data quality
+      - Validate volume candle synchronization with price candles
+
+    Usage:
+      1. Open in browser: file:///path/to/tools/volume-test.html
+      2. Click "Test Historical Volume" to check recent candles
+      3. Click "Test Real-time Volume" to monitor ticker data
+      4. Click "Clear Results" to reset and start over
+
+    Test Results:
+      ✅ Green (volume-present): Candles with valid volume data
+      ❌ Red (volume-missing): Candles missing volume field entirely
+      ⚠️ Yellow (volume-zero): Candles with volume = 0
+
+    API Endpoints Tested:
+      - https://api.exchange.coinbase.com/products/BTC-USD/candles
+        (Historical OHLCV data)
+      - https://api.exchange.coinbase.com/products/BTC-USD/ticker
+        (Real-time price and volume data)
+
+    Troubleshooting:
+      - "CORS errors": Browser security - expected for external API calls
+      - "No data received": API rate limiting or network issue
+      - "All zero volume": Possible data sync issue with backend cache
+      - "Missing volume": Coinbase API data integrity issue
+
+    Notes:
+      - Real-time test auto-updates every 2 seconds
+      - Historical test shows only last 10 candles (analyzes all 50)
+      - Cross-origin requests may fail due to CORS restrictions
+      - Use browser dev tools to check detailed HTTP responses
+    ===============================================================================
+    -->
     <style>
         body {
             font-family: monospace;

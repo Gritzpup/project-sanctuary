@@ -1,5 +1,39 @@
-// Granularity Button Logic Test
-// Run this in browser console to test the logic
+//////////////////////////////////////////////////////////////////////////////
+// granularity-test.js - Test granularity button state logic
+//////////////////////////////////////////////////////////////////////////////
+// Purpose:
+//   Validates that granularity buttons are correctly enabled/disabled based on
+//   the selected time period (1H, 6H, 1D, 1W, 1M, 3M, 1Y) in the trading chart.
+//
+// Usage:
+//   1. Open browser console (F12) on the trading chart page
+//   2. Copy entire file and paste into console
+//   3. Function auto-runs and saves to window.testGranularityLogic()
+//   4. Can run anytime with: window.testGranularityLogic()
+//
+// What it tests:
+//   - Valid granularities for each period (some disabled in certain periods)
+//   - Recommended granularities (highlighted as best choice)
+//   - Button active state (highlights current granularity)
+//   - DOM button CSS classes and disabled attributes
+//
+// Expected Output:
+//   - Shows valid/disabled granularities per period
+//   - Lists current button states (DISABLED, ACTIVE, ENABLED)
+//   - Identifies any state mismatches between logic and DOM
+//
+// Debug Use Cases:
+//   - Granularity buttons won't enable/disable
+//   - Period change doesn't update button states
+//   - Wrong granularity appears active
+//   - Button CSS classes don't update
+//
+// Implementation Details:
+//   - VALID_GRANULARITIES: All selectable granularities per period
+//   - RECOMMENDED_GRANULARITIES: Best choice per period (shown first)
+//   - Compares DOM button state with expected logic state
+//   - Reports mismatches between expected and actual states
+//////////////////////////////////////////////////////////////////////////////
 
 window.testGranularityLogic = function() {
   console.clear();

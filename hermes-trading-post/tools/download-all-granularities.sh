@@ -1,5 +1,43 @@
 #!/bin/bash
 
+#############################################################################
+# download-all-granularities.sh - Cache historical OHLCV data in Redis
+#############################################################################
+# Purpose:
+#   Populates Redis cache with historical candlestick data across all
+#   supported granularities (1m, 5m, 15m, 1h, 6h, 1d) for fast chart loading.
+#
+# Usage:
+#   bash tools/download-all-granularities.sh
+#
+# Prerequisites:
+#   - Backend API running on localhost:4828 (can be configured via BASE_URL)
+#   - Redis server accessible to backend
+#   - curl and jq installed on system
+#   - Network connectivity to Coinbase Advanced API
+#
+# Granularities & Time Ranges:
+#   - 1m  : 30 days   (~43,200 candles)
+#   - 5m  : 90 days   (~25,920 candles)
+#   - 15m : 180 days  (~17,280 candles)
+#   - 1h  : 365 days  (~8,760 candles)
+#   - 6h  : 2 years   (~2,920 candles)
+#   - 1d  : 5 years   (~1,825 candles)
+#
+# Output:
+#   - Shows progress for each granularity download
+#   - Displays current candle count every 5 seconds
+#   - Final summary with total candles cached
+#
+# Estimated Runtime: 5-15 minutes (depends on API rate limits)
+#
+# Troubleshooting:
+#   - CORS errors: Check backend proxy configuration
+#   - API rate limits: Reduce day ranges or add delays between requests
+#   - Redis connection: Verify backend Redis configuration
+#   - Timeout errors: May indicate slow Coinbase API (normal for large ranges)
+#############################################################################
+
 echo "🚀 Starting sequential download of all granularities..."
 
 BASE_URL="http://localhost:4828/api/trading"

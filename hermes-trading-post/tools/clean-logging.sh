@@ -1,5 +1,32 @@
 #!/bin/bash
 
+#############################################################################
+# clean-logging.sh - Remove verbose console logs from source files
+#############################################################################
+# Purpose:
+#   Removes verbose debug logging (console.log with emoji prefixes) while
+#   preserving error logs and essential debugging statements.
+#
+# Usage:
+#   bash tools/clean-logging.sh
+#
+# What it removes:
+#   - Data store verbose logs (🔄, 🔔, 📊 prefixed)
+#   - Strategy analysis logs
+#   - Position checking logs
+#   - Trading operation logs
+#   - [PERF] tagged performance logs
+#
+# What it preserves:
+#   - console.error() and console.warn() calls
+#   - Essential chart rendering logs
+#   - Important debugging information
+#
+# Output:
+#   Shows before/after counts of console statements per file
+#   Example: "Removed 32 console statements from dataStore.svelte.ts"
+#############################################################################
+
 echo "🧹 Cleaning excessive console logging..."
 
 # Get the current directory
