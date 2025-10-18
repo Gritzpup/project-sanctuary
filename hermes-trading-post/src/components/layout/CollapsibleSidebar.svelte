@@ -91,7 +91,12 @@
 <!-- Desktop Sidebar -->
 <aside class="sidebar" class:collapsed={sidebarCollapsed}>
   <div class="sidebar-header">
-    <h2 class="sidebar-title">{sidebarCollapsed ? 'HT' : 'Hermes Trading'}</h2>
+    <div class="sidebar-logo">
+      <img src="/icons/favpng_cd26640183daf946992926418bba7286.png" alt="Hermes Trading Logo" class="logo-image" />
+      {#if !sidebarCollapsed}
+        <span class="sidebar-title">Hermes Trading</span>
+      {/if}
+    </div>
   </div>
   
   <nav class="sidebar-nav">
@@ -143,6 +148,23 @@
   .sidebar-header {
     padding: var(--space-xl);
     border-bottom: 1px solid var(--border-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    width: 100%;
+  }
+
+  .logo-image {
+    width: 32px;
+    height: 32px;
+    filter: brightness(0) invert(1);
+    flex-shrink: 0;
   }
 
   .sidebar-title {
@@ -152,6 +174,7 @@
     white-space: nowrap;
     overflow: hidden;
     font-weight: var(--font-weight-semibold);
+    color: white;
   }
 
   .sidebar-nav {
@@ -272,8 +295,13 @@
     align-items: center;
   }
 
+  .sidebar.collapsed .sidebar-logo {
+    justify-content: center;
+  }
+
   .sidebar.collapsed .sidebar-title {
     text-align: center;
+    display: none;
   }
 
   /* Mobile Header Styles */
