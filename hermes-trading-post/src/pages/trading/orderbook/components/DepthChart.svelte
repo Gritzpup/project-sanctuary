@@ -426,9 +426,17 @@
     // Connect to WebSocket for orderbook data (retry until connection is available)
     const connectInterval = setInterval(() => {
       if (connectWebSocket()) {
+        console.log('✅ [DepthChart] WebSocket connected successfully');
         clearInterval(connectInterval);
       }
     }, 500); // Retry every 500ms
+
+    // Safety: log if we can't connect after 10 seconds
+    setTimeout(() => {
+      if (!ws) {
+        console.warn('⚠️ [DepthChart] Failed to establish WebSocket connection after 10s');
+      }
+    }, 10000);
 
     // Handle resize
     const resizeObserver = new ResizeObserver(() => {
@@ -595,7 +603,10 @@
     const { bids, asks } = orderbookStore.getDepthData(50000);
 
     if (bids.length === 0 || asks.length === 0) {
-      console.warn(`⚠️ No depth data available yet (isReady=${orderbookStore.isReady})`);
+      // Only show warning once
+      if (!orderbookStore.isReady) {
+        // PERF: Disabled - console.warn(`⚠️ No depth data available yet (isReady=${orderbookStore.isReady})`);
+      }
       return;
     }
 
