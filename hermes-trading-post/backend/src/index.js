@@ -254,14 +254,15 @@ let cachedLevel2Snapshot = null;
     console.error('❌ Redis delta subscriber error:', error.message);
   });
 
-  // Subscribe to all orderbook delta channels (wildcard pattern)
-  deltaSubscriber.psubscribe('orderbook:*:delta', (err, count) => {
-    if (err) {
-      console.error('❌ Failed to subscribe to orderbook deltas:', err.message);
-    } else {
-      console.log(`✅ Subscribed to orderbook delta channels (pattern: orderbook:*:delta)`);
-    }
+  // Subscribe to all orderbook delta channels (wildcard pattern) - non-blocking
+  deltaSubscriber.psubscribe('orderbook:*:delta').catch(err => {
+    console.error('❌ Failed to subscribe to orderbook deltas:', err.message);
   });
+
+  // Log subscription success after a short delay
+  setTimeout(() => {
+    console.log(`✅ Orderbook delta subscriber initialized (pattern: orderbook:*:delta)`);
+  }, 100);
 
   // ✅ Using Advanced Trade WebSocket with CDP JWT authentication for real-time push updates
   // No polling fallback needed - WebSocket provides instant updates

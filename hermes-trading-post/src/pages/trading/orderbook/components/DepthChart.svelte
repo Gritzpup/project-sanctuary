@@ -257,6 +257,12 @@
   }
 
   onMount(() => {
+    // Hydrate orderbook from Redis cache first (instant display on refresh)
+    // WebSocket will continue streaming live updates after this
+    orderbookStore.hydrateFromCache('BTC-USD', 12).catch(error => {
+      console.error('Orderbook cache hydration failed, will use WebSocket data:', error);
+    });
+
     // Initialize chart
     chart = createChart(chartContainer, {
       layout: {

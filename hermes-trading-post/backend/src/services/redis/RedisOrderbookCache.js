@@ -399,6 +399,49 @@ class RedisOrderbookCache {
   }
 
   /**
+   * 🚀 PERF: Get top N bids and asks for depth chart hydration
+   * Returns only the best N price levels on each side
+   * Used for fast initial loading of orderbook depth visualization
+   *
+   * Performance: O(log N) + O(K) where K is count parameter
+   */
+  async getTopOrders(productId, count = 12) {
+    if (!this.isConnected) return { bids: [], asks: [] };
+
+    try {
+      const bidsKey = `orderbook:${productId}:bids`;
+      const asksKey = `orderbook:${productId}:asks`;
+
+      // Get top bids (highest prices first)
+      // zrevrange returns from highest to lowest score (which is price for bids)
+      const bidsRaw = await this.redis.zrevrange(bidsKey, 0, count - 1, 'WITHSCORES');
+      const bids = [];
+      for (let i = 0; i < bidsRaw.length; i += 2) {
+        bids.push({
+          price: parseFloat(bidsRaw[i + 1]),
+          size: parseFloat(bidsRaw[i])
+        });
+      }
+
+      // Get top asks (lowest prices first)
+      // zrange returns from lowest to highest score (which is price for asks)
+      const asksRaw = await this.redis.zrange(asksKey, 0, count - 1, 'WITHSCORES');
+      const asks = [];
+      for (let i = 0; i < asksRaw.length; i += 2) {
+        asks.push({
+          price: parseFloat(asksRaw[i + 1]),
+          size: parseFloat(asksRaw[i])
+        });
+      }
+
+      return { bids, asks };
+    } catch (error) {
+      console.error(`❌ Failed to get top orders for ${productId}:`, error.message);
+      return { bids: [], asks: [] };
+    }
+  }
+
+  /**
    * 🚀 PERF: Get changed price levels since last check
    * Publishes only the DELTA (changed levels) via Redis Pub/Sub
    * Frontend receives only what changed, updates only those rows
