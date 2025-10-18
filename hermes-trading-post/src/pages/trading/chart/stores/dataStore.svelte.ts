@@ -587,13 +587,12 @@ class DataStore {
         // Update latest price for status display (for both ticker AND full candle updates)
         this._latestPrice = update.close;
 
-        // Update stats timestamp only (for ticker updates that don't create new candles)
-        if (update.time === 0 || !update.time) {
-          this._dataStats = {
-            ...this._dataStats,
-            lastUpdate: Date.now()
-          };
-        }
+        // 🔥 ALWAYS update stats on every candle/ticker update for responsive UI
+        // This ensures the UI responds immediately to price changes
+        this._dataStats = {
+          ...this._dataStats,
+          lastUpdate: Date.now()
+        };
 
         // Notify data update callbacks for price updates (e.g., chart header)
         this.notifyDataUpdate();
