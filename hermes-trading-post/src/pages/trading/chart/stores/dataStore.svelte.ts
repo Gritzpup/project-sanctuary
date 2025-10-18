@@ -298,12 +298,14 @@ class DataStore {
 
   async reloadData(startTime: number, endTime: number): Promise<void> {
     const config = this.getCurrentConfig();
+    // 🚀 PERF: Remove hard-coded candle limits during refresh
+    // Use 50000 limit to accommodate large historical ranges without truncation
     const data = await this.dataService.fetchCandles({
       pair: config.pair,
       granularity: config.granularity,
       start: startTime,
       end: endTime,
-      limit: 5000
+      limit: 50000  // Increased from 5000 to prevent missing candles on refresh
     });
 
     this.setCandles(data);

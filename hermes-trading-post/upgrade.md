@@ -94,6 +94,16 @@
 
 ---
 
+### Phase 7: Bug Fix - Missing Candles on Refresh (Pending)
+- [ ] Increase candle limit on refresh from 5000 to 50000
+- [ ] Remove hard-coded truncation limits
+- [ ] Fix delta sync candle limits
+- [ ] Verify no missing candles during page refresh
+
+**Expected Impact**: Fix data integrity issue, ensure all historical candles load
+
+---
+
 ### Phase 6: Micro-Optimizations ✅ COMPLETE
 - [x] Remove Date.now() modulo checks in ticker handler (none found)
 - [x] Replace Math.max(...array) with loop
