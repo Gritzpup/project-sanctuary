@@ -58,7 +58,7 @@
       rightBarStaysOnScroll: !isSmallDataset, // Disable for small datasets
       borderVisible: true,
       shiftVisibleRangeOnNewBar: !isSmallDataset, // Disable auto-scrolling for small datasets
-      rightOffset: isSmallDataset ? 0 : 6, // Half-width right offset for better space utilization
+      rightOffset: isSmallDataset ? 0 : 3, // Minimal right offset for maximum chart utilization
       leftOffset: 3, // Adjust for price scale to center chart properly
       barSpacing: isSmallDataset ? 50 : 13, // Close to 60-candle view (800px/60 ≈ 13px)
       minBarSpacing: 0.5,
