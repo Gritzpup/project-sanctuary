@@ -40,17 +40,14 @@ class RedisOrderbookCache {
 
   setupEventHandlers() {
     this.redis.on('connect', () => {
-      // PERF: Disabled - console.log('✅ RedisOrderbookCache: Connected to Redis on port 6379');
       this.isConnected = true;
     });
 
     this.redis.on('error', (error) => {
-      // PERF: Disabled - console.error('❌ RedisOrderbookCache: Redis connection error', error.message);
       this.isConnected = false;
     });
 
     this.redis.on('close', () => {
-      // PERF: Disabled - console.warn('⚠️ RedisOrderbookCache: Redis connection closed');
       this.isConnected = false;
     });
   }
@@ -62,7 +59,6 @@ class RedisOrderbookCache {
 
     this.connectionPromise = this.redis.connect().then(() => {
       this.isConnected = true;
-      // PERF: Disabled - console.log('✅ RedisOrderbookCache: Redis orderbook cache initialized');
     });
 
     return this.connectionPromise;
@@ -130,7 +126,6 @@ class RedisOrderbookCache {
 
       await pipeline.exec();
 
-      // PERF: Disabled - console.log(`📊 [OrderbookCache] Stored snapshot for ${productId}: ${bids.length} bids, ${asks.length} asks`);
 
       // Update local snapshot cache
       const snapshotHash = this.computeSnapshotHash(bids, asks);
@@ -141,7 +136,6 @@ class RedisOrderbookCache {
 
       return true;
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ Failed to store orderbook snapshot for ${productId}:`, error.message);
       return false;
     }
   }
@@ -181,7 +175,6 @@ class RedisOrderbookCache {
 
       return { bids, asks };
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ Failed to get orderbook for ${productId}:`, error.message);
       return null;
     }
   }
@@ -255,7 +248,6 @@ class RedisOrderbookCache {
 
       return true;
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ Failed to apply update for ${productId}:`, error.message);
       return false;
     }
   }
@@ -292,10 +284,8 @@ class RedisOrderbookCache {
       this.snapshotCache.delete(productId);
       this.throttleTimestamps.delete(productId);
 
-      // PERF: Disabled - console.log(`🧹 [OrderbookCache] Cleared orderbook for ${productId}`);
       return true;
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ Failed to clear orderbook for ${productId}:`, error.message);
       return false;
     }
   }
@@ -353,11 +343,9 @@ class RedisOrderbookCache {
       const metadata = metaJson ? JSON.parse(metaJson) : null;
 
       if (bids.length === 0 && asks.length === 0) {
-        // PERF: Disabled - console.log(`⚠️ [OrderbookCache] No cached orderbook found for ${productId}`);
         return null;
       }
 
-      // PERF: Disabled - console.log(`📥 [OrderbookCache] Hydrating frontend with cached orderbook for ${productId}: ${bids.length} bids, ${asks.length} asks`);
 
       return {
         product_id: productId,
@@ -366,7 +354,6 @@ class RedisOrderbookCache {
         metadata
       };
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ Failed to get full orderbook for ${productId}:`, error.message);
       return null;
     }
   }
@@ -397,7 +384,6 @@ class RedisOrderbookCache {
 
       return orderbook || { bids: [], asks: [] };
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ Failed to get orderbook for API for ${productId}:`, error.message);
       return { bids: [], asks: [] };
     }
   }
@@ -442,7 +428,6 @@ class RedisOrderbookCache {
 
       return { bids, asks };
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ Failed to get top orders for ${productId}:`, error.message);
       return { bids: [], asks: [] };
     }
   }
@@ -484,7 +469,6 @@ class RedisOrderbookCache {
 
       return { bids, asks };
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ Failed to get changed levels for ${productId}:`, error.message);
       return { bids: [], asks: [] };
     }
   }
@@ -508,7 +492,6 @@ class RedisOrderbookCache {
       // Publish to Redis channel - all connected clients receive immediately
       this.redis.publish(channel, deltaPayload);
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ Failed to publish delta for ${productId}:`, error.message);
     }
   }
 }

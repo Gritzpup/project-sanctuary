@@ -21,20 +21,14 @@ class LogViewer {
       const content = await fs.readFile(logFile, 'utf8');
       const lines = content.split('\n').filter(line => line.trim());
       
-      // PERF: Disabled - console.log(`\n📊 Trading Log for Bot: ${botId} - ${date}`);
-      // PERF: Disabled - console.log('='.repeat(80));
       
       lines.forEach(line => {
-        // PERF: Disabled - console.log(line);
       });
       
-      // PERF: Disabled - console.log(`\nTotal entries: ${lines.length}`);
       
     } catch (error) {
       if (error.code === 'ENOENT') {
-        // PERF: Disabled - console.log(`No log file found for bot ${botId} on ${date}`);
       } else {
-        // PERF: Disabled - console.error('Error reading log file:', error);
       }
     }
   }
@@ -48,8 +42,6 @@ class LogViewer {
       const content = await fs.readFile(logFile, 'utf8');
       const lines = content.split('\n').filter(line => line.trim());
       
-      // PERF: Disabled - console.log(`\n📊 Recent Activity for Bot: ${botId} (Last ${hours} hours)`);
-      // PERF: Disabled - console.log('='.repeat(80));
       
       const recentLines = lines.filter(line => {
         const timeMatch = line.match(/\[(\d{2}:\d{2}:\d{2})\]/);
@@ -63,16 +55,12 @@ class LogViewer {
       });
       
       recentLines.forEach(line => {
-        // PERF: Disabled - console.log(line);
       });
       
-      // PERF: Disabled - console.log(`\nRecent entries: ${recentLines.length}`);
       
     } catch (error) {
       if (error.code === 'ENOENT') {
-        // PERF: Disabled - console.log(`No log file found for bot ${botId} on ${date}`);
       } else {
-        // PERF: Disabled - console.error('Error reading log file:', error);
       }
     }
   }
@@ -89,25 +77,15 @@ class LogViewer {
       const buys = trades.filter(line => line.includes('BUY'));
       const sells = trades.filter(line => line.includes('SELL'));
       
-      // PERF: Disabled - console.log(`\n💰 Trade Summary for Bot: ${botId} - ${date}`);
-      // PERF: Disabled - console.log('='.repeat(60));
-      // PERF: Disabled - console.log(`Total Trades: ${trades.length}`);
-      // PERF: Disabled - console.log(`Buys: ${buys.length}`);
-      // PERF: Disabled - console.log(`Sells: ${sells.length}`);
-      // PERF: Disabled - console.log('');
       
       if (trades.length > 0) {
-        // PERF: Disabled - console.log('Recent Trades:');
         trades.slice(-10).forEach(trade => {
-          // PERF: Disabled - console.log(trade);
         });
       }
       
     } catch (error) {
       if (error.code === 'ENOENT') {
-        // PERF: Disabled - console.log(`No log file found for bot ${botId} on ${date}`);
       } else {
-        // PERF: Disabled - console.error('Error reading log file:', error);
       }
     }
   }
@@ -116,9 +94,6 @@ class LogViewer {
     const date = new Date().toISOString().split('T')[0];
     const logFile = path.join(this.logDir, `trading-log-${botId}-${date}.log`);
     
-    // PERF: Disabled - console.log(`\n📡 Tailing logs for Bot: ${botId}`);
-    // PERF: Disabled - console.log('Press Ctrl+C to exit');
-    // PERF: Disabled - console.log('='.repeat(60));
     
     let lastSize = 0;
     
@@ -133,7 +108,6 @@ class LogViewer {
         }
       } catch (error) {
         if (error.code !== 'ENOENT') {
-          // PERF: Disabled - console.error('Error checking log file:', error);
         }
       }
     };
@@ -144,7 +118,6 @@ class LogViewer {
     // Handle Ctrl+C
     process.on('SIGINT', () => {
       clearInterval(interval);
-      // PERF: Disabled - console.log('\n\nLog tailing stopped.');
       process.exit(0);
     });
     
@@ -179,7 +152,6 @@ switch (command) {
     break;
     
   default:
-    // PERF: Disabled - console.log(`
 // Trading Log Viewer Usage:
 //
 // node src/utils/logViewer.js <command> [botId] [options]

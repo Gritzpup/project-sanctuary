@@ -1,0 +1,240 @@
+================================================================================
+AUDIT FILE REFERENCE - ALL FILES MENTIONED IN CLEANUP REPORT
+================================================================================
+
+ABSOLUTE PATH PREFIX: /home/ubuntubox/Documents/Github/project-sanctuary/hermes-trading-post/
+
+================================================================================
+1. DUPLICATE TAB COMPONENTS TO DELETE (src/components/backtesting/tabs/)
+================================================================================
+
+FULL PATHS - RECOMMENDED FOR DELETION:
+1. src/components/backtesting/tabs/ConfigTab.svelte (51 lines)
+2. src/components/backtesting/tabs/CodeTab.svelte (15 lines)
+3. src/components/backtesting/tabs/BackupsTab.svelte (10 lines)
+
+PARENT DIRECTORY TO DELETE:
+  src/components/backtesting/tabs/
+
+REPLACEMENT IMPLEMENTATIONS (KEEP THESE):
+1. src/components/backtesting/controls/ConfigurationTab.svelte (315 lines)
+2. src/components/backtesting/controls/CodeEditorTab.svelte (395 lines)
+3. src/components/backtesting/controls/BackupsTab.svelte (309 lines)
+
+================================================================================
+2. UNUSED/STUB PAGES
+================================================================================
+
+RECOMMENDED FOR DELETION:
+1. src/pages/Backtesting/BacktestingControlsModular.svelte (stub file)
+
+ACTIVE PAGES (KEEP):
+1. src/pages/Backtesting/Backtesting.svelte
+2. src/pages/Backtesting/BacktestingChart.svelte
+3. src/pages/Backtesting/BacktestingBackups.svelte
+
+================================================================================
+3. VITE BUILD ARTIFACTS TO DELETE (42+ FILES)
+================================================================================
+
+PATTERN: vite.config.ts.timestamp-*.mjs
+
+Examples:
+- vite.config.ts.timestamp-1760363131906-be9c47638f662.mjs
+- vite.config.ts.timestamp-1760363589073-8a1335e47164e.mjs
+- vite.config.ts.timestamp-1760363772703-c09ab44392268.mjs
+... (39 more similar files)
+
+CLEANUP COMMAND:
+  rm -f vite.config.ts.timestamp-*.mjs
+
+These files are ~4KB each, total ~170KB waste
+
+================================================================================
+4. BACKEND SERVICE FILES - CONFUSING NAMING
+================================================================================
+
+CURRENT CONFUSING STRUCTURE:
+1. backend/src/services/tradingService.js (1 line proxy - exports TradingServiceModular)
+2. backend/src/services/TradingServiceModular.js (actual implementation)
+
+RECOMMENDATION: Rename/clarify the relationship
+
+Used by:
+- backend/src/services/botManager.js
+- backend/src/index.js
+
+================================================================================
+5. UNUSED SHELL SCRIPTS (MOVE TO /tools/)
+================================================================================
+
+CURRENT LOCATION - SHOULD MOVE:
+1. clean-logging.sh (75 lines) → tools/clean-logging.sh
+2. download-all-granularities.sh (104 lines) → tools/download-all-granularities.sh
+
+These are utilities, not production code, so move to /tools/ for organization
+
+================================================================================
+6. ROUTER CONFIGURATION SCAFFOLDING - REMOVE FROM package.json
+================================================================================
+
+REFERENCED BUT DOESN'T EXIST:
+- vite.config.router.ts (file doesn't exist)
+
+SCRIPTS TO REMOVE FROM package.json:
+1. "dev:router"
+2. "dev:frontend:router"
+3. "build:router"
+
+These reference the non-existent config file
+
+================================================================================
+7. DEBUG & TEST TOOLS IN /tools/ (AUDIT NEEDED)
+================================================================================
+
+DIRECTORY: tools/
+
+FILES (audit for obsolete vs active):
+1. clear-frontend-cache.html
+2. clear-presets.html
+3. coinbase-granularity-test.html
+4. debug-granularity.html
+5. granularity-test.js
+6. hide-element.css
+7. remove-element.html
+8. volume-debug.html
+9. volume-test.html
+
+AFTER AUDIT: Document purpose in tools/README.md
+
+================================================================================
+8. ROOT DOCUMENTATION FILES
+================================================================================
+
+ACTIVE/CURRENT (KEEP):
+- PERFORMANCE_AUDIT.md (661 lines, current)
+- DATA_FLOW_ANALYSIS.md (479 lines, current)
+- AUDIT_INDEX.md (287 lines, current)
+- AUDIT_SUMMARY.txt (141 lines, current)
+- upgrade.md (283 lines, recent)
+- CHANGES.md (122 lines, recent)
+- CLAUDE.md (94 lines, active)
+- CODEBASE_AUDIT_REPORT.md (NEW - this audit)
+- AUDIT_QUICK_SUMMARY.txt (NEW - quick reference)
+
+REFERENCE (KEEP):
+- MODULARIZATION_GUIDE.md (284 lines)
+- CSS_STYLE_GUIDE.md (234 lines)
+
+POTENTIALLY OUTDATED (AUDIT/ARCHIVE):
+- CHART_DATABASE_IMPLEMENTATION_PLAN.md (257 lines - dated Oct 9, likely abandoned)
+- CSS_REFACTOR.md (226 lines - unclear if current CSS follows this)
+
+NEEDS REPLACEMENT:
+- README.md (47 lines - generic Svelte template, not project-specific)
+
+================================================================================
+9. ARCHIVE DOCUMENTATION
+================================================================================
+
+DIRECTORY: archive/documentation/
+
+FILES TO AUDIT/CONSOLIDATE:
+1. CLEANUP_COMPLETE.md (likely outdated)
+2. CODEBASE_STRUCTURE.md (possibly useful reference)
+3. CSS_CLEANUP_SUMMARY.md (historical)
+4. EXTENSION_ERROR_FIX.md (historical fix doc)
+5. FILESYSTEM_IMPROVEMENTS.md (historical)
+6. FILESYSTEM_REORGANIZATION_COMPLETE.md (historical cleanup)
+7. FOLDER_STRUCTURE.md (possibly useful reference)
+8. IMMEDIATE_ACTIONS.md (old task list)
+9. MODULARIZATION_COMPLETE.md (historical completion)
+10. MODULARIZATION_SUMMARY.md (historical summary)
+11. PROJECT_STRUCTURE.md (possibly useful reference)
+12. REFACTORING_STATUS.md (historical status)
+
+RECOMMENDATION:
+- Keep: Reference docs (CODEBASE_STRUCTURE.md, FOLDER_STRUCTURE.md, PROJECT_STRUCTURE.md)
+- Delete: Task/status documents (IMMEDIATE_ACTIONS.md, CLEANUP_COMPLETE.md, etc.)
+- Move useful ones to main /docs/ directory
+
+================================================================================
+10. CONFIGURATION FILES (KEEP)
+================================================================================
+
+PROPERLY MAINTAINED:
+- vite.config.ts (1.2KB - main config, KEEP)
+- svelte.config.js (228 bytes - KEEP)
+- tsconfig.json (822 bytes - KEEP)
+- tsconfig.node.json (325 bytes - KEEP)
+- vitest.config.ts (testing config - KEEP)
+- package.json (1.5KB - KEEP but remove 3 router scripts)
+- .gitignore (356 bytes - KEEP, already has timestamp pattern)
+
+================================================================================
+11. POTENTIAL DUPLICATES (AUDIT NEEDED)
+================================================================================
+
+Paper Trading Services - Unclear which is primary:
+1. src/services/state/paperTestService.ts
+2. src/services/state/paper-test/ (subdirectory with multiple files)
+3. src/services/paper-trading/ (another subdirectory)
+
+Backtesting Components - Check for duplication:
+1. src/components/backtesting/BacktestingResults.svelte
+2. src/components/backtesting/BacktestStats.svelte
+
+RECOMMENDATION: Audit these services to identify/remove duplication
+
+================================================================================
+12. COMPONENTS TO KEEP
+================================================================================
+
+BACKUP COMPONENTS (PROPERLY USED - KEEP):
+1. src/components/backtesting/controls/backup-components/BackupsList.svelte
+2. src/components/backtesting/controls/backup-components/BackupForm.svelte
+
+These are properly used in BackupsTab.svelte, so no action needed
+
+ACTIVE COMPONENTS (KEEP):
+- All other Svelte components appear to be properly integrated
+
+================================================================================
+CLEANUP EXECUTION GUIDE
+================================================================================
+
+Phase 1 (30 min - SAFE):
+  rm -rf src/components/backtesting/tabs/
+  rm -f vite.config.ts.timestamp-*.mjs
+  # Edit package.json to remove dev:router, dev:frontend:router, build:router
+  npm run test
+
+Phase 2 (45 min - SAFE):
+  mv clean-logging.sh tools/
+  mv download-all-granularities.sh tools/
+  # Create/update tools/README.md
+  # Update README.md with actual project info
+
+Phase 3 (1 hour):
+  # Review and consolidate archive/documentation/
+  # Move useful docs to main /docs/
+  # Delete obsolete task/status files
+
+Phase 4 (Optional):
+  # Rename backend services for clarity
+  # Audit paper-trading services
+  # Consolidate backtesting components if redundant
+
+================================================================================
+IMPACT SUMMARY
+================================================================================
+
+Files to Delete:        ~60+ files (~530KB total)
+Files to Move:          2 shell scripts
+Files to Archive:       ~8 outdated docs
+Scripts to Remove:      3 npm scripts
+Components to Keep:     All core functionality intact
+Risk Level:             LOW (mostly deletions, no refactoring)
+Testing Required:       npm run test after Phase 1
+
+================================================================================

@@ -21,7 +21,6 @@ export class TradingStateRepository {
       await fs.mkdir(this.stateDir, { recursive: true });
     } catch (error) {
       if (error.code !== 'EEXIST') {
-        // PERF: Disabled - console.error('Error creating state directory:', error);
       }
     }
   }
@@ -55,10 +54,8 @@ export class TradingStateRepository {
           if (!this._saveCount) this._saveCount = 0;
           this._saveCount++;
           if (this._saveCount % 10 === 0) {
-            // PERF: Disabled - console.log(`💾 State saved for bot ${this.botId} (save #${this._saveCount})`);
           }
         } catch (error) {
-          // PERF: Disabled - console.error(`Error saving state for bot ${this.botId}:`, error);
         } finally {
           resolve();
         }
@@ -101,11 +98,9 @@ export class TradingStateRepository {
 
       const state = JSON.parse(stateData);
 
-      // PERF: Disabled - console.log(`💾 State loaded for bot ${this.botId}`);
       return state;
     } catch (error) {
       if (error.code === 'ENOENT') {
-        // PERF: Disabled - console.log(`💾 No existing state file for bot ${this.botId}, starting fresh`);
         return null;
       }
       // Corrupted JSON - log this as it indicates a real problem
@@ -119,7 +114,6 @@ export class TradingStateRepository {
         }
         return null;
       }
-      // PERF: Disabled - console.error(`Error loading state for bot ${this.botId}:`, error);
       return null;
     }
   }
@@ -129,10 +123,8 @@ export class TradingStateRepository {
 
     try {
       await fs.unlink(this.getStateFilePath());
-      // PERF: Disabled - console.log(`💾 State file deleted for bot ${this.botId}`);
     } catch (error) {
       if (error.code !== 'ENOENT') {
-        // PERF: Disabled - console.error(`Error deleting state for bot ${this.botId}:`, error);
       }
     }
   }
@@ -147,10 +139,8 @@ export class TradingStateRepository {
       const currentState = await this.loadState();
       if (currentState) {
         await fs.writeFile(backupPath, JSON.stringify(currentState, null, 2));
-        // PERF: Disabled - console.log(`💾 State backup created for bot ${this.botId}`);
       }
     } catch (error) {
-      // PERF: Disabled - console.error(`Error creating backup for bot ${this.botId}:`, error);
     }
   }
 }

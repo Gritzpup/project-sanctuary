@@ -40,17 +40,14 @@ class RedisCandleStorage {
 
   setupEventHandlers() {
     this.redis.on('connect', () => {
-      // PERF: Disabled - console.log('✅ RedisCandleStorage: Connected to Redis on port 6379');
       this.isConnected = true;
     });
 
     this.redis.on('error', (error) => {
-      // PERF: Disabled - console.error('❌ RedisCandleStorage: Redis connection error', error.message);
       this.isConnected = false;
     });
 
     this.redis.on('close', () => {
-      // PERF: Disabled - console.warn('⚠️ RedisCandleStorage: Redis connection closed');
       this.isConnected = false;
     });
   }
@@ -62,7 +59,6 @@ class RedisCandleStorage {
 
     this.connectionPromise = this.redis.connect().then(() => {
       this.isConnected = true;
-      // PERF: Disabled - console.log('✅ RedisCandleStorage: Redis candle storage initialized');
     });
 
     return this.connectionPromise;
@@ -89,12 +85,10 @@ class RedisCandleStorage {
       // Acquire lock for this operation (reduced to 5 seconds to minimize blocking)
       const lockAcquired = await this.redis.set(lockKey, '1', 'EX', 5, 'NX');
       if (!lockAcquired) {
-        // PERF: Disabled - console.warn('⚠️ RedisCandleStorage: Could not acquire lock for storing candles', { pair, granularity });
         // Don't fail silently - wait briefly and retry once
         await new Promise(resolve => setTimeout(resolve, 500));
         const retryLock = await this.redis.set(lockKey, '1', 'EX', 5, 'NX');
         if (!retryLock) {
-          // PERF: Disabled - console.error('❌ RedisCandleStorage: Failed to acquire lock after retry, skipping write');
           return;
         }
       }
@@ -154,7 +148,6 @@ class RedisCandleStorage {
       // Create checkpoint for data validation
       await this.createCheckpoint(pair, granularity, candles);
 
-      // PERF: Disabled - console.log('✅ RedisCandleStorage: Stored candles successfully', {
       //   pair,
       //   granularity,
       //   candleCount: candles.length,
@@ -180,13 +173,11 @@ class RedisCandleStorage {
     // Check if write is in progress - if so, wait briefly for it to complete
     const writeInProgress = await this.redis.exists(lockKey);
     if (writeInProgress) {
-      // PERF: Disabled - console.log(`⏳ RedisCandleStorage: Write in progress for ${pair}:${granularity}, waiting...`);
       // Wait up to 2 seconds for write to complete
       for (let i = 0; i < 20; i++) {
         await new Promise(resolve => setTimeout(resolve, 100));
         const stillLocked = await this.redis.exists(lockKey);
         if (!stillLocked) {
-          // PERF: Disabled - console.log(`✅ RedisCandleStorage: Write lock released, proceeding with read`);
           break;
         }
       }
@@ -233,7 +224,6 @@ class RedisCandleStorage {
                 volume: parsed.v || 0
               });
             } catch (e) {
-              // PERF: Disabled - console.error('❌ RedisCandleStorage: Error parsing old format:', e.message);
             }
           }
           continue;
@@ -250,7 +240,6 @@ class RedisCandleStorage {
             volume: parsed.v || 0
           });
         } catch (error) {
-          // PERF: Disabled - console.error('❌ RedisCandleStorage: Error parsing candle data', error.message, dataStr);
         }
       }
     }
@@ -258,7 +247,6 @@ class RedisCandleStorage {
     // Sort by timestamp to ensure proper order
     allCandles.sort((a, b) => a.time - b.time);
 
-    // PERF: Disabled - console.log('📊 RedisCandleStorage: Retrieved candles', {
     //   pair,
     //   granularity,
     //   requestedRange: { startTime, endTime },
@@ -438,7 +426,6 @@ class RedisCandleStorage {
    */
   async populateHistoricalData(pair, granularity, hours = 24) {
     try {
-      // PERF: Disabled - console.log(`📈 Populating historical data for ${pair} ${granularity} (last ${hours} hours)`);
       
       const now = Math.floor(Date.now() / 1000);
       const startTime = now - (hours * 3600); // Convert hours to seconds
@@ -452,10 +439,8 @@ class RedisCandleStorage {
       const expectedCandles = Math.floor((now - startTime) / granularitySeconds);
       const dataCompleteness = existingCandles.length / expectedCandles;
       
-      // PERF: Disabled - console.log(`📊 Data completeness: ${existingCandles.length}/${expectedCandles} = ${(dataCompleteness * 100).toFixed(1)}%`);
       
       if (dataCompleteness < 0.8) { // Less than 80% complete
-        // PERF: Disabled - console.log(`🔄 Fetching historical data from Coinbase API...`);
         
         // Fetch from Coinbase API
         const response = await fetch(`https://api.exchange.coinbase.com/products/${pair}/candles?start=${new Date(startTime * 1000).toISOString()}&end=${new Date(now * 1000).toISOString()}&granularity=${granularitySeconds}`);
@@ -465,7 +450,6 @@ class RedisCandleStorage {
         }
         
         const apiData = await response.json();
-        // PERF: Disabled - console.log(`📥 Fetched ${apiData.length} candles from Coinbase API`);
         
         // Convert Coinbase format to our format
         const candles = apiData.map(([time, low, high, open, close, volume]) => ({
@@ -480,17 +464,14 @@ class RedisCandleStorage {
         // Store in Redis
         if (candles.length > 0) {
           await this.storeCandles(pair, granularity, candles);
-          // PERF: Disabled - console.log(`✅ Stored ${candles.length} historical candles in Redis`);
         }
         
         return candles.length;
       } else {
-        // PERF: Disabled - console.log(`✅ Historical data already complete (${(dataCompleteness * 100).toFixed(1)}%)`);
         return 0;
       }
       
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ Failed to populate historical data: ${error.message}`);
       return 0;
     }
   }
@@ -509,7 +490,6 @@ class RedisCandleStorage {
       // Acquire lock for cleanup operation
       const lockAcquired = await this.redis.set(lockKey, '1', 'EX', 30, 'NX');
       if (!lockAcquired) {
-        // PERF: Disabled - console.warn('⚠️ RedisCandleStorage: Could not acquire lock for cleanup', { pair, granularity });
         return 0;
       }
 
@@ -521,7 +501,6 @@ class RedisCandleStorage {
       // Go back 10 years from cutoff to ensure we catch all old data
       const oldestDay = cutoffDay - (10 * 365 * 86400);
 
-      // PERF: Disabled - console.log(`🗑️ [RedisCandleStorage] Deleting ${pair} ${granularity} data from ${new Date(oldestDay * 1000).toISOString()} to ${new Date(cutoffDay * 1000).toISOString()}`);
 
       for (let dayTimestamp = oldestDay; dayTimestamp < cutoffDay; dayTimestamp += 86400) {
         const key = generateCandleKey(pair, granularity, dayTimestamp);
@@ -549,7 +528,6 @@ class RedisCandleStorage {
         const dataKey = `${cutoffDayKey}:data`;
         await this.redis.hdel(dataKey, ...oldTimestamps);
 
-        // PERF: Disabled - console.log(`🗑️ [RedisCandleStorage] Deleted ${oldTimestamps.length} old candles from ${new Date(cutoffDay * 1000).toISOString()}`);
       }
 
       // Update metadata after cleanup
@@ -561,7 +539,6 @@ class RedisCandleStorage {
         }
       }
 
-      // PERF: Disabled - console.log(`✅ [RedisCandleStorage] Cleanup complete: deleted ${totalDeleted} day buckets + ${oldTimestamps.length} individual candles`);
 
       return totalDeleted;
 
@@ -584,7 +561,6 @@ class RedisCandleStorage {
         lastUpdated: Date.now().toString()
       });
 
-      // PERF: Disabled - console.log(`📝 [RedisCandleStorage] Updated metadata: new first timestamp = ${new Date(newFirstTimestamp * 1000).toISOString()}`);
     }
   }
 

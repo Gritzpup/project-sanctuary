@@ -38,9 +38,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
     try {
       await redisCandleStorage.connect();
-      // PERF: Disabled - console.log('✅ Redis storage initialized for WebSocket candle data');
     } catch (error) {
-      // PERF: Disabled - console.error('❌ Failed to initialize Redis storage:', error.message);
       this.redisStorageEnabled = false;
     }
   }
@@ -53,9 +51,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
     try {
       await redisOrderbookCache.connect();
-      // PERF: Disabled - console.log('✅ Redis orderbook cache initialized for Level2 data');
     } catch (error) {
-      // PERF: Disabled - console.error('❌ Failed to initialize Redis orderbook cache:', error.message);
       this.orderbookCacheEnabled = false;
     }
   }
@@ -68,7 +64,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     
     if (missedCandles < 1) return; // No significant gap
     
-    // PERF: Disabled - console.log(`🔄 Attempting to backfill ${missedCandles} missing candles for ${productId}`);
     
     try {
       // Convert granularity to string format for API
@@ -90,7 +85,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       const startTime = new Date((lastCandleTime + granularity) * 1000).toISOString();
       const endTime = new Date(newCandleTime * 1000).toISOString();
       
-      // PERF: Disabled - console.log(`📥 Fetching gap data from ${startTime} to ${endTime}`);
       
       const missingCandles = await coinbaseAPI.getCandles(
         productId,
@@ -103,7 +97,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         // Store the fetched candles in Redis
         await redisCandleStorage.storeCandles(productId, granularityStr, missingCandles);
         
-        // PERF: Disabled - console.log(`✅ Backfilled ${missingCandles.length} missing candles for ${productId}`);
         
         // Emit event for frontend to refresh data
         this.emit('gap_filled', {
@@ -113,11 +106,9 @@ export class CoinbaseWebSocketClient extends EventEmitter {
           timeRange: { start: startTime, end: endTime }
         });
       } else {
-        // PERF: Disabled - console.log(`⚠️ No data available from API for gap in ${productId}`);
       }
       
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ Failed to backfill gap for ${productId}:`, error.message);
     }
   }
 
@@ -144,13 +135,11 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       const granularityStr = granularityMap[granularitySeconds] || `${granularitySeconds}s`;
       
       await redisCandleStorage.storeCandles(productId, granularityStr, [candle]);
-      // PERF: Disabled - console.log(`💾 Stored ${productId} ${granularityStr} candle in Redis:`, {
       //   time: new Date(candle.time * 1000).toISOString(),
       //   price: candle.close,
       //   volume: candle.volume
       // });
     } catch (error) {
-      // PERF: Disabled - console.error('❌ Failed to store candle in Redis:', error.message);
     }
   }
 
@@ -159,17 +148,14 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   async connect() {
     if (this.isConnecting || this.isConnected) {
-      // PERF: Disabled - console.log(`⚠️ Already ${this.isConnecting ? 'connecting' : 'connected'} to Coinbase WebSocket`);
       return;
     }
 
     this.isConnecting = true;
-    // PERF: Disabled - console.log('🔌 Connecting to Coinbase Advanced Trade WebSocket...');
 
     return new Promise((resolve, reject) => {
       // Add timeout for connection
       const connectionTimeout = setTimeout(() => {
-        // PERF: Disabled - console.error('🔴 Coinbase WebSocket connection timeout (10s)');
         if (this.ws) {
           this.ws.terminate();
         }
@@ -184,19 +170,15 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
         this.ws.on('open', () => {
           clearTimeout(connectionTimeout);
-          // PERF: Disabled - console.log('✅✅✅ Connected to Coinbase Advanced Trade WebSocket ✅✅✅');
-          // PERF: Disabled - console.log(`📊 Connection State: isConnected=true, subscriptions=${this.subscriptions.size}, aggregators=${this.candleAggregators.size}`);
           this.isConnected = true;
           this.isConnecting = false;
           this.reconnectAttempts = 0;
           this.emit('connected');
 
           // Resubscribe to any existing subscriptions
-          // PERF: Disabled - console.log(`📡 WebSocket connection established - resubscribing to ${this.subscriptions.size} channels`);
           if (this.subscriptions.size > 0) {
             this.resubscribe();
           } else {
-            // PERF: Disabled - console.log('⚠️ No subscriptions to resubscribe - waiting for subscription requests');
           }
 
           // Resolve the promise
@@ -208,13 +190,10 @@ export class CoinbaseWebSocketClient extends EventEmitter {
             const message = JSON.parse(data.toString());
             this.handleMessage(message);
           } catch (error) {
-            // PERF: Disabled - console.error('Error parsing Coinbase WebSocket message:', error);
           }
         });
 
       this.ws.on('close', (code, reason) => {
-        // PERF: Disabled - console.log('🔴 Coinbase WebSocket connection closed:', { code, reason: reason.toString() });
-        // PERF: Disabled - console.log(`📊 Close State: isConnected=false, subscriptions=${this.subscriptions.size}, will reconnect`);
         this.isConnected = false;
         this.isConnecting = false;
         this.emit('disconnected');
@@ -223,8 +202,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
         this.ws.on('error', (error) => {
           clearTimeout(connectionTimeout);
-          // PERF: Disabled - console.error('🔴 Coinbase WebSocket error:', error.message || error);
-          // PERF: Disabled - console.log(`📊 Error State: isConnected=${this.isConnected}, isConnecting=${this.isConnecting}`);
           this.isConnected = false;
           this.isConnecting = false;
           this.emit('error', error);
@@ -232,7 +209,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         });
 
       } catch (error) {
-        // PERF: Disabled - console.error('Error creating Coinbase WebSocket:', error);
         this.isConnecting = false;
         this.emit('error', error);
         reject(error);
@@ -247,7 +223,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     const subscriptionKey = `ticker:${productId}`;
 
     if (this.subscriptions.has(subscriptionKey)) {
-      // PERF: Disabled - console.log(`Already subscribed to ticker for ${productId}`);
       return;
     }
 
@@ -261,7 +236,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     this.subscriptions.set(subscriptionKey, subscription);
 
     if (this.isConnected) {
-      // PERF: Disabled - console.log(`📡 Subscribing to ticker for ${productId}`, JSON.stringify(subscription));
       this.ws.send(JSON.stringify(subscription));
     }
   }
@@ -273,10 +247,8 @@ export class CoinbaseWebSocketClient extends EventEmitter {
   subscribeLevel2(productId) {
     const subscriptionKey = `level2:${productId}`;
 
-    // PERF: Disabled - console.log(`🔵 subscribeLevel2 called: productId=${productId}, isConnected=${this.isConnected}, existing=${this.subscriptions.has(subscriptionKey)}`);
 
     if (this.subscriptions.has(subscriptionKey)) {
-      // PERF: Disabled - console.log(`Already subscribed to level2 for ${productId}`);
       return;
     }
 
@@ -285,24 +257,18 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     const subscription = cdpAuth.getWebSocketAuth();
 
     if (!subscription) {
-      // PERF: Disabled - console.error('❌ Failed to generate JWT auth for Level2 subscription');
-      // PERF: Disabled - console.error('⚠️ Falling back to polling - WebSocket push requires CDP API keys');
       return;
     }
 
     // Update product_ids to use the requested productId (not hardcoded BTC-USD)
     subscription.product_ids = [productId];
 
-    // PERF: Disabled - console.log(`🚀 Subscribing to AUTHENTICATED Level2 channel for ${productId} with CDP JWT`);
-    // PERF: Disabled - console.log(`📡 This will provide REAL-TIME PUSH updates (no polling!)`);
 
     this.subscriptions.set(subscriptionKey, subscription);
 
     if (this.isConnected) {
-      // PERF: Disabled - console.log(`📊 Sending authenticated Level2 subscription for ${productId}`);
       this.ws.send(JSON.stringify(subscription));
     } else {
-      // PERF: Disabled - console.log(`⏳ WebSocket not connected yet, subscription will be sent on connection`);
     }
   }
 
@@ -313,10 +279,8 @@ export class CoinbaseWebSocketClient extends EventEmitter {
   subscribeMatches(productId, granularity = '60') {
     const subscriptionKey = `matches:${productId}`;
 
-    // PERF: Disabled - console.log(`🔵 subscribeMatches called: productId=${productId}, isConnected=${this.isConnected}, existing=${this.subscriptions.has(subscriptionKey)}`);
 
     if (this.subscriptions.has(subscriptionKey)) {
-      // PERF: Disabled - console.log(`Already subscribed to market_trades for ${productId}`);
       return;
     }
 
@@ -340,14 +304,11 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       });
 
       this.candleAggregators.set(aggregatorKey, aggregator);
-      // PERF: Disabled - console.log(`📊 Initialized multi-granularity aggregator for ${productId}`);
     }
 
     if (this.isConnected) {
-      // PERF: Disabled - console.log(`📡 Subscribing to market_trades for ${productId}`, JSON.stringify(subscription));
       this.ws.send(JSON.stringify(subscription));
     } else {
-      // PERF: Disabled - console.log(`⚠️ [CoinbaseWS] Cannot subscribe to market_trades - NOT CONNECTED! isConnected=${this.isConnected}, will subscribe on connection`);
       // Subscription is already added to this.subscriptions map, will be sent on connection via resubscribe()
     }
   }
@@ -372,7 +333,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     this.subscriptions.delete(subscriptionKey);
 
     if (this.isConnected) {
-      // PERF: Disabled - console.log(`📡 Unsubscribing from ${channel} for ${productId}`);
       this.ws.send(JSON.stringify(unsubscription));
     }
 
@@ -406,16 +366,13 @@ export class CoinbaseWebSocketClient extends EventEmitter {
           break;
 
         case 'level2':
-          // PERF: Disabled - console.log(`📊 [L2] Received level2 update for ${message.product_id}`);
           await this.handleLevel2(message);
           break;
 
         case 'subscriptions':
-          // PERF: Disabled - console.log('📡 Coinbase subscription confirmed:', JSON.stringify(message, null, 2));
           break;
 
         default:
-          // PERF: Disabled - console.log(`❓ Unknown channel: ${message.channel}`, message);
           break;
       }
     }
@@ -423,7 +380,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     else if (message.type) {
       switch (message.type) {
         case 'subscriptions':
-          // PERF: Disabled - console.log('📡 Coinbase subscription confirmed:', JSON.stringify(message, null, 2));
           break;
 
         case 'ticker':
@@ -437,20 +393,16 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         case 'snapshot':
         case 'l2update':
         case 'level2':
-          // PERF: Disabled - console.log(`📊 [L2] Received ${message.type} for ${message.product_id}`);
           await this.handleLevel2(message);
           break;
 
         case 'error':
-          // PERF: Disabled - console.error('🔴 Coinbase WebSocket error:', JSON.stringify(message, null, 2));
           break;
 
         default:
-          // PERF: Disabled - console.log(`❓ Unknown message type: ${message.type}`, message);
           break;
       }
     } else {
-      // PERF: Disabled - console.log(`❓ Unknown message format:`, message);
     }
   }
 
@@ -531,14 +483,12 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
         // Only emit if data has actually changed
         if (!redisOrderbookCache.hasOrderbookChanged(productId)) {
-          // PERF: Disabled - console.log(`⏭️ [L2] Skipping duplicate snapshot for ${productId}`);
           return;
         }
       }
 
       // Check throttling - only forward max 10 updates/sec per product
       if (redisOrderbookCache.shouldThrottle(productId, 10)) {
-        // PERF: Disabled - console.log(`⏸️ [L2] Throttling snapshot for ${productId}`);
         return;
       }
 
@@ -548,7 +498,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         redisOrderbookCache.publishOrderbookDelta(productId, changedLevels.bids, changedLevels.asks);
       }
 
-      // PERF: Disabled - console.log(`📊 [L2] Emitting snapshot: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);
       this.emit('level2', orderbook);
 
     } else if (event.type === 'update') {
@@ -628,14 +577,12 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
         // Only emit if data has actually changed
         if (!redisOrderbookCache.hasOrderbookChanged(productId)) {
-          // PERF: Disabled - console.log(`⏭️ [L2] Skipping duplicate snapshot for ${productId}`);
           return;
         }
       }
 
       // Check throttling - only forward max 10 updates/sec per product
       if (redisOrderbookCache.shouldThrottle(productId, 10)) {
-        // PERF: Disabled - console.log(`⏸️ [L2] Throttling snapshot for ${productId}`);
         return;
       }
 
@@ -729,13 +676,11 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
         // Only emit if data has actually changed
         if (!redisOrderbookCache.hasOrderbookChanged(productId)) {
-          // PERF: Disabled - console.log(`⏭️ [L2] Skipping duplicate snapshot for ${productId}`);
           return;
         }
 
         // Check throttling - only forward max 10 updates/sec per product
         if (redisOrderbookCache.shouldThrottle(productId, 10)) {
-          // PERF: Disabled - console.log(`⏸️ [L2] Throttling snapshot for ${productId}`);
           return;
         }
 
@@ -757,7 +702,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   handleMarketTrades(message) {
     if (!message.events || !Array.isArray(message.events)) {
-      // PERF: Disabled - console.warn('⚠️ market_trades message missing events array');
       return;
     }
 
@@ -815,7 +759,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * (Legacy Exchange API format - kept for backwards compatibility)
    */
   handleMatch(match) {
-    // PERF: Disabled - console.log('🔥 [CoinbaseWS] Received match:', match.product_id, match.price, 'aggregators:', this.candleAggregators.size);
     const trade = {
       product_id: match.product_id,
       price: parseFloat(match.price),
@@ -858,12 +801,9 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * Resubscribe to all active subscriptions
    */
   resubscribe() {
-    // PERF: Disabled - console.log(`📡 Resubscribing to ${this.subscriptions.size} subscriptions...`);
     this.subscriptions.forEach((subscription, key) => {
-      // PERF: Disabled - console.log(`📤 Sending subscription for ${key}:`, JSON.stringify(subscription, null, 2));
       this.ws.send(JSON.stringify(subscription));
     });
-    // PERF: Disabled - console.log('✅ All subscriptions sent');
   }
 
   /**
@@ -871,14 +811,12 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      // PERF: Disabled - console.error('🔴 Max reconnection attempts reached');
       return;
     }
 
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
     this.reconnectAttempts++;
 
-    // PERF: Disabled - console.log(`🔄 Scheduling reconnect attempt ${this.reconnectAttempts} in ${delay}ms`);
     
     setTimeout(() => {
       this.connect();
@@ -907,7 +845,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     this.isConnecting = false;
     this.reconnectAttempts = 0;
     
-    // PERF: Disabled - console.log('🧹 Coinbase WebSocket fully disconnected and cleaned up');
   }
 
   /**
@@ -953,7 +890,6 @@ class CandleAggregator extends EventEmitter {
         
         if (gapSize > 0) {
           const missedCandles = Math.floor(gapSize / this.granularity);
-          // PERF: Disabled - console.log(`🔍 Gap detected: ${missedCandles} missing candles between ${new Date(completedCandle.time * 1000).toISOString()} and ${new Date(candleTime * 1000).toISOString()}`);
           
           // Emit gap detection event
           this.emit('gap_detected', {

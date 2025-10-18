@@ -5,21 +5,18 @@ export class PositionManager {
 
   addPosition(position) {
     this.positions.push(position);
-    // PERF: Disabled - console.log(`PositionManager: Added position #${this.positions.length} at price $${position.entryPrice.toFixed(2)}`);
   }
 
   removePosition(position) {
     const index = this.positions.findIndex(p => p.id === position.id);
     if (index !== -1) {
       this.positions.splice(index, 1);
-      // PERF: Disabled - console.log(`PositionManager: Removed position at price $${position.entryPrice.toFixed(2)}`);
     }
   }
 
   clearAllPositions() {
     const count = this.positions.length;
     this.positions = [];
-    // PERF: Disabled - console.log(`PositionManager: Cleared all ${count} positions`);
   }
 
   getPositions() {

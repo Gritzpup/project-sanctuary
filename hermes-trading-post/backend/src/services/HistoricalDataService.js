@@ -23,7 +23,6 @@ export class HistoricalDataService {
    */
   async fetchHistoricalData(pair, granularity, daysBack = 30) {
     if (this.isRunning) {
-      // PERF: Disabled - console.log('⚠️ Historical data fetch already in progress');
       return;
     }
 
@@ -35,7 +34,6 @@ export class HistoricalDataService {
       startTime: Date.now()
     };
 
-    // PERF: Disabled - console.log(`🚀 Starting historical data fetch: ${pair} ${granularity} for ${daysBack} days`);
 
     try {
       const granularitySeconds = coinbaseAPI.granularityToSeconds(granularity);
@@ -61,14 +59,12 @@ export class HistoricalDataService {
         currentStart = currentEnd;
       }
 
-      // PERF: Disabled - console.log(`📊 Created ${batches.length} batches to fetch ~${batches.length * 300} candles`);
 
       // Process batches with rate limiting
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
         
         try {
-          // PERF: Disabled - console.log(`🔄 Fetching batch ${i + 1}/${batches.length}: ${batch.start} to ${batch.end}`);
           
           const candles = await coinbaseAPI.getCandles(
             pair,
@@ -81,7 +77,6 @@ export class HistoricalDataService {
             // Store candles in Redis
             await redisCandleStorage.storeCandles(pair, granularity, candles);
             this.stats.totalCandles += candles.length;
-            // PERF: Disabled - console.log(`✅ Stored ${candles.length} candles (Total: ${this.stats.totalCandles})`);
           }
 
           this.stats.totalRequests++;
@@ -92,12 +87,10 @@ export class HistoricalDataService {
           }
 
         } catch (error) {
-          // PERF: Disabled - console.error(`❌ Error fetching batch ${i + 1}:`, error.message);
           this.stats.errors++;
           
           // If rate limited, wait longer
           if (error.message.includes('Rate limited')) {
-            // PERF: Disabled - console.log('⏳ Waiting 5s due to rate limit...');
             await new Promise(resolve => setTimeout(resolve, 5000));
           } else {
             // Wait 1s on other errors before continuing
@@ -107,11 +100,8 @@ export class HistoricalDataService {
       }
 
       const duration = (Date.now() - this.stats.startTime) / 1000;
-      // PERF: Disabled - console.log(`🎉 Historical data fetch completed in ${duration.toFixed(2)}s`);
-      // PERF: Disabled - console.log(`📊 Stats: ${this.stats.totalCandles} candles, ${this.stats.totalRequests} requests, ${this.stats.errors} errors`);
 
     } catch (error) {
-      // PERF: Disabled - console.error('❌ Historical data fetch failed:', error);
     } finally {
       this.isRunning = false;
     }
@@ -121,7 +111,6 @@ export class HistoricalDataService {
    * Quick fetch to fill recent gaps
    */
   async fillRecentGaps(pair, granularity, hoursBack = 24) {
-    // PERF: Disabled - console.log(`🔄 Filling recent gaps: ${pair} ${granularity} for ${hoursBack} hours`);
     
     const granularitySeconds = coinbaseAPI.granularityToSeconds(granularity);
     const now = Math.floor(Date.now() / 1000);
@@ -131,7 +120,6 @@ export class HistoricalDataService {
     const maxHours = Math.floor((maxCandles * granularitySeconds) / 3600);
     const requestHours = Math.min(hoursBack, maxHours);
     
-    // PERF: Disabled - console.log(`📊 API limit check: max ${maxCandles} candles = ${maxHours}h, requesting ${requestHours}h`);
     
     const startTime = now - (requestHours * 60 * 60);
 
@@ -143,12 +131,10 @@ export class HistoricalDataService {
       
       if (candles.length > 0) {
         await redisCandleStorage.storeCandles(pair, granularity, candles);
-        // PERF: Disabled - console.log(`✅ Filled gap with ${candles.length} recent candles`);
       }
 
       return candles.length;
     } catch (error) {
-      // PERF: Disabled - console.error('❌ Error filling recent gaps:', error);
       return 0;
     }
   }
@@ -168,12 +154,10 @@ export class HistoricalDataService {
    * Initialize with default data fetch
    */
   async initialize(pair = 'BTC-USD', granularity = '1m') {
-    // PERF: Disabled - console.log('🚀 Initializing HistoricalDataService...');
     
     // Test API connection first
     const connected = await coinbaseAPI.testConnection();
     if (!connected) {
-      // PERF: Disabled - console.error('❌ Cannot connect to Coinbase API');
       return false;
     }
 
@@ -182,19 +166,15 @@ export class HistoricalDataService {
       const metadata = await redisCandleStorage.getMetadata(pair, granularity);
       const candleCount = metadata?.totalCandles || 0;
 
-      // PERF: Disabled - console.log(`📊 Current ${pair} ${granularity} candles in Redis: ${candleCount}`);
 
       if (candleCount < 1000) {
-        // PERF: Disabled - console.log('📥 Fetching initial historical data (7 days)...');
         await this.fetchHistoricalData(pair, granularity, 7);
       } else {
-        // PERF: Disabled - console.log('🔄 Filling recent gaps...');
         await this.fillRecentGaps(pair, granularity, 6);
       }
 
       return true;
     } catch (error) {
-      // PERF: Disabled - console.error('❌ Error during initialization:', error);
       return false;
     }
   }

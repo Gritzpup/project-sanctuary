@@ -9,10 +9,10 @@
   import StrategyPanel from '../../components/backtesting/controls/StrategyPanel.svelte';
   import StrategyTabs from '../../components/backtesting/controls/StrategyTabs.svelte';
   
-  // Tab Components
-  import ConfigTab from '../../components/backtesting/tabs/ConfigTab.svelte';
-  import CodeTab from '../../components/backtesting/tabs/CodeTab.svelte';
-  import BackupsTab from '../../components/backtesting/tabs/BackupsTab.svelte';
+  // Tab Components (moved to controls/)
+  import ConfigTab from '../../components/backtesting/controls/ConfigurationTab.svelte';
+  import CodeTab from '../../components/backtesting/controls/CodeEditorTab.svelte';
+  import BackupsTab from '../../components/backtesting/controls/BackupsTab.svelte';
   
   // Existing Components
   import BacktestingChart from '../Backtesting/BacktestingChart.svelte';

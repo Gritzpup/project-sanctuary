@@ -31,11 +31,9 @@ export class ContinuousCandleUpdater extends EventEmitter {
 
     // Don't start if already running
     if (this.intervals.has(key)) {
-      // PERF: Disabled - console.log(`⚠️ Already updating ${key}`);
       return;
     }
 
-    // PERF: Disabled - console.log(`🚀 Starting continuous candle updates for ${key} every ${frequencyMs}ms`);
 
     // Do an initial fetch immediately
     this.fetchLatestCandles(pair, granularity);
@@ -70,7 +68,6 @@ export class ContinuousCandleUpdater extends EventEmitter {
       this.intervals.delete(key);
       this.stats.activePairs.delete(key);
 
-      // PERF: Disabled - console.log(`⏹️ Stopped updates for ${key}`);
 
       this.emit('status_update', {
         type: 'stopped',
@@ -128,7 +125,6 @@ export class ContinuousCandleUpdater extends EventEmitter {
       const start = new Date(startTime * 1000).toISOString();
       const end = new Date(now * 1000).toISOString();
 
-      // PERF: Disabled - console.log(`🔄 [CandleUpdater] Fetching ${pair} ${granularity} candles...`);
 
       // Emit database activity event
       this.emit('database_activity', {
@@ -148,8 +144,6 @@ export class ContinuousCandleUpdater extends EventEmitter {
         this.stats.totalCandles += candles.length;
         this.stats.lastUpdate = Date.now();
 
-        // PERF: Disabled - console.log(`✅ [CandleUpdater] Stored ${candles.length} ${pair} ${granularity} candles`);
-        // PERF: Disabled - console.log(`📊 [CandleUpdater] Latest price: $${candles[candles.length - 1].close} at ${new Date(candles[candles.length - 1].time * 1000).toLocaleTimeString()}`);
 
         // Clean up old data based on retention policy
         await this.cleanupOldData(pair, granularity);
@@ -172,11 +166,9 @@ export class ContinuousCandleUpdater extends EventEmitter {
           latestCandle: candles[candles.length - 1]
         });
       } else {
-        // PERF: Disabled - console.log(`⚠️ [CandleUpdater] No candles returned for ${pair} ${granularity}`);
       }
 
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ [CandleUpdater] Error fetching ${pair} ${granularity}:`, error.message);
       this.stats.errors++;
 
       // Emit error event
@@ -199,7 +191,6 @@ export class ContinuousCandleUpdater extends EventEmitter {
       const retentionPeriod = this.getRetentionPeriod(granularity);
       const cutoffTime = now - retentionPeriod;
 
-      // PERF: Disabled - console.log(`🧹 [CandleUpdater] Cleaning ${pair} ${granularity} data older than ${new Date(cutoffTime * 1000).toISOString()}`);
 
       // Get metadata to see how much data we have
       const metadata = await redisCandleStorage.getMetadata(pair, granularity);
@@ -213,11 +204,9 @@ export class ContinuousCandleUpdater extends EventEmitter {
         const deletedCount = await redisCandleStorage.deleteOldCandles(pair, granularity, cutoffTime);
 
         if (deletedCount > 0) {
-          // PERF: Disabled - console.log(`🗑️ [CandleUpdater] Deleted ${deletedCount} old ${granularity} candles for ${pair}`);
         }
       }
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ [CandleUpdater] Error cleaning old data for ${pair} ${granularity}:`, error.message);
     }
   }
 
@@ -235,7 +224,6 @@ export class ContinuousCandleUpdater extends EventEmitter {
       '1d': 600000  // Every 10 minutes for 1d
     };
 
-    // PERF: Disabled - console.log(`🚀 [CandleUpdater] Starting continuous updates for ALL ${pair} granularities`);
 
     for (const granularity of granularities) {
       this.startUpdates(pair, granularity, updateIntervals[granularity]);
@@ -246,11 +234,9 @@ export class ContinuousCandleUpdater extends EventEmitter {
    * Stop all updates
    */
   stopAll() {
-    // PERF: Disabled - console.log(`⏹️ [CandleUpdater] Stopping all candle updates`);
 
     this.intervals.forEach((intervalId, key) => {
       clearInterval(intervalId);
-      // PERF: Disabled - console.log(`⏹️ Stopped ${key}`);
     });
 
     this.intervals.clear();

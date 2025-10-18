@@ -219,7 +219,6 @@ export class BotManager {
           try {
             this.createBot(strategy, `Bot ${i}`, {});
           } catch (createError) {
-            // PERF: Disabled - console.error(`Failed to create bot for ${strategy}:`, createError);
           }
         }
       }
@@ -235,14 +234,11 @@ export class BotManager {
     for (const { botId, strategyConfig } of botsToRestart) {
       const bot = this.bots.get(botId);
       if (bot) {
-        // PERF: Disabled - console.log(`Restarting bot ${botId}...`);
         try {
           // Make sure bot is not marked as running yet
           bot.isRunning = false;
           bot.startTrading(strategyConfig);
-          // PERF: Disabled - console.log(`Bot ${botId} restarted successfully`);
         } catch (error) {
-          // PERF: Disabled - console.error(`Failed to restart bot ${botId}:`, error);
         }
       }
     }
@@ -309,18 +305,15 @@ export class BotManager {
 
   // Forward trading commands to active bot
   startTrading(config) {
-    // PERF: Disabled - console.log('BotManager.startTrading called:', {
     //   activeBotId: this.activeBotId,
     //   config
     // });
     
     const bot = this.getActiveBot();
     if (!bot) {
-      // PERF: Disabled - console.error('No active bot selected!');
       throw new Error('No active bot selected');
     }
     
-    // PERF: Disabled - console.log('Starting trading on bot:', this.activeBotId);
     return bot.startTrading(config);
   }
 

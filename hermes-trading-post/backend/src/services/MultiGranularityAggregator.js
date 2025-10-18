@@ -31,7 +31,6 @@ export class MultiGranularityAggregator extends EventEmitter {
       this.lastEmittedTimes[gran] = null;
     });
 
-    // PERF: Disabled - console.log(`📊 Multi-Granularity Aggregator initialized for ${productId}`);
   }
 
   /**
@@ -74,7 +73,6 @@ export class MultiGranularityAggregator extends EventEmitter {
 
         if (gapSize > 0) {
           const missedCandles = Math.floor(gapSize / granSeconds);
-          // PERF: Disabled - console.log(`🔍 [${granKey}] Gap detected: ${missedCandles} missing candles`);
 
           this.emit('gap_detected', {
             productId: this.productId,
