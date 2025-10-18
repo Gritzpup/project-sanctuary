@@ -32,6 +32,9 @@
   let chartCanvas: ChartCanvas;
   let pluginManager: PluginManager | null = null;
   let isInitialized = false;
+  let isInitialDataLoaded = false;
+  let previousGranularity = granularity;
+  let previousPeriod = period;
 
   // Initialize data loader hook
   const dataLoader = useDataLoader({
@@ -88,8 +91,80 @@
   }
 
   // Reload data when granularity or period changes (after initial mount)
-  $: if (isInitialized && (granularity || period)) {
+  // Only reload if the values actually changed, not on first initialization
+  $: if (isInitialized && isInitialDataLoaded && (granularity !== previousGranularity || period !== previousPeriod)) {
+    previousGranularity = granularity;
+    previousPeriod = period;
     reloadDataForNewTimeframe();
+  }
+
+  // Animate chart to show newest data after loading
+  function animateChartToLatestData() {
+    try {
+      const chart = chartCanvas?.getChart();
+      const candles = dataStore.candles;
+
+      if (!chart || candles.length === 0) return;
+
+      // Get the newest candle time
+      let newestTime = candles[candles.length - 1].time;
+
+      // Handle time being an object or invalid
+      if (typeof newestTime !== 'number') {
+        newestTime = Number(newestTime);
+        if (isNaN(newestTime)) return;
+      }
+
+      if (!newestTime || newestTime <= 0) return;
+
+      try {
+        // Animate to show latest candles with proper padding
+        const maxCandles = 60;
+        const startIndex = Math.max(0, candles.length - maxCandles);
+        const visibleCandles = candles.slice(startIndex);
+
+        if (visibleCandles.length > 1) {
+          // Ensure time values are numbers, not objects
+          let firstVisibleTime = visibleCandles[0].time;
+          if (typeof firstVisibleTime !== 'number') {
+            firstVisibleTime = Number(firstVisibleTime);
+            if (isNaN(firstVisibleTime)) return;
+          }
+
+          let latestTime = newestTime;
+          if (typeof latestTime !== 'number') {
+            latestTime = Number(latestTime);
+            if (isNaN(latestTime)) return;
+          }
+
+          const timeSpan = latestTime - firstVisibleTime;
+
+          if (timeSpan > 0) {
+            // Use minimal padding: just enough for price tag visibility (1-2%)
+            const leftBuffer = timeSpan * 0.01;
+            const rightBuffer = timeSpan * 0.02;
+
+            // Validate range before setting
+            const fromTime = Math.floor(firstVisibleTime - leftBuffer);
+            const toTime = Math.ceil(latestTime + rightBuffer);
+
+            // Only set range if values are valid numbers and within reasonable range
+            if (fromTime > 0 && toTime > fromTime && toTime - fromTime > 0 &&
+                Number.isFinite(fromTime) && Number.isFinite(toTime)) {
+              chart.timeScale().setVisibleRange({
+                from: fromTime as any,
+                to: toTime as any
+              });
+            }
+          }
+        }
+      } catch (error) {
+        // Silently handle setVisibleRange errors - they're expected
+        // when chart hasn't fully initialized or data is transitioning
+      }
+    } catch (error) {
+      // Silently handle animation setup errors
+    }
   }
 
   async function reloadDataForNewTimeframe() {
@@ -118,6 +193,9 @@
       // Apply proper positioning for new timeframe, then re-enable real-time updates
       setTimeout(() => {
         positionChartForPeriod(chartCanvas, period, 0);
+
+        // Animate chart to show newest data after positioning
+        animateChartToLatestData();
 
         // Re-enable real-time updates AFTER positioning completes
         // This prevents auto-scroll from interfering with initial positioning
@@ -235,8 +313,12 @@
         timeframe: period,
         chart: chartCanvas?.getChart(),
         series: chartCanvas?.getSeries()
+      }).then(() => {
+        // Mark initial data as loaded so we can detect actual prop changes
+        isInitialDataLoaded = true;
       }).catch(error => {
         console.warn('Background data load failed (non-critical):', error);
+        isInitialDataLoaded = true;
       });
 
       // Track usage and trigger pre-fetching for likely next selections
@@ -249,18 +331,20 @@
       }, 1000);
 
       // CRITICAL: Refresh ALL plugins after initial data load (including volume for first load)
-      // Do this async so it doesn't block chart display
+      // Wait longer to ensure data is loaded before rendering plugins
       setTimeout(() => {
         refreshAllPlugins(pluginManager, 500);
-      }, 500);
+      }, 1200);
 
       // Enable real-time updates after initial data load
       // Note: Volume plugin may not be registered yet, so start without it
       // It will be re-subscribed with volume series after plugin initialization
-      realtimeSubscription.subscribeToRealtime({
-        pair,
-        granularity
-      }, chartCanvas?.getSeries(), null);
+      setTimeout(() => {
+        realtimeSubscription.subscribeToRealtime({
+          pair,
+          granularity
+        }, chartCanvas?.getSeries(), null);
+      }, 2000);
 
     } catch (error) {
       console.error('Chart initialization failed:', error);
