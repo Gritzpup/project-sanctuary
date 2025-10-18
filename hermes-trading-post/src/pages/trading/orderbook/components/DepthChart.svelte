@@ -180,52 +180,37 @@
 
     const midPrice = (summary.bestBid + summary.bestAsk) / 2;
 
-    // Get depth data for analysis
+    // Get depth data for analysis to find spread volume
     const depthData = orderbookStore.getDepthData(100);
 
-    // Find the highest volume point within reasonable range of current price
-    let maxBidVolume = 0;
-    let maxBidPrice = summary.bestBid;
-    let maxBidIndex = -1;
+    // Find the highest volume point on each side at the spread
+    let bestBidVolume = 0;
+    let bestAskVolume = 0;
 
-    // Check bids (sorted by price descending, so closest to spread is first)
-    depthData.bids.forEach((bid, index) => {
-      // Only consider bids within 2% of current price
-      if (bid.price > midPrice * 0.98 && bid.depth > maxBidVolume) {
-        maxBidVolume = bid.depth;
-        maxBidPrice = bid.price;
-        maxBidIndex = index;
-      }
-    });
+    // Get best bid volume (first bid is closest to spread)
+    if (depthData.bids.length > 0) {
+      bestBidVolume = depthData.bids[0].depth;
+    }
 
-    let maxAskVolume = 0;
-    let maxAskPrice = summary.bestAsk;
-    let maxAskIndex = -1;
+    // Get best ask volume (first ask is closest to spread)
+    if (depthData.asks.length > 0) {
+      bestAskVolume = depthData.asks[0].depth;
+    }
 
-    // Check asks (sorted by price ascending, so closest to spread is first)
-    depthData.asks.forEach((ask, index) => {
-      // Only consider asks within 2% of current price
-      if (ask.price < midPrice * 1.02 && ask.depth > maxAskVolume) {
-        maxAskVolume = ask.depth;
-        maxAskPrice = ask.price;
-        maxAskIndex = index;
-      }
-    });
+    // Determine which side has stronger volume at the spread
+    const strongerSide = bestBidVolume > bestAskVolume ? 'bid' : 'ask';
+    const strongerVolume = Math.max(bestBidVolume, bestAskVolume);
 
-    // Determine which side has stronger support/resistance
-    const strongerSide = maxBidVolume > maxAskVolume ? 'bid' : 'ask';
-    const strongerPrice = strongerSide === 'bid' ? maxBidPrice : maxAskPrice;
-    const strongerVolume = strongerSide === 'bid' ? maxBidVolume : maxAskVolume;
-
+    // Position indicator at the BOTTOM OF THE V (the midprice/spread)
     // Calculate position on chart (assuming 50k range centered on midPrice)
     const rangeStart = midPrice - 25000;
     const rangeEnd = midPrice + 25000;
-    const positionInRange = (strongerPrice - rangeStart) / (rangeEnd - rangeStart);
+    const positionInRange = (midPrice - rangeStart) / (rangeEnd - rangeStart);
     const offset = Math.max(10, Math.min(90, positionInRange * 100));
 
     return {
       offset,
-      price: strongerPrice,
+      price: midPrice,
       side: strongerSide === 'bid' ? 'bullish' : 'bearish',
       volume: strongerVolume,
       type: strongerSide === 'bid' ? 'Support' : 'Resistance'
