@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
+import Redis from 'ioredis';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { TradingService } from './services/tradingService.js';
@@ -9,6 +10,7 @@ import { coinbaseWebSocket } from './services/coinbaseWebSocket.js';
 import { historicalDataService } from './services/HistoricalDataService.js';
 import { continuousCandleUpdater } from './services/ContinuousCandleUpdater.js';
 import { redisOrderbookCache } from './services/redis/RedisOrderbookCache.js';
+import { redisCandleStorage } from './services/redis/RedisCandleStorage.js';
 import tradingRoutes from './routes/trading.js';
 
 dotenv.config();
@@ -224,7 +226,7 @@ let cachedLevel2Snapshot = null;
   // 🚀 PERF: Subscribe to Redis Pub/Sub for orderbook deltas
   // These are ONLY the changed price levels, not full snapshots
   // Frontend receives minimal data - only what changed
-  const deltaSubscriber = new (await import('ioredis')).default({
+  const deltaSubscriber = new Redis({
     host: process.env.REDIS_HOST || 'localhost',
     port: process.env.REDIS_PORT || 6379,
     password: process.env.REDIS_PASSWORD
@@ -832,6 +834,53 @@ app.get('/api/orderbook/:productId/top', async (req, res) => {
       success: false,
       error: error.message,
       data: { bids: [], asks: [] }
+    });
+  }
+});
+
+// 🚀 Get recent candles from Redis for frontend hydration
+// Frontend loads chart instantly with cached candles while WebSocket streams live updates
+app.get('/api/candles/:pair/:granularity', async (req, res) => {
+  const { pair, granularity } = req.params;
+  const hours = parseInt(req.query.hours) || 24; // Default last 24 hours
+
+  try {
+    // Calculate time range for fetching candles
+    const now = Date.now();
+    const endTime = Math.floor(now / 1000); // Convert to seconds
+    const startTime = endTime - (hours * 60 * 60); // Subtract hours in seconds
+
+    // Get candles from Redis cache
+    const candles = await redisCandleStorage.getCandles(pair, granularity, startTime, endTime);
+
+    if (!candles || candles.length === 0) {
+      return res.json({
+        success: false,
+        message: `No cached candles for ${pair} at ${granularity}`,
+        data: []
+      });
+    }
+
+    console.log(`📊 [API] Returning ${candles.length} cached candles for ${pair}:${granularity}`);
+
+    res.json({
+      success: true,
+      pair,
+      granularity,
+      count: candles.length,
+      timeRange: {
+        startTime,
+        endTime,
+        hours
+      },
+      data: candles
+    });
+  } catch (error) {
+    console.error(`❌ Failed to get candles for ${pair}:${granularity}:`, error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      data: []
     });
   }
 });

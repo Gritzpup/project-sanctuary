@@ -71,7 +71,59 @@ class DataStore {
     return this._candles.length === 0;
   }
 
-  
+  /**
+   * 🚀 PERF: Load cached candles from Redis on mount
+   * Enables instant chart display - refreshes no longer have loading delay
+   * WebSocket will continue streaming live updates
+   */
+  async hydrateFromCache(pair: string = 'BTC-USD', granularity: string = '1m', hours: number = 24) {
+    try {
+      this._dataStats.loadingStatus = 'fetching';
+      console.log(`💾 [DataStore] Hydrating from Redis cache for ${pair}:${granularity} (${hours}h)`);
+
+      const response = await fetch(`/api/candles/${pair}/${granularity}?hours=${hours}`);
+
+      if (!response.ok) {
+        console.log(`⏭️ [DataStore] No cached candles available (HTTP ${response.status})`);
+        this._dataStats.loadingStatus = 'idle';
+        return;
+      }
+
+      const result = await response.json();
+
+      if (!result.success || !result.data || result.data.length === 0) {
+        console.log(`⏭️ [DataStore] Cached candles are empty`);
+        this._dataStats.loadingStatus = 'idle';
+        return;
+      }
+
+      // Process cached candles
+      this._candles = result.data;
+      this._visibleCandles = result.data;
+      this._currentPair = pair;
+      this._currentGranularity = granularity;
+
+      // Update stats
+      this._dataStats.totalCount = result.data.length;
+      this._dataStats.visibleCount = result.data.length;
+      if (result.data.length > 0) {
+        this._dataStats.oldestTime = result.data[0].time;
+        this._dataStats.newestTime = result.data[result.data.length - 1].time;
+      }
+      this._dataStats.lastUpdate = Date.now();
+      this._dataStats.loadingStatus = 'idle';
+
+      console.log(`✅ [DataStore] Cache hydration complete: ${result.data.length} candles loaded from Redis`);
+
+      // Notify subscribers
+      this.notifyDataUpdate();
+    } catch (error) {
+      console.error(`❌ [DataStore] Failed to hydrate from cache:`, error);
+      this._dataStats.loadingStatus = 'error';
+    }
+  }
+
+
   // Fill only recent data gaps (last few hours)
   private async fillRecentDataGaps() {
     try {

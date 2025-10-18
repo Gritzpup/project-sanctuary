@@ -103,6 +103,12 @@
       return;
     }
 
+    // 🚀 PERF: Load cached candles from Redis first (instant display on refresh)
+    // WebSocket will continue streaming live updates after this
+    dataStore.hydrateFromCache('BTC-USD', '1m', 24).catch(error => {
+      console.error('Cache hydration failed, will use WebSocket data:', error);
+    });
+
     // Initial data load
     dataManager.updateChartData();
     dataManager.updateVolumeData();
