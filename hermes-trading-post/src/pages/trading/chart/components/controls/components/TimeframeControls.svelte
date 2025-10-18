@@ -7,10 +7,27 @@
   export let showTimeframes: boolean = true;
 
   const dispatch = createEventDispatcher();
+  let isDebouncing = false;
+  let debounceTimer: number | null = null;
 
   function handleTimeframeChange(timeframe: string) {
-    console.log(`TimeframeControls: Changing to timeframe ${timeframe}, available: ${availableTimeframes.join(', ')}`);
+    // Prevent multiple rapid clicks - debounce with 200ms window
+    if (isDebouncing) return;
+
+    isDebouncing = true;
+
+    // Clear existing timer if any
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer);
+    }
+
     dispatch('timeframeChange', { timeframe });
+
+    // Reset debounce after 200ms
+    debounceTimer = window.setTimeout(() => {
+      isDebouncing = false;
+      debounceTimer = null;
+    }, 200);
   }
 
   function getButtonClass(isActive: boolean): string {

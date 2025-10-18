@@ -137,7 +137,7 @@ class PerformanceStore {
 
   private startMemoryMonitoring() {
     if (!performance.memory) {
-      console.warn('PerformanceStore: Memory monitoring not available');
+      // PERF: Disabled - console.warn('PerformanceStore: Memory monitoring not available');
       return;
     }
 

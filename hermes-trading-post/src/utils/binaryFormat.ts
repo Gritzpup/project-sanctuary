@@ -37,7 +37,7 @@ export function encodeCandles(candles: CandlestickData[]): Uint8Array {
     h: candle.high,
     l: candle.low,
     c: candle.close,
-    ...(candle.volume !== undefined && { v: candle.volume })
+    ...((candle as any).volume !== undefined && { v: (candle as any).volume })
   }));
 
   return pack(compact);

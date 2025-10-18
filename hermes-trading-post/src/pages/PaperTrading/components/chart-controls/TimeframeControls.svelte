@@ -2,22 +2,40 @@
   import { createEventDispatcher } from 'svelte';
   import { EXTENDED_PERIODS, type ExtendedPeriod } from '../../../../lib/chart/TimeframeCompatibility';
   import { isCompatible, getBestGranularityForPeriod } from '../../../../lib/chart/TimeframeCompatibility';
-  
+
   export let selectedPeriod: string = '1H';
   export let selectedGranularity: string = '1m';
-  
+
   const dispatch = createEventDispatcher();
+  let isDebouncing = false;
+  let debounceTimer: number | null = null;
 
   function handlePeriodChange(period: ExtendedPeriod) {
+    // Prevent multiple rapid clicks - debounce with 200ms window
+    if (isDebouncing) return;
+
+    isDebouncing = true;
+
+    // Clear existing timer if any
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer);
+    }
+
     // Find the best compatible granularity for this period
     const bestGranularity = getBestGranularityForPeriod(period);
-    
+
     dispatch('periodChange', { period });
-    
+
     // If current granularity is not compatible, switch to the best one
     if (!isCompatible(selectedGranularity, period)) {
       dispatch('granularityChange', { granularity: bestGranularity });
     }
+
+    // Reset debounce after 200ms
+    debounceTimer = window.setTimeout(() => {
+      isDebouncing = false;
+      debounceTimer = null;
+    }, 200);
   }
 </script>
 

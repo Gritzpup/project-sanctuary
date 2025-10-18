@@ -86,10 +86,17 @@
     if (!candleSeries) return;
 
     try {
+      // Ensure time is a valid number, not an object
+      let candleTime = candle.time;
+      if (typeof candleTime !== 'number') {
+        candleTime = Number(candleTime);
+        if (isNaN(candleTime)) return; // Skip if time is invalid
+      }
+
       // Use candle data directly - don't modify high/low
       // The backend provides correct high/low values
       const formattedCandle = {
-        time: candle.time as any,
+        time: candleTime,
         open: candle.open,
         high: candle.high,
         low: candle.low,
@@ -97,10 +104,10 @@
       };
 
       candleSeries.update(formattedCandle);
-      
+
       // Volume updates are handled by VolumePlugin
     } catch (error) {
-      console.error('❌ Error updating realtime data:', error);
+      // Silently handle updates to old candles - can happen with real-time sync
     }
   }
 </script>

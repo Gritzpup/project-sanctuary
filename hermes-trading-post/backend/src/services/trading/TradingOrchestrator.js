@@ -55,7 +55,7 @@ export class TradingOrchestrator extends EventEmitter {
     
     // Load state
     this.loadState().catch(error => {
-      console.error('Failed to load initial state:', error);
+      // PERF: Disabled - console.error('Failed to load initial state:', error);
     });
   }
 
@@ -77,13 +77,13 @@ export class TradingOrchestrator extends EventEmitter {
   }
 
   async startTrading(config) {
-    console.log('TradingOrchestrator.startTrading called:', {
-      isRunning: this.isRunning,
-      config: config
-    });
+    // PERF: Disabled - console.log('TradingOrchestrator.startTrading called:', {
+    //   isRunning: this.isRunning,
+    //   config: config
+    // });
 
     if (this.isRunning) {
-      console.log('Trading is already running');
+      // PERF: Disabled - console.log('Trading is already running');
       return;
     }
 
@@ -98,9 +98,9 @@ export class TradingOrchestrator extends EventEmitter {
         if (this.positionManager.getPositions().length > 0) {
           this.strategy.restorePositions(this.positionManager.getPositions());
         }
-        console.log(`✅ Strategy ${config.strategyType} created successfully`);
+        // PERF: Disabled - console.log(`✅ Strategy ${config.strategyType} created successfully`);
       } catch (strategyError) {
-        console.warn(`⚠️ Strategy creation failed, but bot will run with profit-based selling only:`, strategyError.message);
+        // PERF: Disabled - console.warn(`⚠️ Strategy creation failed, but bot will run with profit-based selling only:`, strategyError.message);
         this.strategy = null;
       }
 
@@ -116,34 +116,34 @@ export class TradingOrchestrator extends EventEmitter {
         }
       }
       
-      console.log(`✅ Trading started with ${config.strategyType} strategy`);
+      // PERF: Disabled - console.log(`✅ Trading started with ${config.strategyType} strategy`);
       
       // Save state and broadcast
       await this.saveState();
       this.broadcastStatus();
       
     } catch (error) {
-      console.error('Error starting trading:', error);
+      // PERF: Disabled - console.error('Error starting trading:', error);
       this.isRunning = false;
       throw error;
     }
   }
 
   stopTrading() {
-    console.log('TradingOrchestrator.stopTrading called');
+    // PERF: Disabled - console.log('TradingOrchestrator.stopTrading called');
     
     this.isRunning = false;
     this.isPaused = false;
     this.strategy = null;
     
-    console.log('✅ Trading stopped');
+    // PERF: Disabled - console.log('✅ Trading stopped');
     this.broadcastStatus();
   }
 
   pauseTrading() {
     if (this.isRunning) {
       this.isPaused = true;
-      console.log('✅ Trading paused');
+      // PERF: Disabled - console.log('✅ Trading paused');
       this.broadcastStatus();
     }
   }
@@ -151,7 +151,7 @@ export class TradingOrchestrator extends EventEmitter {
   resumeTrading() {
     if (this.isRunning && this.isPaused) {
       this.isPaused = false;
-      console.log('✅ Trading resumed');
+      // PERF: Disabled - console.log('✅ Trading resumed');
       this.broadcastStatus();
     }
   }
@@ -172,7 +172,7 @@ export class TradingOrchestrator extends EventEmitter {
     // STATE VALIDATION: Ensure runtime state matches saved state (rate limited)
     if (this.balance.btc === 0 && this.positionManager.getPositions().length === 0) {
       if (!this._lastStateReload || (now - this._lastStateReload) > 10000) {
-        console.log('⚠️ RUNTIME STATE EMPTY - Forcing state reload');
+        // PERF: Disabled - console.log('⚠️ RUNTIME STATE EMPTY - Forcing state reload');
         this._lastStateReload = now;
         await this.loadState();
       }
@@ -206,25 +206,25 @@ export class TradingOrchestrator extends EventEmitter {
         }
         
         // Debug the most profitable position
-        console.log(`🧪 GRID SELL CHECK:`, {
-          currentPrice: price.toFixed(2),
-          totalPositions: positions.length,
-          mostProfitableEntry: mostProfitablePosition?.entryPrice?.toFixed(2),
-          highestProfitPercent: highestProfitPercent.toFixed(4),
-          profitTarget,
-          readyToSell: highestProfitPercent >= profitTarget,
-          sellTriggerPrice: mostProfitablePosition ? (mostProfitablePosition.entryPrice * (1 + profitTarget / 100)).toFixed(2) : 'N/A'
-        });
+        // PERF: Disabled - console.log(`🧪 GRID SELL CHECK:`, {
+        //   currentPrice: price.toFixed(2),
+        //   totalPositions: positions.length,
+        //   mostProfitableEntry: mostProfitablePosition?.entryPrice?.toFixed(2),
+        //   highestProfitPercent: highestProfitPercent.toFixed(4),
+        //   profitTarget,
+        //   readyToSell: highestProfitPercent >= profitTarget,
+        //   sellTriggerPrice: mostProfitablePosition ? (mostProfitablePosition.entryPrice * (1 + profitTarget / 100)).toFixed(2) : 'N/A'
+        // });
         
         if (mostProfitablePosition && highestProfitPercent >= profitTarget) {
-          console.log(`🎯 GRID SELL TRIGGER: Position #${mostProfitablePosition.id} profit: ${highestProfitPercent.toFixed(2)}% >= ${profitTarget}% - executing sell`);
+          // PERF: Disabled - console.log(`🎯 GRID SELL TRIGGER: Position #${mostProfitablePosition.id} profit: ${highestProfitPercent.toFixed(2)}% >= ${profitTarget}% - executing sell`);
           await this.executeSellSignal({ reason: `Grid sell: ${highestProfitPercent.toFixed(2)}% profit` }, price);
           return; // Exit early after sell
         } else {
-          console.log(`💡 GRID DEBUG: No position ready to sell (best: ${highestProfitPercent.toFixed(2)}% < target: ${profitTarget}%)`);
+          // PERF: Disabled - console.log(`💡 GRID DEBUG: No position ready to sell (best: ${highestProfitPercent.toFixed(2)}% < target: ${profitTarget}%)`);
         }
       } catch (error) {
-        console.error('Error in grid-based sell check:', error);
+        // PERF: Disabled - console.error('Error in grid-based sell check:', error);
       }
     }
     
@@ -264,7 +264,7 @@ export class TradingOrchestrator extends EventEmitter {
       }
       
     } catch (error) {
-      console.error('Error processing price:', error);
+      // PERF: Disabled - console.error('Error processing price:', error);
     }
   }
 
@@ -284,7 +284,7 @@ export class TradingOrchestrator extends EventEmitter {
       const tradeRecord = this.createTradeRecord('buy', positionSize, price, signal.reason);
       this.trades.push(tradeRecord);
       
-      console.log(`🟢 BUY executed: ${positionSize.toFixed(6)} BTC at $${price.toFixed(2)} (${signal.reason})`);
+      // PERF: Disabled - console.log(`🟢 BUY executed: ${positionSize.toFixed(6)} BTC at $${price.toFixed(2)} (${signal.reason})`);
       
       // Log the trade execution
       await this.logger.logTradeExecution(tradeRecord, 'BUY', position);
@@ -311,7 +311,7 @@ export class TradingOrchestrator extends EventEmitter {
       }
       
       if (!mostProfitablePosition || highestProfitPercent < 0.4) {
-        console.log(`💡 No profitable position found to sell (best: ${highestProfitPercent.toFixed(2)}%)`);
+        // PERF: Disabled - console.log(`💡 No profitable position found to sell (best: ${highestProfitPercent.toFixed(2)}%)`);
         return;
       }
       
@@ -345,10 +345,10 @@ export class TradingOrchestrator extends EventEmitter {
         // Add cost basis back + rebalance amount for trading growth
         this.balance.usd += costBasis + tradingRebalance;
         
-        console.log(`💰 GRID SELL: Position #${mostProfitablePosition.id} sold for $${netProfit.toFixed(2)} profit (${highestProfitPercent.toFixed(2)}%)`);
-        console.log(`  - USDC Vault (60%): +$${usdcVaultAllocation.toFixed(2)}`);
-        console.log(`  - BTC Vault (20%): +${(btcVaultAllocation / price).toFixed(6)} BTC`);
-        console.log(`  - Trading Rebalance (20%): +$${tradingRebalance.toFixed(2)}`);
+        // PERF: Disabled - console.log(`💰 GRID SELL: Position #${mostProfitablePosition.id} sold for $${netProfit.toFixed(2)} profit (${highestProfitPercent.toFixed(2)}%)`);
+        // PERF: Disabled - console.log(`  - USDC Vault (60%): +$${usdcVaultAllocation.toFixed(2)}`);
+        // PERF: Disabled - console.log(`  - BTC Vault (20%): +${(btcVaultAllocation / price).toFixed(6)} BTC`);
+        // PERF: Disabled - console.log(`  - Trading Rebalance (20%): +$${tradingRebalance.toFixed(2)}`);
         
         // Track rebalance amount for growth
         this.statistics.totalRebalance += tradingRebalance;
@@ -357,7 +357,7 @@ export class TradingOrchestrator extends EventEmitter {
         // Losing trade (shouldn't happen with profit check above)
         this.statistics.losingTrades++;
         this.balance.usd += saleValue;
-        console.log(`📉 GRID SELL: Position #${mostProfitablePosition.id} sold at loss $${Math.abs(netProfit).toFixed(2)}`);
+        // PERF: Disabled - console.log(`📉 GRID SELL: Position #${mostProfitablePosition.id} sold at loss $${Math.abs(netProfit).toFixed(2)}`);
       }
       
       // Update BTC balance (subtract only the sold position)
@@ -376,7 +376,7 @@ export class TradingOrchestrator extends EventEmitter {
       tradeRecord.positionId = mostProfitablePosition.id;
       this.trades.push(tradeRecord);
       
-      console.log(`🔴 GRID SELL executed: ${positionSize.toFixed(6)} BTC at $${price.toFixed(2)} (${positions.length - 1} positions remaining)`);
+      // PERF: Disabled - console.log(`🔴 GRID SELL executed: ${positionSize.toFixed(6)} BTC at $${price.toFixed(2)} (${positions.length - 1} positions remaining)`);
       
       // Log the trade execution with profit details
       await this.logger.logTradeExecution(tradeRecord, 'SELL', mostProfitablePosition);
@@ -406,7 +406,7 @@ export class TradingOrchestrator extends EventEmitter {
     // Update recentHigh for trigger calculations
     if (price > this.chartData.recentHigh) {
       this.chartData.recentHigh = price;
-      console.log(`📈 New recent high: $${price.toFixed(2)}`);
+      // PERF: Disabled - console.log(`📈 New recent high: $${price.toFixed(2)}`);
     }
     
     if (!this.currentCandle || this.currentCandle.time < currentMinute / 1000) {
@@ -437,18 +437,18 @@ export class TradingOrchestrator extends EventEmitter {
     let positions = this.positionManager.getPositions();
     
     // Debug: Check if positions are being properly maintained
-    console.log('🔍 Position debug:', {
-      positionsCount: positions.length,
-      btcBalance: this.balance.btc,
-      tradesCount: this.trades.length,
-      shouldHavePositions: this.balance.btc > 0
-    });
+    // PERF: Disabled - console.log('🔍 Position debug:', {
+    //   positionsCount: positions.length,
+    //   btcBalance: this.balance.btc,
+    //   tradesCount: this.trades.length,
+    //   shouldHavePositions: this.balance.btc > 0
+    // });
     
     // RECONSTRUCT POSITIONS FROM TRADES - Enhanced version to show all positions
     if (positions.length === 0 && this.balance.btc > 0 && this.trades.length > 0) {
-      console.log('⚠️ ENHANCED RECONSTRUCTION: No positions but have BTC balance and trades');
+      // PERF: Disabled - console.log('⚠️ ENHANCED RECONSTRUCTION: No positions but have BTC balance and trades');
       const buyTrades = this.trades.filter(t => t.side === 'buy' || t.type === 'buy');
-      console.log(`📊 Found ${buyTrades.length} buy trades to reconstruct positions from`);
+      // PERF: Disabled - console.log(`📊 Found ${buyTrades.length} buy trades to reconstruct positions from`);
       
       if (buyTrades.length > 0) {
         // Create individual positions from each buy trade instead of consolidating
@@ -461,14 +461,14 @@ export class TradingOrchestrator extends EventEmitter {
           reason: trade.reason || 'Reconstructed from trade history'
         }));
         
-        console.log(`🔄 Reconstructed ${positions.length} individual positions from trades`);
+        // PERF: Disabled - console.log(`🔄 Reconstructed ${positions.length} individual positions from trades`);
         
         // Also restore them to the PositionManager
         this.positionManager.clearAllPositions();
         positions.forEach(position => {
           this.positionManager.addPosition(position);
         });
-        console.log(`✅ Restored ${positions.length} reconstructed positions to PositionManager`);
+        // PERF: Disabled - console.log(`✅ Restored ${positions.length} reconstructed positions to PositionManager`);
       }
     }
     
@@ -510,19 +510,19 @@ export class TradingOrchestrator extends EventEmitter {
         
         // Update chartData with calculated recentHigh
         this.chartData.recentHigh = recentHigh;
-        console.log(`📊 Calculated recentHigh from trade history: $${recentHigh.toFixed(2)}`);
+        // PERF: Disabled - console.log(`📊 Calculated recentHigh from trade history: $${recentHigh.toFixed(2)}`);
       }
       // Calculate next buy trigger (if not at max levels)
       const currentLevel = this.positionManager.getPositions().length + 1;
       const maxLevels = strategyConfig.maxLevels || 12;
       
-      console.log('📊 Buy trigger calculation:', {
-        currentLevel,
-        maxLevels,
-        canBuy: currentLevel <= maxLevels,
-        recentHigh,
-        currentPrice: this.currentPrice
-      });
+      // PERF: Disabled - console.log('📊 Buy trigger calculation:', {
+      //   currentLevel,
+      //   maxLevels,
+      //   canBuy: currentLevel <= maxLevels,
+      //   recentHigh,
+      //   currentPrice: this.currentPrice
+      // });
       
       if (currentLevel <= maxLevels && recentHigh > 0) {
         const initialDropPercent = strategyConfig.initialDropPercent || 1.0; // 1% initial drop
@@ -553,13 +553,13 @@ export class TradingOrchestrator extends EventEmitter {
       const hasBtcBalance = this.balance.btc > 0;
       const positionsCount = savedPositions.length;
       
-      console.log('📊 Sell trigger calculation:', {
-        positionsCount,
-        hasBtcBalance,
-        btcBalance: this.balance.btc,
-        hasPositions: positionsCount > 0 || hasBtcBalance,
-        hasStrategy: !!this.strategy
-      });
+      // PERF: Disabled - console.log('📊 Sell trigger calculation:', {
+      //   positionsCount,
+      //   hasBtcBalance,
+      //   btcBalance: this.balance.btc,
+      //   hasPositions: positionsCount > 0 || hasBtcBalance,
+      //   hasStrategy: !!this.strategy
+      // });
       
       // Calculate sell trigger if we have BTC balance (even without explicit positions)
       if (positionsCount > 0 || hasBtcBalance) {
@@ -573,18 +573,18 @@ export class TradingOrchestrator extends EventEmitter {
           const totalBtc = savedPositions.reduce((sum, pos) => sum + pos.size, 0);
           averageEntryPrice = totalBtc > 0 ? totalCostBasis / totalBtc : 0;
           
-          console.log(`📊 Position calculation: totalCostBasis=$${totalCostBasis.toFixed(2)}, totalBtc=${totalBtc.toFixed(6)}, avgEntry=$${averageEntryPrice.toFixed(2)}`);
+          // PERF: Disabled - console.log(`📊 Position calculation: totalCostBasis=$${totalCostBasis.toFixed(2)}, totalBtc=${totalBtc.toFixed(6)}, avgEntry=$${averageEntryPrice.toFixed(2)}`);
         } else if (hasBtcBalance && this.trades.length > 0) {
           // Calculate from recent buy trades if no explicit positions
           const buyTrades = this.trades.filter(t => t.side === 'buy' || t.type === 'buy');
-          console.log(`📊 Calculating from trade history: ${buyTrades.length} buy trades found out of ${this.trades.length} total trades`);
+          // PERF: Disabled - console.log(`📊 Calculating from trade history: ${buyTrades.length} buy trades found out of ${this.trades.length} total trades`);
           
           if (buyTrades.length > 0) {
             const totalCost = buyTrades.reduce((sum, t) => sum + (t.price * (t.amount || t.quantity || 0)), 0);
             const totalAmount = buyTrades.reduce((sum, t) => sum + (t.amount || t.quantity || 0), 0);
             averageEntryPrice = totalAmount > 0 ? totalCost / totalAmount : 0;
             
-            console.log(`📊 Trade calculation: totalCost=$${totalCost.toFixed(2)}, totalAmount=${totalAmount.toFixed(6)}, avgEntry=$${averageEntryPrice.toFixed(2)}`);
+            // PERF: Disabled - console.log(`📊 Trade calculation: totalCost=$${totalCost.toFixed(2)}, totalAmount=${totalAmount.toFixed(6)}, avgEntry=$${averageEntryPrice.toFixed(2)}`);
           }
         }
         
@@ -618,13 +618,13 @@ export class TradingOrchestrator extends EventEmitter {
           nextSellPrice = averageEntryPrice > 0 ? averageEntryPrice * (1 + profitTarget / 100) : null;
         }
         
-        console.log('📊 FIXED Sell price calculation:', {
-          averageEntryPrice: averageEntryPrice.toFixed(2),
-          profitTarget,
-          nextSellPrice: nextSellPrice ? nextSellPrice.toFixed(2) : 'null',
-          lowestEntryPrice: savedPositions.length > 0 ? Math.min(...savedPositions.map(p => p.entryPrice)).toFixed(2) : 'N/A',
-          positionsCount: savedPositions.length
-        });
+        // PERF: Disabled - console.log('📊 FIXED Sell price calculation:', {
+        //   averageEntryPrice: averageEntryPrice.toFixed(2),
+        //   profitTarget,
+        //   nextSellPrice: nextSellPrice ? nextSellPrice.toFixed(2) : 'null',
+        //   lowestEntryPrice: savedPositions.length > 0 ? Math.min(...savedPositions.map(p => p.entryPrice)).toFixed(2) : 'N/A',
+        //   positionsCount: savedPositions.length
+        // });
         
         // Calculate progress percentage (how close we are to triggering the sell)
         // If profitPercent >= profitTarget, we're ready to trigger (0% distance remaining)
@@ -722,7 +722,7 @@ export class TradingOrchestrator extends EventEmitter {
     };
     
     await this.saveState();
-    console.log('✅ State reset completed');
+    // PERF: Disabled - console.log('✅ State reset completed');
   }
 
   async loadState() {
@@ -733,7 +733,7 @@ export class TradingOrchestrator extends EventEmitter {
         if (state.balance && !state.balance.vault) {
           state.balance.vault = 0;
           state.balance.btcVault = 0;
-          console.log(`🔄 Migrated balance structure to include vault fields for bot ${this.botId}`);
+          // PERF: Disabled - console.log(`🔄 Migrated balance structure to include vault fields for bot ${this.botId}`);
         }
         
         // Migrate to include statistics if missing
@@ -747,7 +747,7 @@ export class TradingOrchestrator extends EventEmitter {
             losingTrades: 0,
             initialBalance: state.balance?.usd || 10000
           };
-          console.log(`🔄 Migrated to include trading statistics for bot ${this.botId}`);
+          // PERF: Disabled - console.log(`🔄 Migrated to include trading statistics for bot ${this.botId}`);
         }
         
         // CRITICAL FIX: Instead of Object.assign, selectively restore properties to avoid overwriting instances
@@ -768,16 +768,16 @@ export class TradingOrchestrator extends EventEmitter {
           state.positions.forEach(position => {
             this.positionManager.addPosition(position);
           });
-          console.log(`🔄 Restored ${state.positions.length} positions to PositionManager`);
+          // PERF: Disabled - console.log(`🔄 Restored ${state.positions.length} positions to PositionManager`);
         }
         
-        console.log(`✅ State loaded for bot ${this.botId}: ${state.positions?.length || 0} positions, ${state.balance?.btc || 0} BTC`);
+        // PERF: Disabled - console.log(`✅ State loaded for bot ${this.botId}: ${state.positions?.length || 0} positions, ${state.balance?.btc || 0} BTC`);
         
         // Save the migrated state
         await this.saveState();
       }
     } catch (error) {
-      console.error('Error loading state:', error);
+      // PERF: Disabled - console.error('Error loading state:', error);
     }
   }
 
@@ -785,14 +785,14 @@ export class TradingOrchestrator extends EventEmitter {
     try {
       await this.stateRepository.saveState(this.getStatus());
     } catch (error) {
-      console.error('Error saving state:', error);
+      // PERF: Disabled - console.error('Error saving state:', error);
     }
   }
 
   async updateSelectedStrategy(strategyType) {
     this.selectedStrategyType = strategyType;
     await this.saveState();
-    console.log(`📝 Updated selected strategy for bot ${this.botId} to: ${strategyType}`);
+    // PERF: Disabled - console.log(`📝 Updated selected strategy for bot ${this.botId} to: ${strategyType}`);
   }
 
   cleanup() {

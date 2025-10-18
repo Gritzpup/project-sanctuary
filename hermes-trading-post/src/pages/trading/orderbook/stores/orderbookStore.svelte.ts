@@ -57,20 +57,20 @@ class OrderbookStore {
       const response = await fetch(`/api/orderbook/${productId}`);
 
       if (!response.ok) {
-        console.log(`⏭️ [Orderbook] No cached orderbook available (HTTP ${response.status})`);
+        // PERF: Disabled - console.log(`⏭️ [Orderbook] No cached orderbook available (HTTP ${response.status})`);
         return;
       }
 
       const result = await response.json();
 
       if (!result.success || !result.data || result.data.bids.length === 0) {
-        console.log(`⏭️ [Orderbook] Cached orderbook is empty or not ready yet`);
+        // PERF: Disabled - console.log(`⏭️ [Orderbook] Cached orderbook is empty or not ready yet`);
         return;
       }
 
       const cachedOrderbook = result.data;
 
-      console.log(`💾 [Orderbook] Hydrating from cache: ${cachedOrderbook.bids.length} bids, ${cachedOrderbook.asks.length} asks`);
+      // PERF: Disabled - console.log(`💾 [Orderbook] Hydrating from cache: ${cachedOrderbook.bids.length} bids, ${cachedOrderbook.asks.length} asks`);
 
       // Process cached data as if it were a snapshot
       this.processSnapshot({
@@ -79,9 +79,9 @@ class OrderbookStore {
         asks: cachedOrderbook.asks
       });
 
-      console.log(`✅ [Orderbook] Cache hydration complete - chart should now display instantly!`);
+      // PERF: Disabled - console.log(`✅ [Orderbook] Cache hydration complete - chart should now display instantly!`);
     } catch (error) {
-      console.error(`⚠️ [Orderbook] Failed to hydrate from cache:`, error);
+      // PERF: Disabled - console.error(`⚠️ [Orderbook] Failed to hydrate from cache:`, error);
       // Fail silently - app will still wait for WebSocket data
     }
   }
@@ -132,9 +132,9 @@ class OrderbookStore {
 
     // Log only on first snapshot
     if (!this.isReady) {
-      console.log(`📊 [Orderbook] Received snapshot: ${data.bids.length} bids, ${data.asks.length} asks`);
+      // PERF: Disabled - console.log(`📊 [Orderbook] Received snapshot: ${data.bids.length} bids, ${data.asks.length} asks`);
       if (midPrice > 0) {
-        console.log(`📊 [Orderbook] Filtering to ±$${depthRange.toLocaleString()} of mid-price $${midPrice.toFixed(2)} (range: $${minPrice.toFixed(2)}-$${maxPrice.toFixed(2)})`);
+        // PERF: Disabled - console.log(`📊 [Orderbook] Filtering to ±$${depthRange.toLocaleString()} of mid-price $${midPrice.toFixed(2)} (range: $${minPrice.toFixed(2)}-$${maxPrice.toFixed(2)})`);
       }
     }
 
@@ -159,7 +159,7 @@ class OrderbookStore {
 
     // Check if bids actually changed
     if (!this.isReady && newBids.size < 100) {
-      console.log(`📊 [DEBUG] newBids.size=${newBids.size}, this.bids.size=${this.bids.size}, filtered=${filteredBidCount}`);
+      // PERF: Disabled - console.log(`📊 [DEBUG] newBids.size=${newBids.size}, this.bids.size=${this.bids.size}, filtered=${filteredBidCount}`);
     }
     if (newBids.size !== this.bids.size) {
       bidsChanged = true;
@@ -201,8 +201,8 @@ class OrderbookStore {
 
     // Log filtering stats on first snapshot or significant changes
     if (!this.isReady && (filteredBidCount > 0 || filteredAskCount > 0)) {
-      console.log(`📊 [Orderbook] Filtered out ${filteredBidCount} bids and ${filteredAskCount} asks beyond ±$${depthRange.toLocaleString()} depth`);
-      console.log(`📊 [Orderbook] Keeping ${newBids.size} bids and ${newAsks.size} asks in memory`);
+      // PERF: Disabled - console.log(`📊 [Orderbook] Filtered out ${filteredBidCount} bids and ${filteredAskCount} asks beyond ±$${depthRange.toLocaleString()} depth`);
+      // PERF: Disabled - console.log(`📊 [Orderbook] Keeping ${newBids.size} bids and ${newAsks.size} asks in memory`);
     }
 
     // Update maps (always on first snapshot, then only if changed)
@@ -446,7 +446,7 @@ class OrderbookStore {
     const sortedAsks = this._sortedAsks.slice(0, maxLevels);
 
     if (sortedBids.length === 0 || sortedAsks.length === 0) {
-      console.warn(`📊 [OrderbookStore] getDepthData sliced empty: sortedBids=${sortedBids.length} (total=${this._sortedBids.length}), sortedAsks=${sortedAsks.length} (total=${this._sortedAsks.length}), maxLevels=${maxLevels}`);
+      // PERF: Disabled - console.warn(`📊 [OrderbookStore] getDepthData sliced empty: sortedBids=${sortedBids.length} (total=${this._sortedBids.length}), sortedAsks=${sortedAsks.length} (total=${this._sortedAsks.length}), maxLevels=${maxLevels}`);
     }
 
     // Calculate cumulative depth for BIDS starting from best bid (highest price)
@@ -468,7 +468,7 @@ class OrderbookStore {
     });
 
     if (bidsWithDepth.length === 0 || asksWithDepth.length === 0) {
-      console.warn(`📊 [OrderbookStore] returning empty depth: bids=${bidsWithDepth.length}, asks=${asksWithDepth.length}`);
+      // PERF: Disabled - console.warn(`📊 [OrderbookStore] returning empty depth: bids=${bidsWithDepth.length}, asks=${asksWithDepth.length}`);
     }
     return { bids: bidsWithDepth, asks: asksWithDepth };
   }
@@ -585,7 +585,7 @@ class OrderbookStore {
         try {
           callback(midPrice);
         } catch (error) {
-          console.error('Error in price subscriber callback:', error);
+          // PERF: Disabled - console.error('Error in price subscriber callback:', error);
         }
       });
     }

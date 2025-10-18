@@ -18,7 +18,7 @@ export class ChartTestRunner {
    * Run all chart tests
    */
   async runAllTests(): Promise<void> {
-    console.log('🧪 Starting Chart Test Suite...\n');
+    // PERF: Disabled - console.log('🧪 Starting Chart Test Suite...\n');
     
     // Utility Tests
     const utilityTests = new UtilityTests();
@@ -51,7 +51,7 @@ export class ChartTestRunner {
    * Run specific test suite
    */
   async runSpecificSuite(suiteName: string): Promise<void> {
-    console.log(`🧪 Running ${suiteName} tests...\n`);
+    // PERF: Disabled - console.log(`🧪 Running ${suiteName} tests...\n`);
     
     let suite: TestSuite;
     
@@ -81,7 +81,7 @@ export class ChartTestRunner {
         suite = await e2eTests.runTests();
         break;
       default:
-        console.error(`Unknown test suite: ${suiteName}`);
+        // PERF: Disabled - console.error(`Unknown test suite: ${suiteName}`);
         return;
     }
     
@@ -93,8 +93,8 @@ export class ChartTestRunner {
    * Print test results
    */
   private printResults(): void {
-    console.log('\n📊 TEST RESULTS\n');
-    console.log('═'.repeat(80));
+    // PERF: Disabled - console.log('\n📊 TEST RESULTS\n');
+    // PERF: Disabled - console.log('═'.repeat(80));
     
     let totalTests = 0;
     let totalPassed = 0;
@@ -105,17 +105,17 @@ export class ChartTestRunner {
       const passRate = ((suite.passed / (suite.passed + suite.failed)) * 100).toFixed(1);
       const status = suite.failed === 0 ? '✅' : '❌';
       
-      console.log(`${status} ${suite.name}`);
-      console.log(`   Passed: ${suite.passed} | Failed: ${suite.failed} | Pass Rate: ${passRate}%`);
-      console.log(`   Duration: ${suite.duration.toFixed(2)}ms`);
+      // PERF: Disabled - console.log(`${status} ${suite.name}`);
+      // PERF: Disabled - console.log(`   Passed: ${suite.passed} | Failed: ${suite.failed} | Pass Rate: ${passRate}%`);
+      // PERF: Disabled - console.log(`   Duration: ${suite.duration.toFixed(2)}ms`);
       
       if (suite.failed > 0) {
         suite.tests.filter(t => !t.passed).forEach(test => {
-          console.log(`   ❌ ${test.testName}: ${test.error}`);
+          // PERF: Disabled - console.log(`   ❌ ${test.testName}: ${test.error}`);
         });
       }
       
-      console.log('');
+      // PERF: Disabled - console.log('');
       
       totalTests += suite.passed + suite.failed;
       totalPassed += suite.passed;
@@ -123,22 +123,22 @@ export class ChartTestRunner {
       totalDuration += suite.duration;
     });
     
-    console.log('═'.repeat(80));
+    // PERF: Disabled - console.log('═'.repeat(80));
     const overallPassRate = ((totalPassed / totalTests) * 100).toFixed(1);
     const overallStatus = totalFailed === 0 ? '✅' : '❌';
     
-    console.log(`${overallStatus} OVERALL RESULTS`);
-    console.log(`Total Tests: ${totalTests}`);
-    console.log(`Passed: ${totalPassed}`);
-    console.log(`Failed: ${totalFailed}`);
-    console.log(`Pass Rate: ${overallPassRate}%`);
-    console.log(`Total Duration: ${totalDuration.toFixed(2)}ms`);
-    console.log('═'.repeat(80));
+    // PERF: Disabled - console.log(`${overallStatus} OVERALL RESULTS`);
+    // PERF: Disabled - console.log(`Total Tests: ${totalTests}`);
+    // PERF: Disabled - console.log(`Passed: ${totalPassed}`);
+    // PERF: Disabled - console.log(`Failed: ${totalFailed}`);
+    // PERF: Disabled - console.log(`Pass Rate: ${overallPassRate}%`);
+    // PERF: Disabled - console.log(`Total Duration: ${totalDuration.toFixed(2)}ms`);
+    // PERF: Disabled - console.log('═'.repeat(80));
     
     if (totalFailed === 0) {
-      console.log('🎉 All tests passed! Chart system is working correctly.');
+      // PERF: Disabled - console.log('🎉 All tests passed! Chart system is working correctly.');
     } else {
-      console.log(`⚠️  ${totalFailed} test(s) failed. Please review and fix issues.`);
+      // PERF: Disabled - console.log(`⚠️  ${totalFailed} test(s) failed. Please review and fix issues.`);
     }
   }
   

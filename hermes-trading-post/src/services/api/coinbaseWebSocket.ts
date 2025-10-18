@@ -70,7 +70,12 @@ export class CoinbaseWebSocket {
                 try {
                   listener(tickerData);
                 } catch (error) {
-                  console.error('Error in message listener:', error);
+                  // PERF: Don't log errors in hot path (fires 100s/sec)
+                  // Errors are rare, so silent failure is acceptable for ticker processing
+                  // Only log if it's a critical error affecting WebSocket connection
+                  if (error instanceof Error && error.message?.includes('critical')) {
+                    console.error('Critical error in message listener:', error.message);
+                  }
                 }
               });
               

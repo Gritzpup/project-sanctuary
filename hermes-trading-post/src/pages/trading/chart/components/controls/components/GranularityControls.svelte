@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { 
+  import {
     GRANULARITY_DISPLAY_NAMES,
     RECOMMENDED_GRANULARITIES,
     VALID_GRANULARITIES
@@ -12,18 +12,36 @@
   export let showGranularities: boolean = true;
 
   const dispatch = createEventDispatcher();
+  let isDebouncing = false;
+  let debounceTimer: number | null = null;
 
   // Get recommended and valid granularities for current timeframe
   $: recommendedGranularities = RECOMMENDED_GRANULARITIES[currentTimeframe] || [];
   $: validGranularities = VALID_GRANULARITIES[currentTimeframe] || [];
-  
+
   // Show all valid granularities for the current timeframe
-  $: filteredGranularities = showGranularities ? 
+  $: filteredGranularities = showGranularities ?
     availableGranularities.filter(g => validGranularities.includes(g)) :
     [];
 
   function handleGranularityChange(granularity: string) {
+    // Prevent multiple rapid clicks - debounce with 200ms window
+    if (isDebouncing) return;
+
+    isDebouncing = true;
+
+    // Clear existing timer if any
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer);
+    }
+
     dispatch('granularityChange', { granularity });
+
+    // Reset debounce after 200ms
+    debounceTimer = window.setTimeout(() => {
+      isDebouncing = false;
+      debounceTimer = null;
+    }, 200);
   }
 
   function getButtonClass(isActive: boolean, isRecommended: boolean = false, isDisabled: boolean = false): string {

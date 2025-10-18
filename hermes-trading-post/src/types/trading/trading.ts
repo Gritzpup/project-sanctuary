@@ -197,4 +197,14 @@ export interface OpportunityDetectionConfig {
     period: string;
     weight: number;
   }>;
-  
+
+  // Signal thresholds
+  minSignalStrength: number;      // 0-1
+  confirmationRequired: number;   // Number of timeframes to confirm
+
+  // Pre-emptive orders
+  enablePreEmptive: boolean;
+  maxPreEmptiveOrders: number;
+  preEmptiveSpread: number;       // % below current price
+}
+

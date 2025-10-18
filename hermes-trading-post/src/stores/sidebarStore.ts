@@ -17,7 +17,7 @@ function createSidebarStore() {
       // console.log('Sidebar state loaded from localStorage:', initialState);
     }
   } catch (error) {
-    console.error('Failed to load sidebar state from localStorage:', error);
+    // PERF: Disabled - console.error('Failed to load sidebar state from localStorage:', error);
   }
   
   const { subscribe, set, update } = writable(initialState);
@@ -35,7 +35,7 @@ function createSidebarStore() {
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
         } catch (error) {
-          console.error('Failed to save sidebar state to localStorage:', error);
+          // PERF: Disabled - console.error('Failed to save sidebar state to localStorage:', error);
         }
         
         return newState;
@@ -48,7 +48,7 @@ function createSidebarStore() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
       } catch (error) {
-        console.error('Failed to save sidebar state to localStorage:', error);
+        // PERF: Disabled - console.error('Failed to save sidebar state to localStorage:', error);
       }
     }
   };

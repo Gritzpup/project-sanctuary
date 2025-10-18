@@ -21,7 +21,24 @@ export async function initServerTime(): Promise<void> {
   try {
     const clientTime = Date.now();
     const response = await fetch('/api/time');
-    const data = await response.json();
+
+    // Validate response status and content
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    // Check if response has content before parsing
+    const contentLength = response.headers.get('content-length');
+    if (contentLength === '0' || !contentLength) {
+      throw new Error('Empty response from server');
+    }
+
+    const text = await response.text();
+    if (!text || text.trim().length === 0) {
+      throw new Error('Empty response body');
+    }
+
+    const data = JSON.parse(text);
 
     if (data.success) {
       // Calculate time drift (how far client is behind/ahead of server)
@@ -48,7 +65,19 @@ async function syncServerTime(): Promise<void> {
   try {
     const clientTime = Date.now();
     const response = await fetch('/api/time');
-    const data = await response.json();
+
+    // Validate response status
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    // Check if response has content before parsing
+    const text = await response.text();
+    if (!text || text.trim().length === 0) {
+      throw new Error('Empty response body');
+    }
+
+    const data = JSON.parse(text);
 
     if (data.success) {
       const serverTime = data.timestamp;

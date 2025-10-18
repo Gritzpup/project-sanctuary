@@ -21,7 +21,7 @@ export interface WebSocketCandle {
   low: number;
   close: number;
   volume: number;
-  type: 'historical' | 'current' | 'update';
+  type: 'historical' | 'current' | 'update' | 'ticker';
 }
 
 export interface DataRequest {

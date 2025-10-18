@@ -5,6 +5,7 @@
    */
 
   import type { OrderbookLevel } from './useDepthChartData';
+  import { FastNumberFormatter } from '../../../utils/shared/Formatters';
 
   interface Props {
     bidsWithCumulative: OrderbookLevel[];
@@ -35,7 +36,7 @@
              data-price={bid.price}>
           <div class="volume-bar bid-bar"></div>
           <span class="quantity">{bid.cumulative.toFixed(5)}</span>
-          <span class="price">${Math.floor(bid.price).toLocaleString('en-US')}</span>
+          <span class="price">{FastNumberFormatter.formatPrice(Math.floor(bid.price))}</span>
         </div>
       {/each}
     </div>
@@ -53,7 +54,7 @@
              style="--volume-width: {(ask.size / maxAskSize * 100)}%"
              data-price={ask.price}>
           <div class="volume-bar ask-bar"></div>
-          <span class="price">${Math.floor(ask.price).toLocaleString('en-US')}</span>
+          <span class="price">{FastNumberFormatter.formatPrice(Math.floor(ask.price))}</span>
           <span class="quantity">{ask.cumulative.toFixed(5)}</span>
         </div>
       {/each}

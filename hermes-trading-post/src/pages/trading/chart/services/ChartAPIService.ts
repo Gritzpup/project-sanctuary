@@ -115,13 +115,13 @@ export class ChartAPIService {
         
         // Debug for 5m granularity API calls
         if (granularity === '5m') {
-          console.log('🔍 5m API Request:', {
-            pair,
-            granularity: `${granularity} (${granularitySeconds}s)`,
-            start: start ? `${start} (${new Date(start * 1000).toISOString()})` : 'undefined',
-            end: end ? `${end} (${new Date(end * 1000).toISOString()})` : 'undefined',
-            expectedCandles: expectedCandles
-          });
+          // PERF: Disabled - console.log('🔍 5m API Request:', {
+          //   pair,
+          //   granularity: `${granularity} (${granularitySeconds}s)`,
+          //   start: start ? `${start} (${new Date(start * 1000).toISOString()})` : 'undefined',
+          //   end: end ? `${end} (${new Date(end * 1000).toISOString()})` : 'undefined',
+          //   expectedCandles: expectedCandles
+          // });
         }
         
         if (granularity === '1d' || granularity === '1D') {
@@ -139,12 +139,12 @@ export class ChartAPIService {
         
         // Debug for 5m granularity API response
         if (granularity === '5m') {
-          console.log('🔍 5m API Response:', {
-            expectedCandles,
-            receivedCandles: allCandles.length,
-            firstCandle: allCandles.length > 0 ? new Date(allCandles[0].time * 1000).toISOString() : 'none',
-            lastCandle: allCandles.length > 0 ? new Date(allCandles[allCandles.length - 1].time * 1000).toISOString() : 'none'
-          });
+          // PERF: Disabled - console.log('🔍 5m API Response:', {
+          //   expectedCandles,
+          //   receivedCandles: allCandles.length,
+          //   firstCandle: allCandles.length > 0 ? new Date(allCandles[0].time * 1000).toISOString() : 'none',
+          //   lastCandle: allCandles.length > 0 ? new Date(allCandles[allCandles.length - 1].time * 1000).toISOString() : 'none'
+          // });
         }
         
         if (granularity === '1d' || granularity === '1D') {
@@ -198,7 +198,7 @@ export class ChartAPIService {
       
       return transformedCandles;
     } catch (error) {
-      console.error('[ChartAPIService] Error fetching candles:', error);
+      // PERF: Disabled - console.error('[ChartAPIService] Error fetching candles:', error);
       ChartDebug.error('Error fetching candles:', error);
       throw error;
     }
@@ -232,13 +232,13 @@ export class ChartAPIService {
     try {
       statusStore.setWebSocketConnected(true);
     } catch (error) {
-      console.error('Failed to update status store:', error);
+      // PERF: Disabled - console.error('Failed to update status store:', error);
     }
     
     // Return unsubscribe function
     return {
       unsubscribe: () => {
-        console.log(`🔌 Unsubscribed from chart WebSocket for ${pair}:${granularity}`);
+        // PERF: Disabled - console.log(`🔌 Unsubscribed from chart WebSocket for ${pair}:${granularity}`);
         this.wsSubscriptions.delete(subscriptionKey);
         
         // Send unsubscription to backend
@@ -257,7 +257,7 @@ export class ChartAPIService {
               try {
                 statusStore.setWebSocketConnected(false);
               } catch (error) {
-                console.error('Failed to update status store:', error);
+                // PERF: Disabled - console.error('Failed to update status store:', error);
               }
             }
           }, 100); // 100ms delay to allow for granularity switches
@@ -289,7 +289,7 @@ export class ChartAPIService {
         try {
           statusStore.setWebSocketConnected(true);
         } catch (error) {
-          console.error('Failed to update status store:', error);
+          // PERF: Disabled - console.error('Failed to update status store:', error);
         }
         
         // Resubscribe to all active subscriptions
@@ -329,7 +329,7 @@ export class ChartAPIService {
         try {
           statusStore.setWebSocketConnected(false);
         } catch (error) {
-          console.error('Failed to update status store:', error);
+          // PERF: Disabled - console.error('Failed to update status store:', error);
         }
         
         if (onError) {
@@ -345,7 +345,7 @@ export class ChartAPIService {
         try {
           statusStore.setWebSocketConnected(false);
         } catch (error) {
-          console.error('Failed to update status store:', error);
+          // PERF: Disabled - console.error('Failed to update status store:', error);
         }
         
         this.scheduleReconnect(onError);

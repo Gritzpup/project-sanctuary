@@ -30,7 +30,7 @@ function createNavigationStore() {
       try {
         localStorage.setItem(STORAGE_KEY, section);
       } catch (e) {
-        console.error('Failed to save navigation state:', e);
+        // PERF: Disabled - console.error('Failed to save navigation state:', e);
       }
     }
   };

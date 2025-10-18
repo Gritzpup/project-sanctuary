@@ -39,7 +39,7 @@ export class CoinbaseAPIService {
       });
 
       const url = `${this.baseURL}/products/${productId}/candles?${params}`;
-      console.log(`🔄 Fetching from Coinbase: ${url}`);
+      // PERF: Disabled - console.log(`🔄 Fetching from Coinbase: ${url}`);
 
       const response = await axios.get(url, {
         timeout: 10000,
@@ -58,17 +58,17 @@ export class CoinbaseAPIService {
         volume: candle[5]
       }));
 
-      console.log(`✅ Fetched ${candles.length} candles from Coinbase`);
+      // PERF: Disabled - console.log(`✅ Fetched ${candles.length} candles from Coinbase`);
       return candles;
 
     } catch (error) {
       if (error.response?.status === 429) {
-        console.warn('⚠️ Rate limited by Coinbase, waiting 2s...');
+        // PERF: Disabled - console.warn('⚠️ Rate limited by Coinbase, waiting 2s...');
         await new Promise(resolve => setTimeout(resolve, 2000));
         throw new Error('Rate limited');
       }
       
-      console.error('❌ Error fetching candles from Coinbase:', error.message);
+      // PERF: Disabled - console.error('❌ Error fetching candles from Coinbase:', error.message);
       throw error;
     }
   }
@@ -98,10 +98,10 @@ export class CoinbaseAPIService {
     try {
       await this.rateLimit();
       const response = await axios.get(`${this.baseURL}/time`, { timeout: 5000 });
-      console.log('✅ Coinbase API connection test successful');
+      // PERF: Disabled - console.log('✅ Coinbase API connection test successful');
       return true;
     } catch (error) {
-      console.error('❌ Coinbase API connection test failed:', error.message);
+      // PERF: Disabled - console.error('❌ Coinbase API connection test failed:', error.message);
       return false;
     }
   }

@@ -7,6 +7,7 @@
   import { createChart, type IChartApi, type ISeriesApi, ColorType } from 'lightweight-charts';
   import { orderbookStore } from '../stores/orderbookStore.svelte';
   import { dataStore } from '../../chart/stores/dataStore.svelte';
+  import { FastNumberFormatter } from '../../../utils/shared/Formatters';
 
   let chartContainer: HTMLDivElement;
   let chart: IChartApi;
@@ -394,7 +395,7 @@
             const yCoord = useSeries.priceToCoordinate(foundVolume);
             if (yCoord !== null) {
               mouseY = yCoord; // This is where the actual data point is!
-              console.log('🎯 Snapped to line:', { mouseY: yCoord, volume: foundVolume });
+              // PERF: Disabled - console.log('🎯 Snapped to line:', { mouseY: yCoord, volume: foundVolume });
             } else {
               mouseY = y; // Fallback to cursor position
             }
@@ -411,7 +412,7 @@
 
     // 🚀 PERFORMANCE: Hydrate from cache first for instant display on page load
     orderbookStore.hydrateFromCache('BTC-USD').then(() => {
-      console.log(`✅ Cache hydration initiated, chart should display instantly`);
+      // PERF: Disabled - console.log(`✅ Cache hydration initiated, chart should display instantly`);
     });
 
     // Connect to WebSocket for orderbook data (retry until connection is available)
@@ -440,10 +441,14 @@
           // Always show full ±$25,000 range regardless of chart width
           const baseRange = 25000;
 
-          chart.timeScale().setVisibleRange({
-            from: (midPrice - baseRange) as any,
-            to: (midPrice + baseRange) as any
-          });
+          try {
+            chart.timeScale().setVisibleRange({
+              from: (midPrice - baseRange) as any,
+              to: (midPrice + baseRange) as any
+            });
+          } catch (error) {
+            // Silently ignore range errors - can happen if chart is still initializing
+          }
         }
       }
     });
@@ -647,10 +652,14 @@
           // Always show full ±$25,000 range regardless of chart width
           const baseRange = 25000;
 
-          chart.timeScale().setVisibleRange({
-            from: (midPrice - baseRange) as any,
-            to: (midPrice + baseRange) as any
-          });
+          try {
+            chart.timeScale().setVisibleRange({
+              from: (midPrice - baseRange) as any,
+              to: (midPrice + baseRange) as any
+            });
+          } catch (error) {
+            // Silently ignore range errors - can happen if chart is still initializing
+          }
         }
       }
     } catch (e) {
@@ -708,7 +717,7 @@
       <div class="valley-indicator valley-{volumeHotspot.side}" style="left: {volumeHotspot.offset}%">
         <div class="valley-price-label">
           <span class="price-type">{volumeHotspot.type}</span>
-          <span class="price-value">${Math.floor(volumeHotspot.price).toLocaleString('en-US')}</span>
+          <span class="price-value">{FastNumberFormatter.formatPrice(Math.floor(volumeHotspot.price))}</span>
           <span class="volume-value">{volumeHotspot.volume.toFixed(2)} BTC</span>
         </div>
         <div class="valley-point"></div>
@@ -721,7 +730,7 @@
           <div class="hover-line"></div>
           <div class="hover-circle" style="top: {mouseY}px"></div>
           <div class="hover-price-label">
-            <span class="hover-price">${Math.floor(hoverPrice).toLocaleString('en-US')}</span>
+            <span class="hover-price">{FastNumberFormatter.formatPrice(Math.floor(hoverPrice))}</span>
             {#if hoverVolume > 0}
               <span class="hover-volume">{hoverVolume.toFixed(3)} BTC</span>
             {/if}
@@ -772,7 +781,7 @@
                data-price={bid.price}>
             <div class="volume-bar bid-bar"></div>
             <span class="quantity">{bid.cumulative.toFixed(5)}</span>
-            <span class="price">${Math.floor(bid.price).toLocaleString('en-US')}</span>
+            <span class="price">{FastNumberFormatter.formatPrice(Math.floor(bid.price))}</span>
           </div>
         {/each}
       </div>
@@ -790,7 +799,7 @@
                style="--volume-width: {(ask.size / maxAskSize * 100)}%"
                data-price={ask.price}>
             <div class="volume-bar ask-bar"></div>
-            <span class="price">${Math.floor(ask.price).toLocaleString('en-US')}</span>
+            <span class="price">{FastNumberFormatter.formatPrice(Math.floor(ask.price))}</span>
             <span class="quantity">{ask.cumulative.toFixed(5)}</span>
           </div>
         {/each}

@@ -47,7 +47,7 @@ export class RedisChartService {
     try {
       const response = await fetch(`${this.backendUrl}/health`);
     } catch (error) {
-      console.error('❌ [RedisChartService] Backend connectivity test failed:', error);
+      // PERF: Disabled - console.error('❌ [RedisChartService] Backend connectivity test failed:', error);
     }
   }
 
@@ -91,7 +91,7 @@ export class RedisChartService {
             high: c.high,
             low: c.low,
             close: c.close,
-            volume: c.volume || 0
+            volume: (c as any).volume || 0
           }));
         }
       } catch (binaryError) {
@@ -117,7 +117,7 @@ export class RedisChartService {
       return candles;
 
     } catch (error) {
-      console.error(`❌ [RedisChartService] Redis fetch failed:`, error);
+      // PERF: Disabled - console.error(`❌ [RedisChartService] Redis fetch failed:`, error);
 
       // Return empty array instead of throwing to allow graceful degradation
       return [];
@@ -163,7 +163,7 @@ export class RedisChartService {
       return { candles, metadata };
       
     } catch (error) {
-      console.error(`❌ [RedisChartService] Error fetching candles with metadata:`, error);
+      // PERF: Disabled - console.error(`❌ [RedisChartService] Error fetching candles with metadata:`, error);
       throw error;
     }
   }
@@ -187,9 +187,10 @@ export class RedisChartService {
       
       return result.data;
       
-    } catch (error) {
+    } catch (error: unknown) {
       ChartDebug.error('Failed to get storage stats:', error);
-      logger.error( 'Failed to get storage stats', { error: error.message });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error( 'Failed to get storage stats', { error: errorMessage });
       return null;
     }
   }
@@ -265,21 +266,13 @@ export class RedisChartService {
     };
 
     this.ws.onclose = (event) => {
-      console.error('❌ [RedisChartService] WebSocket CLOSED:', {
-        code: event.code,
-        reason: event.reason,
-        wasClean: event.wasClean
-      });
+      // PERF: Disabled - console logging removed for performance
       ChartDebug.warn('❌ Backend WebSocket disconnected');
       this.scheduleReconnect();
     };
 
     this.ws.onerror = (error) => {
-      console.error('🔴 [RedisChartService] WebSocket ERROR:', {
-        error,
-        readyState: this.ws?.readyState,
-        url: this.wsUrl
-      });
+      // PERF: Disabled - console logging removed for performance
       ChartDebug.error('Backend WebSocket error:', error);
     };
   }
@@ -298,7 +291,7 @@ export class RedisChartService {
       this.ws.send(JSON.stringify(message));
       ChartDebug.log(`📡 Subscribed to ${pair}:${granularity}`);
     } else {
-      console.error('❌ [RedisChartService] Cannot subscribe - WebSocket not open. State:', this.ws?.readyState);
+      // PERF: Disabled - console.error('❌ [RedisChartService] Cannot subscribe - WebSocket not open. State:', this.ws?.readyState);
     }
   }
 
@@ -372,13 +365,13 @@ export class RedisChartService {
             try {
               dataStore.updateDatabaseCount();
             } catch (err) {
-              console.error('Failed to update database count:', err);
+              // PERF: Disabled - console.error('Failed to update database count:', err);
             }
           } else if (activity.type === 'error' || activity.type === 'API_ERROR') {
             statusStore.setDatabaseActivity('error', 3000);
           }
         } catch (error) {
-          console.error('Failed to update database activity:', error);
+          // PERF: Disabled - console.error('Failed to update database activity:', error);
         }
         break;
 

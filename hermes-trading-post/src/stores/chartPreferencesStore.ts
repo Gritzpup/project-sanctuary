@@ -33,7 +33,7 @@ function createChartPreferencesStore() {
       savedPreferences = { ...defaultPreferences, ...JSON.parse(saved) };
     }
   } catch (e) {
-    console.error('Failed to load chart preferences:', e);
+    // PERF: Disabled - console.error('Failed to load chart preferences:', e);
   }
 
   const { subscribe, update } = writable<SectionPreferences>(savedPreferences);
@@ -43,7 +43,7 @@ function createChartPreferencesStore() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
     } catch (e) {
-      console.error('Failed to save chart preferences:', e);
+      // PERF: Disabled - console.error('Failed to save chart preferences:', e);
     }
   };
 

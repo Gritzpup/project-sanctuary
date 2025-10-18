@@ -24,7 +24,7 @@ export class TradingLogger {
       await fs.mkdir(this.logDir, { recursive: true });
     } catch (error) {
       if (error.code !== 'EEXIST') {
-        console.error('Error creating log directory:', error);
+        // PERF: Disabled - console.error('Error creating log directory:', error);
       }
     }
   }
@@ -95,13 +95,13 @@ export class TradingLogger {
       
       // Also log to console every 5 minutes for monitoring
       if (now - this.lastLogTime > 300000 || this.lastLogTime === 0) {
-        console.log(`📊 TRADING LOG [${this.botId}]: ${logText}`);
+        // PERF: Disabled - console.log(`📊 TRADING LOG [${this.botId}]: ${logText}`);
       }
       
       this.lastLogTime = now;
       
     } catch (error) {
-      console.error(`Error logging trading status for bot ${this.botId}:`, error);
+      // PERF: Disabled - console.error(`Error logging trading status for bot ${this.botId}:`, error);
     }
   }
 
@@ -160,10 +160,10 @@ export class TradingLogger {
       await fs.appendFile(logFile, logText + '\n');
       
       // Always log trades to console
-      console.log(`🎯 TRADE LOG [${this.botId}]: ${logText}`);
+      // PERF: Disabled - console.log(`🎯 TRADE LOG [${this.botId}]: ${logText}`);
       
     } catch (error) {
-      console.error(`Error logging trade execution for bot ${this.botId}:`, error);
+      // PERF: Disabled - console.error(`Error logging trade execution for bot ${this.botId}:`, error);
     }
   }
 
@@ -198,12 +198,12 @@ export class TradingLogger {
           
           if (now - stats.mtime.getTime() > this.maxLogAge) {
             await fs.unlink(filePath);
-            console.log(`🗑️ Cleaned old log file: ${file}`);
+            // PERF: Disabled - console.log(`🗑️ Cleaned old log file: ${file}`);
           }
         }
       }
     } catch (error) {
-      console.error(`Error cleaning old logs for bot ${this.botId}:`, error);
+      // PERF: Disabled - console.error(`Error cleaning old logs for bot ${this.botId}:`, error);
     }
   }
 
@@ -231,7 +231,7 @@ export class TradingLogger {
       
       return recentLogs.sort((a, b) => b.lastModified - a.lastModified);
     } catch (error) {
-      console.error(`Error getting recent logs for bot ${this.botId}:`, error);
+      // PERF: Disabled - console.error(`Error getting recent logs for bot ${this.botId}:`, error);
       return [];
     }
   }
@@ -245,7 +245,7 @@ export class TradingLogger {
       if (error.code === 'ENOENT') {
         return []; // No log file for today yet
       }
-      console.error(`Error reading today's activity for bot ${this.botId}:`, error);
+      // PERF: Disabled - console.error(`Error reading today's activity for bot ${this.botId}:`, error);
       return [];
     }
   }

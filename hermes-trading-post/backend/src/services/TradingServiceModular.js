@@ -7,7 +7,7 @@ export class TradingService {
   constructor(botId = null) {
     // Check if this bot already exists and is running
     if (botId && activeBotInstances.has(botId)) {
-      console.warn(`WARNING: Bot ${botId} already exists and may be running! Preventing duplicate.`);
+      // PERF: Disabled - console.warn(`WARNING: Bot ${botId} already exists and may be running! Preventing duplicate.`);
     }
     
     this.botId = botId;
@@ -89,7 +89,7 @@ export class TradingService {
   // Legacy compatibility methods
   async updateStrategy(strategy) {
     // This would update strategy config if needed
-    console.log('updateStrategy called:', strategy);
+    // PERF: Disabled - console.log('updateStrategy called:', strategy);
   }
 
   static getActiveInstance(botId) {

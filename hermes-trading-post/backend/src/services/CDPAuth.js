@@ -15,13 +15,13 @@ export class CDPAuth {
     this.privateKey = process.env.CDP_API_KEY_PRIVATE?.replace(/\\n/g, '\n');
 
     // Debug logging
-    console.log('🔐 [CDPAuth] Initializing CDP authentication');
-    console.log('🔐 [CDPAuth] Key name:', this.keyName ? 'SET ✅' : 'NOT SET ❌');
-    console.log('🔐 [CDPAuth] Private key:', this.privateKey ? 'SET ✅' : 'NOT SET ❌');
+    // PERF: Disabled - console.log('🔐 [CDPAuth] Initializing CDP authentication');
+    // PERF: Disabled - console.log('🔐 [CDPAuth] Key name:', this.keyName ? 'SET ✅' : 'NOT SET ❌');
+    // PERF: Disabled - console.log('🔐 [CDPAuth] Private key:', this.privateKey ? 'SET ✅' : 'NOT SET ❌');
 
     if (!this.keyName || !this.privateKey) {
-      console.error('❌ [CDPAuth] CDP credentials missing! Level2 WebSocket will fail.');
-      console.error('❌ [CDPAuth] Check that .env file has CDP_API_KEY_NAME and CDP_API_KEY_PRIVATE');
+      // PERF: Disabled - console.error('❌ [CDPAuth] CDP credentials missing! Level2 WebSocket will fail.');
+      // PERF: Disabled - console.error('❌ [CDPAuth] Check that .env file has CDP_API_KEY_NAME and CDP_API_KEY_PRIVATE');
     }
   }
 
@@ -30,7 +30,7 @@ export class CDPAuth {
    */
   generateJWT(requestMethod = 'GET', requestPath = '', body = '') {
     if (!this.keyName || !this.privateKey) {
-      console.warn('⚠️ CDP API credentials not configured');
+      // PERF: Disabled - console.warn('⚠️ CDP API credentials not configured');
       return null;
     }
 
@@ -51,7 +51,7 @@ export class CDPAuth {
         'CB-ACCESS-SIGN': signature
       };
     } catch (error) {
-      console.error('❌ Failed to generate CDP JWT:', error);
+      // PERF: Disabled - console.error('❌ Failed to generate CDP JWT:', error);
       return null;
     }
   }
@@ -62,7 +62,7 @@ export class CDPAuth {
    */
   generateWebSocketJWT() {
     if (!this.keyName || !this.privateKey) {
-      console.error('❌ CDP API credentials not configured for JWT generation');
+      // PERF: Disabled - console.error('❌ CDP API credentials not configured for JWT generation');
       return null;
     }
 
@@ -85,10 +85,10 @@ export class CDPAuth {
         }
       );
 
-      console.log('✅ [CDPAuth] Generated WebSocket JWT token');
+      // PERF: Disabled - console.log('✅ [CDPAuth] Generated WebSocket JWT token');
       return token;
     } catch (error) {
-      console.error('❌ [CDPAuth] Failed to generate WebSocket JWT:', error);
+      // PERF: Disabled - console.error('❌ [CDPAuth] Failed to generate WebSocket JWT:', error);
       return null;
     }
   }
@@ -100,7 +100,7 @@ export class CDPAuth {
     const jwt = this.generateWebSocketJWT();
 
     if (!jwt) {
-      console.error('❌ Failed to generate JWT for level2 subscription');
+      // PERF: Disabled - console.error('❌ Failed to generate JWT for level2 subscription');
       return null;
     }
 

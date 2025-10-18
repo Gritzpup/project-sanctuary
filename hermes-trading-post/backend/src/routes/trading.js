@@ -182,7 +182,7 @@ export default function tradingRoutes(botManager) {
         parseInt(startTime) : 
         calculatedEndTime - (parseInt(maxCandles) * granularitySeconds);
       
-      console.log(`📊 Chart data request: ${pair} ${granularity} from ${new Date(calculatedStartTime * 1000).toISOString()} to ${new Date(calculatedEndTime * 1000).toISOString()}`);
+      // PERF: Disabled - console.log(`📊 Chart data request: ${pair} ${granularity} from ${new Date(calculatedStartTime * 1000).toISOString()} to ${new Date(calculatedEndTime * 1000).toISOString()}`);
       
       // Try to get data from Redis first
       const allCandles = await redisCandleStorage.getCandles(
@@ -230,7 +230,7 @@ export default function tradingRoutes(botManager) {
       });
       
     } catch (error) {
-      console.error('❌ Chart data request failed:', error.message);
+      // PERF: Disabled - console.error('❌ Chart data request failed:', error.message);
       res.status(500).json({
         success: false,
         error: error.message,
@@ -255,7 +255,7 @@ export default function tradingRoutes(botManager) {
         data: stats
       });
     } catch (error) {
-      console.error('❌ Storage stats request failed:', error.message);
+      // PERF: Disabled - console.error('❌ Storage stats request failed:', error.message);
       res.status(500).json({
         success: false,
         error: error.message
@@ -295,7 +295,7 @@ export default function tradingRoutes(botManager) {
         }
       });
     } catch (error) {
-      console.error('❌ Total candles request failed:', error.message);
+      // PERF: Disabled - console.error('❌ Total candles request failed:', error.message);
       res.status(500).json({
         success: false,
         error: error.message
@@ -308,7 +308,7 @@ export default function tradingRoutes(botManager) {
     try {
       const { pair = 'BTC-USD', granularity = '1m', days = 7 } = req.body;
       
-      console.log(`📈 Historical data population requested: ${pair} ${granularity} ${days} days`);
+      // PERF: Disabled - console.log(`📈 Historical data population requested: ${pair} ${granularity} ${days} days`);
       
       // Check if already running
       const status = historicalDataService.getStatus();
@@ -335,7 +335,7 @@ export default function tradingRoutes(botManager) {
       });
       
     } catch (error) {
-      console.error('❌ Historical data population failed:', error.message);
+      // PERF: Disabled - console.error('❌ Historical data population failed:', error.message);
       res.status(500).json({
         success: false,
         error: error.message

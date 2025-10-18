@@ -413,9 +413,14 @@ wss.on('connection', (ws) => {
   ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message.toString());
-      // 🔇 Only log important messages (exclude status polls and real-time price spam)
+      // 🔇 PERF: Only log important messages with minimal overhead
+      // DO NOT use JSON.stringify in hot path - causes massive performance degradation
+      // Only log message type for debugging, not full payload
       if (data.type !== 'getStatus' && data.type !== 'getManagerState' && data.type !== 'realtimePrice') {
-        console.log('📥 [Backend] Received message:', data.type, JSON.stringify(data));
+        // Only log on significant operations, not every message
+        if (data.type === 'createBot' || data.type === 'deleteBot' || data.type === 'startBot' || data.type === 'stopBot') {
+          console.log('📥 [Backend]', data.type, '- botId:', data.botId);
+        }
       }
 
       switch (data.type) {

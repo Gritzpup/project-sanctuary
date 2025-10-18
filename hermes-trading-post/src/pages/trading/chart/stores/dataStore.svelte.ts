@@ -79,12 +79,12 @@ class DataStore {
   async hydrateFromCache(pair: string = 'BTC-USD', granularity: string = '1m', hours: number = 24) {
     try {
       this._dataStats.loadingStatus = 'fetching';
-      console.log(`💾 [DataStore] Hydrating from Redis cache for ${pair}:${granularity} (${hours}h)`);
+      // PERF: Disabled - console.log(`💾 [DataStore] Hydrating from Redis cache for ${pair}:${granularity} (${hours}h)`);
 
       const response = await fetch(`/api/candles/${pair}/${granularity}?hours=${hours}`);
 
       if (!response.ok) {
-        console.log(`⏭️ [DataStore] No cached candles available (HTTP ${response.status})`);
+        // PERF: Disabled - console.log(`⏭️ [DataStore] No cached candles available (HTTP ${response.status})`);
         this._dataStats.loadingStatus = 'idle';
         return;
       }
@@ -92,7 +92,7 @@ class DataStore {
       const result = await response.json();
 
       if (!result.success || !result.data || result.data.length === 0) {
-        console.log(`⏭️ [DataStore] Cached candles are empty`);
+        // PERF: Disabled - console.log(`⏭️ [DataStore] Cached candles are empty`);
         this._dataStats.loadingStatus = 'idle';
         return;
       }
@@ -100,7 +100,7 @@ class DataStore {
       // Process cached candles - MUST be sorted for lightweight-charts
       // Normalize timestamps and sort by time, removing any invalid entries
       const sortedCandles = result.data
-        .map(c => {
+        .map((c: any) => {
           // Normalize timestamps: convert milliseconds to seconds if needed
           // Timestamps after year 2286 (> 10^10) are in milliseconds
           if (typeof c.time === 'number' && c.time > 10000000000) {
@@ -108,7 +108,7 @@ class DataStore {
           }
           return c;
         })
-        .filter(c => {
+        .filter((c: any) => {
           // Validate that time is a reasonable Unix timestamp (seconds, not milliseconds)
           // Valid range: year 2020 (1577836800) to year 2030 (1893456000)
           if (!c || typeof c.time !== 'number') return false;
@@ -116,10 +116,10 @@ class DataStore {
           if (typeof c.close !== 'number' || c.close <= 0) return false;
           return true;
         })
-        .sort((a, b) => a.time - b.time);
+        .sort((a: any, b: any) => a.time - b.time);
 
       if (sortedCandles.length < result.data.length) {
-        console.warn(`⚠️ [DataStore] Filtered out ${result.data.length - sortedCandles.length} invalid candles from cache`);
+        // PERF: Disabled - console.warn(`⚠️ [DataStore] Filtered out ${result.data.length - sortedCandles.length} invalid candles from cache`);
       }
 
       this._candles = sortedCandles;
@@ -137,12 +137,12 @@ class DataStore {
       this._dataStats.lastUpdate = Date.now();
       this._dataStats.loadingStatus = 'idle';
 
-      console.log(`✅ [DataStore] Cache hydration complete: ${result.data.length} candles loaded from Redis`);
+      // PERF: Disabled - console.log(`✅ [DataStore] Cache hydration complete: ${result.data.length} candles loaded from Redis`);
 
       // Notify subscribers
       this.notifyDataUpdate();
     } catch (error) {
-      console.error(`❌ [DataStore] Failed to hydrate from cache:`, error);
+      // PERF: Disabled - console.error(`❌ [DataStore] Failed to hydrate from cache:`, error);
       this._dataStats.loadingStatus = 'error';
     }
   }
@@ -176,7 +176,7 @@ class DataStore {
         }
       }
     } catch (error) {
-      console.error('❌ Error filling recent data gaps:', error);
+      // PERF: Disabled - console.error('❌ Error filling recent data gaps:', error);
     }
   }
 
@@ -290,7 +290,7 @@ class DataStore {
       // This prevents polling errors and keeps stats responsive
 
     } catch (error) {
-      console.error(`❌ [DataStore] Error loading data for ${pair}/${granularity}:`, error);
+      // PERF: Disabled - console.error(`❌ [DataStore] Error loading data for ${pair}/${granularity}:`, error);
       throw error;
     }
   }
@@ -363,7 +363,7 @@ class DataStore {
       });
 
     if (validCandles.length < candles.length) {
-      console.warn(`⚠️ [DataStore] Filtered out ${candles.length - validCandles.length} invalid candles`);
+      // PERF: Disabled - console.warn(`⚠️ [DataStore] Filtered out ${candles.length - validCandles.length} invalid candles`);
     }
 
     // Ensure candles are sorted by time (required by lightweight-charts)
@@ -400,23 +400,23 @@ class DataStore {
 
     // Validate candle
     if (!validCandle || typeof validCandle.time !== 'number') {
-      console.warn('⚠️ [DataStore] Invalid candle - missing time');
+      // PERF: Disabled - console.warn('⚠️ [DataStore] Invalid candle - missing time');
       return;
     }
 
     // 🚫 CRITICAL: NEVER add candles with time=0 (ticker updates) to the array
     // Ticker updates should ONLY update the existing last candle, never create new candles
     if (validCandle.time === 0) {
-      console.warn('⚠️ [DataStore] Rejecting candle with time=0 - this is a ticker update, not a new candle');
+      // PERF: Disabled - console.warn('⚠️ [DataStore] Rejecting candle with time=0 - this is a ticker update, not a new candle');
       return;
     }
 
     if (validCandle.time < 1577836800 || validCandle.time > 1893456000) {
-      console.warn('⚠️ [DataStore] Invalid candle - time out of range:', validCandle.time);
+      // PERF: Disabled - console.warn('⚠️ [DataStore] Invalid candle - time out of range:', validCandle.time);
       return;
     }
     if (typeof validCandle.close !== 'number' || validCandle.close <= 0) {
-      console.warn('⚠️ [DataStore] Invalid candle - invalid close price:', validCandle.close);
+      // PERF: Disabled - console.warn('⚠️ [DataStore] Invalid candle - invalid close price:', validCandle.close);
       return;
     }
 
@@ -487,7 +487,7 @@ class DataStore {
 
       return 0;
     } catch (error) {
-      console.error('❌ Error fetching historical data:', error);
+      // PERF: Disabled - console.error('❌ Error fetching historical data:', error);
       return 0;
     }
   }
@@ -507,7 +507,7 @@ class DataStore {
     onUpdate?: (candle: CandlestickData) => void,
     onReconnect?: () => void
   ) {
-    console.log('[DataStore] subscribeToRealtime called for', pair, granularity);
+    // PERF: Disabled - console.log('[DataStore] subscribeToRealtime called for', pair, granularity);
 
     // Only unsubscribe if we have an active subscription
     // ChartDataService.subscribeToRealtime() will handle its own cleanup
@@ -539,7 +539,7 @@ class DataStore {
 
           // Reject candles with invalid timestamps
           if (normalizedTime < 1577836800 || normalizedTime > 1893456000) {
-            console.warn('⚠️ [DataStore] Rejecting candle with invalid time:', normalizedTime);
+            // PERF: Disabled - console.warn('⚠️ [DataStore] Rejecting candle with invalid time:', normalizedTime);
             return;
           }
 
@@ -617,7 +617,7 @@ class DataStore {
 
       // Log only once to confirm price updates are working
       if (!this._priceUpdateLoggedOnce) {
-        console.log(`✅ [DataStore] L2 price updates active: $${price.toFixed(2)}`);
+        // PERF: Disabled - console.log(`✅ [DataStore] L2 price updates active: $${price.toFixed(2)}`);
         this._priceUpdateLoggedOnce = true;
       }
 
@@ -715,7 +715,7 @@ class DataStore {
         this._dataStats.totalCount = dbCount;
       }
     } catch (error) {
-      console.error('Error getting database count:', error);
+      // PERF: Disabled - console.error('Error getting database count:', error);
     }
   }
 
@@ -781,7 +781,7 @@ class DataStore {
       try {
         callback();
       } catch (error) {
-        console.error(`❌ [DataStore] Error in data update callback:`, error);
+        // PERF: Disabled - console.error(`❌ [DataStore] Error in data update callback:`, error);
       }
     });
   }
@@ -791,7 +791,7 @@ class DataStore {
       try {
         callback();
       } catch (error) {
-        console.error(`❌ [DataStore] Error in historical data callback:`, error);
+        // PERF: Disabled - console.error(`❌ [DataStore] Error in historical data callback:`, error);
       }
     });
   }
