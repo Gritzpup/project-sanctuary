@@ -100,8 +100,19 @@ class DataStore {
       // Process cached candles - MUST be sorted for lightweight-charts
       // Sort by time and remove any invalid entries
       const sortedCandles = result.data
-        .filter(c => c && typeof c.time === 'number' && c.time > 0 && c.close > 0)
+        .filter(c => {
+          // Validate that time is a reasonable Unix timestamp (seconds, not milliseconds)
+          // Valid range: year 2020 (1577836800) to year 2030 (1893456000)
+          if (!c || typeof c.time !== 'number') return false;
+          if (c.time < 1577836800 || c.time > 1893456000) return false;
+          if (typeof c.close !== 'number' || c.close <= 0) return false;
+          return true;
+        })
         .sort((a, b) => a.time - b.time);
+
+      if (sortedCandles.length < result.data.length) {
+        console.warn(`⚠️ [DataStore] Filtered out ${result.data.length - sortedCandles.length} invalid candles from cache`);
+      }
 
       this._candles = sortedCandles;
       this._visibleCandles = sortedCandles;
@@ -327,15 +338,20 @@ class DataStore {
   }
 
   setCandles(candles: CandlestickDataWithVolume[]) {
-    // Filter out invalid candles (must have valid time > 0) and sort
+    // Filter out invalid candles and sort
     // This prevents lightweight-charts assertion errors
-    const validCandles = candles.filter(c =>
-      c &&
-      typeof c.time === 'number' &&
-      c.time > 0 &&
-      typeof c.close === 'number' &&
-      c.close > 0
-    );
+    const validCandles = candles.filter(c => {
+      // Validate that time is a reasonable Unix timestamp (seconds, not milliseconds)
+      // Valid range: year 2020 (1577836800) to year 2030 (1893456000)
+      if (!c || typeof c.time !== 'number') return false;
+      if (c.time < 1577836800 || c.time > 1893456000) return false;
+      if (typeof c.close !== 'number' || c.close <= 0) return false;
+      return true;
+    });
+
+    if (validCandles.length < candles.length) {
+      console.warn(`⚠️ [DataStore] Filtered out ${candles.length - validCandles.length} invalid candles`);
+    }
 
     // Ensure candles are sorted by time (required by lightweight-charts)
     const sortedCandles = [...validCandles].sort((a, b) => (a.time as number) - (b.time as number));
