@@ -4,14 +4,37 @@
  * Centralized configuration for Redis connection and storage settings
  */
 
-// Redis connection configuration
+// Redis connection configuration - optimized for high-frequency trading
 export const REDIS_CONFIG = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6379'),
   password: process.env.REDIS_PASSWORD,
   db: parseInt(process.env.REDIS_DB || '0'),
-  retryDelayOnFailover: 100,
-  maxRetriesPerRequest: 3
+
+  // ⚡ Connection pool optimization for trading workload
+  maxRetriesPerRequest: null, // null = retry indefinitely for critical ops
+  retryDelayOnFailover: 10, // Reduced from 100ms for faster reconnects
+  retryDelayOnCluster: 10,
+
+  // 🔥 Buffer & TCP tuning for low-latency trading
+  tcpKeepAlive: 5000, // Keep-alive to detect dead connections quickly
+  connectionKeepAliveInterval: 5000,
+
+  // Pipeline optimization - batch commands for throughput
+  maxLoadingRetryTime: 5000, // Wait 5s for Redis to finish loading
+  enableReadyCheck: true, // Check Redis is ready before operations
+  enableOfflineQueue: true, // Queue commands while reconnecting
+
+  // Network optimizations for trading
+  family: 4, // Force IPv4 for consistency
+  disableOfflineQueue: false,
+
+  // 🎯 Critical: socket keep-alive for long-lived connections
+  socket: {
+    keepAlive: true,
+    noDelay: true, // Disable Nagle's algorithm for low-latency trading
+    preferredMessageFormat: 'resp3' // Use RESP3 for better pipelining
+  }
 };
 
 // Candle storage configuration
