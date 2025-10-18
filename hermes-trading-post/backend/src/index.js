@@ -8,6 +8,7 @@ import { BotManager } from './services/botManager.js';
 import { coinbaseWebSocket } from './services/coinbaseWebSocket.js';
 import { historicalDataService } from './services/HistoricalDataService.js';
 import { continuousCandleUpdater } from './services/ContinuousCandleUpdater.js';
+import { redisOrderbookCache } from './services/redis/RedisOrderbookCache.js';
 import tradingRoutes from './routes/trading.js';
 
 dotenv.config();
@@ -703,6 +704,63 @@ wss.on('connection', (ws) => {
 });
 
 app.use('/api/trading', tradingRoutes(botManager));
+
+// 🚀 Orderbook API endpoints for frontend hydration
+app.get('/api/orderbook/:productId', async (req, res) => {
+  const { productId } = req.params;
+
+  try {
+    console.log(`📥 [API] Received orderbook request for ${productId}`);
+
+    // Get full cached orderbook for immediate frontend hydration
+    const orderbook = await redisOrderbookCache.getFullOrderbook(productId);
+
+    if (!orderbook) {
+      console.log(`⏭️ [API] No cached orderbook for ${productId}`);
+      return res.json({
+        success: false,
+        message: 'No cached orderbook available yet',
+        data: { bids: [], asks: [] }
+      });
+    }
+
+    console.log(`✅ [API] Returning cached orderbook for ${productId}: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);
+
+    res.json({
+      success: true,
+      data: orderbook
+    });
+  } catch (error) {
+    console.error(`❌ Failed to get orderbook for ${productId}:`, error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      data: { bids: [], asks: [] }
+    });
+  }
+});
+
+// Get orderbook filtered to specific range (for API clients)
+app.get('/api/orderbook/:productId/range', async (req, res) => {
+  const { productId } = req.params;
+  const depthRange = parseInt(req.query.depth) || 25000;
+
+  try {
+    const orderbook = await redisOrderbookCache.getOrderbookForAPI(productId, depthRange);
+
+    res.json({
+      success: true,
+      depth_range: depthRange,
+      data: orderbook
+    });
+  } catch (error) {
+    console.error(`❌ Failed to get orderbook range for ${productId}:`, error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 app.get('/health', (req, res) => {
   const memUsage = process.memoryUsage();

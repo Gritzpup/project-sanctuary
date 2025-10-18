@@ -1,6 +1,7 @@
 import { WebSocket } from 'ws';
 import { EventEmitter } from 'events';
 import { redisCandleStorage } from './redis/RedisCandleStorage.js';
+import { redisOrderbookCache } from './redis/RedisOrderbookCache.js';
 import { coinbaseAPI } from './CoinbaseAPIService.js';
 import { MultiGranularityAggregator } from './MultiGranularityAggregator.js';
 import { cdpAuth } from './CDPAuth.js';
@@ -21,10 +22,12 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     
     // Candle aggregation
     this.candleAggregators = new Map(); // key: "pair:granularity", value: aggregator
-    
+
     // Redis storage integration
     this.redisStorageEnabled = true;
+    this.orderbookCacheEnabled = true;
     this.initializeRedisStorage();
+    this.initializeOrderbookCache();
   }
 
   /**
@@ -32,13 +35,28 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   async initializeRedisStorage() {
     if (!this.redisStorageEnabled) return;
-    
+
     try {
       await redisCandleStorage.connect();
       console.log('✅ Redis storage initialized for WebSocket candle data');
     } catch (error) {
       console.error('❌ Failed to initialize Redis storage:', error.message);
       this.redisStorageEnabled = false;
+    }
+  }
+
+  /**
+   * Initialize Redis orderbook cache for Level2 data
+   */
+  async initializeOrderbookCache() {
+    if (!this.orderbookCacheEnabled) return;
+
+    try {
+      await redisOrderbookCache.connect();
+      console.log('✅ Redis orderbook cache initialized for Level2 data');
+    } catch (error) {
+      console.error('❌ Failed to initialize Redis orderbook cache:', error.message);
+      this.orderbookCacheEnabled = false;
     }
   }
 
@@ -369,7 +387,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * Handle incoming WebSocket messages
    * Advanced Trade API uses 'channel' field, not 'type' field
    */
-  handleMessage(message) {
+  async handleMessage(message) {
     // Advanced Trade API uses 'channel' field for routing
     if (message.channel) {
       switch (message.channel) {
@@ -384,12 +402,12 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         case 'l2_data':
           // Advanced Trade API uses 'l2_data' channel (not 'level2')
           // 🔇 Removed verbose logging - fires 100+ times/sec
-          this.handleLevel2(message);
+          await this.handleLevel2(message);
           break;
 
         case 'level2':
           console.log(`📊 [L2] Received level2 update for ${message.product_id}`);
-          this.handleLevel2(message);
+          await this.handleLevel2(message);
           break;
 
         case 'subscriptions':
@@ -420,7 +438,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         case 'l2update':
         case 'level2':
           console.log(`📊 [L2] Received ${message.type} for ${message.product_id}`);
-          this.handleLevel2(message);
+          await this.handleLevel2(message);
           break;
 
         case 'error':
@@ -534,8 +552,9 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
   /**
    * Handle level2 orderbook messages (snapshot and updates)
+   * Integrates Redis caching and smart update forwarding
    */
-  handleLevel2(message) {
+  async handleLevel2(message) {
     // Advanced Trade API l2_data messages have events array
     if (message.channel === 'l2_data' && message.events) {
       message.events.forEach(event => {
@@ -582,6 +601,23 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       orderbook.bids.sort((a, b) => b.price - a.price);
       orderbook.asks.sort((a, b) => a.price - b.price);
 
+      // 🚀 PERFORMANCE: Cache snapshot in Redis and check if it has changed
+      if (this.orderbookCacheEnabled) {
+        await redisOrderbookCache.storeOrderbookSnapshot(productId, orderbook.bids, orderbook.asks);
+
+        // Only emit if data has actually changed
+        if (!redisOrderbookCache.hasOrderbookChanged(productId)) {
+          console.log(`⏭️ [L2] Skipping duplicate snapshot for ${productId}`);
+          return;
+        }
+      }
+
+      // Check throttling - only forward max 10 updates/sec per product
+      if (redisOrderbookCache.shouldThrottle(productId, 10)) {
+        console.log(`⏸️ [L2] Throttling snapshot for ${productId}`);
+        return;
+      }
+
       this.emit('level2', orderbook);
 
     } else if (message.type === 'l2update') {
@@ -614,6 +650,16 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         });
       }
 
+      // 🚀 PERFORMANCE: Apply update to cache and check throttling
+      if (this.orderbookCacheEnabled) {
+        await redisOrderbookCache.applyUpdate(productId, updates.changes);
+
+        // Check throttling - only forward max 10 updates/sec per product
+        if (redisOrderbookCache.shouldThrottle(productId, 10)) {
+          return; // Skip this update
+        }
+      }
+
       this.emit('level2', updates);
     } else if (message.type === 'level2') {
       // Authenticated level2 format (direct bids/asks)
@@ -642,6 +688,23 @@ export class CoinbaseWebSocketClient extends EventEmitter {
             size: parseFloat(ask[1])
           });
         });
+      }
+
+      // 🚀 PERFORMANCE: Cache snapshot in Redis
+      if (this.orderbookCacheEnabled) {
+        await redisOrderbookCache.storeOrderbookSnapshot(productId, orderbook.bids, orderbook.asks);
+
+        // Only emit if data has actually changed
+        if (!redisOrderbookCache.hasOrderbookChanged(productId)) {
+          console.log(`⏭️ [L2] Skipping duplicate snapshot for ${productId}`);
+          return;
+        }
+
+        // Check throttling - only forward max 10 updates/sec per product
+        if (redisOrderbookCache.shouldThrottle(productId, 10)) {
+          console.log(`⏸️ [L2] Throttling snapshot for ${productId}`);
+          return;
+        }
       }
 
       // Bids and asks are already sorted

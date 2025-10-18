@@ -403,6 +403,11 @@
       }
     });
 
+    // 🚀 PERFORMANCE: Hydrate from cache first for instant display on page load
+    orderbookStore.hydrateFromCache('BTC-USD').then(() => {
+      console.log(`✅ Cache hydration initiated, chart should display instantly`);
+    });
+
     // Connect to WebSocket for orderbook data (retry until connection is available)
     const connectInterval = setInterval(() => {
       if (connectWebSocket()) {

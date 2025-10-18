@@ -49,6 +49,44 @@ class OrderbookStore {
   };
 
   /**
+   * Hydrate orderbook from cached Redis data (called on page load for instant display)
+   * This allows the chart to show data immediately while waiting for WebSocket updates
+   */
+  async hydrateFromCache(productId: string = 'BTC-USD') {
+    try {
+      const response = await fetch(`/api/orderbook/${productId}`);
+
+      if (!response.ok) {
+        console.log(`⏭️ [Orderbook] No cached orderbook available (HTTP ${response.status})`);
+        return;
+      }
+
+      const result = await response.json();
+
+      if (!result.success || !result.data || result.data.bids.length === 0) {
+        console.log(`⏭️ [Orderbook] Cached orderbook is empty or not ready yet`);
+        return;
+      }
+
+      const cachedOrderbook = result.data;
+
+      console.log(`💾 [Orderbook] Hydrating from cache: ${cachedOrderbook.bids.length} bids, ${cachedOrderbook.asks.length} asks`);
+
+      // Process cached data as if it were a snapshot
+      this.processSnapshot({
+        product_id: cachedOrderbook.product_id || productId,
+        bids: cachedOrderbook.bids,
+        asks: cachedOrderbook.asks
+      });
+
+      console.log(`✅ [Orderbook] Cache hydration complete - chart should now display instantly!`);
+    } catch (error) {
+      console.error(`⚠️ [Orderbook] Failed to hydrate from cache:`, error);
+      // Fail silently - app will still wait for WebSocket data
+    }
+  }
+
+  /**
    * Process orderbook snapshot - optimized to detect actual changes
    */
   processSnapshot(data: { product_id: string; bids: OrderbookLevel[]; asks: OrderbookLevel[] }) {
