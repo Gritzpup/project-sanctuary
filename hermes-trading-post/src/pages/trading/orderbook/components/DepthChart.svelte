@@ -7,7 +7,7 @@
   import { createChart, type IChartApi, type ISeriesApi, ColorType } from 'lightweight-charts';
   import { orderbookStore } from '../stores/orderbookStore.svelte';
   import { dataStore } from '../../chart/stores/dataStore.svelte';
-  import { FastNumberFormatter } from '../../../utils/shared/Formatters';
+  import { FastNumberFormatter } from '../../../../utils/shared/Formatters';
 
   let chartContainer: HTMLDivElement;
   let chart: IChartApi;

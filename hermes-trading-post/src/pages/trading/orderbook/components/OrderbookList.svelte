@@ -5,7 +5,7 @@
    */
 
   import type { OrderbookLevel } from './useDepthChartData';
-  import { FastNumberFormatter } from '../../../utils/shared/Formatters';
+  import { FastNumberFormatter } from '../../../../utils/shared/Formatters';
 
   interface Props {
     bidsWithCumulative: OrderbookLevel[];
