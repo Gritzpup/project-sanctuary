@@ -17,6 +17,7 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   private lastCandleTime: number = 0;
   private lastProcessedIndex: number = -1;  // Track last processed candle for incremental updates
   private colorCache: Map<number, { isPriceUp: boolean; color: string }> = new Map();  // Cache volume colors
+  private dataStoreUnsubscribe: (() => void) | null = null;  // Track dataStore subscription
 
   constructor(settings?: VolumePluginSettings) {
     
@@ -99,9 +100,42 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         borderVisible: false,
         entireTextOnly: false,
       });
+
+      // Subscribe to dataStore updates for real-time volume sync
+      this.subscribeToDataStoreUpdates();
     } else {
       console.error('VolumePlugin: No series available in setupSeries');
     }
+  }
+
+  /**
+   * Subscribe to dataStore updates to keep volume candles in sync with price candles
+   * This ensures volume candles are updated in real-time as prices update
+   */
+  private subscribeToDataStoreUpdates(): void {
+    try {
+      const dataStore = this.getDataStore();
+      if (!dataStore) return;
+
+      // Subscribe to data updates
+      this.dataStoreUnsubscribe = dataStore.onDataUpdate(() => {
+        // When dataStore updates, refresh our volume data
+        this.refreshData();
+      });
+    } catch (error) {
+      // PERF: Disabled - console.warn('VolumePlugin: Could not subscribe to dataStore updates:', error);
+    }
+  }
+
+  /**
+   * Cleanup subscription when plugin is destroyed
+   */
+  override onDestroy(): void {
+    if (this.dataStoreUnsubscribe) {
+      this.dataStoreUnsubscribe();
+      this.dataStoreUnsubscribe = null;
+    }
+    super.onDestroy();
   }
 
   protected getData(): HistogramData[] {

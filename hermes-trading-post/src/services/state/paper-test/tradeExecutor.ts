@@ -158,22 +158,20 @@ export class TradeExecutor {
       options.onPositionUpdate(updatedState.positions, updatedState.balance, updatedState.btcBalance);
     }
     
-    // Play coin sound for profitable trades
-    if (profit > 0) {
-      this.playCoinSound();
-    }
+    // Note: Sound playback has been moved to backend via system audio driver
+    // No browser audio - use backend /api/trading/test-sell endpoint instead
   }
 
   updatePositions(currentPrice: number): void {
     const state = this.stateManager.getState();
-    
+
     // Update position values with current price
     state.positions.forEach(position => {
       const currentValue = position.size * currentPrice;
       const costBasis = position.size * position.entryPrice;
       const unrealizedPnL = currentValue - costBasis;
       const unrealizedPnLPercent = (unrealizedPnL / costBasis) * 100;
-      
+
       // Store updated values in metadata for display
       position.metadata = {
         ...position.metadata,
@@ -182,28 +180,5 @@ export class TradeExecutor {
         unrealizedPnLPercent
       };
     });
-  }
-
-  private playCoinSound(): void {
-    try {
-      const audio = new Audio('/sounds/coins_cave01.wav');
-      audio.volume = 0.3;
-
-      // Attempt to play, with error handling for browser audio policies
-      const playPromise = audio.play();
-
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            // Sound played successfully
-          })
-          .catch(e => {
-            // Autoplay policy or audio device issue
-            this.stateManager.log('Sound play failed (likely browser autoplay policy):', e.name);
-          });
-      }
-    } catch (e) {
-      this.stateManager.log('Failed to create audio:', e);
-    }
   }
 }

@@ -1,6 +1,7 @@
 import express from 'express';
 import { redisCandleStorage } from '../services/redis/RedisCandleStorage.js';
 import { historicalDataService } from '../services/HistoricalDataService.js';
+import { SoundPlayer } from '../utils/SoundPlayer.js';
 
 export default function tradingRoutes(botManager) {
   const router = express.Router();
@@ -307,9 +308,9 @@ export default function tradingRoutes(botManager) {
   router.post('/populate-historical', async (req, res) => {
     try {
       const { pair = 'BTC-USD', granularity = '1m', days = 7 } = req.body;
-      
+
       // PERF: Disabled - console.log(`📈 Historical data population requested: ${pair} ${granularity} ${days} days`);
-      
+
       // Check if already running
       const status = historicalDataService.getStatus();
       if (status.isRunning) {
@@ -319,10 +320,10 @@ export default function tradingRoutes(botManager) {
           status
         });
       }
-      
+
       // Start historical data fetch (don't await - run in background)
       historicalDataService.fetchHistoricalData(pair, granularity, parseInt(days));
-      
+
       res.json({
         success: true,
         data: {
@@ -333,9 +334,81 @@ export default function tradingRoutes(botManager) {
           status: historicalDataService.getStatus()
         }
       });
-      
+
     } catch (error) {
       // PERF: Disabled - console.error('❌ Historical data population failed:', error.message);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  // Test endpoint: Simulate a profitable sell and play sound via system audio
+  router.post('/test-sell', async (req, res) => {
+    try {
+      const { entryPrice = 40000, exitPrice = 41000, amount = 0.01 } = req.body;
+
+      // Calculate profit
+      const proceeds = amount * exitPrice;
+      const cost = amount * entryPrice;
+      const profit = proceeds - cost;
+
+      console.log(`🎵 TEST SELL: Entry=$${entryPrice.toFixed(2)}, Exit=$${exitPrice.toFixed(2)}, Amount=${amount}BTC, Profit=$${profit.toFixed(2)}`);
+
+      // Play sound only if profitable
+      if (profit > 0) {
+        try {
+          console.log('🔊 Playing profit sound via system audio driver (aplay/ffplay)...');
+          await SoundPlayer.playCoinSound();
+
+          res.json({
+            success: true,
+            message: 'Test sell executed - sound played!',
+            data: {
+              entryPrice,
+              exitPrice,
+              amount,
+              proceeds: proceeds.toFixed(2),
+              cost: cost.toFixed(2),
+              profit: profit.toFixed(2),
+              profitPercent: ((profit / cost) * 100).toFixed(2) + '%',
+              soundPlayed: true
+            }
+          });
+        } catch (soundError) {
+          console.error('🔊 ERROR playing sound:', soundError.message);
+          res.status(500).json({
+            success: false,
+            message: 'Test sell executed but sound playback failed',
+            error: soundError.message,
+            data: {
+              entryPrice,
+              exitPrice,
+              amount,
+              profit: profit.toFixed(2),
+              soundPlayed: false
+            }
+          });
+        }
+      } else {
+        res.json({
+          success: true,
+          message: 'Test sell executed (not profitable - no sound)',
+          data: {
+            entryPrice,
+            exitPrice,
+            amount,
+            proceeds: proceeds.toFixed(2),
+            cost: cost.toFixed(2),
+            profit: profit.toFixed(2),
+            profitPercent: ((profit / cost) * 100).toFixed(2) + '%',
+            soundPlayed: false
+          }
+        });
+      }
+    } catch (error) {
+      console.error('❌ Test sell failed:', error.message);
       res.status(500).json({
         success: false,
         error: error.message
