@@ -10,6 +10,7 @@
   import { getGranularitySeconds } from '../../utils/granularityHelpers';
   import { getCandleCount } from '../../../../../lib/chart/TimeframeCompatibility';
   import { useHistoricalDataLoader } from '../../hooks/useHistoricalDataLoader.svelte';
+  import ServerTimeService from '../../../../../services/ServerTimeService';
   
   // Props using Svelte 5 runes syntax
   const {
@@ -55,7 +56,8 @@
         lastCandleCount = dataStore.candles.length;
 
         // Don't auto-position if user has interacted in the last 10 seconds
-        const timeSinceInteraction = Date.now() - lastUserInteraction;
+        // Use server time for accurate timing across all clients
+        const timeSinceInteraction = ServerTimeService.getNow() - lastUserInteraction;
         if (!userHasInteracted || timeSinceInteraction > 10000) {
           applyOptimalPositioning();
         }
@@ -165,7 +167,8 @@
 
     const markUserInteraction = () => {
       userHasInteracted = true;
-      lastUserInteraction = Date.now();
+      // Use server time for consistent interaction tracking
+      lastUserInteraction = ServerTimeService.getNow();
     };
 
     // Track mouse events on the chart
@@ -235,7 +238,8 @@
 
     try {
       // If user has interacted, be much less aggressive with positioning
-      const timeSinceInteraction = Date.now() - lastUserInteraction;
+      // Use server time for consistent timing across all clients
+      const timeSinceInteraction = ServerTimeService.getNow() - lastUserInteraction;
       const recentlyInteracted = userHasInteracted && timeSinceInteraction < 30000; // 30 seconds
 
       if (recentlyInteracted) {

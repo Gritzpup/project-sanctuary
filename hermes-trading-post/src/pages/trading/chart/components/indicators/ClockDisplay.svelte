@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import ServerTimeService from '../../../../services/ServerTimeService';
 
   // Props using Svelte 5 runes syntax
   const {
@@ -15,7 +16,7 @@
   } = $props();
 
   // Internal state - cache formatted strings to avoid unnecessary re-renders
-  let currentTime = $state(new Date());
+  let currentTime = $state(ServerTimeService.getNowDate());
   let clockInterval: NodeJS.Timeout;
   let lastClockDisplay = '';
   let lastDateDisplay = '';
@@ -47,10 +48,14 @@
     }
   });
 
-  onMount(() => {
-    // Start clock interval - updates only trigger on-demand via $derived
+  onMount(async () => {
+    // Initialize server time synchronization
+    await ServerTimeService.initServerTime();
+
+    // Start clock interval using SERVER TIME (synchronized with backend)
+    // This ensures all clients see the same time
     clockInterval = setInterval(() => {
-      currentTime = new Date();
+      currentTime = ServerTimeService.getNowDate();
     }, updateInterval);
   });
 

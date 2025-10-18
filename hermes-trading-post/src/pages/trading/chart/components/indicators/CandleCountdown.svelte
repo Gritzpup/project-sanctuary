@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { chartStore } from '../../stores/chartStore.svelte';
   import { getGranularitySeconds } from '../../utils/granularityHelpers';
-  import { getCurrentTimestamp } from '../../utils/timeHelpers';
+  import ServerTimeService from '../../../../services/ServerTimeService';
 
   // Props using Svelte 5 runes syntax
   const {
@@ -26,10 +26,11 @@
     return `${seconds}s`;
   }
 
-  // Update countdown timer
+  // Update countdown timer using server time
   function updateCandleCountdown() {
-    // Always use fresh timestamp - never cache
-    const now = Math.floor(Date.now() / 1000);
+    // 🕐 Use SERVER time (synchronized with backend)
+    // This ensures candle countdown stays in sync across all clients
+    const now = ServerTimeService.getNowSeconds();
     const currentGranularity = chartStore.config.granularity;
 
     // Calculate granularity in seconds
@@ -51,11 +52,14 @@
   const urgent = $derived(showUrgentStyling && timeToNextCandle <= 5);
   const veryUrgent = $derived(showUrgentStyling && timeToNextCandle <= 2);
 
-  onMount(() => {
+  onMount(async () => {
+    // Initialize server time synchronization
+    await ServerTimeService.initServerTime();
+
     // Initial countdown update
     updateCandleCountdown();
-    
-    // Set up interval for countdown updates
+
+    // Set up interval for countdown updates (now synchronized with server time)
     countdownInterval = setInterval(() => {
       updateCandleCountdown();
     }, updateInterval);

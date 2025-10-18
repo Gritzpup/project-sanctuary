@@ -886,6 +886,21 @@ app.get('/api/candles/:pair/:granularity', async (req, res) => {
   }
 });
 
+// 🕐 Server time endpoint for synchronized timers
+// Used by timers and chart animation to stay synchronized with server time
+app.get('/api/time', (req, res) => {
+  const now = Date.now();
+  const seconds = Math.floor(now / 1000);
+
+  res.json({
+    success: true,
+    timestamp: now,           // milliseconds
+    unixTime: seconds,        // seconds (for granularity calculations)
+    iso: new Date(now).toISOString(),
+    serverTime: now
+  });
+});
+
 app.get('/health', (req, res) => {
   const memUsage = process.memoryUsage();
   res.json({
