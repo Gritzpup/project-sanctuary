@@ -548,14 +548,29 @@ class DataStore {
           } else {
             // New candle - append without replacing the entire array
             this._candles.push(candleData);
+
+            // 🔥 UPDATE STATS WITH PROPER SVELTE 5 REACTIVITY when new candle is added
+            // Must reassign the entire object to trigger reactivity
+            this._dataStats = {
+              ...this._dataStats,
+              totalCount: this._candles.length,
+              newestTime: candleData.time as number,
+              lastUpdate: Date.now(),
+              visibleCount: this._visibleCandles.length
+            };
           }
         }
 
         // Update latest price for status display (for both ticker AND full candle updates)
         this._latestPrice = update.close;
 
-        // Update stats timestamp only
-        this._dataStats.lastUpdate = Date.now();
+        // Update stats timestamp only (for ticker updates that don't create new candles)
+        if (update.time === 0 || !update.time) {
+          this._dataStats = {
+            ...this._dataStats,
+            lastUpdate: Date.now()
+          };
+        }
 
         // Notify data update callbacks for price updates (e.g., chart header)
         this.notifyDataUpdate();

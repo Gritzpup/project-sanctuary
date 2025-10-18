@@ -255,12 +255,8 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       
 
       // DO NOT call dataStore.setCandles() - it causes the entire database to be replaced!
-      // Just update the chart directly
+      // dataStore.subscribeToRealtime() already handles adding new candles, so just update the chart
       chartSeries.update(newCandle);
-
-      // 🔥 CRITICAL FIX: Add new candle to dataStore so stats are updated!
-      // This ensures the candle counter and stats respond to new candles
-      dataStore.addCandle(newCandle);
 
       // Update volume series if available - MUST use exact same time as price candle
       if (volumeSeries && fullCandleData?.volume !== undefined) {
