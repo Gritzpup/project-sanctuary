@@ -42,7 +42,16 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         priceFormat: {
           type: 'custom',
           formatter: (price: number) => {
-            return price.toFixed(1) + 'B';
+            // Format volume: billions > millions > thousands > base
+            if (price >= 1000000) {
+              return (price / 1000000).toFixed(1) + 'B';
+            } else if (price >= 1000) {
+              return (price / 1000).toFixed(1) + 'M';
+            } else if (price >= 1) {
+              return price.toFixed(1) + 'K';
+            } else {
+              return price.toFixed(3);
+            }
           },
         },
         priceScaleId: 'volume', // Use separate price scale for volume
@@ -63,11 +72,13 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         priceFormat: {
           type: 'custom',
           formatter: (price: number) => {
-            // Format volume in millions/billions
-            if (price >= 1000) {
-              return (price / 1000).toFixed(1) + 'B';
+            // Format volume: billions > millions > thousands > base
+            if (price >= 1000000) {
+              return (price / 1000000).toFixed(1) + 'B';
+            } else if (price >= 1000) {
+              return (price / 1000).toFixed(1) + 'M';
             } else if (price >= 1) {
-              return price.toFixed(1) + 'M';
+              return price.toFixed(1) + 'K';
             } else {
               return price.toFixed(3);
             }

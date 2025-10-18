@@ -138,17 +138,30 @@ export function useDepthChartData() {
     });
   });
 
-  // Reactive derived values for volume bar widths
+  // 🚀 PERF: Reactive derived values for volume bar widths
+  // Use loop-based max instead of Math.max(...spread) to avoid array allocation
   let maxBidSize = $derived.by(() => {
-    return bidsWithCumulative.length > 0
-      ? Math.max(...bidsWithCumulative.map(b => b.size), 0.001)
-      : 0.001;
+    if (bidsWithCumulative.length === 0) return 0.001;
+
+    let max = 0.001;
+    for (let i = 0; i < bidsWithCumulative.length; i++) {
+      if (bidsWithCumulative[i].size > max) {
+        max = bidsWithCumulative[i].size;
+      }
+    }
+    return max;
   });
 
   let maxAskSize = $derived.by(() => {
-    return asksWithCumulative.length > 0
-      ? Math.max(...asksWithCumulative.map(a => a.size), 0.001)
-      : 0.001;
+    if (asksWithCumulative.length === 0) return 0.001;
+
+    let max = 0.001;
+    for (let i = 0; i < asksWithCumulative.length; i++) {
+      if (asksWithCumulative[i].size > max) {
+        max = asksWithCumulative[i].size;
+      }
+    }
+    return max;
   });
 
   let volumeRange = $derived.by(() => {
