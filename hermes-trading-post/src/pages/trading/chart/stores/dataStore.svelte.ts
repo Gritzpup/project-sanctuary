@@ -407,6 +407,14 @@ class DataStore {
       console.warn('⚠️ [DataStore] Invalid candle - missing time');
       return;
     }
+
+    // 🚫 CRITICAL: NEVER add candles with time=0 (ticker updates) to the array
+    // Ticker updates should ONLY update the existing last candle, never create new candles
+    if (validCandle.time === 0) {
+      console.warn('⚠️ [DataStore] Rejecting candle with time=0 - this is a ticker update, not a new candle');
+      return;
+    }
+
     if (validCandle.time < 1577836800 || validCandle.time > 1893456000) {
       console.warn('⚠️ [DataStore] Invalid candle - time out of range:', validCandle.time);
       return;
@@ -525,8 +533,20 @@ class DataStore {
         // For full candle updates (time > 0), store them in the candles array
         if (update.time && update.time > 0) {
           // Full candle update with valid timestamp
+          // 🚫 CRITICAL: Normalize timestamps to prevent time=0 from getting mixed in
+          let normalizedTime = update.time;
+          if (typeof update.time === 'number' && update.time > 10000000000) {
+            normalizedTime = Math.floor(update.time / 1000);
+          }
+
+          // Reject candles with invalid timestamps
+          if (normalizedTime < 1577836800 || normalizedTime > 1893456000) {
+            console.warn('⚠️ [DataStore] Rejecting candle with invalid time:', normalizedTime);
+            return;
+          }
+
           const candleData: CandlestickData = {
-            time: update.time,
+            time: normalizedTime as any,
             open: update.open,
             high: update.high,
             low: update.low,
@@ -535,7 +555,7 @@ class DataStore {
           };
 
           // Update or add candle IN-PLACE without triggering Svelte reactivity on historical candles
-          const existingIndex = this._candles.findIndex(c => c.time === update.time);
+          const existingIndex = this._candles.findIndex(c => c.time === normalizedTime);
 
           if (existingIndex >= 0) {
             // Update existing candle IN-PLACE (last candle only)
@@ -547,17 +567,20 @@ class DataStore {
             }
           } else {
             // New candle - append without replacing the entire array
-            this._candles.push(candleData);
+            // 🚫 CRITICAL: Only append if time > 0 (never append ticker updates)
+            if (normalizedTime > 0) {
+              this._candles.push(candleData);
 
-            // 🔥 UPDATE STATS WITH PROPER SVELTE 5 REACTIVITY when new candle is added
-            // Must reassign the entire object to trigger reactivity
-            this._dataStats = {
-              ...this._dataStats,
-              totalCount: this._candles.length,
-              newestTime: candleData.time as number,
-              lastUpdate: Date.now(),
-              visibleCount: this._visibleCandles.length
-            };
+              // 🔥 UPDATE STATS WITH PROPER SVELTE 5 REACTIVITY when new candle is added
+              // Must reassign the entire object to trigger reactivity
+              this._dataStats = {
+                ...this._dataStats,
+                totalCount: this._candles.length,
+                newestTime: candleData.time as number,
+                lastUpdate: Date.now(),
+                visibleCount: this._visibleCandles.length
+              };
+            }
           }
         }
 
