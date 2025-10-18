@@ -149,17 +149,42 @@
         statusStore
       });
 
-      // Wait a bit for plugins to be registered by ChartContainer, then update volume series
-      setTimeout(() => {
-        const volumeSeries = getVolumeSeries(pluginManager);
+      // Wait for plugins to be registered AND data to be loaded before subscribing to real-time
+      // On network machines, data load can take longer than 1500ms
+      let dataLoadWaitTime = 0;
+      const maxWaitTime = 10000; // Max 10 seconds
 
-        if (volumeSeries) {
-          realtimeSubscription.subscribeToRealtime({
-            pair,
-            granularity
-          }, chartCanvas?.getSeries(), volumeSeries);
+      const waitForDataAndSubscribe = () => {
+        // Check if we have data loaded in dataStore
+        if (dataStore.candles && dataStore.candles.length > 0) {
+          const volumeSeries = getVolumeSeries(pluginManager);
+
+          if (volumeSeries) {
+            console.log(`✅ [ChartCore] Data ready (${dataStore.candles.length} candles), subscribing to real-time`);
+            realtimeSubscription.subscribeToRealtime({
+              pair,
+              granularity
+            }, chartCanvas?.getSeries(), volumeSeries);
+          }
+        } else if (dataLoadWaitTime < maxWaitTime) {
+          // Data not ready yet, try again in 100ms
+          dataLoadWaitTime += 100;
+          setTimeout(waitForDataAndSubscribe, 100);
+        } else {
+          // Timeout: subscribe anyway so real-time still works
+          console.warn(`⚠️ [ChartCore] Data load timeout (${maxWaitTime}ms), subscribing anyway`);
+          const volumeSeries = getVolumeSeries(pluginManager);
+          if (volumeSeries) {
+            realtimeSubscription.subscribeToRealtime({
+              pair,
+              granularity
+            }, chartCanvas?.getSeries(), volumeSeries);
+          }
         }
-      }, 1500); // Wait for plugins to be registered
+      };
+
+      // Start checking after plugins are registered (1500ms minimum)
+      setTimeout(waitForDataAndSubscribe, 1500);
     }
 
     // Initialize auto-granularity switching after chart is ready
