@@ -1081,16 +1081,19 @@
 
   .valley-price-label .price-type {
     font-size: 9px;
-    opacity: 0.8;
+    opacity: 1;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 2px;
+    font-weight: 600;
+    color: inherit;
   }
 
   .valley-price-label .price-value {
     font-weight: 700;
     font-size: 12px;
     margin-bottom: 2px;
+    color: inherit;
   }
 
   .valley-price-label .volume-value {
