@@ -8,7 +8,6 @@
   import ChartInfo from './components/overlays/ChartInfo.svelte';
   import ChartError from './components/overlays/ChartError.svelte';
   import ChartDebug from './components/overlays/ChartDebug.svelte';
-  import LoadingOverlay from './components/overlays/LoadingOverlay.svelte';
   import { 
     PluginManager,
     VolumePlugin,
@@ -270,8 +269,6 @@
             </div>
           </ChartPanes>
         {/if}
-
-        <LoadingOverlay />
 
         <ChartError
           position="center"
