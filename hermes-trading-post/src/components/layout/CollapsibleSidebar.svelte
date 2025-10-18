@@ -146,11 +146,12 @@
   }
 
   .sidebar-header {
-    padding: var(--space-xl);
+    padding: var(--space-lg) var(--space-xl);
     border-bottom: 1px solid var(--border-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
+    min-height: 80px;
   }
 
   .sidebar-logo {
@@ -161,8 +162,8 @@
   }
 
   .logo-image {
-    width: 40px;
-    height: 40px;
+    width: 56px;
+    height: 56px;
     filter: brightness(0) invert(1);
     flex-shrink: 0;
   }
