@@ -218,10 +218,8 @@ class DataStore {
         if (isFresh && timeSinceLastCandle < 300) {
           ChartDebug.log(`✅ Cache is fresh, skipping network fetch`);
 
-          // Still update DB count
-          setTimeout(() => {
-            this.updateDatabaseCount();
-          }, 100);
+          // Stats are already updated locally via updateStats(), no need for backend API call
+          // (This was causing 30-second polling timeout errors)
 
           return;
         }
@@ -288,10 +286,8 @@ class DataStore {
         ChartDebug.log(`⏱️ Full load time (cache miss): ${performance.now() - perfStart}ms`);
       }
 
-      // Delay DB count update to avoid interfering with initial render
-      setTimeout(() => {
-        this.updateDatabaseCount();
-      }, 100);
+      // Stats are updated locally via updateStats(), no need for backend API call
+      // This prevents polling errors and keeps stats responsive
 
     } catch (error) {
       console.error(`❌ [DataStore] Error loading data for ${pair}/${granularity}:`, error);

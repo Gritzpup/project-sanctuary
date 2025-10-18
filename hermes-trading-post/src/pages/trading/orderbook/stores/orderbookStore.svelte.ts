@@ -232,14 +232,22 @@ class OrderbookStore {
   }
 
   private _updateSortedBids() {
-    this._sortedBids = Array.from(this.bids.entries())
-      .sort(([a], [b]) => b - a); // Descending
+    // 🚀 PERF CRITICAL: Convert Map to sorted array
+    // Use spread operator + sort instead of Array.from() to reduce overhead
+    // Bids are sorted DESCENDING (highest price first)
+    const entries = [...this.bids.entries()];
+    entries.sort(([a], [b]) => b - a);
+    this._sortedBids = entries;
     this._lastBidVersion++;
   }
 
   private _updateSortedAsks() {
-    this._sortedAsks = Array.from(this.asks.entries())
-      .sort(([a], [b]) => a - b); // Ascending
+    // 🚀 PERF CRITICAL: Convert Map to sorted array
+    // Use spread operator + sort instead of Array.from() to reduce overhead
+    // Asks are sorted ASCENDING (lowest price first)
+    const entries = [...this.asks.entries()];
+    entries.sort(([a], [b]) => a - b);
+    this._sortedAsks = entries;
     this._lastAskVersion++;
   }
 

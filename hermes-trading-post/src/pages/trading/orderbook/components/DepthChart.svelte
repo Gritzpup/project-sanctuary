@@ -500,6 +500,8 @@
 
   let updatePending = false;
   let hasPendingData = false;
+  let lastChartUpdateTime = 0;
+  const CHART_UPDATE_THROTTLE = 200; // Max 5 updates per second
 
   function handleLevel2Message(data: any) {
     // Track that we received an update
@@ -511,18 +513,24 @@
       orderbookStore.processSnapshot(data);
       // Update chart immediately for snapshots
       updateChart();
+      lastChartUpdateTime = Date.now();
     } else if (data.type === 'update') {
       // Incremental update - store in orderbook immediately
       orderbookStore.processUpdate(data);
       hasPendingData = true;
 
-      // Use RAF to batch chart rendering (expensive), but don't drop data
+      // Use throttled RAF to batch chart rendering (expensive), but don't drop data
       // Data is already in the store, we just delay the visual update
       if (!updatePending) {
         updatePending = true;
         requestAnimationFrame(() => {
           if (hasPendingData) {
-            updateChart();
+            const now = Date.now();
+            // Only update if 200ms+ has passed since last update (max 5/sec)
+            if (now - lastChartUpdateTime >= CHART_UPDATE_THROTTLE) {
+              updateChart();
+              lastChartUpdateTime = now;
+            }
             hasPendingData = false;
           }
           updatePending = false;
@@ -542,12 +550,17 @@
     orderbookStore.processDelta(delta);
     hasPendingData = true;
 
-    // Use RAF to batch chart rendering
+    // Use throttled RAF to batch chart rendering
     if (!updatePending) {
       updatePending = true;
       requestAnimationFrame(() => {
         if (hasPendingData) {
-          updateChart();
+          const now = Date.now();
+          // Only update if 200ms+ has passed since last update (max 5/sec)
+          if (now - lastChartUpdateTime >= CHART_UPDATE_THROTTLE) {
+            updateChart();
+            lastChartUpdateTime = now;
+          }
           hasPendingData = false;
         }
         updatePending = false;
@@ -575,6 +588,8 @@
 
     // Convert to LightweightCharts format
     // Note: We use price as the "time" axis for depth chart
+    // bids are already in ASCENDING price order from getDepthData (lowest price first, highest depth)
+    // asks are also in ASCENDING price order from getDepthData
     const bidData = bids.map(level => ({
       time: level.price as any,  // Use price as x-axis
       value: level.depth
@@ -585,27 +600,9 @@
       value: level.depth
     }));
 
-    // Add gap in the middle - add extra price points between highest bid and lowest ask
-    if (bids.length > 0 && asks.length > 0) {
-      const highestBidPrice = bids[bids.length - 1].price;
-      const lowestAskPrice = asks[0].price;
-      const spread = lowestAskPrice - highestBidPrice;
-
-      // Make gap 30% of spread to create more visible valley at current price
-      const gapSize = spread * 0.30;
-
-      // Add padding point to bid data (drops to 0 at edge)
-      bidData.push({
-        time: (highestBidPrice + gapSize) as any,
-        value: 0
-      });
-
-      // Add padding point to ask data (drops to 0 at edge)
-      askData.unshift({
-        time: (lowestAskPrice - gapSize) as any,
-        value: 0
-      });
-    }
+    // Note: Each series (bids and asks) must maintain strictly ascending order
+    // The visual gap between them is created by the price axis distance, not by padding points
+    // This prevents the "data must be asc ordered by time" assertion errors
 
     // Only update chart if data actually changed (check length and edge values)
     const bidsChanged = bids.length !== lastBidCount ||
@@ -620,8 +617,17 @@
 
       // For depth charts, always use setData since prices can change dramatically
       // The chart library doesn't support updating with out-of-order prices
-      bidSeries.setData(bidData);
-      askSeries.setData(askData);
+      try {
+        bidSeries.setData(bidData);
+      } catch (error) {
+        console.warn('⚠️ Failed to update bid data:', (error as Error).message);
+      }
+
+      try {
+        askSeries.setData(askData);
+      } catch (error) {
+        console.warn('⚠️ Failed to update ask data:', (error as Error).message);
+      }
 
       lastBidCount = bids.length;
       lastAskCount = asks.length;
