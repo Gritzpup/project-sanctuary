@@ -423,10 +423,15 @@ class DataStore {
     // Update latest price
     this._latestPrice = validCandle.close;
 
-    // Update stats
-    this._dataStats.totalCount = this._candles.length;
-    this._dataStats.newestTime = validCandle.time as number;
-    this._dataStats.lastUpdate = Date.now();
+    // 🔥 UPDATE STATS WITH PROPER SVELTE 5 REACTIVITY
+    // Must reassign the entire object to trigger reactivity, not just modify properties
+    this._dataStats = {
+      ...this._dataStats,
+      totalCount: this._candles.length,
+      newestTime: validCandle.time as number,
+      lastUpdate: Date.now(),
+      visibleCount: this._visibleCandles.length
+    };
 
     // Notify plugins of data update
     this.notifyDataUpdate();
@@ -632,12 +637,16 @@ class DataStore {
   private updateStats() {
     const count = this._candles.length;
 
-    // Update all stats directly from candles
-    this._dataStats.totalCount = count; // Use candle count directly - it's already accurate!
-    this._dataStats.visibleCount = this._visibleCandles.length;
-    this._dataStats.oldestTime = count > 0 ? this._candles[0].time as number : null;
-    this._dataStats.newestTime = count > 0 ? this._candles[count - 1].time as number : null;
-    this._dataStats.lastUpdate = Date.now();
+    // 🔥 UPDATE STATS WITH PROPER SVELTE 5 REACTIVITY
+    // Must reassign the entire object to trigger reactivity in derived components
+    this._dataStats = {
+      ...this._dataStats,
+      totalCount: count,
+      visibleCount: this._visibleCandles.length,
+      oldestTime: count > 0 ? (this._candles[0].time as number) : null,
+      newestTime: count > 0 ? (this._candles[count - 1].time as number) : null,
+      lastUpdate: Date.now()
+    };
   }
   
   // Get actual count from database via the existing Redis service
