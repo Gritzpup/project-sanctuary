@@ -228,14 +228,14 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       return; // Exit early for ticker updates
     }
 
-    // Get current candle timestamp based on granularity (for official candle updates only)
-    const now = Date.now();
-    const granularitySeconds = getGranularitySeconds(currentGranularity);
-    const currentCandleTime = Math.floor(now / (granularitySeconds * 1000)) * granularitySeconds; // Round down to granularity boundary
+    // For official candle updates, use the candle's timestamp
+    // Don't calculate local time - use the incoming candle time from the backend
     const lastCandle = candles[candles.length - 1];
     const lastCandleTime = lastCandle.time as number;
+    const incomingCandleTime = fullCandleData?.time as number;
 
-    if (currentCandleTime > lastCandleTime) {
+    // Check if this is a new candle (incoming time > last candle time)
+    if (incomingCandleTime && incomingCandleTime > lastCandleTime) {
       // New candle needed
       // Ensure price is valid before creating candle
       if (!price || price <= 0 || isNaN(price)) {
@@ -244,7 +244,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       }
 
       const newCandle: CandlestickData = {
-        time: currentCandleTime as any,
+        time: incomingCandleTime as any,
         open: price,
         high: price,
         low: price,
@@ -257,6 +257,16 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // DO NOT call dataStore.setCandles() - it causes the entire database to be replaced!
       // Just update the chart directly
       chartSeries.update(newCandle);
+
+      // 🔥 CRITICAL FIX: Add new candle to dataStore so stats are updated!
+      // This ensures the candle counter and stats respond to new candles
+      dataStore._candles.push(newCandle);
+
+      // Update stats to reflect the new candle
+      const candleCount = dataStore._candles.length;
+      dataStore.stats.totalCount = candleCount;
+      dataStore.stats.newestTime = newCandle.time as number;
+      dataStore.stats.lastUpdate = Date.now();
 
       // Update volume series if available - MUST use exact same time as price candle
       if (volumeSeries && fullCandleData?.volume !== undefined) {
