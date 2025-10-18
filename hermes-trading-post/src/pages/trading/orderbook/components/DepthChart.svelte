@@ -229,10 +229,12 @@
     const positionInRange = (indicatorPrice - rangeStart) / (rangeEnd - rangeStart);
     const offset = Math.max(0, Math.min(100, positionInRange * 100));
 
+    const side = strongerSide === 'bid' ? 'bullish' : 'bearish';
+
     return {
       offset,
       price: indicatorPrice,
-      side: strongerSide === 'bid' ? 'bullish' : 'bearish',
+      side,
       volume: strongerVolume,
       type: strongerSide === 'bid' ? 'Support' : 'Resistance'
     };
@@ -1099,6 +1101,7 @@
   .valley-price-label .volume-value {
     font-size: 10px;
     opacity: 0.9;
+    color: inherit;
   }
 
   .valley-point {
@@ -1154,7 +1157,7 @@
     );
   }
 
-  .valley-bullish .valley-price-label {
+  .valley-price-label.valley-bullish {
     color: #26a69a;
     border-color: rgba(38, 166, 154, 0.5);
     background: rgba(0, 0, 0, 0.95);
@@ -1173,7 +1176,7 @@
     );
   }
 
-  .valley-bearish .valley-price-label {
+  .valley-price-label.valley-bearish {
     color: #ef5350;
     border-color: rgba(239, 83, 80, 0.5);
     background: rgba(0, 0, 0, 0.95);
@@ -1192,7 +1195,7 @@
     );
   }
 
-  .valley-neutral .valley-price-label {
+  .valley-price-label.valley-neutral {
     color: #a78bfa;
     border-color: rgba(167, 139, 250, 0.5);
     background: rgba(0, 0, 0, 0.95);
