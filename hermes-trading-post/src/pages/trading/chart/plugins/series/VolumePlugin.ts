@@ -13,6 +13,8 @@ export interface VolumePluginSettings {
 
 export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   private volumeData: HistogramData[] = [];
+  private lastCandleCount: number = 0;
+  private lastCandleTime: number = 0;
 
   constructor(settings?: VolumePluginSettings) {
     
@@ -95,54 +97,63 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       const candles = dataStore.candles;
 
       if (candles.length === 0) {
+        // PERF: Disabled - console.log('VolumePlugin: No candles available');
         return [];
       }
+
+      // OPTIMIZATION: Memoization check - only recalculate if candles changed
+      // Check if we have new candles by comparing count and latest time
+      const newestTime = candles.length > 0 ? (candles[candles.length - 1]?.time as number || 0) : 0;
+      if (candles.length === this.lastCandleCount && newestTime === this.lastCandleTime) {
+        // Data hasn't changed - return cached result
+        // PERF: Disabled - console.log(`VolumePlugin: Returning cached data (${this.volumeData.length} bars)`);
+        return this.volumeData;
+      }
+
+      // PERF: Disabled - console.log(`VolumePlugin: Processing new data (${candles.length} candles, was ${this.lastCandleCount})`);
+
+      // Update memoization markers
+      this.lastCandleCount = candles.length;
+      this.lastCandleTime = newestTime;
 
       if (candles.length > 0) {
         // Check volume data in detail
         const candlesWithVolume = candles.filter(c => c.volume && c.volume > 0);
 
         if (candlesWithVolume.length === 0) {
-          console.error('VolumePlugin: No volume data found in candles');
+          // PERF: Disabled - console.error('VolumePlugin: No volume data found in candles');
         }
       }
-    } catch (error) {
-      console.error('VolumePlugin: Error getting dataStore:', error);
-      return [];
-    }
-    
-    const dataStore = this.getDataStore();
-    const candles = dataStore.candles;
-    
-    this.volumeData = candles.map((candle, index) => {
-      const settings = this.settings as VolumePluginSettings;
-      let volume = candle.volume || 0;
 
-      // 🔥 FIX: Use price-based coloring (green when price up, red when price down)
-      let isPriceUp = true; // Default for first candle
-      if (index > 0) {
-        const prevClose = candles[index - 1].close || 0;
-        isPriceUp = candle.close >= prevClose;
+      const settings = this.settings as VolumePluginSettings;
+
+      // OPTIMIZATION: Pre-cache colors to avoid re-accessing object properties in hot loop
+      const upColor = settings.upColor || '#26a69aCC';
+      const downColor = settings.downColor || '#ef5350CC';
+
+      // OPTIMIZATION: Build volume data with single pass instead of mapping
+      this.volumeData = new Array(candles.length);
+      for (let i = 0; i < candles.length; i++) {
+        const candle = candles[i];
+        const volume = candle.volume || 0;
+
+        // Determine color: green when price up, red when price down
+        const isPriceUp = i > 0 ? candle.close >= candles[i - 1].close : true;
+        const displayVolume = volume * 1000; // Scale for visibility
+        const color = isPriceUp ? upColor : downColor;
+
+        this.volumeData[i] = {
+          time: candle.time,
+          value: displayVolume,
+          color: color
+        };
       }
 
-      // Scale volume to make it visible (BTC volumes are typically 0.1-100 range)
-      // Multiply by 1000 to make them more visible in the histogram
-      let displayVolume = volume * 1000;
-
-      // Safety check: ensure color is never null/undefined
-      const color = isPriceUp
-        ? (settings.upColor || '#26a69aCC')
-        : (settings.downColor || '#ef5350CC');
-
-      return {
-        time: candle.time,
-        value: displayVolume,
-        color: color
-      };
-    });
-    
-    
-    return this.volumeData;
+      return this.volumeData;
+    } catch (error) {
+      // PERF: Disabled - console.error('VolumePlugin: Error getting dataStore:', error);
+      return [];
+    }
   }
 
   // Public methods

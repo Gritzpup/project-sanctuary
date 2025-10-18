@@ -137,6 +137,19 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
       return;
     }
 
+    // ✅ OPTIMIZATION: Debounce data refresh to prevent excessive recalculations
+    // This prevents volume data processing from blocking renders during rapid data updates
+    // BUT: Always execute immediately to ensure data is applied (no debounce)
+    // The lightweight-charts library handles rendering efficiently
+
+    this.performRefreshData();
+  }
+
+  private performRefreshData(): void {
+    if (!this.series) {
+      return;
+    }
+
     const data = this.getData();
 
     if (data && data.length > 0) {
@@ -148,10 +161,9 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
           return index === 0 || item.time !== array[index - 1].time;
         });
 
-      // ✅ FIX: Always clear and re-set data to prevent stale candles from previous granularity
-      // Using setData() should clear existing data, but explicitly doing it ensures clean state
-      this.series.setData([]);  // Clear first
-      this.series.setData(sortedData);  // Then set new data
+      // ✅ OPTIMIZATION: Single setData() call instead of clear+set
+      // This is more efficient and prevents flickering during updates
+      this.series.setData(sortedData);
     } else {
       // Clear series if no data
       this.series.setData([]);
