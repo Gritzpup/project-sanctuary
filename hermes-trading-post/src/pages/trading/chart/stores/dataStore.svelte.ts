@@ -389,6 +389,49 @@ class DataStore {
     this.notifyDataUpdate();
   }
 
+  /**
+   * Add a single new candle (for real-time updates)
+   * This is used when new candles arrive via WebSocket
+   */
+  addCandle(candle: CandlestickDataWithVolume) {
+    // Validate and normalize the candle
+    let validCandle = candle;
+
+    // Normalize timestamps: convert milliseconds to seconds if needed
+    if (typeof validCandle.time === 'number' && validCandle.time > 10000000000) {
+      validCandle = { ...validCandle, time: Math.floor(validCandle.time / 1000) } as CandlestickDataWithVolume;
+    }
+
+    // Validate candle
+    if (!validCandle || typeof validCandle.time !== 'number') {
+      console.warn('⚠️ [DataStore] Invalid candle - missing time');
+      return;
+    }
+    if (validCandle.time < 1577836800 || validCandle.time > 1893456000) {
+      console.warn('⚠️ [DataStore] Invalid candle - time out of range:', validCandle.time);
+      return;
+    }
+    if (typeof validCandle.close !== 'number' || validCandle.close <= 0) {
+      console.warn('⚠️ [DataStore] Invalid candle - invalid close price:', validCandle.close);
+      return;
+    }
+
+    // Add to candles array
+    this._candles.push(validCandle);
+    this._visibleCandles.push(validCandle);
+
+    // Update latest price
+    this._latestPrice = validCandle.close;
+
+    // Update stats
+    this._dataStats.totalCount = this._candles.length;
+    this._dataStats.newestTime = validCandle.time as number;
+    this._dataStats.lastUpdate = Date.now();
+
+    // Notify plugins of data update
+    this.notifyDataUpdate();
+  }
+
   async fetchAndPrependHistoricalData(additionalCandleCount: number = 300): Promise<number> {
     try {
       if (this._candles.length === 0) return 0;

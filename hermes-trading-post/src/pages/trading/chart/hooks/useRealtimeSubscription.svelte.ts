@@ -260,13 +260,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
 
       // 🔥 CRITICAL FIX: Add new candle to dataStore so stats are updated!
       // This ensures the candle counter and stats respond to new candles
-      dataStore._candles.push(newCandle);
-
-      // Update stats to reflect the new candle
-      const candleCount = dataStore._candles.length;
-      dataStore.stats.totalCount = candleCount;
-      dataStore.stats.newestTime = newCandle.time as number;
-      dataStore.stats.lastUpdate = Date.now();
+      dataStore.addCandle(newCandle);
 
       // Update volume series if available - MUST use exact same time as price candle
       if (volumeSeries && fullCandleData?.volume !== undefined) {
