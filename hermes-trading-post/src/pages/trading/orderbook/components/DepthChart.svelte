@@ -166,7 +166,7 @@
     return { left: 0, center: 0, right: 0 };
   });
 
-  // Find the point of highest volume accumulation closest to current price
+  // Position indicator based on which side has the deepest visible volume
   let volumeHotspot = $derived.by(() => {
     const summary = orderbookStore.summary;
     if (!summary.bestBid || !summary.bestAsk) {
@@ -174,43 +174,64 @@
         offset: 50,
         price: 0,
         side: 'neutral',
-        volume: 0
+        volume: 0,
+        type: 'Neutral'
       };
     }
 
     const midPrice = (summary.bestBid + summary.bestAsk) / 2;
+    const depthData = orderbookStore.getDepthData(25000);
 
-    // Get depth data for analysis to find spread volume
-    const depthData = orderbookStore.getDepthData(100);
+    // Find which side has stronger volume (depth)
+    let maxBidDepth = 0;
+    let bestBidPrice = summary.bestBid;
 
-    // Find the highest volume point on each side at the spread
-    let bestBidVolume = 0;
-    let bestAskVolume = 0;
-
-    // Get best bid volume (first bid is closest to spread)
     if (depthData.bids.length > 0) {
-      bestBidVolume = depthData.bids[0].depth;
+      maxBidDepth = depthData.bids[0].depth; // Max depth on bid side
+      bestBidPrice = depthData.bids[depthData.bids.length - 1].price; // Highest bid (closest to spread)
     }
 
-    // Get best ask volume (first ask is closest to spread)
+    let maxAskDepth = 0;
+    let bestAskPrice = summary.bestAsk;
+
     if (depthData.asks.length > 0) {
-      bestAskVolume = depthData.asks[0].depth;
+      maxAskDepth = depthData.asks[depthData.asks.length - 1].depth; // Max depth on ask side
+      bestAskPrice = depthData.asks[0].price; // Lowest ask (closest to spread)
     }
 
-    // Determine which side has stronger volume at the spread
-    const strongerSide = bestBidVolume > bestAskVolume ? 'bid' : 'ask';
-    const strongerVolume = Math.max(bestBidVolume, bestAskVolume);
+    // Determine which side has stronger volume
+    const strongerSide = maxBidDepth > maxAskDepth ? 'bid' : 'ask';
+    const strongerVolume = Math.max(maxBidDepth, maxAskDepth);
 
-    // Position indicator at the BOTTOM OF THE V (the midprice/spread)
-    // Calculate position on chart (assuming 50k range centered on midPrice)
+    // Position indicator based on which side is stronger
+    // Move toward the deeper/outer edge of the stronger side
+    let indicatorPrice = midPrice;
+
+    const depthDifference = Math.abs(maxAskDepth - maxBidDepth);
+    const depthSum = maxAskDepth + maxBidDepth;
+    const volumeRatio = depthSum > 0 ? depthDifference / depthSum : 0; // 0 to 1, how much stronger is one side
+
+    if (strongerSide === 'bid') {
+      // Bids stronger = position toward the LEFT side (lower bid prices where the edge is)
+      // Get the deepest bid price and scale position based on volume ratio
+      const deepestBidPrice = depthData.bids.length > 0 ? depthData.bids[0].price : (midPrice - 25000);
+      indicatorPrice = bestBidPrice - (volumeRatio * Math.abs(bestBidPrice - deepestBidPrice));
+    } else {
+      // Asks stronger = position toward the RIGHT side (higher ask prices where the edge is)
+      // Get the deepest ask price and scale position based on volume ratio
+      const deepestAskPrice = depthData.asks.length > 0 ? depthData.asks[depthData.asks.length - 1].price : (midPrice + 25000);
+      indicatorPrice = bestAskPrice + (volumeRatio * Math.abs(deepestAskPrice - bestAskPrice));
+    }
+
+    // Calculate position on chart - full 0-100% range based on ±25000 from midPrice
     const rangeStart = midPrice - 25000;
     const rangeEnd = midPrice + 25000;
-    const positionInRange = (midPrice - rangeStart) / (rangeEnd - rangeStart);
-    const offset = Math.max(10, Math.min(90, positionInRange * 100));
+    const positionInRange = (indicatorPrice - rangeStart) / (rangeEnd - rangeStart);
+    const offset = Math.max(0, Math.min(100, positionInRange * 100));
 
     return {
       offset,
-      price: midPrice,
+      price: indicatorPrice,
       side: strongerSide === 'bid' ? 'bullish' : 'bearish',
       volume: strongerVolume,
       type: strongerSide === 'bid' ? 'Support' : 'Resistance'
@@ -699,12 +720,15 @@
       <div class="mid-price-line"></div>
 
       <!-- Dynamic volume hotspot indicator -->
+      <!-- Valley info box - separate from indicator -->
+      <div class="valley-price-label valley-{volumeHotspot.side}">
+        <span class="price-type">{volumeHotspot.type}</span>
+        <span class="price-value">{FastNumberFormatter.formatPrice(Math.floor(volumeHotspot.price))}</span>
+        <span class="volume-value">{volumeHotspot.volume.toFixed(2)} BTC</span>
+      </div>
+
+      <!-- Valley indicator - separate from info box -->
       <div class="valley-indicator valley-{volumeHotspot.side}" style="left: {volumeHotspot.offset}%">
-        <div class="valley-price-label">
-          <span class="price-type">{volumeHotspot.type}</span>
-          <span class="price-value">{FastNumberFormatter.formatPrice(Math.floor(volumeHotspot.price))}</span>
-          <span class="volume-value">{volumeHotspot.volume.toFixed(2)} BTC</span>
-        </div>
         <div class="valley-point"></div>
         <div class="valley-line"></div>
       </div>
@@ -1038,7 +1062,7 @@
 
   .valley-price-label {
     position: absolute;
-    top: 20px;  /* Changed from bottom to top positioning */
+    top: 20px;
     left: 50%;
     transform: translateX(-50%);
     background: rgba(0, 0, 0, 0.9);

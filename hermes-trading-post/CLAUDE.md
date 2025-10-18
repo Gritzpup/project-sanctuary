@@ -67,6 +67,22 @@ tilt logs browser-monitor --follow
 6. Confirm expected behavior through Tilt logs before considering complete
 7. Check Tilt UI at http://localhost:10350 for service health
 
+## 🎯 Quick Debug Commands
+**When debugging the valley indicator - ALWAYS USE VITE TRIGGER FIRST:**
+```bash
+# CRITICAL: Refresh Vite build FIRST, then check logs
+tilt trigger hermes-trading-post && sleep 6
+
+# Then check indicator positioning in browser logs
+tilt logs browser-monitor 2>&1 | grep "🎯 INDICATOR" | tail -5
+
+# Check raw depth data (bid/ask prices)
+tilt logs browser-monitor 2>&1 | grep -E "bids\[0\]=|asks\[0\]=" | tail -5
+
+# Full debug flow (data + calculation)
+tilt logs browser-monitor 2>&1 | grep -E "📊 depthData|bids\[0\]=|🎯 INDICATOR" | tail -15
+```
+
 ## 🎯 Important Reminders
 1. **WAIT 5 SECONDS** after making changes before checking any logs - machine needs time to rebuild
 2. Tilt logs are the PRIMARY source for all debugging (frontend, backend, database, browser console)
@@ -75,3 +91,4 @@ tilt logs browser-monitor --follow
 5. Never auto-commit - always ask first
 6. Check Tilt logs after EVERY change to any code (but wait 5 seconds first!)
 7. All logging goes through Tilt - no local log files
+8. **USE VITE REFRESH**: `tilt trigger hermes-trading-post` forces Vite rebuild - gives fresh logs immediately
