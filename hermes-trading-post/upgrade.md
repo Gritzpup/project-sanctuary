@@ -94,13 +94,23 @@
 
 ---
 
-### Phase 7: Bug Fix - Missing Candles on Refresh (Pending)
-- [ ] Increase candle limit on refresh from 5000 to 50000
-- [ ] Remove hard-coded truncation limits
-- [ ] Fix delta sync candle limits
-- [ ] Verify no missing candles during page refresh
+### Phase 8: Volume Loading Optimization (Pending)
+- [ ] Bypass NotificationBatcher for volume updates (remove 16ms delay)
+- [ ] Implement incremental volume updates instead of full recalculation
+- [ ] Cache volume colors to avoid recalculating for unchanged candles
+- [ ] Use volumeSeries.update() for new candles instead of setData()
 
-**Expected Impact**: Fix data integrity issue, ensure all historical candles load
+**Expected Impact**: Volume candles load at same speed as price candles (~2-3x faster)
+
+---
+
+### Phase 7: Bug Fix - Missing Candles on Refresh ✅ COMPLETE
+- [x] Increase candle limit on refresh from 5000 to 50000
+- [x] Remove hard-coded truncation limits
+- [x] Fix delta sync candle limits
+- [x] Verify no missing candles during page refresh
+
+**Status**: ✅ Complete - Fixed data integrity issue, all historical candles now load
 
 ---
 
