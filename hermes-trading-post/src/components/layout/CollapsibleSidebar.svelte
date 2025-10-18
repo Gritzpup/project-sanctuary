@@ -161,8 +161,8 @@
   }
 
   .logo-image {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     filter: brightness(0) invert(1);
     flex-shrink: 0;
   }
