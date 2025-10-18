@@ -15,6 +15,8 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   private volumeData: HistogramData[] = [];
   private lastCandleCount: number = 0;
   private lastCandleTime: number = 0;
+  private lastProcessedIndex: number = -1;  // Track last processed candle for incremental updates
+  private colorCache: Map<number, { isPriceUp: boolean; color: string }> = new Map();  // Cache volume colors
 
   constructor(settings?: VolumePluginSettings) {
     
@@ -123,42 +125,68 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
 
       // PERF: Disabled - console.log(`VolumePlugin: Processing new data (${candles.length} candles, was ${this.lastCandleCount})`);
 
-      // Update memoization markers
-      this.lastCandleCount = candles.length;
-      this.lastCandleTime = newestTime;
-
-      if (candles.length > 0) {
-        // Check volume data in detail
-        const candlesWithVolume = candles.filter(c => c.volume && c.volume > 0);
-
-        if (candlesWithVolume.length === 0) {
-          // PERF: Disabled - console.error('VolumePlugin: No volume data found in candles');
-        }
-      }
-
       const settings = this.settings as VolumePluginSettings;
-
-      // OPTIMIZATION: Pre-cache colors to avoid re-accessing object properties in hot loop
       const upColor = settings.upColor || '#26a69aCC';
       const downColor = settings.downColor || '#ef5350CC';
 
-      // OPTIMIZATION: Build volume data with single pass instead of mapping
-      this.volumeData = new Array(candles.length);
-      for (let i = 0; i < candles.length; i++) {
-        const candle = candles[i];
-        const volume = candle.volume || 0;
+      // 🚀 PHASE 8: Detect if this is a full initialization or incremental update
+      const isFullRecalc = this.lastProcessedIndex === -1 || candles.length > this.lastCandleCount;
 
-        // Determine color: green when price up, red when price down
-        const isPriceUp = i > 0 ? candle.close >= candles[i - 1].close : true;
-        const displayVolume = volume * 1000; // Scale for visibility
-        const color = isPriceUp ? upColor : downColor;
+      if (isFullRecalc) {
+        // Full recalculation: Initialize or reload entire dataset
+        // PERF: Disabled - console.log(`VolumePlugin: Full recalculation (${candles.length} candles)`);
+        this.volumeData = new Array(candles.length);
+        this.colorCache.clear();
 
-        this.volumeData[i] = {
-          time: candle.time,
-          value: displayVolume,
-          color: color
-        };
+        for (let i = 0; i < candles.length; i++) {
+          const candle = candles[i];
+          const volume = candle.volume || 0;
+          const isPriceUp = i > 0 ? candle.close >= candles[i - 1].close : true;
+
+          // Cache the color calculation for this candle
+          this.colorCache.set(i, { isPriceUp, color: isPriceUp ? upColor : downColor });
+
+          const displayVolume = volume * 1000;
+          const color = this.colorCache.get(i)?.color || upColor;
+
+          this.volumeData[i] = {
+            time: candle.time,
+            value: displayVolume,
+            color: color
+          };
+        }
+
+        this.lastProcessedIndex = candles.length - 1;
+      } else if (candles.length === this.lastCandleCount) {
+        // Same number of candles - check if we need color update on last candle
+        // This handles case where last candle's price direction changed (open → close)
+        const lastIdx = candles.length - 1;
+        if (lastIdx > 0 && this.volumeData[lastIdx]) {
+          const candle = candles[lastIdx];
+          const prevCandle = candles[lastIdx - 1];
+          const isPriceUp = candle.close >= prevCandle.close;
+          const cachedColor = this.colorCache.get(lastIdx);
+
+          // Only update if color changed (price direction flipped)
+          if (!cachedColor || cachedColor.isPriceUp !== isPriceUp) {
+            const newColor = isPriceUp ? upColor : downColor;
+            this.colorCache.set(lastIdx, { isPriceUp, color: newColor });
+
+            // Update volume data with new color
+            const volume = candle.volume || 0;
+            const displayVolume = volume * 1000;
+            this.volumeData[lastIdx] = {
+              time: candle.time,
+              value: displayVolume,
+              color: newColor
+            };
+          }
+        }
       }
+
+      // Update memoization markers
+      this.lastCandleCount = candles.length;
+      this.lastCandleTime = newestTime;
 
       return this.volumeData;
     } catch (error) {
@@ -183,6 +211,61 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
 
     // Refresh the data
     this.refreshData();
+  }
+
+  /**
+   * 🚀 PHASE 8: Direct incremental volume update - bypasses NotificationBatcher delay
+   * Used by real-time update handler to immediately render new volume bars
+   */
+  updateVolumeDirect(newCandles: any[]): void {
+    try {
+      if (!this.series || newCandles.length === 0) return;
+
+      const settings = this.settings as VolumePluginSettings;
+      const upColor = settings.upColor || '#26a69aCC';
+      const downColor = settings.downColor || '#ef5350CC';
+
+      // Update only new candles that haven't been processed
+      const updateCount = newCandles.length - this.lastProcessedIndex - 1;
+      if (updateCount <= 0) return;
+
+      // PERF: Disabled - console.log(`VolumePlugin: Incremental update for ${updateCount} new candles`);
+
+      for (let i = this.lastProcessedIndex + 1; i < newCandles.length; i++) {
+        const candle = newCandles[i];
+        if (!candle) continue;
+
+        const volume = candle.volume || 0;
+        const isPriceUp = i > 0 ? candle.close >= newCandles[i - 1].close : true;
+        const displayVolume = volume * 1000;
+        const color = isPriceUp ? upColor : downColor;
+
+        // Cache the color for this candle
+        this.colorCache.set(i, { isPriceUp, color });
+
+        // Create histogram data point
+        const histogramData: HistogramData = {
+          time: candle.time,
+          value: displayVolume,
+          color: color
+        };
+
+        // Update series incrementally instead of full setData()
+        try {
+          this.series.update(histogramData);
+        } catch (error) {
+          // PERF: Disabled - console.error('VolumePlugin: Error updating histogram:', error);
+          // Fallback: Store in array for batch update
+          if (!this.volumeData[i]) {
+            this.volumeData[i] = histogramData;
+          }
+        }
+      }
+
+      this.lastProcessedIndex = newCandles.length - 1;
+    } catch (error) {
+      // PERF: Disabled - console.error('VolumePlugin: Error in updateVolumeDirect:', error);
+    }
   }
 
   updateColors(upColor: string, downColor: string): void {
