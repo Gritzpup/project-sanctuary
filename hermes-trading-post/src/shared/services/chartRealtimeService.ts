@@ -1,14 +1,21 @@
 /**
  * @file chartRealtimeService.ts
- * @description WebSocket real-time chart updates
- * Part of Phase 5D: Chart Services Consolidation
+ * @description WebSocket real-time chart updates with message batching
+ * Part of Phase 5D: Chart Services Consolidation + Phase 1: Performance Fixes
  * Replaces RedisChartService WebSocket functionality
+ * Features: WebSocket batching (100ms/50 messages) to reduce UI thread saturation
  */
 
 type WebSocketCandle = any; // Imported from page-specific types
 
+interface PendingBatch {
+  messages: WebSocketCandle[];
+  timeoutId: NodeJS.Timeout | null;
+}
+
 /**
  * Real-time Chart Updates Service - manages WebSocket subscriptions for live data
+ * ⚡ PERF: Batches incoming messages to prevent UI thread saturation (50-100/sec → 100ms batches)
  */
 export class ChartRealtimeService {
   private backendUrl: string = `ws://${this.getBackendHost()}:4828`;
@@ -16,6 +23,12 @@ export class ChartRealtimeService {
   private wsSubscriptions: Map<string, (data: WebSocketCandle) => void> = new Map();
   private onReconnectCallback: (() => void) | null = null;
   private wsReconnectTimeout: NodeJS.Timeout | null = null;
+
+  // ⚡ PERF: Message batching per subscription to prevent queue saturation
+  // Each subscription gets its own batcher to handle 50-100 msgs/sec
+  private messageBatchers: Map<string, PendingBatch> = new Map();
+  private readonly BATCH_MAX_MESSAGES = 50;
+  private readonly BATCH_MAX_WAIT_MS = 100;
 
   private getBackendHost(): string {
     const envHost = (import.meta as any)?.env?.VITE_BACKEND_HOST;
@@ -50,6 +63,16 @@ export class ChartRealtimeService {
     // Return unsubscribe function
     return () => {
       this.wsSubscriptions.delete(subscriptionKey);
+
+      // Clean up any pending batch for this subscription
+      const batch = this.messageBatchers.get(subscriptionKey);
+      if (batch) {
+        if (batch.timeoutId) {
+          clearTimeout(batch.timeoutId);
+        }
+        this.messageBatchers.delete(subscriptionKey);
+      }
+
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(
           JSON.stringify({
@@ -124,16 +147,77 @@ export class ChartRealtimeService {
 
   /**
    * Handle incoming WebSocket messages
+   * ⚡ PERF: Batches messages before callback to prevent queue saturation
+   * Instead of immediate processing: MSG → callback → chart update
+   * Batches: MSG → batch (100ms/50 messages) → process batch → callbacks → chart updates
    */
   private handleWebSocketMessage(message: any) {
     if (message.type === 'candle') {
       const subscriptionKey = `${message.pair}:${message.granularity}`;
-      const callback = this.wsSubscriptions.get(subscriptionKey);
 
-      if (callback) {
-        callback(message as WebSocketCandle);
-      }
+      // Add to batch for this subscription
+      this.addMessageToBatch(subscriptionKey, message);
     }
+  }
+
+  /**
+   * Add message to batch for a subscription
+   * Process batch when: (1) 50 messages accumulated OR (2) 100ms elapsed
+   */
+  private addMessageToBatch(subscriptionKey: string, message: WebSocketCandle) {
+    // Get or create batch for this subscription
+    let batch = this.messageBatchers.get(subscriptionKey);
+    if (!batch) {
+      batch = { messages: [], timeoutId: null };
+      this.messageBatchers.set(subscriptionKey, batch);
+    }
+
+    batch.messages.push(message);
+
+    // Process immediately if batch is full
+    if (batch.messages.length >= this.BATCH_MAX_MESSAGES) {
+      this.processBatch(subscriptionKey);
+      return;
+    }
+
+    // Schedule batch processing if not already scheduled
+    if (!batch.timeoutId) {
+      batch.timeoutId = setTimeout(() => {
+        this.processBatch(subscriptionKey);
+      }, this.BATCH_MAX_WAIT_MS);
+    }
+  }
+
+  /**
+   * Process accumulated messages for a subscription
+   */
+  private processBatch(subscriptionKey: string) {
+    const batch = this.messageBatchers.get(subscriptionKey);
+    if (!batch || batch.messages.length === 0) {
+      return;
+    }
+
+    // Clear timeout
+    if (batch.timeoutId) {
+      clearTimeout(batch.timeoutId);
+      batch.timeoutId = null;
+    }
+
+    const callback = this.wsSubscriptions.get(subscriptionKey);
+    if (!callback) {
+      // Subscription was removed, discard batch
+      batch.messages = [];
+      return;
+    }
+
+    // Process each message in batch through callback
+    // This preserves message order while benefiting from batching overhead reduction
+    for (const msg of batch.messages) {
+      callback(msg);
+    }
+
+    // Clear batch for next round
+    batch.messages = [];
   }
 
   /**
@@ -163,6 +247,14 @@ export class ChartRealtimeService {
       this.ws.close();
       this.ws = null;
     }
+
+    // Clean up all message batchers
+    this.messageBatchers.forEach((batch) => {
+      if (batch.timeoutId) {
+        clearTimeout(batch.timeoutId);
+      }
+    });
+    this.messageBatchers.clear();
 
     this.wsSubscriptions.clear();
     this.onReconnectCallback = null;
