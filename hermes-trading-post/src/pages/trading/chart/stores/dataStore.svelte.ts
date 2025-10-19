@@ -11,6 +11,9 @@ import { ChartDebug } from '../utils/debug';
 import { chartStore } from './chartStore.svelte';
 import { orderbookStore } from '../../orderbook/stores/orderbookStore.svelte';
 import { dataUpdateNotifier, historicalDataNotifier } from '../../../../services/NotificationBatcher';
+import { cacheManager } from '../services/CacheManager';
+import { dataTransformations } from '../services/DataTransformations';
+import { dataStoreSubscriptions } from '../services/DataStoreSubscriptions';
 
 class DataStore {
   private dataService = new RedisChartService();
@@ -98,26 +101,8 @@ class DataStore {
         return;
       }
 
-      // Process cached candles - MUST be sorted for lightweight-charts
-      // Normalize timestamps and sort by time, removing any invalid entries
-      const sortedCandles = result.data
-        .map((c: any) => {
-          // Normalize timestamps: convert milliseconds to seconds if needed
-          // Timestamps after year 2286 (> 10^10) are in milliseconds
-          if (typeof c.time === 'number' && c.time > 10000000000) {
-            return { ...c, time: Math.floor(c.time / 1000) };
-          }
-          return c;
-        })
-        .filter((c: any) => {
-          // Validate that time is a reasonable Unix timestamp (seconds, not milliseconds)
-          // Valid range: year 2020 (1577836800) to year 2030 (1893456000)
-          if (!c || typeof c.time !== 'number') return false;
-          if (c.time < 1577836800 || c.time > 1893456000) return false;
-          if (typeof c.close !== 'number' || c.close <= 0) return false;
-          return true;
-        })
-        .sort((a: any, b: any) => a.time - b.time);
+      // Use DataTransformations service to process and validate candles
+      const sortedCandles = dataTransformations.transformCandles(result.data);
 
       if (sortedCandles.length < result.data.length) {
         // PERF: Disabled - console.warn(`⚠️ [DataStore] Filtered out ${result.data.length - sortedCandles.length} invalid candles from cache`);
@@ -132,8 +117,8 @@ class DataStore {
       this._dataStats.totalCount = sortedCandles.length;
       this._dataStats.visibleCount = sortedCandles.length;
       if (sortedCandles.length > 0) {
-        this._dataStats.oldestTime = sortedCandles[0].time;
-        this._dataStats.newestTime = sortedCandles[sortedCandles.length - 1].time;
+        this._dataStats.oldestTime = sortedCandles[0].time as number;
+        this._dataStats.newestTime = sortedCandles[sortedCandles.length - 1].time as number;
       }
       this._dataStats.lastUpdate = Date.now();
       this._dataStats.loadingStatus = 'idle';
@@ -345,32 +330,12 @@ class DataStore {
   }
 
   setCandles(candles: CandlestickDataWithVolume[]) {
-    // Filter out invalid candles, normalize timestamps, and sort
-    // This prevents lightweight-charts assertion errors
-    const validCandles = candles
-      .map(c => {
-        // Normalize timestamps: convert milliseconds to seconds if needed
-        // Timestamps after year 2286 (> 10^10) are in milliseconds
-        if (typeof c.time === 'number' && c.time > 10000000000) {
-          return { ...c, time: Math.floor(c.time / 1000) } as CandlestickDataWithVolume;
-        }
-        return c;
-      })
-      .filter(c => {
-        // Validate that time is a reasonable Unix timestamp (seconds, not milliseconds)
-        // Valid range: year 2020 (1577836800) to year 2030 (1893456000)
-        if (!c || typeof c.time !== 'number') return false;
-        if (c.time < 1577836800 || c.time > 1893456000) return false;
-        if (typeof c.close !== 'number' || c.close <= 0) return false;
-        return true;
-      });
+    // Use DataTransformations service to validate, normalize, and sort candles
+    const sortedCandles = dataTransformations.transformCandles(candles);
 
-    if (validCandles.length < candles.length) {
-      // PERF: Disabled - console.warn(`⚠️ [DataStore] Filtered out ${candles.length - validCandles.length} invalid candles`);
+    if (sortedCandles.length < candles.length) {
+      // PERF: Disabled - console.warn(`⚠️ [DataStore] Filtered out ${candles.length - sortedCandles.length} invalid candles`);
     }
-
-    // Ensure candles are sorted by time (required by lightweight-charts)
-    const sortedCandles = [...validCandles].sort((a, b) => (a.time as number) - (b.time as number));
 
     this._candles = sortedCandles;
     this._visibleCandles = sortedCandles; // Initially all candles are visible
@@ -393,34 +358,17 @@ class DataStore {
    * This is used when new candles arrive via WebSocket
    */
   addCandle(candle: CandlestickDataWithVolume) {
-    // Validate and normalize the candle
-    let validCandle = candle;
-
-    // Normalize timestamps: convert milliseconds to seconds if needed
-    if (typeof validCandle.time === 'number' && validCandle.time > 10000000000) {
-      validCandle = { ...validCandle, time: Math.floor(validCandle.time / 1000) } as CandlestickDataWithVolume;
+    // Use service transformation for validation and normalization
+    const transformed = dataTransformations.transformCandles([candle]);
+    if (transformed.length === 0) {
+      return; // Validation failed
     }
 
-    // Validate candle
-    if (!validCandle || typeof validCandle.time !== 'number') {
-      // PERF: Disabled - console.warn('⚠️ [DataStore] Invalid candle - missing time');
-      return;
-    }
+    const validCandle = transformed[0];
 
     // 🚫 CRITICAL: NEVER add candles with time=0 (ticker updates) to the array
-    // Ticker updates should ONLY update the existing last candle, never create new candles
     if (validCandle.time === 0) {
-      // PERF: Disabled - console.warn('⚠️ [DataStore] Rejecting candle with time=0 - this is a ticker update, not a new candle');
-      return;
-    }
-
-    if (validCandle.time < 1577836800 || validCandle.time > 1893456000) {
-      // PERF: Disabled - console.warn('⚠️ [DataStore] Invalid candle - time out of range:', validCandle.time);
-      return;
-    }
-    if (typeof validCandle.close !== 'number' || validCandle.close <= 0) {
-      // PERF: Disabled - console.warn('⚠️ [DataStore] Invalid candle - invalid close price:', validCandle.close);
-      return;
+      return; // Ticker update, not a new candle
     }
 
     // Add to candles array
