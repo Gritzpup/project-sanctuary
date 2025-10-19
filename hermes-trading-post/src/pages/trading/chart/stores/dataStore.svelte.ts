@@ -39,6 +39,10 @@ class DataStore {
   private orderbookPriceUnsubscribe: (() => void) | null = null;
   private newCandleTimeout: NodeJS.Timeout | null = null;
 
+  // ⚡ PHASE 10: RAF throttling for L2 price updates (prevents 10-30 Hz saturation)
+  private _l2RafId: number | null = null;
+  private _pendingL2Update: { price: number } | null = null;
+
   // Subscription mechanism for plugins
   private dataUpdateCallbacks: Set<() => void> = new Set();
   private historicalDataLoadedCallbacks: Set<() => void> = new Set();
@@ -596,9 +600,8 @@ class DataStore {
     }
 
     this.orderbookPriceUnsubscribe = orderbookStore.subscribeToPriceUpdates((price: number) => {
-      // Update latest price immediately from L2 data
+      // Update latest price immediately from L2 data (for header display - cheap operation)
       this._latestPrice = price;
-      this._dataStats.lastUpdate = Date.now();
 
       // Log only once to confirm price updates are working
       if (!this._priceUpdateLoggedOnce) {
@@ -606,24 +609,33 @@ class DataStore {
         this._priceUpdateLoggedOnce = true;
       }
 
-      // ALSO update the current candle with L2 price for instant chart updates
-      if (this._candles.length > 0) {
-        const lastCandle = this._candles[this._candles.length - 1];
+      // ⚡ PHASE 10: RAF throttle candle updates (throttle 10-30 Hz L2 updates to 60 FPS)
+      // This prevents the reactive cascade that causes lag
+      this._pendingL2Update = { price };
 
-        // Update the last candle's close, high, and low based on L2 price
-        const updatedCandle = {
-          ...lastCandle,
-          close: price,
-          high: Math.max(lastCandle.high, price),
-          low: Math.min(lastCandle.low, price)
-        };
+      if (!this._l2RafId) {
+        this._l2RafId = requestAnimationFrame(() => {
+          if (this._pendingL2Update && this._candles.length > 0) {
+            const lastCandle = this._candles[this._candles.length - 1];
+            const updatedCandle = {
+              ...lastCandle,
+              close: this._pendingL2Update.price,
+              high: Math.max(lastCandle.high, this._pendingL2Update.price),
+              low: Math.min(lastCandle.low, this._pendingL2Update.price)
+            };
 
-        // Update in place for reactivity
-        this._candles[this._candles.length - 1] = updatedCandle;
+            // Update in place for reactivity
+            this._candles[this._candles.length - 1] = updatedCandle;
+
+            // Update stats and notify subscribers
+            // ⚡ PHASE 10: Use immediate=true to skip 16ms batcher delay for responsive real-time updates
+            this._dataStats.lastUpdate = Date.now();
+            this.notifyDataUpdate(true);
+          }
+          this._l2RafId = null;
+          this._pendingL2Update = null;
+        });
       }
-
-      // Notify data update callbacks so header/footer AND chart update
-      this.notifyDataUpdate();
     });
   }
 
@@ -761,10 +773,10 @@ class DataStore {
   /**
    * 🚀 PERF: Batched notification - groups rapid updates into single batch
    * Reduces reactive overhead by ~50% on high-frequency updates
+   * ⚡ PHASE 10: Added immediate mode to bypass 16ms batcher delay for real-time updates
    */
-  private notifyDataUpdate() {
-    // Schedule batch notification instead of immediate execution
-    dataUpdateNotifier.scheduleNotification(() => {
+  private notifyDataUpdate(immediate: boolean = false) {
+    const executeCallbacks = () => {
       this.dataUpdateCallbacks.forEach((callback) => {
         try {
           callback();
@@ -772,7 +784,16 @@ class DataStore {
           // PERF: Disabled - console.error(`❌ [DataStore] Error in data update callback:`, error);
         }
       });
-    });
+    };
+
+    if (immediate) {
+      // ⚡ PHASE 10: For real-time L2 updates, execute immediately (no 16ms batcher delay)
+      // This keeps chart responsive to price changes
+      executeCallbacks();
+    } else {
+      // For historical data loads, use batcher to group updates
+      dataUpdateNotifier.scheduleNotification(executeCallbacks);
+    }
   }
 
   /**
