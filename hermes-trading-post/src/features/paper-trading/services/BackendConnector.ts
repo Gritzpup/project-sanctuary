@@ -112,15 +112,16 @@ export class BackendConnector {
   private async fetch24hStats() {
     try {
       const stats = await this.coinbaseAPI.get24hStats('BTC-USD');
-      
+
       this.state.update(current => ({
         ...current,
         priceChange24h: stats.priceChange24h,
         priceChangePercent24h: stats.priceChangePercent24h
       }));
-      
+
     } catch (error) {
-      console.error('Failed to fetch 24h stats:', error);
+      // Silently fail - 24h stats is not critical for functionality
+      // Coinbase API timeouts are handled with fallback values
     }
   }
 

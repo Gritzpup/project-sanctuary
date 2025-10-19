@@ -133,41 +133,58 @@ export class CoinbaseAPI {
     const key = `stats-24h-${productId}`;
     
     return this.rateLimiter.execute(key, async () => {
-      const response = await axios.get(`${this.baseUrl}/products/${productId}/stats`, {
-        timeout: 10000,
-        headers: {
-          'Accept': 'application/json',
+      try {
+        const response = await axios.get(`${this.baseUrl}/products/${productId}/stats`, {
+          timeout: 5000, // Reduced from 10s to 5s for faster fallback
+          headers: {
+            'Accept': 'application/json',
+          }
+        });
+
+        const stats = response.data;
+        const open = parseFloat(stats.open);
+        const last = parseFloat(stats.last);
+        const priceChange24h = last - open;
+        const priceChangePercent24h = (priceChange24h / open) * 100;
+
+        const result = {
+          open,
+          high: parseFloat(stats.high),
+          low: parseFloat(stats.low),
+          last,
+          volume: parseFloat(stats.volume),
+          volume_30day: parseFloat(stats.volume_30day),
+          priceChange24h,
+          priceChangePercent24h
+        };
+
+        return result;
+      } catch (error: any) {
+        // Return default values on timeout instead of throwing
+        // This prevents blocking the UI on slow Coinbase API responses
+        if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+          console.warn(`[Stats] Coinbase stats API timeout for ${productId}, using default values`);
+          return {
+            open: 0,
+            high: 0,
+            low: 0,
+            last: 0,
+            volume: 0,
+            volume_30day: 0,
+            priceChange24h: 0,
+            priceChangePercent24h: 0
+          };
         }
-      });
-      
-      const stats = response.data;
-      const open = parseFloat(stats.open);
-      const last = parseFloat(stats.last);
-      const priceChange24h = last - open;
-      const priceChangePercent24h = (priceChange24h / open) * 100;
-      
-      const result = {
-        open,
-        high: parseFloat(stats.high),
-        low: parseFloat(stats.low),
-        last,
-        volume: parseFloat(stats.volume),
-        volume_30day: parseFloat(stats.volume_30day),
-        priceChange24h,
-        priceChangePercent24h
-      };
-      
-      // Clean up - removed verbose logging
-      
-      return result;
-    }).catch(error => {
-      logger.error( 'Failed to fetch 24h stats', {
-        productId,
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data
-      });
-      throw error;
+
+        // For other errors, log and rethrow
+        logger.error( 'Failed to fetch 24h stats', {
+          productId,
+          message: error.message,
+          status: error.response?.status,
+          data: error.response?.data
+        });
+        throw error;
+      }
     });
   }
 }
