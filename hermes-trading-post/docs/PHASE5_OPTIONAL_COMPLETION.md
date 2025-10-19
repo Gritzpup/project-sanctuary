@@ -143,44 +143,146 @@
 
 ---
 
-#### 3. **Other Large Files**
-| File | Lines | Priority | Strategy |
-|------|-------|----------|----------|
-| ChartCanvas.svelte | 525 | HIGH | Extract canvas logic, event handlers |
-| ImportDialog.svelte | 460 | MEDIUM | Extract file parsing, validation |
-| RedisCandleStorage.ts | 454 | MEDIUM | Extract storage operations, cache logic |
-| ChartCore.svelte | 445 | HIGH | Extract rendering, calculations |
+### ✅ Phase 5G Phase 3: ChartCanvas.svelte ✅ COMPLETED
+**Location**: `src/pages/trading/chart/components/canvas/ChartCanvas.svelte`
+**Result**: 525 → 372 lines (153 lines reduced, 29% smaller)
+**Commits**: 4b740b7, 7586b38
+
+**Extraction Completed**:
+1. ✅ **ChartPositioningService.ts** (210 lines) - Chart viewport management
+   - applyOptimalPositioning()
+   - resetZoomTo60Candles()
+   - showNCandles()
+   - calculateBarSpacing()
+   - fitContent(), scrollToRealTime()
+
+2. ✅ **ChartResizeManager.ts** (77 lines) - Container resize handling
+   - setupResizeObserver()
+   - forceResize()
+   - getContainerDimensions()
+
+3. ✅ **ChartInteractionTracker.ts** (113 lines) - User interaction tracking
+   - setupInteractionTracking()
+   - Mouse, touch, wheel, double-click handlers
+   - markUserInteraction(), hasUserInteracted()
+   - getLastInteractionTime(), resetInteractionState()
+
+**ChartCanvas Integration**:
+- Services instantiated in initializeChart()
+- Cleaned up in destroy() lifecycle
+- All positioning, resizing, interaction logic delegated
+- Maintains 100% backward compatibility
+
+**Benefits**:
+- Main component reduced 29% (clearer logic)
+- Services reusable across other charts
+- Better separation of concerns
+- Easier to test individual behaviors
+
+---
+
+### ✅ Phase 5G Phase 4: RedisCandleStorage.ts ✅ COMPLETED
+**Location**: `src/services/redis/RedisCandleStorage.ts`
+**Result**: 454 → 109 lines (345 lines reduced, 78% smaller)
+**Commits**: 4b0b234
+
+**Extraction Completed**:
+1. ✅ **CandleDataSerializer.ts** (117 lines) - Data transformation utilities
+   - serializeCandle(), deserializeCandle()
+   - formatCandleForRedis(), parseCandleFromRedis()
+   - groupCandlesByDay(), calculateChecksum()
+   - getDayBoundaries(), getDaysInRange()
+   - filterCandlesByTimeRange(), sortCandlesByTime()
+
+2. ✅ **CandleMetadataManager.ts** (148 lines) - Metadata operations
+   - updateMetadata(), getMetadata()
+   - createCheckpoint(), validateCheckpoint()
+   - deleteMetadata(), deleteCheckpoint()
+
+3. ✅ **CandleDataFetcher.ts** (161 lines) - Read operations
+   - getCandles(), getLatestCandles()
+   - getCandlesForDay() [private helper]
+   - hasCandles(), getCandleCount()
+   - getFirstCandleTime(), getLastCandleTime()
+
+4. ✅ **CandleStorageWriter.ts** (149 lines) - Write operations
+   - storeCandles() [with distributed locking]
+   - cleanupOldData()
+   - deleteAllCandles()
+   - acquireLock(), releaseLock() [private]
+
+5. ✅ **Type Hierarchy** (60 lines total)
+   - CandleTypes.ts: StoredCandle, CandleMetadata, Checkpoint, CompactCandleData
+   - types/index.ts: Central export point
+
+6. ✅ **RedisCandleStorage refactored** (109 lines) - Coordinator pattern
+   - Connection management
+   - Service initialization and delegation
+   - Public API maintained (100% backward compatible)
+
+**Architecture Improvements**:
+- Coordinator pattern (facade)
+- Service injection pattern
+- Low coupling between services
+- No circular dependencies
+
+**Benefits**:
+- Main class reduced 78% (from 454 to 109 lines)
+- Each service under 200 lines (single responsibility)
+- Better testability with focused unit tests
+- Easier to maintain and extend independently
+- No breaking changes to public API
+
+---
+
+#### 3. **Other Large Files** (Remaining)
+| File | Lines | Priority | Status |
+|------|-------|----------|--------|
+| ImportDialog.svelte | 460 | MEDIUM | Pending |
+| ChartCore.svelte | 445 | HIGH | Pending |
 
 ---
 
 ## 🎯 Completion Summary
 
-### ✅ Completed (70% of optional work)
+### ✅ Completed (78% of optional work)
 - ✅ Backend configuration extraction (Phase 5C partial)
 - ✅ Chart data service consolidation (Phase 5D partial)
 - ✅ **Phase 5G Phase 1**: DepthChart.svelte refactoring (1,486 → 1,391 lines)
 - ✅ **Phase 5G Phase 2**: dataStore.svelte.ts refactoring (822 → 770 lines)
-  - 6 new foundation services and hooks created
-  - All imports fixed and tested
-  - App running successfully
+- ✅ **Phase 5G Phase 3**: ChartCanvas.svelte refactoring (525 → 372 lines)
+  - 3 new specialized services created
+  - All positioning, resizing, interaction logic extracted
+  - Maintains 100% backward compatibility
+- ✅ **Phase 5G Phase 4**: RedisCandleStorage.ts refactoring (454 → 109 lines)
+  - 4 focused services + type hierarchy created
+  - Coordinator/facade pattern implemented
+  - Distributed locking and batch processing preserved
 
 ### 📊 Code Reduction Achieved
-- DepthChart.svelte: 95 lines reduced (6.4%)
-- dataStore.svelte.ts: 52 lines reduced (6.3%)
-- **Total direct reduction**: 147 lines
-- **Total files over 400 lines**: Reduced from 30+ to fewer large files
+| Phase | Component | Before | After | Reduction |
+|-------|-----------|--------|-------|-----------|
+| 5G-1 | DepthChart.svelte | 1,486 | 1,391 | 95 lines (6.4%) |
+| 5G-2 | dataStore.svelte.ts | 822 | 770 | 52 lines (6.3%) |
+| 5G-3 | ChartCanvas.svelte | 525 | 372 | 153 lines (29%) |
+| 5G-4 | RedisCandleStorage.ts | 454 | 109 | 345 lines (78%) |
+| **Total** | **Main classes** | **3,287** | **2,642** | **645 lines (-20%)** |
+
+**Supporting files created**: 16 new focused services (total +990 lines of well-organized code)
 
 ### 📋 Recommended Priority Order for Remaining Work
-1. **Phase 5G** - Refactor remaining large files (ChartCanvas, ImportDialog, etc.)
-2. **Phase 5D** - Complete chart services consolidation
-3. **Phase 5C** - Finish backend monolith split
+1. **ChartCore.svelte** (445 lines, HIGH priority)
+2. **ImportDialog.svelte** (460 lines, MEDIUM priority)
+3. **Phase 5D** - Complete chart services consolidation
+4. **Phase 5C** - Finish backend monolith split
 
 ### ⏱️ Total Estimated Time for Remaining Completion
-- Phase 5G (Remaining files): 3-4 hours
+- ChartCore.svelte refactoring: 2-3 hours
+- ImportDialog.svelte refactoring: 2 hours
 - Phase 5D (Full completion): 2-3 hours
 - Phase 5C (Full completion): 2-3 hours
-- **Total remaining**: 7-10 hours
-- **Completed so far**: ~5-6 hours of work
+- **Total remaining**: 8-11 hours
+- **Completed so far**: ~8-9 hours of work
 
 ---
 
