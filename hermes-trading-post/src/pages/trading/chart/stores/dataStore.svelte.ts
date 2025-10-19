@@ -39,10 +39,6 @@ class DataStore {
   private orderbookPriceUnsubscribe: (() => void) | null = null;
   private newCandleTimeout: NodeJS.Timeout | null = null;
 
-  // ⚡ PHASE 10: RAF throttling for L2 price updates (prevents 10-30 Hz saturation)
-  private _l2RafId: number | null = null;
-  private _pendingL2Update: { price: number } | null = null;
-
   // Subscription mechanism for plugins
   private dataUpdateCallbacks: Set<() => void> = new Set();
   private historicalDataLoadedCallbacks: Set<() => void> = new Set();
@@ -600,7 +596,7 @@ class DataStore {
     }
 
     this.orderbookPriceUnsubscribe = orderbookStore.subscribeToPriceUpdates((price: number) => {
-      // Update latest price immediately from L2 data (for header display - cheap operation)
+      // Update latest price immediately from L2 data
       this._latestPrice = price;
 
       // Log only once to confirm price updates are working
@@ -609,33 +605,24 @@ class DataStore {
         this._priceUpdateLoggedOnce = true;
       }
 
-      // ⚡ PHASE 10: RAF throttle candle updates (throttle 10-30 Hz L2 updates to 60 FPS)
-      // This prevents the reactive cascade that causes lag
-      this._pendingL2Update = { price };
+      // ⚡ INSTANT UPDATE: Update candle immediately with L2 price (no RAF delay)
+      // Chart must update as fast as orderbook - every L2 tick
+      if (this._candles.length > 0) {
+        const lastCandle = this._candles[this._candles.length - 1];
+        const updatedCandle = {
+          ...lastCandle,
+          close: price,
+          high: Math.max(lastCandle.high, price),
+          low: Math.min(lastCandle.low, price)
+        };
 
-      if (!this._l2RafId) {
-        this._l2RafId = requestAnimationFrame(() => {
-          if (this._pendingL2Update && this._candles.length > 0) {
-            const lastCandle = this._candles[this._candles.length - 1];
-            const updatedCandle = {
-              ...lastCandle,
-              close: this._pendingL2Update.price,
-              high: Math.max(lastCandle.high, this._pendingL2Update.price),
-              low: Math.min(lastCandle.low, this._pendingL2Update.price)
-            };
-
-            // Update in place for reactivity
-            this._candles[this._candles.length - 1] = updatedCandle;
-
-            // Update stats and notify subscribers
-            // ⚡ PHASE 10: Use immediate=true to skip 16ms batcher delay for responsive real-time updates
-            this._dataStats.lastUpdate = Date.now();
-            this.notifyDataUpdate(true);
-          }
-          this._l2RafId = null;
-          this._pendingL2Update = null;
-        });
+        // Update in place for reactivity
+        this._candles[this._candles.length - 1] = updatedCandle;
       }
+
+      // Update stats and notify subscribers IMMEDIATELY (no batching delay)
+      this._dataStats.lastUpdate = Date.now();
+      this.notifyDataUpdate(true);  // ✅ immediate=true skips 16ms batcher
     });
   }
 
