@@ -1,3 +1,20 @@
+<!--
+  ⚠️ DEPRECATED - Phase 4 Consolidation
+
+  This is a legacy/simple chart component. The production implementation is in:
+  /src/pages/trading/chart/core/ChartCore.svelte
+
+  The production version includes:
+  - Plugin system
+  - Real-time data subscriptions
+  - Advanced initialization orchestration
+  - Timeframe coordination
+  - Subscription management
+
+  If you need this component, consider using the production ChartCore instead.
+  This file should be removed in a future cleanup phase.
+-->
+
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { createChart, ColorType } from 'lightweight-charts';
