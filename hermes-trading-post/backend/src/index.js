@@ -16,6 +16,7 @@ import { MemoryMonitor } from './services/MemoryMonitor.js';
 import { SubscriptionManager } from './services/SubscriptionManager.js';
 import { WebSocketHandler } from './services/WebSocketHandler.js';
 import { BroadcastService } from './services/BroadcastService.js';
+import { ServerLifecycle } from './services/ServerLifecycle.js';
 
 dotenv.config();
 
@@ -355,73 +356,32 @@ app.post('/api/debug-log', (req, res) => {
   res.json({ success: true });
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`🚀 Trading backend server running on ${HOST}:${PORT}`);
-  console.log(`📡 WebSocket server ready on ws://${HOST}:${PORT}`);
-  console.log(`💹 Trading service initialized`);
-  console.log(`❤️  Health Check: http://${HOST}:${PORT}/health`);
+// Phase 5C: Initialize Server Lifecycle manager
+const serverLifecycle = new ServerLifecycle(server, wss, {
+  botManager,
+  continuousCandleUpdater,
+  coinbaseWebSocket,
+  memoryMonitor,
+  chartSubscriptions,
+  activeSubscriptions,
+  granularityMappings,
+  granularityMappingTimes,
+  lastEmissionTimes
 });
 
-// Shutdown handling
-let isShuttingDown = false;
+// Start the server
+(async () => {
+  try {
+    await serverLifecycle.startServer(PORT, HOST);
+    console.log(`📡 WebSocket server ready on ws://${HOST}:${PORT}`);
+    console.log(`💹 Trading service initialized`);
+    console.log(`❤️  Health Check: http://${HOST}:${PORT}/health`);
 
-const gracefulShutdown = (signal) => {
-  if (isShuttingDown) {
-    console.log('Shutdown already in progress...');
-    return;
-  }
-
-  isShuttingDown = true;
-  console.log(`\n${signal} received, shutting down gracefully`);
-  
-  // Set environment variable to indicate we're truly shutting down
-  process.env.SHUTTING_DOWN = 'true';
-  
-  // Stop bot manager
-  botManager.cleanup();
-
-  // Stop continuous candle updater
-  console.log('🛑 Stopping Continuous Candle Updater...');
-  continuousCandleUpdater.stopAll();
-
-  // 🔥 MEMORY LEAK FIX: Clean up all Maps and subscriptions
-  console.log('🧹 Cleaning up memory...');
-  chartSubscriptions.clear();
-  activeSubscriptions.clear();
-  granularityMappings.clear();
-  granularityMappingTimes.clear();
-  lastEmissionTimes.clear(); // 🔥 RACE CONDITION FIX
-
-  // Clear the cleanup interval
-  if (cleanupInterval) {
-    clearInterval(cleanupInterval);
-    cleanupInterval = null;
-  }
-
-  // Disconnect Coinbase WebSocket
-  coinbaseWebSocket.disconnect();
-  
-  // Close all WebSocket connections
-  wss.clients.forEach(client => {
-    client.close();
-  });
-  
-  // Close HTTP server
-  server.close(() => {
-    console.log('Server closed and memory cleaned');
-    process.exit(0);
-  });
-  
-  // Force exit after 5 seconds
-  setTimeout(() => {
-    console.error('Could not close connections in time, forcefully shutting down');
+    // Initialize signal handlers for graceful shutdown
+    serverLifecycle.initializeSignalHandlers();
+  } catch (error) {
+    console.error('Failed to start server:', error);
     process.exit(1);
-  }, 5000);
-};
+  }
+})();
 
-// Handle shutdown signals
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
-// Prevent multiple listeners warning
-process.setMaxListeners(0);
