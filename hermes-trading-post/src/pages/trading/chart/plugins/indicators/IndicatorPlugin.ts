@@ -66,43 +66,67 @@ export abstract class IndicatorPlugin extends SeriesPlugin<'Line'> {
   protected abstract calculate(candles: CandlestickData[]): LineData[];
 
   // Helper methods for common calculations
+  // ⚡ PHASE 4A: Optimized SMA using sliding window (O(n) instead of O(n*m))
   protected calculateSMA(values: number[], period: number): (number | null)[] {
     const result: (number | null)[] = [];
-    
-    for (let i = 0; i < values.length; i++) {
-      if (i < period - 1) {
-        result.push(null);
-      } else {
-        const sum = values.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
-        result.push(sum / period);
-      }
+
+    if (values.length < period) {
+      return values.map(() => null);
     }
-    
+
+    // Calculate initial window sum (first period candles)
+    let sum = 0;
+    for (let i = 0; i < period; i++) {
+      sum += values[i];
+    }
+
+    // Add nulls for values before period
+    for (let i = 0; i < period - 1; i++) {
+      result.push(null);
+    }
+
+    // Add first SMA
+    result.push(sum / period);
+
+    // Slide window: remove leftmost, add rightmost (O(1) per iteration)
+    for (let i = period; i < values.length; i++) {
+      sum = sum - values[i - period] + values[i];
+      result.push(sum / period);
+    }
+
     return result;
   }
 
+  // ⚡ PHASE 4A: Optimized EMA initialization with direct sum calculation (O(n) instead of O(n*m))
   protected calculateEMA(values: number[], period: number): (number | null)[] {
     const result: (number | null)[] = [];
     const multiplier = 2 / (period + 1);
-    
-    // Calculate initial SMA
-    let ema: number | null = null;
-    
-    for (let i = 0; i < values.length; i++) {
-      if (i < period - 1) {
-        result.push(null);
-      } else if (i === period - 1) {
-        // First EMA is SMA
-        const sum = values.slice(0, period).reduce((a, b) => a + b, 0);
-        ema = sum / period;
-        result.push(ema);
-      } else {
-        // EMA = (Close - Previous EMA) × Multiplier + Previous EMA
-        ema = (values[i] - ema!) * multiplier + ema!;
-        result.push(ema);
-      }
+
+    if (values.length < period) {
+      return values.map(() => null);
     }
-    
+
+    // Calculate initial SMA efficiently (sum once)
+    let sum = 0;
+    for (let i = 0; i < period; i++) {
+      sum += values[i];
+    }
+
+    // Add nulls for values before period
+    for (let i = 0; i < period - 1; i++) {
+      result.push(null);
+    }
+
+    // First EMA is SMA
+    let ema = sum / period;
+    result.push(ema);
+
+    // Calculate subsequent EMA values efficiently
+    for (let i = period; i < values.length; i++) {
+      ema = (values[i] - ema) * multiplier + ema;
+      result.push(ema);
+    }
+
     return result;
   }
 
