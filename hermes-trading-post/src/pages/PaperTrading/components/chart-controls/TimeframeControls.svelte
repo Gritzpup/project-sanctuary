@@ -1,108 +1,47 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { EXTENDED_PERIODS, type ExtendedPeriod } from '../../../../lib/chart/TimeframeCompatibility';
-  import { isCompatible, getBestGranularityForPeriod } from '../../../../lib/chart/TimeframeCompatibility';
+  /**
+   * TimeframeControls Wrapper - PaperTrading Page
+   * Delegates to shared unified component
+   *
+   * Phase 4: Component Consolidation
+   * This file now serves as a thin wrapper that uses the shared TimeframeControls component.
+   * It maintains backward compatibility with existing imports.
+   */
+
+  import { EXTENDED_PERIODS, type ExtendedPeriod, isCompatible, getBestGranularityForPeriod } from '../../../../lib/chart/TimeframeCompatibility';
+  import SharedTimeframeControls from '../../../../components/shared/controls/TimeframeControls.svelte';
 
   export let selectedPeriod: string = '1H';
   export let selectedGranularity: string = '1m';
 
-  const dispatch = createEventDispatcher();
-  let isDebouncing = false;
-  let debounceTimer: number | null = null;
-
-  function handlePeriodChange(period: ExtendedPeriod) {
-    // Prevent multiple rapid clicks - debounce with 200ms window
-    if (isDebouncing) return;
-
-    isDebouncing = true;
-
-    // Clear existing timer if any
-    if (debounceTimer !== null) {
-      clearTimeout(debounceTimer);
+  function checkGranularityCompatibility(currentGranularity: string, period: string): string | null {
+    if (!isCompatible(currentGranularity, period)) {
+      return getBestGranularityForPeriod(period as ExtendedPeriod);
     }
-
-    // Find the best compatible granularity for this period
-    const bestGranularity = getBestGranularityForPeriod(period);
-
-    dispatch('periodChange', { period });
-
-    // If current granularity is not compatible, switch to the best one
-    if (!isCompatible(selectedGranularity, period)) {
-      dispatch('granularityChange', { granularity: bestGranularity });
-    }
-
-    // Reset debounce after 200ms
-    debounceTimer = window.setTimeout(() => {
-      isDebouncing = false;
-      debounceTimer = null;
-    }, 200);
+    return null;
   }
+
+  function handleTimeframeChange(event: any) {
+    selectedPeriod = event.detail.timeframe;
+    // Dispatch event for backward compatibility
+    dispatch('periodChange', { period: selectedPeriod });
+  }
+
+  function handleGranularityChange(event: any) {
+    selectedGranularity = event.detail.granularity;
+    // Dispatch event for backward compatibility
+    dispatch('granularityChange', { granularity: selectedGranularity });
+  }
+
+  import { createEventDispatcher } from 'svelte';
+  const dispatch = createEventDispatcher();
 </script>
 
-<div class="period-buttons">
-  {#each EXTENDED_PERIODS as period}
-    <button 
-      class="btn-base btn-sm btn-timeframe"
-      class:active={selectedPeriod === period}
-      on:click={() => handlePeriodChange(period)}
-    >
-      {period}
-    </button>
-  {/each}
-</div>
-
-<style>
-  .period-buttons {
-    display: flex;
-    gap: var(--space-sm);
-    margin-top: 12px;
-  }
-  
-  /* Match actual header button proportions exactly */
-  .period-buttons .btn-timeframe {
-    height: 28px;
-    min-width: 32px;
-    padding: 2px 6px;
-    font-size: 11px;
-    font-weight: 500;
-    border: 1px solid var(--border-primary);
-    background: var(--bg-primary);
-    color: #c4b5fd;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .btn-timeframe.active {
-    background: rgba(74, 0, 224, 0.4);
-    color: white;
-    border-color: rgba(74, 0, 224, 0.7);
-    box-shadow: inset 0 2px 4px rgba(74, 0, 224, 0.5);
-    font-weight: 600;
-  }
-
-
-  .btn-timeframe:hover {
-    background: rgba(74, 0, 224, 0.2);
-    border-color: rgba(74, 0, 224, 0.5);
-    color: white;
-  }
-
-  
-  /* Mobile adjustments - match header button mobile styles */
-  @media (max-width: 768px) {
-    .period-buttons .btn-timeframe {
-      min-width: 28px;
-      padding: 2px 4px;
-      font-size: 10px;
-    }
-    
-    /* Move timescale buttons up to align with calendar button */
-    .period-buttons {
-      transform: translateY(-2px);
-    }
-  }
-</style>
+<SharedTimeframeControls
+  currentTimeframe={selectedPeriod}
+  availableTimeframes={EXTENDED_PERIODS}
+  onGranularityCheck={checkGranularityCompatibility}
+  debounceMs={200}
+  on:timeframeChange={handleTimeframeChange}
+  on:granularityChange={handleGranularityChange}
+/>

@@ -1,60 +1,32 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  /**
+   * TimeframeControls Wrapper - Trading Page
+   * Delegates to shared unified component
+   *
+   * Phase 4: Component Consolidation
+   * This file now serves as a thin wrapper that uses the shared TimeframeControls component.
+   * It maintains backward compatibility with existing imports and styling.
+   */
+
   import { PERIOD_DISPLAY_NAMES } from '../../../utils/constants';
+  import SharedTimeframeControls from '../../../../../components/shared/controls/TimeframeControls.svelte';
 
   export let currentTimeframe: string;
   export let availableTimeframes: string[] = ['1H', '6H', '1D', '1W', '1M', '5Y'];
   export let showTimeframes: boolean = true;
-
-  const dispatch = createEventDispatcher();
-  let isDebouncing = false;
-  let debounceTimer: number | null = null;
-
-  function handleTimeframeChange(timeframe: string) {
-    // Prevent multiple rapid clicks - debounce with 200ms window
-    if (isDebouncing) return;
-
-    isDebouncing = true;
-
-    // Clear existing timer if any
-    if (debounceTimer !== null) {
-      clearTimeout(debounceTimer);
-    }
-
-    dispatch('timeframeChange', { timeframe });
-
-    // Reset debounce after 200ms
-    debounceTimer = window.setTimeout(() => {
-      isDebouncing = false;
-      debounceTimer = null;
-    }, 200);
-  }
-
-  function getButtonClass(isActive: boolean): string {
-    let classes = ['control-button'];
-    
-    if (isActive) {
-      classes.push('active');
-    }
-    
-    return classes.join(' ');
-  }
 </script>
 
 {#if showTimeframes}
   <div class="control-group">
-    <span class="control-label">Period:</span>
-    <div class="button-group">
-      {#each availableTimeframes as timeframe}
-        <button
-          class={getButtonClass(currentTimeframe === timeframe)}
-          on:click={() => handleTimeframeChange(timeframe)}
-          title={PERIOD_DISPLAY_NAMES[timeframe] || timeframe}
-        >
-          {timeframe}
-        </button>
-      {/each}
-    </div>
+    <SharedTimeframeControls
+      {currentTimeframe}
+      {availableTimeframes}
+      displayNames={PERIOD_DISPLAY_NAMES}
+      debounceMs={200}
+      showLabel={true}
+      labelText="Period:"
+      on:timeframeChange
+    />
   </div>
 {/if}
 
@@ -63,46 +35,5 @@
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-  }
-
-  .control-label {
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-semibold);
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .button-group {
-    display: flex;
-    gap: var(--space-xs);
-  }
-
-  .control-button {
-    padding: var(--space-xs) var(--space-sm);
-    border: 1px solid var(--border-primary);
-    background: var(--bg-surface);
-    color: var(--text-accent);
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-medium);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: all var(--transition-normal);
-    position: relative;
-    overflow: hidden;
-  }
-
-  .control-button:hover:not(:disabled) {
-    background: var(--bg-primary);
-    border-color: var(--border-primary-hover);
-    color: var(--text-primary);
-  }
-
-  .control-button.active {
-    background: var(--bg-primary-active);
-    color: var(--text-primary);
-    border-color: var(--border-primary-active);
-    box-shadow: inset 0 2px 4px var(--color-primary);
-    font-weight: var(--font-weight-semibold);
   }
 </style>
