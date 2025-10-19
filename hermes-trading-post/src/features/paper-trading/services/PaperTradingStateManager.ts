@@ -89,7 +89,7 @@ export class PaperTradingStateManager {
     this.setupManagerStateSubscription();
     this.setupPriceFeeding();
     this.setupStrategyStoreSubscription();
-    this.loadCustomStrategies();
+    // ⚡ PHASE 5F: loadCustomStrategies removed - now handled in setupStrategyStoreSubscription
   }
 
   private setupBackendStateSubscription() {
