@@ -62,31 +62,14 @@ export class MicroScalpingStrategy extends Strategy {
 
   analyze(candles: CandleData[], currentPrice: number): Signal {
     const config = this.config as MicroScalpingConfig;
-    
-    // Debug log every 10 candles for micro scalping
-    if (candles.length % 10 === 0) {
-      console.log(`[MicroScalping] Analyze - Candle #${candles.length}`, {
-        currentPrice,
-        date: new Date(candles[candles.length - 1].time * 1000).toISOString(),
-        balance: this.state.balance,
-        positions: this.state.positions.length,
-        initialEntry: this.initialEntryPrice,
-        currentLevel: this.currentLevel,
-        recentHigh: this.recentHigh
-      });
-    }
-    
+
     // Reset after complete exit
     if (this.state.positions.length === 0 && this.initialEntryPrice > 0) {
-      console.log('[MicroScalping] Resetting after complete exit', {
-        date: new Date(candles[candles.length - 1].time * 1000).toISOString()
-      });
       this.resetCycle();
     }
-    
+
     // Fix sync issues
     if (this.state.positions.length > 0 && this.state.balance.btcPositions <= 0.0000001) {
-      console.log('[MicroScalping] SYNC FIX: Clearing phantom positions');
       this.state.positions = [];
       this.resetCycle();
     }
@@ -96,28 +79,7 @@ export class MicroScalpingStrategy extends Strategy {
 
     // Check for profit taking
     const totalPositionSize = this.getTotalPositionSize();
-    
-    // Log profit progress every 5 candles when we have positions
-    if (this.state.positions.length > 0 && candles.length % 5 === 0) {
-      const targetPrice = this.initialEntryPrice * (1 + (config.profitTarget / 100));
-      const currentProfit = ((currentPrice - this.initialEntryPrice) / this.initialEntryPrice) * 100;
-      const totalPositionValue = totalPositionSize * currentPrice;
-      const totalInvested = this.state.positions.reduce((sum, p) => sum + (p.size * p.entryPrice), 0);
-      const unrealizedPnL = totalPositionValue - totalInvested;
-      
-      console.log('[MicroScalping] 📊 Position Status:', {
-        profitTarget: config.profitTarget + '%',
-        positions: this.state.positions.length,
-        totalBTC: totalPositionSize.toFixed(6),
-        totalInvested: totalInvested.toFixed(2),
-        currentValue: totalPositionValue.toFixed(2),
-        unrealizedPnL: unrealizedPnL.toFixed(2),
-        currentProfit: currentProfit.toFixed(4) + '%',
-        netAfterFees: (currentProfit - 0.3).toFixed(4) + '%',
-        progressToTarget: ((currentProfit / config.profitTarget) * 100).toFixed(1) + '%'
-      });
-    }
-    
+
     if (this.state.positions.length > 0 && totalPositionSize > 0) {
       const shouldSell = this.shouldTakeProfit(this.state.positions[0], currentPrice);
       
@@ -132,14 +94,7 @@ export class MicroScalpingStrategy extends Strategy {
         }
         
         const sellSize = Math.min(totalPositionSize, this.state.balance.btcPositions);
-        
-        console.log('[MicroScalping] 🎉 SELL SIGNAL!', {
-          sellSize: sellSize.toFixed(6),
-          currentPrice: currentPrice.toFixed(2),
-          profitTarget: config.profitTarget + '%',
-          reason: `Taking profit at ${config.profitTarget}% above initial entry`
-        });
-        
+
         return {
           type: 'sell' as const,
           strength: 1.0,
@@ -157,29 +112,9 @@ export class MicroScalpingStrategy extends Strategy {
 
     // Check for buy entries
     const dropFromHigh = ((this.recentHigh - currentPrice) / this.recentHigh) * 100;
-    
-    // Log market status every 10 candles or on significant drops
-    if (candles.length <= 20 || dropFromHigh >= 0.5 || candles.length % 10 === 0) {
-      console.log('[MicroScalping] Market status:', {
-        candleCount: candles.length,
-        currentPrice,
-        recentHigh: this.recentHigh,
-        dropFromHigh: dropFromHigh.toFixed(3) + '%',
-        hasPositions: this.state.positions.length > 0,
-        initialDropThreshold: config.initialDropPercent + '%',
-        needsDrop: Math.max(0, config.initialDropPercent - dropFromHigh).toFixed(3) + '% more'
-      });
-    }
-    
+
     // Initial entry
     if (this.state.positions.length === 0 && dropFromHigh >= config.initialDropPercent) {
-      console.log('[MicroScalping] INITIAL ENTRY TRIGGERED', {
-        dropFromHigh: dropFromHigh.toFixed(3) + '%',
-        requiredDrop: config.initialDropPercent + '%',
-        currentPrice,
-        recentHigh: this.recentHigh
-      });
-      
       this.initialEntryPrice = currentPrice;
       this.currentLevel = 1;
       this.levelPrices = [currentPrice];
@@ -201,25 +136,11 @@ export class MicroScalpingStrategy extends Strategy {
     if (this.state.positions.length > 0 && this.currentLevel < config.maxLevels) {
       const lastLevelPrice = this.levelPrices[this.levelPrices.length - 1];
       const dropFromLastLevel = ((lastLevelPrice - currentPrice) / lastLevelPrice) * 100;
-      
-      console.log('[MicroScalping] Level check:', {
-        currentLevel: this.currentLevel,
-        maxLevels: config.maxLevels,
-        dropFromLastLevel: dropFromLastLevel.toFixed(3) + '%',
-        requiredDrop: config.levelDropPercent + '%',
-        wouldTrigger: dropFromLastLevel >= config.levelDropPercent
-      });
-      
+
       if (dropFromLastLevel >= config.levelDropPercent) {
         this.currentLevel++;
         this.levelPrices.push(currentPrice);
-        
-        console.log('[MicroScalping] LEVEL ENTRY TRIGGERED!', {
-          level: this.currentLevel,
-          dropFromLastLevel: dropFromLastLevel.toFixed(3) + '%',
-          price: currentPrice
-        });
-        
+
         return {
           type: 'buy',
           strength: 0.8,
@@ -244,19 +165,12 @@ export class MicroScalpingStrategy extends Strategy {
 
   calculatePositionSize(balance: number, signal: Signal, currentPrice: number): number {
     if (signal.type !== 'buy' || !signal.metadata?.level) return 0;
-    
+
     const config = this.config as MicroScalpingConfig;
     const level = signal.metadata.level;
-    
+
     const totalAvailable = this.state.balance.usd + this.state.balance.vault;
-    
-    console.log('[MicroScalping] Position size calculation:', {
-      balance,
-      totalAvailable,
-      level,
-      currentPrice
-    });
-    
+
     // Percentage-based sizing
     const basePercent = config.basePositionPercent / 100;
     let positionValue: number;
@@ -275,58 +189,28 @@ export class MicroScalpingStrategy extends Strategy {
     const maxAllowed = balance * (config.maxPositionPercent / 100);
     if (totalPositionValue + positionValue > maxAllowed) {
       positionValue = Math.max(0, maxAllowed - totalPositionValue);
-      console.log('[MicroScalping] Position limited by max percentage:', {
-        original: positionValue,
-        limited: positionValue,
-        maxAllowed
-      });
     }
-    
+
     const size = positionValue / currentPrice;
-    
-    console.log('[MicroScalping] Position calculated:', {
-      level,
-      positionValueUSD: positionValue.toFixed(2),
-      btcSize: size.toFixed(6),
-      percentOfBalance: ((positionValue / balance) * 100).toFixed(1) + '%'
-    });
-    
+
     if (this.levelSizes.length < level) {
       this.levelSizes.push(size);
     }
-    
+
     return size;
   }
 
   shouldTakeProfit(position: Position, currentPrice: number): boolean {
     const config = this.config as MicroScalpingConfig;
-    
+
     if (this.initialEntryPrice > 0) {
       const targetPrice = this.initialEntryPrice * (1 + config.profitTarget / 100);
-      const currentProfit = ((currentPrice - this.initialEntryPrice) / this.initialEntryPrice) * 100;
-      
-      // Log when close to target (within 80%)
-      if (currentProfit >= config.profitTarget * 0.8) {
-        console.log('[MicroScalping] 🎯 NEAR TARGET:', {
-          currentPrice: currentPrice.toFixed(2),
-          targetPrice: targetPrice.toFixed(2),
-          currentProfit: currentProfit.toFixed(3) + '%',
-          targetProfit: config.profitTarget + '%',
-          distanceLeft: ((targetPrice - currentPrice) / currentPrice * 100).toFixed(3) + '%'
-        });
-      }
-      
+
       if (currentPrice >= targetPrice) {
-        console.log('[MicroScalping] 🚀 TARGET REACHED!', {
-          currentProfit: currentProfit.toFixed(3) + '%',
-          netProfit: (currentProfit - 0.3).toFixed(3) + '%',
-          currentPrice,
-          targetPrice
-        });
         return true;
       }
     }
-    
+
     return false;
   }
 
@@ -357,19 +241,17 @@ export class MicroScalpingStrategy extends Strategy {
       // Initialize immediately for fast trading
       if (this.recentHigh === 0 && candles.length > 0) {
         this.recentHigh = candles[0].high;
-        console.log(`[MicroScalping] Initialized to first candle high ${this.recentHigh.toFixed(2)}`);
       }
-      
+
       // Use lookback window once we have enough candles
       if (candles.length >= config.lookbackPeriod) {
         const lookback = config.lookbackPeriod;
         const startIndex = Math.max(0, candles.length - lookback);
         const recentCandles = candles.slice(startIndex);
         const lookbackHigh = Math.max(...recentCandles.map(c => c.high));
-        
+
         if (lookbackHigh > this.recentHigh || this.recentHigh === 0) {
           this.recentHigh = lookbackHigh;
-          console.log(`[MicroScalping] Updated to ${lookback}-candle high: ${this.recentHigh.toFixed(2)}`);
         }
       } else {
         // Use all available candles
@@ -377,11 +259,10 @@ export class MicroScalpingStrategy extends Strategy {
         const absoluteHigh = Math.max(...allHighs, currentPrice);
         this.recentHigh = absoluteHigh;
       }
-      
+
       // Update if current price is new high
       if (currentPrice > this.recentHigh) {
         this.recentHigh = currentPrice;
-        console.log(`[MicroScalping] New high: ${this.recentHigh.toFixed(2)}`);
       }
     } else {
       // In position - only update on new highs
@@ -411,7 +292,6 @@ export class MicroScalpingStrategy extends Strategy {
     this.levelPrices = [];
     this.levelSizes = [];
     this.recentHigh = 0;
-    console.log('[MicroScalping] Cycle reset - ready for next trade');
   }
   
   reset(): void {
