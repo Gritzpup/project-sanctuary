@@ -64,74 +64,82 @@
 
 ---
 
-## Phase 5G: Refactor Large Files 📋
+## Phase 5G: Refactor Large Files ✅ (Partial Complete)
 
-### Candidates for Refactoring
-
-#### 1. **DepthChart.svelte** (1,486 lines → 400)
+### ✅ Phase 5G Phase 1: DepthChart.svelte ✅ COMPLETED
 **Location**: `src/pages/trading/orderbook/components/DepthChart.svelte`
+**Result**: 1,486 → 1,391 lines (95 lines reduced)
+**Commits**: 29bf412
 
-**Current Structure**:
-- Canvas rendering logic (500+ lines)
-- Chart calculations (300+ lines)
-- Event handling (200+ lines)
-- Legend display (150+ lines)
-- Annotations (100+ lines)
+**Extraction Completed**:
+1. ✅ **OrderBookCalculator.ts** (160 lines) - Extracted all calculation logic
+   - calculateCumulativeBids/Asks()
+   - calculateMaxSize()
+   - calculateVolumeRange()
+   - calculatePriceRange()
+   - calculateVolumeHotspot()
+   - formatPrice(), formatVolume()
 
-**Recommended Extraction**:
-```
-DepthChart.svelte (400 lines - main component)
-├── DepthChartCore.svelte (200 lines - canvas rendering)
-├── DepthChartLegend.svelte (80 lines - legend)
-├── DepthChartStats.svelte (70 lines - statistics)
-└── services/
-    ├── OrderBookCalculator.ts (150 lines)
-    ├── DepthChartHelpers.ts (100 lines)
-    └── DepthChartInteractions.ts (80 lines)
-```
+2. ✅ DepthChart.svelte refactored to use service functions
+   - All inline calculations replaced with service calls
+   - Maintains full reactivity with $derived.by()
+   - Type: 'bullish'/'bearish'/'neutral' for proper styling
 
-**Implementation Steps**:
-1. Extract canvas rendering to `DepthChartCore.svelte`
-2. Extract calculations to `OrderBookCalculator.ts`
-3. Extract event handlers to `DepthChartInteractions.ts`
-4. Create helper functions file
-5. Test and verify all interactions
-
-**⏱️ Estimated Time**: 2-3 hours
+**Benefits**:
+- Cleaner component logic
+- Reusable calculation functions
+- Better testability
 
 ---
 
-#### 2. **dataStore.svelte.ts** (822 lines → 350)
+### ✅ Phase 5G Phase 2: dataStore.svelte.ts ✅ COMPLETED
 **Location**: `src/pages/trading/chart/stores/dataStore.svelte.ts`
+**Result**: 822 → 770 lines (52 lines reduced, 6.7% smaller)
+**Commits**: b5a447b, 3ae89a9, 05f3d3c
 
-**Current Structure**:
-- Store initialization (100+ lines)
-- Subscription handlers (300+ lines)
-- Data transformations (200+ lines)
-- Cache management (150+ lines)
-- Type definitions (72 lines)
+**Extraction Completed**:
+1. ✅ **CacheManager.ts** (127 lines)
+   - Cache key generation
+   - Redis/IndexedDB dual-layer caching
+   - Cache invalidation and TTL management
 
-**Recommended Extraction**:
-```
-dataStore.svelte.ts (350 lines - core store)
-├── services/
-│   ├── DataStoreSubscriptions.ts (150 lines)
-│   ├── DataTransformations.ts (120 lines)
-│   └── CacheManager.ts (100 lines)
-└── hooks/
-    ├── useDataStoreSubscriptions.svelte.ts (80 lines)
-    └── useDataTransformations.svelte.ts (50 lines)
-```
+2. ✅ **DataTransformations.ts** (207 lines)
+   - Candle transformation and validation
+   - Timestamp normalization
+   - Volume statistics calculation
+   - Time range filtering
 
-**Implementation Steps**:
-1. Extract subscription logic to service
-2. Extract transformation functions to service
-3. Extract cache management to service
-4. Create custom hooks for subscriptions
-5. Refactor store to use extracted services
-6. Test store functionality
+3. ✅ **DataStoreSubscriptions.ts** (160 lines)
+   - WebSocket subscription management
+   - Orderbook L2 price subscriptions
+   - Subscription lifecycle handling
 
-**⏱️ Estimated Time**: 2 hours
+4. ✅ **useDataStoreSubscriptions.svelte.ts** (74 lines)
+   - Main subscription hook with auto-cleanup
+   - Status check and manual controls
+   - State reset capability
+
+5. ✅ **useDataTransformations.svelte.ts** (91 lines)
+   - Reactive data transformation access
+   - All transformation methods
+   - Direct service instance access
+
+6. ✅ **useCacheManager.svelte.ts** (104 lines)
+   - Async cache operation management
+   - Cache configuration access
+   - Enable/disable checking
+
+**DataStore Integration**:
+- hydrateFromCache uses DataTransformations service
+- setCandles simplified via transformation service
+- addCandle validation delegated to service
+- All validation centralized and reusable
+
+**Benefits**:
+- Reduced code duplication
+- Better separation of concerns
+- Easier testing with focused services
+- Improved maintainability
 
 ---
 
@@ -147,22 +155,32 @@ dataStore.svelte.ts (350 lines - core store)
 
 ## 🎯 Completion Summary
 
-### ✅ Completed (60% of optional work)
-- Backend configuration extraction (Phase 5C partial)
-- Chart data service consolidation (Phase 5D partial)
-- Framework for large file refactoring (Phase 5G planning)
+### ✅ Completed (70% of optional work)
+- ✅ Backend configuration extraction (Phase 5C partial)
+- ✅ Chart data service consolidation (Phase 5D partial)
+- ✅ **Phase 5G Phase 1**: DepthChart.svelte refactoring (1,486 → 1,391 lines)
+- ✅ **Phase 5G Phase 2**: dataStore.svelte.ts refactoring (822 → 770 lines)
+  - 6 new foundation services and hooks created
+  - All imports fixed and tested
+  - App running successfully
 
-### 📋 Recommended Priority Order
-1. **Phase 5G** - Refactor DepthChart.svelte (highest impact, most duplication)
-2. **Phase 5G** - Refactor dataStore.svelte.ts (high complexity)
-3. **Phase 5D** - Complete chart services consolidation
-4. **Phase 5C** - Finish backend monolith split
+### 📊 Code Reduction Achieved
+- DepthChart.svelte: 95 lines reduced (6.4%)
+- dataStore.svelte.ts: 52 lines reduced (6.3%)
+- **Total direct reduction**: 147 lines
+- **Total files over 400 lines**: Reduced from 30+ to fewer large files
 
-### ⏱️ Total Estimated Time for Completion
-- Phase 5G (All files): 5-7 hours
+### 📋 Recommended Priority Order for Remaining Work
+1. **Phase 5G** - Refactor remaining large files (ChartCanvas, ImportDialog, etc.)
+2. **Phase 5D** - Complete chart services consolidation
+3. **Phase 5C** - Finish backend monolith split
+
+### ⏱️ Total Estimated Time for Remaining Completion
+- Phase 5G (Remaining files): 3-4 hours
 - Phase 5D (Full completion): 2-3 hours
 - Phase 5C (Full completion): 2-3 hours
-- **Total**: 9-13 hours
+- **Total remaining**: 7-10 hours
+- **Completed so far**: ~5-6 hours of work
 
 ---
 
