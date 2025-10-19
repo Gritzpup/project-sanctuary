@@ -1,3 +1,10 @@
+/**
+ * UnifiedAPIClient - Centralized HTTP client for all API requests
+ *
+ * Provides consistent error handling, retry logic, and rate limiting across
+ * all external API calls (Coinbase, backend, etc.). Implements singleton pattern
+ * with exponential backoff for resilience and token bucket for rate control.
+ */
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 export interface APIError {
@@ -163,7 +170,8 @@ export class UnifiedAPIClient {
           config.maxDelay
         );
 
-        console.warn(`API request failed (attempt ${attempt + 1}/${config.maxRetries + 1}), retrying in ${delay}ms:`, error);
+        // Log retry attempt with exponential backoff (useful for debugging rate limits and timeouts)
+        console.warn(`[API] Request retry - Attempt ${attempt + 1}/${config.maxRetries + 1}, waiting ${delay}ms:`, error);
         await this.sleep(delay);
       }
     }

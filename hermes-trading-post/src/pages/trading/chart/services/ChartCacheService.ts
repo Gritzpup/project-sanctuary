@@ -1,3 +1,11 @@
+/**
+ * ChartCacheService - In-memory cache for chart data
+ *
+ * Provides fast access to recently loaded candlestick data across different
+ * pairs and granularities. Implements LRU-style expiration (5 min TTL) and
+ * automatic cleanup to prevent memory bloat. Cache key is generated from
+ * pair, granularity, and time range for fine-grained control.
+ */
 import type { Candle, DataCache } from '../types/data.types';
 import { ChartDebug } from '../utils/debug';
 

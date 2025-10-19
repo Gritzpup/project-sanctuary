@@ -1,6 +1,10 @@
 /**
- * @file paperTradingService.ts
- * @description Main paper trading service combining all modules
+ * PaperTradingService - Virtual trading engine for backtesting and paper trading
+ *
+ * Orchestrates the complete paper trading lifecycle: strategy execution, portfolio
+ * management, trade tracking, and performance metrics. Manages state through Svelte
+ * stores and coordinates between strategy layer, order execution, and vault/position
+ * tracking. Supports both real-time paper trading and historical backtesting.
  */
 
 import { Strategy } from '../../strategies/base/Strategy';

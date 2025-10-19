@@ -37,6 +37,7 @@ export class PluginManager {
         throw error;
       }
     } else {
+      // Context will be set later when setContext() is explicitly called
     }
 
     this.emitEvent({
