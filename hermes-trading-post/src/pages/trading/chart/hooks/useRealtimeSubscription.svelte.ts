@@ -31,9 +31,28 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   // Disable aggressive auto-scroll to prevent snapping
   const ENABLE_SMALL_DATASET_AUTO_SCROLL = false; // DISABLED - causing snapping behavior
 
-  // 🚀 RADICAL OPTIMIZATION: Remove RAF batching for INSTANT updates
-  // Ticker updates come so fast that batching adds unnecessary delay
-  // Let status store updates happen immediately
+  // ⚡ CRITICAL OPTIMIZATION: RAF Batching for 60 FPS max
+  // Ticker updates come at 50-100/sec, but rendering is 60fps max (16.67ms)
+  // Batching prevents UI thread saturation and frame drops
+  let rafId: number | null = null;
+  let pendingUpdate: { price: number; chartSeries?: any; volumeSeries?: any; candleData?: any } | null = null;
+
+  function scheduleUpdate(price: number, chartSeries?: any, volumeSeries?: any, candleData?: any) {
+    // Store the latest update
+    pendingUpdate = { price, chartSeries, volumeSeries, candleData };
+
+    // Only schedule RAF if not already scheduled
+    if (!rafId) {
+      rafId = requestAnimationFrame(() => {
+        if (pendingUpdate) {
+          const { price, chartSeries, volumeSeries, candleData } = pendingUpdate;
+          processUpdate(price, chartSeries, volumeSeries, candleData);
+        }
+        rafId = null;
+        pendingUpdate = null;
+      });
+    }
+  }
 
   /**
    * Maintains optimal candle count visible in the chart (60 for normal, 12 for small datasets)
@@ -129,9 +148,10 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   }
 
   /**
-   * Update live candle with new price data AND volume data
+   * Process update (called by RAF batching)
+   * Updates live candle with new price data AND volume data
    */
-  function updateLiveCandleWithPrice(price: number, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any, fullCandleData?: any) {
+  function processUpdate(price: number, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any, fullCandleData?: any) {
     if (!chartSeries) return;
 
     const candles = dataStore.candles;
@@ -368,19 +388,22 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       pair,
       granularity,
       (candleData) => {
-        // Update both price AND volume in real-time
-        updateLiveCandleWithPrice(candleData.close, chartSeries, volumeSeries, candleData);
-        statusStore.setPriceUpdate(); // Direct update for instant response
+        // ⚡ Use RAF batching to throttle updates to 60 FPS max
+        // This prevents UI thread saturation (was causing 135% CPU usage)
+        scheduleUpdate(candleData.close, chartSeries, volumeSeries, candleData);
+
+        // Status updates can happen immediately (cheap operation)
+        statusStore.setPriceUpdate();
       },
       () => {
         statusStore.setReady();
-        
+
         if (onReconnect) {
           onReconnect();
         }
       }
     );
-    
+
     // Note: Removed dual WebSocket subscription to avoid conflicts
     // VolumePlugin will handle volume updates through dataStore
   }
@@ -402,7 +425,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   return {
     subscribeToRealtime,
     unsubscribeFromRealtime,
-    updateLiveCandleWithPrice,
+    processUpdate, // Exported for testing/debugging
     isSubscribed
   };
 }
