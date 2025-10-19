@@ -15,6 +15,7 @@ import tradingRoutes from './routes/trading.js';
 import { MemoryMonitor } from './services/MemoryMonitor.js';
 import { SubscriptionManager } from './services/SubscriptionManager.js';
 import { WebSocketHandler } from './services/WebSocketHandler.js';
+import { BroadcastService } from './services/BroadcastService.js';
 
 dotenv.config();
 
@@ -82,6 +83,21 @@ const wsHandler = new WebSocketHandler(wss, {
 // Initialize WebSocket handlers
 wsHandler.initialize();
 
+// Phase 5C: Initialize broadcast service
+// Note: deltaSubscriber will be created during async initialization below
+let deltaSubscriber = null; // Will be initialized in async IIFE
+const broadcastService = new BroadcastService(wss, {
+  continuousCandleUpdater,
+  coinbaseWebSocket,
+  subscriptionManager,
+  getGranularitySeconds,
+  chartSubscriptions,
+  granularityMappings: subscriptionManager.granularityMappings,
+  lastEmissionTimes,
+  cachedLevel2Snapshot: null,
+  deltaSubscriber: null // Will be updated after Redis connection
+});
+
 // Initialize default bots on startup
 // Use async IIFE to handle async initialization
 (async () => {
@@ -95,222 +111,9 @@ wsHandler.initialize();
   console.log('🔄 Starting Continuous Candle Updater Service...');
   continuousCandleUpdater.startAllGranularities('BTC-USD');
 
-  // Forward database activity events to WebSocket clients
-  continuousCandleUpdater.on('database_activity', (activity) => {
-    // Broadcast to all connected clients
-    wss.clients.forEach(client => {
-      if (client.readyState === client.OPEN) {
-        client.send(JSON.stringify({
-          type: 'database_activity',
-          data: activity
-        }));
-      }
-    });
-  });
-
-  // Log database activity stats periodically
-  setInterval(() => {
-    const stats = continuousCandleUpdater.getStats();
-    console.log(`📊 [CandleUpdater Stats] Fetches: ${stats.totalFetches}, Candles: ${stats.totalCandles}, Errors: ${stats.errors}, Active: ${stats.activePairs.length}`);
-  }, 60000); // Every minute
-
-  // Initialize Coinbase WebSocket
-  console.log('🔌 Attempting to connect to Coinbase WebSocket...');
-  try {
-    await coinbaseWebSocket.connect();
-    console.log('✅ Coinbase WebSocket connection initiated successfully');
-  } catch (error) {
-    console.error('❌ Failed to connect to Coinbase WebSocket:', error);
-  }
-  
-  // Auto-subscribe to all granularities for continuous candle updates
-  console.log('🔄 Setting up continuous candle aggregation for all granularities...');
-  const granularities = ['60', '300', '900', '3600', '21600', '86400']; // 1m, 5m, 15m, 1h, 6h, 1d
-  const granularityStrings = ['1m', '5m', '15m', '1h', '6h', '1d'];
-  
-  granularities.forEach((granularitySeconds, index) => {
-    const granularityStr = granularityStrings[index];
-    const mappingKey = `BTC-USD:${granularitySeconds}`;
-
-    // Set up granularity mapping
-    granularityMappings.set(mappingKey, granularityStr);
-    granularityMappingTimes.set(mappingKey, Date.now());
-
-    // Subscribe to real-time data
-    coinbaseWebSocket.subscribeMatches('BTC-USD', granularitySeconds);
-    console.log(`📡 Auto-subscribed to BTC-USD ${granularityStr} (${granularitySeconds}s) for continuous updates`);
-  });
-
-  // 🚀 RADICAL OPTIMIZATION: Subscribe to ticker for INSTANT price updates
-  coinbaseWebSocket.subscribeTicker('BTC-USD');
-
-  // 📊 Try WebSocket level2 first for real-time orderbook (public feed, no auth needed!)
-  console.log('🚀 Starting AUTHENTICATED WebSocket level2 for real-time orderbook updates...');
-  console.log('🔐 Attempting to connect with CDP authentication (no polling fallback)');
-
-  coinbaseWebSocket.subscribeLevel2('BTC-USD');
-
-  // Track if we're receiving WebSocket level2 data
-  let usingWebSocketLevel2 = false;
-  let level2MessageCount = 0;
-  let lastLevel2Log = Date.now();
-
-  // Listen for level2 updates from WebSocket
-  coinbaseWebSocket.on('level2', (orderbookData) => {
-    if (!usingWebSocketLevel2) {
-      console.log('✅✅✅ AUTHENTICATED L2 WEBSOCKET CONNECTED AND RECEIVING DATA! ✅✅✅');
-      console.log('📊 Real-time orderbook updates are now streaming');
-      usingWebSocketLevel2 = true;
-    }
-
-    level2MessageCount++;
-
-    // Cache snapshot for new clients
-    if (orderbookData.type === 'snapshot') {
-      cachedLevel2Snapshot = orderbookData;
-    }
-
-    // Log every second instead of every 100 messages
-    const now = Date.now();
-    if (now - lastLevel2Log >= 1000) {
-      lastLevel2Log = now;
-    }
-
-    // Forward to all clients with 'level2' type
-    wss.clients.forEach(client => {
-      if (client.readyState === client.OPEN) {
-        client.send(JSON.stringify({
-          type: 'level2',
-          data: orderbookData
-        }));
-      }
-    });
-  });
-
-  // 🚀 PERF: Subscribe to Redis Pub/Sub for orderbook deltas
-  // These are ONLY the changed price levels, not full snapshots
-  // Frontend receives minimal data - only what changed
-  const deltaSubscriber = new Redis({
-    host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || 6379,
-    password: process.env.REDIS_PASSWORD
-  });
-
-  deltaSubscriber.on('message', (channel, message) => {
-    try {
-      const delta = JSON.parse(message);
-
-      // Broadcast delta to all connected WebSocket clients
-      wss.clients.forEach(client => {
-        if (client.readyState === client.OPEN) {
-          client.send(JSON.stringify({
-            type: 'orderbook-delta',
-            data: delta
-          }));
-        }
-      });
-    } catch (error) {
-      console.error(`❌ Failed to parse orderbook delta:`, error.message);
-    }
-  });
-
-  deltaSubscriber.on('error', (error) => {
-    console.error('❌ Redis delta subscriber error:', error.message);
-  });
-
-  // Subscribe to all orderbook delta channels (wildcard pattern) - non-blocking
-  deltaSubscriber.psubscribe('orderbook:*:delta').catch(err => {
-    console.error('❌ Failed to subscribe to orderbook deltas:', err.message);
-  });
-
-  // Log subscription success after a short delay
-  setTimeout(() => {
-    console.log(`✅ Orderbook delta subscriber initialized (pattern: orderbook:*:delta)`);
-  }, 100);
-
-  // ✅ Using Advanced Trade WebSocket with CDP JWT authentication for real-time push updates
-  // No polling fallback needed - WebSocket provides instant updates
-  setTimeout(() => {
-    if (usingWebSocketLevel2) {
-      console.log(`✅ WebSocket Level2 active! Received ${level2MessageCount} updates.`);
-      console.log('📊 Using REAL-TIME PUSH updates from Advanced Trade WebSocket');
-    } else {
-      console.log('⚠️ WebSocket Level2 not receiving data - check CDP API keys');
-    }
-  }, 5000);
-
-  // Set up Coinbase WebSocket event handlers
-  coinbaseWebSocket.on('candle', (candleData) => {
-
-    // Convert granularity seconds back to string using mapping
-    const mappingKey = `${candleData.product_id}:${candleData.granularity}`;
-    const granularityString = granularityMappings.get(mappingKey) || '1m'; // Default fallback
-
-    // Create proper subscription key with string granularity
-    const subscriptionKey = `${candleData.product_id}:${granularityString}`;
-
-
-    wss.clients.forEach(client => {
-      if (client.readyState === client.OPEN) {
-        // Check if this client is subscribed to this data
-        const clientId = client._clientId || 'unknown';
-        const clientSubs = chartSubscriptions.get(clientId);
-
-        if (clientSubs && clientSubs.has(subscriptionKey)) {
-          // 🔥 RACE CONDITION FIX: Throttle emissions to prevent duplicate spam
-          const throttleKey = `${clientId}:${subscriptionKey}`;
-          const lastEmitTime = lastEmissionTimes.get(throttleKey) || 0;
-          const now = Date.now();
-
-          // Only emit if:
-          // 1. It's a completed candle (always emit these), OR
-          // 2. More than 100ms has passed since last emission (10 updates/sec max)
-          const shouldEmit = candleData.type === 'complete' || (now - lastEmitTime > 100);
-
-          if (shouldEmit) {
-            lastEmissionTimes.set(throttleKey, now);
-
-            const messageToSend = {
-              type: 'candle',
-              pair: candleData.product_id,
-              granularity: granularityString,
-              time: candleData.time,
-              open: candleData.open,
-              high: candleData.high,
-              low: candleData.low,
-              close: candleData.close,
-              volume: candleData.volume,
-              candleType: candleData.type
-            };
-
-            client.send(JSON.stringify(messageToSend));
-          }
-        }
-      }
-    });
-  });
-
-  // 🚀 RADICAL OPTIMIZATION: Add ticker support for INSTANT price updates (no throttling!)
-  coinbaseWebSocket.on('ticker', (tickerData) => {
-    // Forward ticker updates to ALL clients with NO THROTTLING
-    // This gives us near-instant price updates (hundreds per second)
-    wss.clients.forEach(client => {
-      if (client.readyState === client.OPEN) {
-        const clientId = client._clientId || 'unknown';
-        const clientSubs = chartSubscriptions.get(clientId);
-
-        // Check if client is subscribed to this pair
-        if (clientSubs && clientSubs.has(`${tickerData.product_id}:1m`)) {
-          client.send(JSON.stringify({
-            type: 'ticker',
-            pair: tickerData.product_id,
-            price: tickerData.price,
-            time: Date.now() / 1000  // Unix timestamp
-          }));
-        }
-      }
-    });
-  });
+  // Initialize Broadcast Service for WebSocket message broadcasting
+  console.log('🔊 Initializing Broadcast Service...');
+  broadcastService.initialize();
 
   coinbaseWebSocket.on('error', (error) => {
     console.error('Coinbase WebSocket error:', error);
