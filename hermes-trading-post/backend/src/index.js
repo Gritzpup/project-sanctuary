@@ -130,6 +130,20 @@ const restAPIService = new RESTAPIService({
   console.log('🔊 Initializing Broadcast Service...');
   broadcastService.initialize();
 
+  // Connect to Coinbase WebSocket for real-time market data
+  console.log('🔗 Connecting to Coinbase WebSocket...');
+  try {
+    await coinbaseWebSocket.connect();
+    console.log('✅ Connected to Coinbase WebSocket');
+
+    // Subscribe to BTC-USD level2 and ticker streams
+    coinbaseWebSocket.subscribeLevel2('BTC-USD');
+    coinbaseWebSocket.subscribeTicker('BTC-USD');
+    console.log('📊 Subscribed to BTC-USD level2 and ticker');
+  } catch (error) {
+    console.error('❌ Failed to connect to Coinbase WebSocket:', error.message);
+  }
+
   coinbaseWebSocket.on('error', (error) => {
     console.error('Coinbase WebSocket error:', error);
   });
