@@ -342,16 +342,6 @@ export class ChartPrefetcher {
     };
   }
 
-  /**
-   * Cleanup
-   */
-  destroy(): void {
-    if (this.idleTimeout) {
-      clearTimeout(this.idleTimeout);
-    }
-    this.prefetchQueue = [];
-    this.isPreFetching = false;
-  }
 }
 
 // Export singleton instance

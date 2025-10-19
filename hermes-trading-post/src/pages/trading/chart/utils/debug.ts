@@ -12,6 +12,7 @@ export const DEBUG_FLAGS = {
   POSITIONING: false,     // Chart positioning and scrolling
   USER_INTERACTION: false, // User clicks and interactions
   GRANULARITY: false,     // Granularity switching
+  MEMORY: false,          // Memory optimization and TypedArrays (Phase 2)
   ALL: false,             // Master switch - set to true to enable all logs (was: DEBUG_MODE)
 };
 
@@ -84,6 +85,12 @@ export const ChartDebug = {
   granularity: (...args: any[]) => {
     if (DEBUG_FLAGS.GRANULARITY || DEBUG_FLAGS.ALL) {
       console.log('[Granularity]', ...args);
+    }
+  },
+
+  memory: (...args: any[]) => {
+    if (DEBUG_FLAGS.MEMORY || DEBUG_FLAGS.ALL) {
+      console.log('[Memory]', ...args);
     }
   }
 };
