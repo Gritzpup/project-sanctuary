@@ -14,6 +14,7 @@ import { redisCandleStorage } from './services/redis/RedisCandleStorage.js';
 import tradingRoutes from './routes/trading.js';
 import { MemoryMonitor } from './services/MemoryMonitor.js';
 import { SubscriptionManager } from './services/SubscriptionManager.js';
+import { WebSocketHandler } from './services/WebSocketHandler.js';
 
 dotenv.config();
 
@@ -58,9 +59,28 @@ function getGranularitySeconds(granularity) {
 const chartSubscriptions = subscriptionManager.getChartSubscriptions();
 const activeSubscriptions = subscriptionManager.activeSubscriptions;
 const granularityMappings = subscriptionManager.granularityMappings;
+const granularityMappingTimes = subscriptionManager.getGranularityMappingTimes();
+const lastEmissionTimes = subscriptionManager.getLastEmissionTimes();
 
 // Cache the latest orderbook snapshot for new clients (module-level scope)
 let cachedLevel2Snapshot = null;
+
+// Phase 5C: Initialize WebSocket handler service
+const wsHandler = new WebSocketHandler(wss, {
+  botManager,
+  coinbaseWebSocket,
+  subscriptionManager,
+  getGranularitySeconds,
+  chartSubscriptions,
+  activeSubscriptions: subscriptionManager.activeSubscriptions,
+  granularityMappings: subscriptionManager.granularityMappings,
+  granularityMappingTimes,
+  lastEmissionTimes,
+  cachedLevel2Snapshot: null
+});
+
+// Initialize WebSocket handlers
+wsHandler.initialize();
 
 // Initialize default bots on startup
 // Use async IIFE to handle async initialization
@@ -300,400 +320,6 @@ let cachedLevel2Snapshot = null;
     console.log('Coinbase WebSocket disconnected');
   });
 })();
-
-wss.on('connection', (ws) => {
-
-  // Generate unique client ID for tracking subscriptions
-  ws._clientId = Math.random().toString(36).substring(7);
-  chartSubscriptions.set(ws._clientId, new Set());
-
-  botManager.addClient(ws);
-
-  // Also add client to all bot instances for price updates
-  botManager.bots.forEach(bot => {
-    bot.addClient(ws);
-  });
-
-  // Send cached level2 snapshot to new client immediately
-  if (cachedLevel2Snapshot) {
-    ws.send(JSON.stringify({
-      type: 'level2',
-      data: cachedLevel2Snapshot
-    }));
-  }
-
-  // 🔥 MEMORY LEAK FIX: Clean up on disconnect
-  ws.on('close', () => {
-    // Remove client subscriptions
-    const clientId = ws._clientId;
-    chartSubscriptions.delete(clientId);
-
-    // 🔥 RACE CONDITION FIX: Clean up emission throttle tracking
-    const keysToDelete = [];
-    for (const key of lastEmissionTimes.keys()) {
-      if (key.startsWith(`${clientId}:`)) {
-        keysToDelete.push(key);
-      }
-    }
-    keysToDelete.forEach(key => lastEmissionTimes.delete(key));
-
-    // Remove client from bot manager
-    botManager.removeClient(ws);
-
-    // Remove client from all bots
-    botManager.bots.forEach(bot => {
-      bot.removeClient(ws);
-    });
-
-    console.log(`🧹 WebSocket client ${clientId} disconnected and cleaned up (${keysToDelete.length} throttle entries removed)`);
-  });
-
-  ws.on('error', (error) => {
-    console.error(`WebSocket error for client ${ws._clientId}:`, error);
-    // Trigger cleanup on error
-    ws.close();
-  });
-
-  ws.on('message', async (message) => {
-    try {
-      const data = JSON.parse(message.toString());
-      // 🔇 PERF: Only log important messages with minimal overhead
-      // DO NOT use JSON.stringify in hot path - causes massive performance degradation
-      // Only log message type for debugging, not full payload
-      if (data.type !== 'getStatus' && data.type !== 'getManagerState' && data.type !== 'realtimePrice') {
-        // Only log on significant operations, not every message
-        if (data.type === 'createBot' || data.type === 'deleteBot' || data.type === 'startBot' || data.type === 'stopBot') {
-          console.log('📥 [Backend]', data.type, '- botId:', data.botId);
-        }
-      }
-
-      switch (data.type) {
-        // Bot management commands
-        case 'createBot':
-          const botId = botManager.createBot(data.strategyType, data.botName, data.config);
-          ws.send(JSON.stringify({
-            type: 'botCreated',
-            data: { botId }
-          }));
-          break;
-          
-        case 'selectBot':
-          botManager.selectBot(data.botId);
-          break;
-          
-        case 'deleteBot':
-          botManager.deleteBot(data.botId);
-          break;
-          
-        case 'getManagerState':
-          ws.send(JSON.stringify({
-            type: 'managerState',
-            data: botManager.getManagerState()
-          }));
-          break;
-          
-        // Trading commands (forwarded to active bot)
-        case 'start':
-          console.log('Start trading request received:', {
-            config: data.config,
-            activeBotId: botManager.activeBotId,
-            hasActiveBot: !!botManager.getActiveBot()
-          });
-          botManager.startTrading(data.config);
-          break;
-        case 'stop':
-          // If botId provided, select that bot first
-          if (data.botId) {
-            botManager.selectBot(data.botId);
-          }
-          botManager.stopTrading();
-          // Send updated status
-          ws.send(JSON.stringify({
-            type: 'tradingStopped',
-            status: botManager.getStatus()
-          }));
-          break;
-        case 'pause':
-          // If botId provided, select that bot first
-          if (data.botId) {
-            botManager.selectBot(data.botId);
-          }
-          botManager.pauseTrading();
-          break;
-        case 'resume':
-          // If botId provided, select that bot first
-          if (data.botId) {
-            botManager.selectBot(data.botId);
-          }
-          botManager.resumeTrading();
-          break;
-        case 'getStatus':
-          ws.send(JSON.stringify({
-            type: 'status',
-            data: botManager.getStatus()
-          }));
-          break;
-        case 'updateStrategy':
-          botManager.updateStrategy(data.strategy);
-          break;
-        case 'updateSelectedStrategy':
-          // Update just the dropdown selection for persistence
-          const bot = data.botId ? botManager.getBot(data.botId) : botManager.getActiveBot();
-          if (bot) {
-            await bot.updateSelectedStrategy(data.strategyType);
-            ws.send(JSON.stringify({
-              type: 'selectedStrategyUpdated',
-              botId: data.botId || botManager.activeBotId,
-              strategyType: data.strategyType
-            }));
-          }
-          break;
-        case 'realtimePrice':
-          // Forward real-time price to bot manager
-          if (data.data && data.data.price) {
-            // console.log(`Backend received real-time price: ${data.data.price}`);
-            botManager.updateRealtimePrice(data.data.price, data.data.product_id);
-          }
-          break;
-        case 'reset':
-          console.log('Reset request received for bot:', data.botId);
-          const botToReset = data.botId ? botManager.getBot(data.botId) : botManager.getActiveBot();
-          if (botToReset) {
-            botToReset.resetState();
-            // Save the cleared state to file
-            botToReset.saveState().catch(error => {
-              console.error('Failed to save reset state:', error);
-            });
-            ws.send(JSON.stringify({
-              type: 'resetComplete',
-              botId: data.botId || botManager.activeBotId,
-              status: botToReset.getStatus()
-            }));
-            // Broadcast updated manager state
-            botManager.broadcast({
-              type: 'managerState',
-              data: botManager.getManagerState()
-            });
-          } else {
-            ws.send(JSON.stringify({
-              type: 'error',
-              message: 'No bot found to reset'
-            }));
-          }
-          break;
-        case 'forceSell':
-          console.log('🧪 FORCE SELL request received for testing vault allocation');
-          const botToSell = botManager.getActiveBot();
-          if (botToSell) {
-            // Force trigger a sell signal to test vault allocation
-            const currentPrice = botToSell.currentPrice || 112000; // Use current price or fallback
-            console.log(`🧪 Forcing sell at price: $${currentPrice}`);
-            
-            // Call the orchestrator's executeSellSignal directly for testing
-            if (botToSell.orchestrator) {
-              // Check current BTC balance before forcing sell
-              const currentBtc = botToSell.orchestrator.positionManager.getTotalBtc();
-              console.log(`🧪 Current BTC balance: ${currentBtc} BTC`);
-              
-              if (currentBtc === 0) {
-                // No BTC to sell - simulate a profitable trade for testing
-                console.log('🧪 No BTC to sell, simulating a profitable trade for testing...');
-                const simulatedBtc = 0.1; // Simulate 0.1 BTC
-                const simulatedCostBasis = currentPrice * 0.95 * simulatedBtc; // 5% profit
-                
-                // Temporarily add position for testing
-                botToSell.orchestrator.balance.btc = simulatedBtc;
-                botToSell.orchestrator.positionManager.addPosition({
-                  size: simulatedBtc,
-                  entryPrice: currentPrice * 0.95,
-                  timestamp: Date.now()
-                });
-                
-                console.log(`🧪 Simulated position: ${simulatedBtc} BTC at cost basis $${simulatedCostBasis.toFixed(2)}`);
-              }
-              
-              const mockSignal = { reason: data.reason || 'Force sell for vault allocation test' };
-              botToSell.orchestrator.executeSellSignal(mockSignal, currentPrice).then(() => {
-                console.log('🧪 Force sell completed, vault allocation should be applied');
-                ws.send(JSON.stringify({
-                  type: 'forceSellComplete',
-                  status: botToSell.getStatus()
-                }));
-              }).catch(error => {
-                console.error('🧪 Force sell failed:', error);
-                ws.send(JSON.stringify({
-                  type: 'error',
-                  message: 'Force sell failed: ' + error.message
-                }));
-              });
-            } else {
-              ws.send(JSON.stringify({
-                type: 'error',
-                message: 'Bot orchestrator not available'
-              }));
-            }
-          } else {
-            ws.send(JSON.stringify({
-              type: 'error',
-              message: 'No active bot found for force sell'
-            }));
-          }
-          break;
-        case 'subscribe':
-          // Chart subscription - subscribe to Coinbase real-time data
-          console.log('Chart subscription received:', data.pair, data.granularity);
-          
-          const subscriptionKey = `${data.pair}:${data.granularity}`;
-          const clientSubs = chartSubscriptions.get(ws._clientId);
-          
-          if (clientSubs && !clientSubs.has(subscriptionKey)) {
-            clientSubs.add(subscriptionKey);
-            
-            // Track active granularities for this pair
-            if (!activeSubscriptions.has(data.pair)) {
-              activeSubscriptions.set(data.pair, new Set());
-            }
-            activeSubscriptions.get(data.pair).add(data.granularity);
-            
-            // Convert granularity string to seconds for Coinbase
-            const granularitySeconds = getGranularitySeconds(data.granularity);
-            
-            // Track the mapping between seconds and string for this pair
-            const mappingKey = `${data.pair}:${granularitySeconds}`;
-            granularityMappings.set(mappingKey, data.granularity);
-            // 🔥 MEMORY LEAK FIX: Track creation time for TTL cleanup
-            granularityMappingTimes.set(mappingKey, Date.now());
-            
-            // Subscribe to Coinbase WebSocket for this pair
-            coinbaseWebSocket.subscribeMatches(data.pair, granularitySeconds);
-            
-          }
-          
-          ws.send(JSON.stringify({
-            type: 'subscribed',
-            pair: data.pair,
-            granularity: data.granularity
-          }));
-          break;
-          
-        case 'unsubscribe':
-          // Chart unsubscription
-          console.log('Chart unsubscription received:', data.pair, data.granularity);
-          
-          const unsubKey = `${data.pair}:${data.granularity}`;
-          const clientSubsUnsub = chartSubscriptions.get(ws._clientId);
-          
-          if (clientSubsUnsub && clientSubsUnsub.has(unsubKey)) {
-            clientSubsUnsub.delete(unsubKey);
-            
-            // Check if any other clients are still subscribed to this pair
-            let stillSubscribed = false;
-            chartSubscriptions.forEach((subs) => {
-              if (subs.has(unsubKey)) {
-                stillSubscribed = true;
-              }
-            });
-            
-            // If no clients are subscribed, unsubscribe from Coinbase
-            if (!stillSubscribed) {
-              coinbaseWebSocket.unsubscribe(data.pair, 'matches');
-              console.log(`📡 Unsubscribed from Coinbase for ${unsubKey} - no more clients`);
-              
-              // 🔥 MEMORY LEAK FIX: Clean up granularity mappings and timestamps
-              const granularitySeconds = getGranularitySeconds(data.granularity);
-              const mappingKey = `${data.pair}:${granularitySeconds}`;
-              granularityMappings.delete(mappingKey);
-              granularityMappingTimes.delete(mappingKey);
-              console.log(`🧹 Cleaned up granularity mapping: ${mappingKey}`);
-            }
-            
-            console.log(`📡 Unsubscribed client ${ws._clientId} from ${unsubKey}`);
-          }
-          
-          ws.send(JSON.stringify({
-            type: 'unsubscribed',
-            pair: data.pair,
-            granularity: data.granularity
-          }));
-          break;
-
-        case 'requestLevel2Snapshot':
-          // Force refresh of level2 orderbook snapshot by re-subscribing
-          console.log('📸 [Backend] Level2 snapshot requested by client', ws._clientId);
-
-          // Unsubscribe and re-subscribe to force Coinbase to send a fresh snapshot
-          coinbaseWebSocket.unsubscribe('BTC-USD', 'level2');
-
-          // Wait a moment before re-subscribing
-          setTimeout(() => {
-            coinbaseWebSocket.subscribeLevel2('BTC-USD');
-            console.log('📡 [Backend] Re-subscribed to level2 to get fresh snapshot');
-          }, 500);
-          break;
-
-        default:
-          console.log('Unknown message type:', data.type);
-      }
-    } catch (error) {
-      console.error('Error processing message:', error);
-      ws.send(JSON.stringify({
-        type: 'error',
-        message: error.message
-      }));
-    }
-  });
-
-  ws.on('close', () => {
-    
-    // Clean up chart subscriptions for this client
-    const clientSubs = chartSubscriptions.get(ws._clientId);
-    if (clientSubs) {
-      clientSubs.forEach(subscriptionKey => {
-        // Check if any other clients are still subscribed to this data
-        let stillSubscribed = false;
-        chartSubscriptions.forEach((subs, clientId) => {
-          if (clientId !== ws._clientId && subs.has(subscriptionKey)) {
-            stillSubscribed = true;
-          }
-        });
-        
-        // If no other clients are subscribed, unsubscribe from Coinbase
-        if (!stillSubscribed) {
-          const [pair, granularityStr] = subscriptionKey.split(':');
-          coinbaseWebSocket.unsubscribe(pair, 'matches');
-          console.log(`📡 Unsubscribed from Coinbase for ${subscriptionKey} - client disconnected`);
-          
-          // 🔥 MEMORY LEAK FIX: Clean up granularity mappings and timestamps
-          const granularitySeconds = getGranularitySeconds(granularityStr);
-          const mappingKey = `${pair}:${granularitySeconds}`;
-          granularityMappings.delete(mappingKey);
-          granularityMappingTimes.delete(mappingKey);
-          console.log(`🧹 Cleaned up granularity mapping: ${mappingKey}`);
-        }
-      });
-      
-      chartSubscriptions.delete(ws._clientId);
-    }
-    
-    botManager.removeClient(ws);
-    
-    // Remove from all bot instances
-    botManager.bots.forEach(bot => {
-      bot.removeClient(ws);
-    });
-  });
-
-  ws.on('error', (error) => {
-    console.error('WebSocket error:', error);
-  });
-
-  ws.send(JSON.stringify({
-    type: 'connected',
-    message: 'Connected to trading backend with bot manager',
-    managerState: botManager.getManagerState(),
-    status: botManager.getStatus()
-  }));
-});
 
 app.use('/api/trading', tradingRoutes(botManager));
 

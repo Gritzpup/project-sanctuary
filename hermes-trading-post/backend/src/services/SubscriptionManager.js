@@ -149,4 +149,18 @@ export class SubscriptionManager {
       totalMappings: this.granularityMappings.size
     };
   }
+
+  /**
+   * Get granularity mapping times (for TTL cleanup)
+   */
+  getGranularityMappingTimes() {
+    return this.granularityMappingTimes;
+  }
+
+  /**
+   * Get last emission times (for throttling)
+   */
+  getLastEmissionTimes() {
+    return this.lastEmissionTimes;
+  }
 }
