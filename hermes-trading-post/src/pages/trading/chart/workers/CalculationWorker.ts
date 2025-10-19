@@ -11,6 +11,7 @@
 
 /**
  * Message types for Web Worker communication
+ * ⚡ PHASE 6C: Extended with trading metrics calculations
  */
 export type CalculationTaskType =
   | 'calculateRSI'
@@ -18,7 +19,11 @@ export type CalculationTaskType =
   | 'calculateEMA'
   | 'calculateCumulativeBids'
   | 'calculateCumulativeAsks'
-  | 'calculateVolumeHotspot';
+  | 'calculateVolumeHotspot'
+  | 'calculateSharpeRatio'
+  | 'calculateMaxDrawdown'
+  | 'calculateTradeStats'
+  | 'calculateDailyReturns';
 
 /**
  * Request message format for Web Worker
