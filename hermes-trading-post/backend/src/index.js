@@ -12,6 +12,8 @@ import { continuousCandleUpdater } from './services/ContinuousCandleUpdater.js';
 import { redisOrderbookCache } from './services/redis/RedisOrderbookCache.js';
 import { redisCandleStorage } from './services/redis/RedisCandleStorage.js';
 import tradingRoutes from './routes/trading.js';
+import { MemoryMonitor } from './services/MemoryMonitor.js';
+import { SubscriptionManager } from './services/SubscriptionManager.js';
 
 dotenv.config();
 
@@ -27,19 +29,16 @@ const wss = new WebSocketServer({ server });
 
 const botManager = new BotManager();
 
-// Track chart subscriptions
-const chartSubscriptions = new Map(); // key: clientId, value: Set of "pair:granularity" strings
-// Track active subscriptions to include granularity in candle data
-const activeSubscriptions = new Map(); // key: "pair", value: Set of granularities
+// Phase 5C: Initialize subscription and memory monitoring services
+const subscriptionManager = new SubscriptionManager();
+const memoryMonitor = new MemoryMonitor(
+  wss,
+  subscriptionManager.getChartSubscriptions(),
+  () => subscriptionManager.cleanupOldMappings()
+);
 
-// Track granularity mappings for proper subscription key matching
-const granularityMappings = new Map(); // key: "pair:granularitySeconds", value: "granularityString"
-
-// 🔥 MEMORY LEAK FIX: Track mapping creation times for TTL cleanup
-const granularityMappingTimes = new Map(); // key: "pair:granularitySeconds", value: timestamp
-
-// 🔥 RACE CONDITION FIX: Track last emission times to throttle duplicate candle updates
-const lastEmissionTimes = new Map(); // key: "clientId:pair:granularity", value: timestamp
+// Start services
+memoryMonitor.start();
 
 // Helper function to convert granularity strings to seconds
 function getGranularitySeconds(granularity) {
@@ -55,65 +54,10 @@ function getGranularitySeconds(granularity) {
   return GRANULARITY_TO_SECONDS[granularity] || 60; // Default to 1 minute
 }
 
-// 🔥 MEMORY LEAK FIX: Clean up old granularity mappings (TTL: 1 hour)
-function cleanupOldMappings() {
-  const TTL = 60 * 60 * 1000; // 1 hour in milliseconds
-  const now = Date.now();
-  let cleanedCount = 0;
-  
-  for (const [key, timestamp] of granularityMappingTimes.entries()) {
-    if (now - timestamp > TTL) {
-      granularityMappings.delete(key);
-      granularityMappingTimes.delete(key);
-      cleanedCount++;
-    }
-  }
-  
-  if (cleanedCount > 0) {
-    console.log(`🧹 Cleaned up ${cleanedCount} old granularity mappings`);
-  }
-}
-
-// 🔥 MEMORY LEAK FIX: Periodic cleanup every 30 minutes
-let cleanupInterval = setInterval(cleanupOldMappings, 30 * 60 * 1000);
-
-// 🔥 MEMORY MONITORING: Add memory usage monitoring and circuit breaker
-function monitorMemoryUsage() {
-  const memUsage = process.memoryUsage();
-  const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
-  const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
-  const rssMB = Math.round(memUsage.rss / 1024 / 1024);
-  
-  // Log memory usage every 5 minutes
-  console.log(`📊 Memory Usage: RSS: ${rssMB}MB, Heap: ${heapUsedMB}/${heapTotalMB}MB, Clients: ${wss.clients.size}, Subscriptions: ${chartSubscriptions.size}`);
-  
-  // Circuit breaker: If memory usage exceeds 1GB, force cleanup
-  if (memUsage.heapUsed > 1024 * 1024 * 1024) {
-    console.warn(`⚠️ HIGH MEMORY USAGE: ${heapUsedMB}MB - Forcing cleanup`);
-    
-    // Force cleanup of old mappings
-    cleanupOldMappings();
-    
-    // Force garbage collection if available
-    if (global.gc) {
-      global.gc();
-      console.log('🗑️ Forced garbage collection');
-    }
-    
-    // If still high after cleanup, log warning
-    const newMemUsage = process.memoryUsage();
-    const newHeapUsedMB = Math.round(newMemUsage.heapUsed / 1024 / 1024);
-    if (newMemUsage.heapUsed > 800 * 1024 * 1024) {
-      console.error(`🚨 CRITICAL MEMORY: ${newHeapUsedMB}MB after cleanup - Consider restarting`);
-    }
-  }
-}
-
-// Monitor memory every 5 minutes
-let memoryMonitorInterval = setInterval(monitorMemoryUsage, 5 * 60 * 1000);
-
-// Initial memory check
-setTimeout(monitorMemoryUsage, 10000);
+// Expose services for backward compatibility
+const chartSubscriptions = subscriptionManager.getChartSubscriptions();
+const activeSubscriptions = subscriptionManager.activeSubscriptions;
+const granularityMappings = subscriptionManager.granularityMappings;
 
 // Cache the latest orderbook snapshot for new clients (module-level scope)
 let cachedLevel2Snapshot = null;
