@@ -1,16 +1,170 @@
 /**
  * @file chartCacheService.ts
- * @description Redis cache operations for chart data
+ * @description Unified Redis cache and data fetching service for chart data
  * Part of Phase 5D: Chart Services Consolidation
+ * Replaces RedisChartService with enhanced unified approach
  */
 
-import { dataStore } from '../../stores/dataStore.svelte';
 import type { CandleData } from '../../types/coinbase';
 
+interface DataRequest {
+  pair: string;
+  granularity: string;
+  start?: number;
+  end?: number;
+  limit?: number;
+}
+
+interface RedisChartDataResponse {
+  success: boolean;
+  data: {
+    candles: CandleData[];
+    metadata: {
+      pair: string;
+      granularity: string;
+      totalCandles: number;
+      firstTimestamp: number;
+      lastTimestamp: number;
+      source: string;
+      cacheHitRatio: number;
+      storageMetadata?: any;
+    };
+  };
+  error?: string;
+}
+
 /**
- * Chart Cache Service - manages Redis caching for chart candles
+ * Chart Cache Service - unified Redis caching and data fetching
+ * Combines cache operations, historical data fetching, and metadata retrieval
  */
 export class ChartCacheService {
+  private backendUrl: string = `http://${this.getBackendHost()}:4828`;
+
+  private getBackendHost(): string {
+    const envHost = (import.meta as any)?.env?.VITE_BACKEND_HOST;
+    if (envHost) return envHost;
+    if (typeof window !== 'undefined' && window.location) {
+      return window.location.hostname || 'localhost';
+    }
+    return 'localhost';
+  }
+
+  /**
+   * Initialize service and test backend connectivity
+   */
+  async initialize(): Promise<void> {
+    try {
+      const response = await fetch(`${this.backendUrl}/health`);
+      if (!response.ok) {
+        console.warn('⚠️ Chart cache service: Backend connectivity test failed');
+      }
+    } catch (error) {
+      console.warn('⚠️ Chart cache service initialization failed:', error);
+    }
+  }
+
+  /**
+   * Fetch historical candles with binary format support and JSON fallback
+   */
+  async fetchCandles(request: DataRequest): Promise<CandleData[]> {
+    const { pair, granularity, start, end, limit = 1000 } = request;
+
+    try {
+      const params = new URLSearchParams({
+        pair: pair || 'BTC-USD',
+        granularity: granularity || '1m',
+        maxCandles: (limit || 10000).toString(),
+        format: 'json' // Start with JSON format for simplicity
+      });
+
+      if (start) params.append('startTime', start.toString());
+      if (end) params.append('endTime', end.toString());
+
+      const url = `${this.backendUrl}/api/trading/chart-data?${params}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        console.warn(`Failed to fetch candles: HTTP ${response.status}`);
+        return [];
+      }
+
+      const result: RedisChartDataResponse = await response.json();
+
+      if (!result.success) {
+        console.warn(`Failed to fetch candles: ${result.error}`);
+        return [];
+      }
+
+      return result.data.candles || [];
+    } catch (error) {
+      console.warn('Failed to fetch candles:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch candles with metadata including totalCandles count
+   */
+  async fetchCandlesWithMetadata(
+    request: DataRequest
+  ): Promise<{ candles: CandleData[]; metadata: any }> {
+    const { pair, granularity, start, end, limit = 1000 } = request;
+
+    try {
+      const params = new URLSearchParams({
+        pair: pair || 'BTC-USD',
+        granularity: granularity || '1m',
+        maxCandles: (limit || 10000).toString()
+      });
+
+      if (start) params.append('startTime', start.toString());
+      if (end) params.append('endTime', end.toString());
+
+      const url = `${this.backendUrl}/api/trading/chart-data?${params}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result: RedisChartDataResponse = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Fetch failed');
+      }
+
+      const { candles, metadata } = result.data;
+      return { candles, metadata };
+    } catch (error) {
+      console.warn('Failed to fetch candles with metadata:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Redis storage statistics
+   */
+  async getStorageStats(): Promise<any> {
+    try {
+      const response = await fetch(`${this.backendUrl}/api/trading/storage-stats`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Storage stats fetch failed');
+      }
+
+      return result.data;
+    } catch (error) {
+      console.warn('Failed to get storage stats:', error);
+      return null;
+    }
+  }
+
   /**
    * Store candles in cache with TTL
    */
@@ -21,7 +175,6 @@ export class ChartCacheService {
     ttlSeconds: number = 3600
   ): Promise<void> {
     try {
-      const cacheKey = `${pair}:${granularity}:candles`;
       const startTime = candles[0]?.time || 0;
       const endTime = candles[candles.length - 1]?.time || 0;
 
@@ -38,7 +191,7 @@ export class ChartCacheService {
         })
       });
     } catch (error) {
-      console.warn('Failed to cache candles:', error);
+      console.warn('Failed to store candles in cache:', error);
     }
   }
 

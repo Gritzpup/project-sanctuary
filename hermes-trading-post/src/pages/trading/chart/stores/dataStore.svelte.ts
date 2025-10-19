@@ -5,7 +5,8 @@ interface CandlestickDataWithVolume extends CandlestickData {
   volume?: number;
 }
 import type { WebSocketCandle } from '../types/data.types';
-import { RedisChartService } from '../services/RedisChartService';
+import { chartCacheService } from '../../../../shared/services/chartCacheService';
+import { chartRealtimeService } from '../../../../shared/services/chartRealtimeService';
 import { chartIndexedDBCache } from '../services/ChartIndexedDBCache';
 import { ChartDebug } from '../utils/debug';
 import { chartStore } from './chartStore.svelte';
@@ -16,7 +17,6 @@ import { dataTransformations } from './services/DataTransformations';
 import { dataStoreSubscriptions } from './services/DataStoreSubscriptions';
 
 class DataStore {
-  private dataService = new RedisChartService();
   private _candles = $state<CandlestickDataWithVolume[]>([]);
   private _visibleCandles = $state<CandlestickDataWithVolume[]>([]);
   private _latestPrice = $state<number | null>(null);
@@ -181,7 +181,7 @@ class DataStore {
     this._currentGranularity = granularity;
 
     try {
-      await this.dataService.initialize();
+      await chartCacheService.initialize();
 
       // 🚀 PHASE 1: Check IndexedDB cache first (instant load)
       const cachedData = await chartIndexedDBCache.get(pair, granularity);
@@ -213,7 +213,7 @@ class DataStore {
         // Cache is stale, fetch only NEW candles (delta sync)
         ChartDebug.log(`🔄 Fetching delta: from ${new Date(lastCandleTime * 1000).toISOString()} to now`);
 
-        const deltaData = await this.dataService.fetchCandles({
+        const deltaData = await chartCacheService.fetchCandles({
           pair,
           granularity,
           start: lastCandleTime + 60, // Start from next candle after last cached
@@ -252,7 +252,7 @@ class DataStore {
         // ❌ Cache miss - fetch full data from backend
         ChartDebug.log(`❌ Cache miss - fetching full data from backend`);
 
-        const data = await this.dataService.fetchCandles({
+        const data = await chartCacheService.fetchCandles({
           pair,
           granularity,
           start: startTime,
@@ -285,7 +285,7 @@ class DataStore {
     const config = this.getCurrentConfig();
     // 🚀 PERF: Remove hard-coded candle limits during refresh
     // Use 50000 limit to accommodate large historical ranges without truncation
-    const data = await this.dataService.fetchCandles({
+    const data = await chartCacheService.fetchCandles({
       pair: config.pair,
       granularity: config.granularity,
       start: startTime,
@@ -308,7 +308,7 @@ class DataStore {
     try {
       // Fetch data for the gap period from Redis
       const config = this.getCurrentConfig();
-      const gapData = await this.dataService.fetchCandles({
+      const gapData = await chartCacheService.fetchCandles({
         pair: config.pair,
         granularity: config.granularity,
         start: fromTime,
@@ -412,7 +412,7 @@ class DataStore {
       const fetchStartTime = firstCandleTime - (additionalCandleCount * granularitySeconds);
       
       // Fetch additional historical data from Redis
-      const historicalData = await this.dataService.fetchCandles({
+      const historicalData = await chartCacheService.fetchCandles({
         pair: config.pair,
         granularity: config.granularity,
         start: fetchStartTime,
@@ -467,7 +467,7 @@ class DataStore {
       this.realtimeUnsubscribe = null;
     }
 
-    this.realtimeUnsubscribe = this.dataService.subscribeToRealtime(
+    this.realtimeUnsubscribe = chartRealtimeService.subscribeToRealtime(
       pair,
       granularity,
       (update: WebSocketCandle) => {
@@ -654,7 +654,7 @@ class DataStore {
       }
 
       // Also get count for current granularity
-      const response = await this.dataService.fetchCandlesWithMetadata({
+      const response = await chartCacheService.fetchCandlesWithMetadata({
         pair: config.pair,
         granularity: config.granularity,
         limit: 1 // We only need metadata, not actual candles
@@ -672,7 +672,7 @@ class DataStore {
 
   // Redis statistics
   async getStorageStats() {
-    return await this.dataService.getStorageStats();
+    return await chartCacheService.getStorageStats();
   }
 
   // Cleanup
@@ -683,7 +683,7 @@ class DataStore {
       clearTimeout(this.newCandleTimeout);
     }
     
-    this.dataService.disconnect();
+    chartRealtimeService.disconnect();
   }
 
   reset() {
@@ -763,7 +763,7 @@ class DataStore {
    * Get the WebSocket connection for other components to use
    */
   getWebSocket(): WebSocket | null {
-    return this.dataService.ws;
+    return chartRealtimeService.getWebSocket();
   }
 }
 

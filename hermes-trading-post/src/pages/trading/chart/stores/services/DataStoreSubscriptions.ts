@@ -42,7 +42,7 @@ export class DataStoreSubscriptions {
     this.unsubscribeFromRealtime();
 
     // Subscribe to WebSocket candle updates
-    this.realtimeUnsubscribe = this.dataService.subscribeToRealtime(
+    this.realtimeUnsubscribe = chartRealtimeService.subscribeToRealtime(
       pair,
       granularity,
       (update: WebSocketCandle) => {

@@ -12,7 +12,7 @@
  */
 
 import { chartIndexedDBCache } from './ChartIndexedDBCache';
-import { RedisChartService } from './RedisChartService';
+import { chartCacheService } from '../../../../shared/services/chartCacheService';
 import { ChartDebug } from '../utils/debug';
 import { getGranularitySeconds } from '../utils/granularityHelpers';
 import type { CandlestickData } from 'lightweight-charts';
@@ -32,7 +32,6 @@ interface PrefetchTask {
 }
 
 export class ChartPrefetcher {
-  private dataService = new RedisChartService();
   private userPatterns: UserPattern;
   private prefetchQueue: PrefetchTask[] = [];
   private isPreFetching = false;
@@ -183,7 +182,7 @@ export class ChartPrefetcher {
         const granularitySeconds = getGranularitySeconds(task.granularity);
         const startTime = now - (1000 * granularitySeconds); // Last 1000 candles
 
-        const data = await this.dataService.fetchCandles({
+        const data = await chartCacheService.fetchCandles({
           pair: task.pair,
           granularity: task.granularity,
           start: startTime,
