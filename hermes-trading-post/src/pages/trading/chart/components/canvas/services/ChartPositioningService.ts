@@ -5,7 +5,7 @@
  */
 
 import type { IChartApi } from 'lightweight-charts';
-import ServerTimeService from '../../../../../../../services/ServerTimeService';
+import ServerTimeService from '../../../../../../services/ServerTimeService';
 
 /**
  * Constants for chart positioning

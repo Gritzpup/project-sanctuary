@@ -5,7 +5,7 @@
  */
 
 import type { IChartApi } from 'lightweight-charts';
-import ServerTimeService from '../../../../../../../services/ServerTimeService';
+import ServerTimeService from '../../../../../../services/ServerTimeService';
 
 /**
  * User interaction events tracked on chart
