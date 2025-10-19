@@ -382,13 +382,14 @@ class DataStore {
     // Stats update happens rarely (new candle every 1-60 seconds depending on granularity)
     // Tickers arrive 10-100x per second, so NOT updating on every ticker = huge performance win
     // This prevents stats counter from thrashing and blocking the UI thread
-    this._dataStats = {
-      ...this._dataStats,
-      totalCount: this._candles.length,
-      newestTime: validCandle.time as number,
-      lastUpdate: Date.now(),
-      visibleCount: this._visibleCandles.length
-    };
+
+    // ⚡ SVELTE 5 OPTIMIZATION: Update individual properties instead of spreading
+    // Spreading object triggers reactive cascade even if only some properties changed
+    // Direct assignment: No reactive cascade, only affects properties that changed
+    this._dataStats.totalCount = this._candles.length;
+    this._dataStats.newestTime = validCandle.time as number;
+    this._dataStats.lastUpdate = Date.now();
+    this._dataStats.visibleCount = this._visibleCandles.length;
 
     // Notify plugins of data update
     this.notifyDataUpdate();
@@ -520,15 +521,12 @@ class DataStore {
             if (normalizedTime > 0) {
               this._candles.push(candleData);
 
-              // 🔥 UPDATE STATS WITH PROPER SVELTE 5 REACTIVITY when new candle is added
-              // Must reassign the entire object to trigger reactivity
-              this._dataStats = {
-                ...this._dataStats,
-                totalCount: this._candles.length,
-                newestTime: candleData.time as number,
-                lastUpdate: Date.now(),
-                visibleCount: this._visibleCandles.length
-              };
+              // ⚡ SVELTE 5 OPTIMIZATION: Update individual properties instead of spreading
+              // Direct assignment avoids reactive cascade overhead
+              this._dataStats.totalCount = this._candles.length;
+              this._dataStats.newestTime = candleData.time as number;
+              this._dataStats.lastUpdate = Date.now();
+              this._dataStats.visibleCount = this._visibleCandles.length;
             }
           }
         }
@@ -536,12 +534,10 @@ class DataStore {
         // Update latest price for status display (for both ticker AND full candle updates)
         this._latestPrice = update.close;
 
-        // 🔥 ALWAYS update stats on every candle/ticker update for responsive UI
+        // ⚡ SVELTE 5 OPTIMIZATION: Only update lastUpdate property directly
         // This ensures the UI responds immediately to price changes
-        this._dataStats = {
-          ...this._dataStats,
-          lastUpdate: Date.now()
-        };
+        // Single property update = no reactive cascade overhead
+        this._dataStats.lastUpdate = Date.now();
 
         // Notify data update callbacks for price updates (e.g., chart header)
         this.notifyDataUpdate();
@@ -623,16 +619,13 @@ class DataStore {
   private updateStats() {
     const count = this._candles.length;
 
-    // 🔥 UPDATE STATS WITH PROPER SVELTE 5 REACTIVITY
-    // Must reassign the entire object to trigger reactivity in derived components
-    this._dataStats = {
-      ...this._dataStats,
-      totalCount: count,
-      visibleCount: this._visibleCandles.length,
-      oldestTime: count > 0 ? (this._candles[0].time as number) : null,
-      newestTime: count > 0 ? (this._candles[count - 1].time as number) : null,
-      lastUpdate: Date.now()
-    };
+    // ⚡ SVELTE 5 OPTIMIZATION: Update individual properties instead of spreading
+    // Direct assignment avoids reactive cascade overhead
+    this._dataStats.totalCount = count;
+    this._dataStats.visibleCount = this._visibleCandles.length;
+    this._dataStats.oldestTime = count > 0 ? (this._candles[0].time as number) : null;
+    this._dataStats.newestTime = count > 0 ? (this._candles[count - 1].time as number) : null;
+    this._dataStats.lastUpdate = Date.now();
   }
   
   // Get actual count from database via the existing Redis service
