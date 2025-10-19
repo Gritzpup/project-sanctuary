@@ -11,9 +11,9 @@ import { ChartDebug } from '../utils/debug';
 import { chartStore } from './chartStore.svelte';
 import { orderbookStore } from '../../orderbook/stores/orderbookStore.svelte';
 import { dataUpdateNotifier, historicalDataNotifier } from '../../../../services/NotificationBatcher';
-import { cacheManager } from '../services/CacheManager';
-import { dataTransformations } from '../services/DataTransformations';
-import { dataStoreSubscriptions } from '../services/DataStoreSubscriptions';
+import { cacheManager } from './services/CacheManager';
+import { dataTransformations } from './services/DataTransformations';
+import { dataStoreSubscriptions } from './services/DataStoreSubscriptions';
 
 class DataStore {
   private dataService = new RedisChartService();

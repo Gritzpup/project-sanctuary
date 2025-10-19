@@ -5,9 +5,9 @@
  */
 
 import type { CandlestickData } from 'lightweight-charts';
-import type { WebSocketCandle } from '../types/data.types';
-import { RedisChartService } from '../services/RedisChartService';
-import { orderbookStore } from '../../orderbook/stores/orderbookStore.svelte';
+import type { WebSocketCandle } from '../../types/data.types';
+import { RedisChartService } from '../RedisChartService';
+import { orderbookStore } from '../../../orderbook/stores/orderbookStore.svelte';
 
 /**
  * Manages WebSocket and event subscriptions for realtime data
