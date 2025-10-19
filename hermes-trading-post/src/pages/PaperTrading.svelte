@@ -22,11 +22,11 @@
    * See: docs/PHASE5_COMPLETION_SUMMARY.md for module structure details
    */
 
-  import PaperTradingContainer from './PaperTradingContainer/PaperTradingContainer.svelte';
+  import PaperTradingWrapper from '../features/paper-trading/PaperTradingWrapper.svelte';
 
   export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   export let sidebarCollapsed = false;
 </script>
 
-<PaperTradingContainer {currentPrice} {connectionStatus} {sidebarCollapsed} />
+<PaperTradingWrapper {currentPrice} {connectionStatus} {sidebarCollapsed} />

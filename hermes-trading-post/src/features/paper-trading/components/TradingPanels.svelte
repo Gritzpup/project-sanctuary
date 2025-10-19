@@ -1,7 +1,7 @@
 <script lang="ts">
-  import TradingChart from '../../PaperTrading/components/TradingChart.svelte';
-  import StrategyControls from '../../../components/papertrading/StrategyControls.svelte';
-  import DepthChart from '../../trading/orderbook/components/DepthChart.svelte';
+  import TradingChart from './TradingChart.svelte';
+  import StrategyControls from './StrategyControls.svelte';
+  import DepthChart from '../../../pages/trading/orderbook/components/DepthChart.svelte';
   import MarketGauge from '../../../components/trading/MarketGauge.svelte';
   import { createEventDispatcher } from 'svelte';
 
@@ -192,7 +192,7 @@
       height: 650px; /* 50px taller than 600px */
       min-height: 500px;
     }
-    
+
     .strategy-container {
       min-height: 200px;
     }

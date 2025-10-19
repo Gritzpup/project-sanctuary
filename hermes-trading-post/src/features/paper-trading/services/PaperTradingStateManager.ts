@@ -4,8 +4,8 @@
  */
 
 import { writable, get } from 'svelte/store';
-import { PaperTradingOrchestrator } from '../../PaperTrading/services/PaperTradingOrchestrator';
-import { BackendConnector } from '../../PaperTrading/services/BackendConnector';
+import { PaperTradingOrchestrator } from '../../../pages/PaperTrading/services/PaperTradingOrchestrator.ts';
+import { BackendConnector } from '../../../pages/PaperTrading/services/BackendConnector.ts';
 import { paperTradingManager } from '../../../services/state/paperTradingManager';
 import { strategyStore } from '../../../stores/strategyStore';
 import { tradingBackendService } from '../../../services/state/tradingBackendService';

@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import Chart from '../../trading/chart/Chart.svelte';
-  import ChartInfo from '../../trading/chart/components/overlays/ChartInfo.svelte';
+  import Chart from '../../../pages/trading/chart/Chart.svelte';
+  import ChartInfo from '../../../pages/trading/chart/components/overlays/ChartInfo.svelte';
   import ChartHeader from './ChartHeader.svelte';
   import ChartControls from './ChartControls.svelte';
   import ChartProgressBar from './ChartProgressBar.svelte';
   import { createEventDispatcher } from 'svelte';
-  import { dataStore } from '../../trading/chart/stores/dataStore.svelte';
+  import { dataStore } from '../../../pages/trading/chart/stores/dataStore.svelte';
   
   let {
     selectedPair = 'BTC-USD',
