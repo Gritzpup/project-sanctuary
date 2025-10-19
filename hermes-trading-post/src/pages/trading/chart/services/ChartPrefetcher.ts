@@ -39,6 +39,9 @@ export class ChartPrefetcher {
   private readonly STORAGE_KEY = 'hermes_chart_user_patterns';
   private readonly IDLE_DELAY_MS = 3000; // Wait 3 seconds of idle before pre-fetching
 
+  // ⚡ MEMORY LEAK FIX: Store activity listeners for cleanup
+  private activityListeners: Map<string, EventListener> = new Map();
+
   // Common granularity switch patterns (based on typical user behavior)
   private readonly COMMON_SWITCHES: Record<string, string[]> = {
     '1m': ['5m', '15m', '30m'],
@@ -228,10 +231,32 @@ export class ChartPrefetcher {
     const resetOnActivity = () => this.resetIdleTimer();
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('mousemove', resetOnActivity, { passive: true });
-      window.addEventListener('keydown', resetOnActivity, { passive: true });
-      window.addEventListener('scroll', resetOnActivity, { passive: true });
-      window.addEventListener('click', resetOnActivity, { passive: true });
+      // ⚡ MEMORY LEAK FIX: Store listeners for cleanup
+      const events = ['mousemove', 'keydown', 'scroll', 'click'];
+      for (const event of events) {
+        window.addEventListener(event, resetOnActivity, { passive: true });
+        this.activityListeners.set(event, resetOnActivity);
+      }
+    }
+  }
+
+  /**
+   * Clean up all event listeners and timers
+   * Called when the prefetcher is destroyed
+   */
+  public destroy(): void {
+    // ⚡ MEMORY LEAK FIX: Remove all activity listeners
+    if (typeof window !== 'undefined') {
+      this.activityListeners.forEach((listener, event) => {
+        window.removeEventListener(event, listener);
+      });
+      this.activityListeners.clear();
+    }
+
+    // Clear idle timeout
+    if (this.idleTimeout) {
+      clearTimeout(this.idleTimeout);
+      this.idleTimeout = null;
     }
   }
 

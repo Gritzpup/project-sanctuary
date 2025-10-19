@@ -16,18 +16,21 @@
   let currentPrice: number = 0;
   let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   let api: CoinbaseAPI;
-  
-  // Subscribe to sidebar store
+
+  // ⚡ MEMORY LEAK FIX: Track store subscription for cleanup
   let sidebarCollapsed = false;
-  sidebarStore.subscribe(value => {
-    sidebarCollapsed = value;
-  });
+  let unsubscribeSidebar: (() => void) | null = null;
 
   let priceInterval: number;
 
   onMount(() => {
+    // ⚡ MEMORY LEAK FIX: Subscribe and store unsubscribe function
+    unsubscribeSidebar = sidebarStore.subscribe(value => {
+      sidebarCollapsed = value;
+    });
+
     api = new CoinbaseAPI();
-    
+
     // Get initial price
     api.getTicker().then(price => {
       currentPrice = price;
@@ -48,6 +51,11 @@
 
     return () => {
       clearInterval(priceInterval);
+      // ⚡ MEMORY LEAK FIX: Unsubscribe from sidebar store
+      if (unsubscribeSidebar) {
+        unsubscribeSidebar();
+        unsubscribeSidebar = null;
+      }
     };
   });
 
