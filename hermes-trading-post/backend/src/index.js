@@ -17,6 +17,7 @@ import { SubscriptionManager } from './services/SubscriptionManager.js';
 import { WebSocketHandler } from './services/WebSocketHandler.js';
 import { BroadcastService } from './services/BroadcastService.js';
 import { ServerLifecycle } from './services/ServerLifecycle.js';
+import { RESTAPIService } from './services/RESTAPIService.js';
 
 dotenv.config();
 
@@ -99,6 +100,19 @@ const broadcastService = new BroadcastService(wss, {
   deltaSubscriber: null // Will be updated after Redis connection
 });
 
+// Phase 5C: Initialize REST API service
+const restAPIService = new RESTAPIService({
+  redisOrderbookCache,
+  redisCandleStorage,
+  botManager,
+  coinbaseWebSocket,
+  continuousCandleUpdater,
+  chartSubscriptions,
+  activeSubscriptions: subscriptionManager.activeSubscriptions,
+  granularityMappings: subscriptionManager.granularityMappings,
+  memoryMonitor
+});
+
 // Initialize default bots on startup
 // Use async IIFE to handle async initialization
 (async () => {
@@ -127,227 +141,8 @@ const broadcastService = new BroadcastService(wss, {
 
 app.use('/api/trading', tradingRoutes(botManager));
 
-// 🚀 Orderbook API endpoints for frontend hydration
-app.get('/api/orderbook/:productId', async (req, res) => {
-  const { productId } = req.params;
-
-  try {
-    console.log(`📥 [API] Received orderbook request for ${productId}`);
-
-    // Get full cached orderbook for immediate frontend hydration
-    const orderbook = await redisOrderbookCache.getFullOrderbook(productId);
-
-    if (!orderbook) {
-      console.log(`⏭️ [API] No cached orderbook for ${productId}`);
-      return res.json({
-        success: false,
-        message: 'No cached orderbook available yet',
-        data: { bids: [], asks: [] }
-      });
-    }
-
-    console.log(`✅ [API] Returning cached orderbook for ${productId}: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);
-
-    res.json({
-      success: true,
-      data: orderbook
-    });
-  } catch (error) {
-    console.error(`❌ Failed to get orderbook for ${productId}:`, error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      data: { bids: [], asks: [] }
-    });
-  }
-});
-
-// Get orderbook filtered to specific range (for API clients)
-app.get('/api/orderbook/:productId/range', async (req, res) => {
-  const { productId } = req.params;
-  const depthRange = parseInt(req.query.depth) || 25000;
-
-  try {
-    const orderbook = await redisOrderbookCache.getOrderbookForAPI(productId, depthRange);
-
-    res.json({
-      success: true,
-      depth_range: depthRange,
-      data: orderbook
-    });
-  } catch (error) {
-    console.error(`❌ Failed to get orderbook range for ${productId}:`, error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// 🚀 Get top N orders for orderbook list display (ultra-fast Redis query for frontend list)
-// This endpoint is optimized for real-time orderbook list rendering with minimal latency
-app.get('/api/orderbook/:productId/top', async (req, res) => {
-  const { productId } = req.params;
-  const count = Math.min(parseInt(req.query.count) || 12, 50); // Limit to max 50 rows
-
-  try {
-    // Get just the top N bids and asks from Redis (sorted sets)
-    // This is extremely fast - O(log N) + O(K) where K is the number of results
-    const orderbook = await redisOrderbookCache.getTopOrders(productId, count);
-
-    if (!orderbook) {
-      return res.json({
-        success: false,
-        message: 'No orderbook data available',
-        data: { bids: [], asks: [] }
-      });
-    }
-
-    res.json({
-      success: true,
-      count: count,
-      data: orderbook
-    });
-  } catch (error) {
-    console.error(`❌ Failed to get top orders for ${productId}:`, error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      data: { bids: [], asks: [] }
-    });
-  }
-});
-
-// 🚀 Get recent candles from Redis for frontend hydration
-// Frontend loads chart instantly with cached candles while WebSocket streams live updates
-app.get('/api/candles/:pair/:granularity', async (req, res) => {
-  const { pair, granularity } = req.params;
-  const hours = parseInt(req.query.hours) || 24; // Default last 24 hours
-
-  try {
-    // Calculate time range for fetching candles
-    const now = Date.now();
-    const endTime = Math.floor(now / 1000); // Convert to seconds
-    const startTime = endTime - (hours * 60 * 60); // Subtract hours in seconds
-
-    // Get candles from Redis cache
-    let candles = await redisCandleStorage.getCandles(pair, granularity, startTime, endTime);
-
-    // 🚀 FALLBACK: If Redis cache is empty, fetch from Coinbase API
-    if (!candles || candles.length === 0) {
-      console.log(`⚠️ [API] Redis cache empty for ${pair}:${granularity}, fetching from Coinbase...`);
-
-      try {
-        // Convert granularity string to seconds
-        const granularityMap = {
-          '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '6h': 21600, '1d': 86400
-        };
-        const granularitySeconds = granularityMap[granularity] || 60;
-
-        // Fetch from Coinbase
-        const url = `https://api.exchange.coinbase.com/products/${pair}/candles?start=${startTime}&end=${endTime}&granularity=${granularitySeconds}`;
-        const response = await fetch(url);
-        const coinbaseData = await response.json();
-
-        if (Array.isArray(coinbaseData) && coinbaseData.length > 0) {
-          // Convert Coinbase format [time, low, high, open, close, volume] to our format
-          candles = coinbaseData.map(([time, low, high, open, close, volume]) => ({
-            time: Math.floor(time),
-            open: parseFloat(open),
-            high: parseFloat(high),
-            low: parseFloat(low),
-            close: parseFloat(close),
-            volume: parseFloat(volume)
-          })).sort((a, b) => a.time - b.time);
-
-          console.log(`✅ [API] Fetched ${candles.length} candles from Coinbase for ${pair}:${granularity}`);
-
-          // Store in Redis for future requests
-          await redisCandleStorage.storeCandles(pair, granularity, candles).catch(err => {
-            console.warn(`⚠️ Failed to cache candles in Redis: ${err.message}`);
-          });
-        } else {
-          console.log(`⚠️ [API] Coinbase returned no data for ${pair}:${granularity}`);
-          return res.json({
-            success: false,
-            message: `No candles available for ${pair} at ${granularity}`,
-            data: []
-          });
-        }
-      } catch (coinbaseError) {
-        console.error(`❌ Failed to fetch from Coinbase: ${coinbaseError.message}`);
-        return res.json({
-          success: false,
-          message: `No cached candles and Coinbase fetch failed for ${pair} at ${granularity}`,
-          data: []
-        });
-      }
-    }
-
-    console.log(`📊 [API] Returning ${candles.length} candles for ${pair}:${granularity}`);
-
-    res.json({
-      success: true,
-      pair,
-      granularity,
-      count: candles.length,
-      timeRange: {
-        startTime,
-        endTime,
-        hours
-      },
-      data: candles
-    });
-  } catch (error) {
-    console.error(`❌ Failed to get candles for ${pair}:${granularity}:`, error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      data: []
-    });
-  }
-});
-
-// 🕐 Server time endpoint for synchronized timers
-// Used by timers and chart animation to stay synchronized with server time
-app.get('/api/time', (req, res) => {
-  const now = Date.now();
-  const seconds = Math.floor(now / 1000);
-
-  res.json({
-    success: true,
-    timestamp: now,           // milliseconds
-    unixTime: seconds,        // seconds (for granularity calculations)
-    iso: new Date(now).toISOString(),
-    serverTime: now
-  });
-});
-
-app.get('/health', (req, res) => {
-  const memUsage = process.memoryUsage();
-  res.json({
-    status: 'healthy',
-    uptime: process.uptime(),
-    memory: {
-      rss: Math.round(memUsage.rss / 1024 / 1024) + ' MB',
-      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + ' MB',
-      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + ' MB',
-      external: Math.round(memUsage.external / 1024 / 1024) + ' MB'
-    },
-    coinbaseWebSocket: coinbaseWebSocket.getStatus(),
-    subscriptions: {
-      chartSubscriptions: chartSubscriptions.size,
-      activeSubscriptions: activeSubscriptions.size,
-      granularityMappings: granularityMappings.size,
-      granularityMappingTimes: granularityMappingTimes.size
-    },
-    botManager: {
-      totalBots: botManager.bots.size,
-      activeBotId: botManager.activeBotId,
-      status: botManager.getStatus()
-    }
-  });
-});
+// Phase 5C: Register REST API service routes
+restAPIService.registerRoutes(app);
 
 // Debug endpoint for frontend logging
 app.post('/api/debug-log', (req, res) => {
