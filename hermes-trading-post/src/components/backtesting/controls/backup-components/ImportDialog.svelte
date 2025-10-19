@@ -1,10 +1,13 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { BackupData } from '../BacktestingControlsTypes';
-  
+  import { BackupDataValidator } from '../../../../utils/validators/BackupDataValidator';
+  import { BackupFileHandler } from '../../../../services/backtesting/BackupFileHandler';
+  import { BackupDataProcessor } from '../../../../services/backtesting/BackupDataProcessor';
+
   export let show = false;
   export let importJsonText = '';
-  
+
   const dispatch = createEventDispatcher<{
     import: { backupData: BackupData };
     close: void;
@@ -13,83 +16,36 @@
   let isValidJson = false;
   let validationError = '';
 
-  $: validateJson(importJsonText);
-
-  function validateJson(jsonText: string) {
-    if (!jsonText.trim()) {
-      isValidJson = false;
-      validationError = '';
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(jsonText);
-      
-      // Validate backup structure
-      if (!parsed || typeof parsed !== 'object') {
-        throw new Error('Invalid backup format: must be an object');
-      }
-      
-      const requiredFields = ['name', 'timestamp'];
-      const missingFields = requiredFields.filter(field => !parsed[field]);
-      
-      if (missingFields.length > 0) {
-        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-      }
-      
-      isValidJson = true;
-      validationError = '';
-    } catch (error) {
-      isValidJson = false;
-      validationError = error instanceof Error ? error.message : 'Invalid JSON format';
-    }
+  // Reactive validation whenever text changes
+  $: {
+    const result = BackupDataValidator.validateJson(importJsonText);
+    isValidJson = result.isValid;
+    validationError = result.errors[0] || '';
   }
 
-  function handleImport() {
-    if (!isValidJson) return;
-    
-    try {
-      const backupData = JSON.parse(importJsonText) as BackupData;
-      
-      // Add a new key to avoid conflicts
-      backupData.key = Date.now().toString();
-      backupData.name = `${backupData.name} (Imported)`;
-      
-      dispatch('import', { backupData });
-    } catch (error) {
-      alert('Failed to import backup: ' + (error instanceof Error ? error.message : 'Unknown error'));
-    }
-  }
-
+  /**
+   * Close the import dialog
+   */
   function handleClose() {
     dispatch('close');
   }
 
-  function handleFileUpload(event: Event) {
-    const target = event.target as HTMLInputElement;
-    const file = target.files?.[0];
-    
-    if (!file) return;
-    
-    if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
-      alert('Please select a JSON file');
-      return;
+  /**
+   * Handle file upload event
+   * Delegates to BackupFileHandler service
+   */
+  async function handleFileUpload(event: Event) {
+    try {
+      importJsonText = await BackupFileHandler.handleFileUpload(event);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'File upload failed';
+      alert(message);
     }
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      importJsonText = text || '';
-    };
-    reader.onerror = () => {
-      alert('Failed to read file');
-    };
-    reader.readAsText(file);
-    
-    // Clear the input
-    target.value = '';
   }
 
+  /**
+   * Handle paste event from clipboard
+   */
   function handlePaste(event: ClipboardEvent) {
     const pastedText = event.clipboardData?.getData('text');
     if (pastedText) {
@@ -97,9 +53,28 @@
     }
   }
 
+  /**
+   * Handle keyboard events (Escape to close)
+   */
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       handleClose();
+    }
+  }
+
+  /**
+   * Handle import button click
+   * Delegates to BackupDataProcessor service
+   */
+  function handleImport() {
+    if (!isValidJson) return;
+
+    try {
+      const backupData = BackupDataProcessor.processImportData(importJsonText);
+      dispatch('import', { backupData });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error during import';
+      alert('Failed to import backup: ' + message);
     }
   }
 </script>
@@ -113,15 +88,15 @@
     <div class="modal-content" on:click|stopPropagation on:keydown={handleKeydown}>
       <div class="modal-header">
         <h3>Import Backup</h3>
-        <button 
-          class="btn-close" 
+        <button
+          class="btn-close"
           on:click={handleClose}
           aria-label="Close import dialog"
         >
           ✕
         </button>
       </div>
-      
+
       <div class="import-content">
         <div class="import-options">
           <div class="option-group">
@@ -138,11 +113,11 @@
               📁 Choose File
             </label>
           </div>
-          
+
           <div class="option-divider">
             <span>or</span>
           </div>
-          
+
           <div class="option-group">
             <h4>Paste JSON Content</h4>
             <p class="option-description">Copy and paste the backup JSON content</p>
@@ -154,7 +129,7 @@
               on:paste={handlePaste}
               aria-describedby="json-validation"
             ></textarea>
-            
+
             <div id="json-validation" class="validation-feedback">
               {#if importJsonText.trim()}
                 {#if isValidJson}
@@ -170,17 +145,17 @@
             </div>
           </div>
         </div>
-        
+
         <div class="import-actions">
-          <button 
-            type="button" 
-            class="btn btn-secondary" 
+          <button
+            type="button"
+            class="btn btn-secondary"
             on:click={handleClose}
           >
             Cancel
           </button>
-          <button 
-            type="button" 
+          <button
+            type="button"
             class="btn btn-primary"
             disabled={!isValidJson}
             on:click={handleImport}
@@ -188,13 +163,13 @@
             Import Backup
           </button>
         </div>
-        
+
         <div class="import-help">
           <div class="help-section">
             <h5>Expected JSON Format</h5>
             <pre class="json-example">{JSON.stringify({
               name: "My Backup",
-              description: "Optional description", 
+              description: "Optional description",
               timestamp: "2024-01-01T00:00:00.000Z",
               config: {}
             }, null, 2)}</pre>
