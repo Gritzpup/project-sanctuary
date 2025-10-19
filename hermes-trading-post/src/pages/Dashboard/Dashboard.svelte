@@ -4,12 +4,12 @@
   import ChartPanel from './components/ChartPanel.svelte';
   import PortfolioPanel from './components/PortfolioPanel.svelte';
   import MarketStatsPanel from './components/MarketStatsPanel.svelte';
-  import { 
-    loadDashboardPreferences, 
-    saveDashboardPreferences, 
-    validGranularities, 
-    autoSelectGranularity 
-  } from './services/DashboardPreferences.svelte';
+  import {
+    loadDashboardPreferences,
+    saveDashboardPreferences,
+    validGranularities,
+    autoSelectGranularity
+  } from '../../shared/services/dashboardPreferences';
   import { onMount, createEventDispatcher } from 'svelte';
   
   export let currentPrice: number = 0;

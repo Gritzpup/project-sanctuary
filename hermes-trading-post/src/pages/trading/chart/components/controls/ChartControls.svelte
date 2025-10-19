@@ -6,7 +6,7 @@
   import GranularityControls from './components/GranularityControls.svelte';
   import SpeedControls from './components/SpeedControls.svelte';
   import ActionButtons from './components/ActionButtons.svelte';
-  import { ChartControlsService } from './services/ChartControlsService.svelte';
+  import { chartControlsService } from '../../../../../../../shared/services/chartControlsService';
   
   export let showTimeframes: boolean = true;
   export let showGranularities: boolean = true;

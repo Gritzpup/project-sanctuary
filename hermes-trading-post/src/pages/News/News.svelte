@@ -4,8 +4,8 @@
   import NewsFilters from './components/NewsFilters.svelte';
   import NewsGrid from './components/NewsGrid.svelte';
   import NewsPagination from './components/NewsPagination.svelte';
-  import { loadNews, applyFilters, paginateArticles } from './services/NewsService.svelte';
-  import type { NewsArticle } from './services/NewsService.svelte';
+  import { loadNews, applyFilters, paginateArticles } from '../../shared/services/newsService';
+  import type { NewsArticle } from '../../shared/services/newsService';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   
   export let currentPrice: number = 0;
