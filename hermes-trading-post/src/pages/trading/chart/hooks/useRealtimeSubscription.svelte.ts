@@ -43,6 +43,11 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   let rafId: number | null = null;
   let pendingUpdate: { price: number; chartSeries?: any; volumeSeries?: any; candleData?: any } | null = null;
 
+  // ⚡ PHASE 9A: Store current series references for dynamic access
+  // These get updated when subscribeToRealtime is called
+  let currentChartSeries: ISeriesApi<'Candlestick'> | null = null;
+  let currentVolumeSeries: any = null;
+
   function scheduleUpdate(price: number, chartSeries?: any, volumeSeries?: any, candleData?: any) {
     // Store the latest update
     pendingUpdate = { price, chartSeries, volumeSeries, candleData };
@@ -394,9 +399,14 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
 
   /**
    * Subscribe to real-time data streams
+   * ⚡ PHASE 9A: Fix stale chartSeries references by storing series at subscription time
    */
   function subscribeToRealtime(config: RealtimeSubscriptionConfig, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any) {
     const { pair, granularity } = config;
+
+    // ⚡ PHASE 9A: Store current series references so callbacks can use them
+    currentChartSeries = chartSeries || null;
+    currentVolumeSeries = volumeSeries || null;
 
     // Use dataStore to connect to backend WebSocket - single source of truth
     dataStore.subscribeToRealtime(
@@ -405,7 +415,8 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       (candleData) => {
         // ⚡ Use RAF batching to throttle updates to 60 FPS max
         // This prevents UI thread saturation (was causing 135% CPU usage)
-        scheduleUpdate(candleData.close, chartSeries, volumeSeries, candleData);
+        // Use the stored current series references instead of captured params
+        scheduleUpdate(candleData.close, currentChartSeries, currentVolumeSeries, candleData);
 
         // Status updates can happen immediately (cheap operation)
         statusStore.setPriceUpdate();
