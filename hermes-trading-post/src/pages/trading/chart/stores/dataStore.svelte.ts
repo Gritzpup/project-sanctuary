@@ -261,6 +261,19 @@ class DataStore {
           limit: maxCandles || 10000
         });
 
+        // ⚡ PHASE 8A: Fallback if backend returns empty (timeout/error occurred)
+        if (data.length === 0) {
+          ChartDebug.log(`⚠️ Backend fetch returned empty - checking for any cached data as fallback`);
+          // Try to get any available cached data as fallback
+          const anyCache = await chartIndexedDBCache.get(pair, granularity);
+          if (anyCache && anyCache.candles.length > 0) {
+            ChartDebug.log(`📊 Using stale cache as fallback: ${anyCache.candles.length} candles`);
+            this.setCandles(anyCache.candles);
+            this.updateStats();
+            return;
+          }
+        }
+
         this.setCandles(data);
         this.updateStats();
 
@@ -277,6 +290,15 @@ class DataStore {
       // This prevents polling errors and keeps stats responsive
 
     } catch (error) {
+      // ⚡ PHASE 8A: If error occurs, try to use cached data as fallback
+      ChartDebug.log(`⚠️ Error during chart data load: ${error}. Attempting to use cached data...`);
+      const cachedData = await chartIndexedDBCache.get(pair, granularity);
+      if (cachedData && cachedData.candles.length > 0) {
+        ChartDebug.log(`📊 Using cached data as fallback: ${cachedData.candles.length} candles`);
+        this.setCandles(cachedData.candles);
+        this.updateStats();
+        return;
+      }
       // PERF: Disabled - console.error(`❌ [DataStore] Error loading data for ${pair}/${granularity}:`, error);
       throw error;
     }
@@ -293,6 +315,18 @@ class DataStore {
       end: endTime,
       limit: 50000  // Increased from 5000 to prevent missing candles on refresh
     });
+
+    // ⚡ PHASE 8A: Fallback to cached data if backend returns empty on reload
+    if (data.length === 0) {
+      ChartDebug.log(`⚠️ Reload fetch returned empty - checking cached data as fallback`);
+      const cachedData = await chartIndexedDBCache.get(config.pair, config.granularity);
+      if (cachedData && cachedData.candles.length > 0) {
+        ChartDebug.log(`📊 Using cached data as fallback for reload: ${cachedData.candles.length} candles`);
+        this.setCandles(cachedData.candles);
+        this.updateStats();
+        return;
+      }
+    }
 
     this.setCandles(data);
     this.updateStats();

@@ -62,9 +62,11 @@ export class ChartPrefetcher {
 
   /**
    * Initialize the prefetcher
+   * ⚡ PHASE 8A: Non-blocking initialization (removed dataService dependency)
    */
   async initialize(): Promise<void> {
-    await this.dataService.initialize();
+    // ⚡ PHASE 8A: Removed dataService.initialize() call - not needed
+    // Prefetcher initializes independently without blocking
     ChartDebug.log('📡 Chart Prefetcher initialized');
   }
 

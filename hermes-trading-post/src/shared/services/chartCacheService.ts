@@ -36,9 +36,12 @@ interface RedisChartDataResponse {
 /**
  * Chart Cache Service - unified Redis caching and data fetching
  * Combines cache operations, historical data fetching, and metadata retrieval
+ * ⚡ PHASE 8A: Added timeout handling for network requests (prevents chart freeze)
  */
 export class ChartCacheService {
   private backendUrl: string = `http://${this.getBackendHost()}:4828`;
+  private readonly FETCH_TIMEOUT_MS = 5000; // 5 second timeout to prevent freezes
+  private readonly HEALTH_CHECK_TIMEOUT_MS = 2000; // 2 second timeout for health checks
 
   private getBackendHost(): string {
     const envHost = (import.meta as any)?.env?.VITE_BACKEND_HOST;
@@ -50,12 +53,35 @@ export class ChartCacheService {
   }
 
   /**
-   * Initialize service and test backend connectivity
+   * ⚡ PHASE 8A: Fetch with timeout to prevent indefinite hanging
+   * Returns null if timeout occurs, allowing fallback mechanisms
+   */
+  private async fetchWithTimeout(url: string, timeoutMs: number = this.FETCH_TIMEOUT_MS): Promise<Response | null> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        console.warn(`⏱️ Network request timeout after ${timeoutMs}ms: ${url}`);
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Initialize service and test backend connectivity with timeout
+   * ⚡ PHASE 8A: Non-blocking initialization - doesn't block chart loading
    */
   async initialize(): Promise<void> {
     try {
-      const response = await fetch(`${this.backendUrl}/health`);
-      if (!response.ok) {
+      const response = await this.fetchWithTimeout(`${this.backendUrl}/health`, this.HEALTH_CHECK_TIMEOUT_MS);
+      if (!response?.ok) {
         console.warn('⚠️ Chart cache service: Backend connectivity test failed');
       }
     } catch (error) {
@@ -64,7 +90,8 @@ export class ChartCacheService {
   }
 
   /**
-   * Fetch historical candles with binary format support and JSON fallback
+   * Fetch historical candles with timeout and fallback support
+   * ⚡ PHASE 8A: Prevents chart freeze on backend unavailability
    */
   async fetchCandles(request: DataRequest): Promise<CandleData[]> {
     const { pair, granularity, start, end, limit = 1000 } = request;
@@ -81,7 +108,15 @@ export class ChartCacheService {
       if (end) params.append('endTime', end.toString());
 
       const url = `${this.backendUrl}/api/trading/chart-data?${params}`;
-      const response = await fetch(url);
+
+      // ⚡ PHASE 8A: Use timeout-protected fetch
+      const response = await this.fetchWithTimeout(url);
+
+      if (!response) {
+        // Timeout occurred - return empty and let caller handle fallback
+        console.warn(`⏱️ Chart data fetch timed out for ${pair}:${granularity}`);
+        return [];
+      }
 
       if (!response.ok) {
         console.warn(`Failed to fetch candles: HTTP ${response.status}`);
