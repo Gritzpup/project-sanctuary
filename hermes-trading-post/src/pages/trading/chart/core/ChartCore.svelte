@@ -227,8 +227,11 @@
       await pluginManager.destroy();
     }
 
+    // IMPORTANT: Don't reset dataStore candles here!
+    // If the chart component remounts/reloads, cached candles will be lost
+    // The candles are persisted and should survive component lifecycle
+    // Only reset chart UI state, not the data itself
     chartStore.reset();
-    dataStore.reset();
     statusStore.reset();
   });
   
