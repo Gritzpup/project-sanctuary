@@ -18,12 +18,20 @@ import { WebSocketHandler } from './services/WebSocketHandler.js';
 import { BroadcastService } from './services/BroadcastService.js';
 import { ServerLifecycle } from './services/ServerLifecycle.js';
 import { RESTAPIService } from './services/RESTAPIService.js';
+import { DebugLoggingService } from './services/DebugLoggingService.js';
+import { ErrorHandlerService } from './services/ErrorHandlerService.js';
+import { ConfigurationService } from './services/ConfigurationService.js';
 
 dotenv.config();
 
+// Phase 5C: Initialize core services
+const logger = new DebugLoggingService();
+const errorHandler = new ErrorHandlerService(logger);
+const config = new ConfigurationService();
+
 const app = express();
-const PORT = process.env.PORT || 4829; // Main backend port for WebSocket bridge (changed from 4828 to avoid conflicts)
-const HOST = process.env.HOST || '0.0.0.0'; // Listen on all interfaces
+const PORT = config.get('PORT');
+const HOST = config.get('HOST');
 
 app.use(cors());
 app.use(express.json());
