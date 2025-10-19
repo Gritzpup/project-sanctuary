@@ -13,6 +13,11 @@ Complete documentation for the Hermes Trading Post cryptocurrency trading platfo
 - **[Backup System](./backup-system.md)** - Data backup and recovery mechanisms
 - **[AI Strategy Integration](./AI_STRATEGY_INTEGRATION.md)** - AI-powered trading strategy integration
 
+### Architecture & Design
+
+- **[PHASE4_ARCHITECTURE_IMPROVEMENTS.md](./PHASE4_ARCHITECTURE_IMPROVEMENTS.md)** - Component consolidation opportunities and implementation roadmap
+- **[CSS_ARCHITECTURE_GUIDE.md](./CSS_ARCHITECTURE_GUIDE.md)** - CSS system, design tokens, and styling best practices
+
 ### Audit & Analysis
 
 #### Codebase Organization Audit
@@ -180,10 +185,24 @@ hermes-trading-post/
 
 ## Document Maintenance
 
+### Cleanup Progress
+
+| Phase | Status | Focus | Completion |
+|-------|--------|-------|-----------|
+| Phase 1 | ✅ Complete | Dead code removal | 30 min |
+| Phase 2 | ✅ Complete | Documentation & tools | 45 min |
+| Phase 3 | ✅ Complete | Documentation consolidation | 1 hour |
+| Phase 4 | 📋 Documented | Architecture improvements | Roadmap ready |
+
+**Total Cleanup Time**: 2.5 hours implemented
+**Total Code Reduced**: ~530 lines removed + 170KB artifacts
+**Architecture Improved**: Service naming clarified, documentation consolidated
+
 ### Last Updated
 - Main README: October 18, 2025
 - Tools Documentation: October 18, 2025
 - Audit Reports: October 18, 2025
+- Architecture & Design: October 18, 2025
 - This Index: October 18, 2025
 
 ### Deprecated Documentation
