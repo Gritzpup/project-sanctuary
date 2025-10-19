@@ -4,7 +4,7 @@
  * Handles candle transformations, normalization, and volume calculations
  */
 
-import type { WebSocketCandle } from '../types/data.types';
+import type { WebSocketCandle } from '../../types/data.types';
 
 /**
  * Candle data with volume

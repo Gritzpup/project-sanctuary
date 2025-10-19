@@ -6,7 +6,7 @@
 
 import type { CandlestickData } from 'lightweight-charts';
 import type { WebSocketCandle } from '../../types/data.types';
-import { RedisChartService } from '../RedisChartService';
+import { RedisChartService } from '../../services/RedisChartService';
 import { orderbookStore } from '../../../orderbook/stores/orderbookStore.svelte';
 
 /**

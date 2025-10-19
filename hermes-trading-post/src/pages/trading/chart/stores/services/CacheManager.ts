@@ -4,9 +4,9 @@
  * Handles Redis cache operations, cache key generation, invalidation, and TTL
  */
 
-import { RedisChartService } from '../services/RedisChartService';
-import { chartIndexedDBCache } from '../services/ChartIndexedDBCache';
-import type { CandlestickDataWithVolume } from '../types/data.types';
+import { RedisChartService } from '../../services/RedisChartService';
+import { chartIndexedDBCache } from '../../services/ChartIndexedDBCache';
+import type { CandlestickDataWithVolume } from './DataTransformations';
 
 /**
  * Manages caching of chart data across Redis and IndexedDB
