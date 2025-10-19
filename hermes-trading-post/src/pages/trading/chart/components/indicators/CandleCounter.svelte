@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { dataStore } from '../../stores/dataStore.svelte';
   import { formatNumber } from '../../../../../utils/formatters/priceFormatters';
 
@@ -12,6 +13,7 @@
   // Animation state
   let isNewCandle = $state(false);
   let lastCandleCount = $state(0);
+  let animationTimeout: NodeJS.Timeout | null = null;
 
   // ✅ REACTIVE: Use dataStore.stats.totalCount directly for instant updates
   // No need to query chart - dataStore already has the count and updates instantly
@@ -21,13 +23,22 @@
   $effect(() => {
     if (displayCount > lastCandleCount && lastCandleCount > 0) {
       if (showAnimation) {
+        // ⚡ PHASE 5D: Clear previous timeout and add cleanup
+        if (animationTimeout) clearTimeout(animationTimeout);
+
         isNewCandle = true;
-        setTimeout(() => {
+        animationTimeout = setTimeout(() => {
           isNewCandle = false;
+          animationTimeout = null;
         }, 1000);
       }
     }
     lastCandleCount = displayCount;
+  });
+
+  // ⚡ PHASE 5D: Cleanup timeout on component destroy (prevents memory leaks)
+  onDestroy(() => {
+    if (animationTimeout) clearTimeout(animationTimeout);
   });
 </script>
 

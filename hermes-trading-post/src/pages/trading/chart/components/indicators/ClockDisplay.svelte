@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { memoized } from '../../utils/memoization';
   import ServerTimeService from '../../../../../services/ServerTimeService';
 
   // Props using Svelte 5 runes syntax
@@ -18,35 +19,37 @@
   // Internal state - cache formatted strings to avoid unnecessary re-renders
   let currentTime = $state(ServerTimeService.getNowDate());
   let clockInterval: NodeJS.Timeout;
-  let lastClockDisplay = '';
-  let lastDateDisplay = '';
 
-  // Format clock display
-  const clockDisplay = $derived(currentTime.toLocaleTimeString('en-US', {
-    hour12: !format24Hour,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: showSeconds ? '2-digit' : undefined
-  }));
+  // ⚡ PHASE 5E: Memoize time formatting with 1-second TTL
+  // Prevents expensive Date.toLocaleTimeString() calls on every millisecond tick
+  const clockDisplay = $derived(
+    memoized(
+      'clock-display',
+      [currentTime.getHours(), currentTime.getMinutes(), currentTime.getSeconds(), format24Hour, showSeconds],
+      () => currentTime.toLocaleTimeString('en-US', {
+        hour12: !format24Hour,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: showSeconds ? '2-digit' : undefined
+      }),
+      1000  // 1 second TTL (only format when display actually changes)
+    )
+  );
 
-  // Format date display
-  const dateDisplay = $derived(currentTime.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric'
-  }));
-
-  // 🚀 PERF: Only trigger re-renders when formatted strings actually change
-  // Prevents excessive DOM updates when milliseconds tick by without changing display
-  $effect(() => {
-    // This runs when clockDisplay or dateDisplay changes
-    if (clockDisplay !== lastClockDisplay) {
-      lastClockDisplay = clockDisplay;
-    }
-    if (dateDisplay !== lastDateDisplay) {
-      lastDateDisplay = dateDisplay;
-    }
-  });
+  // ⚡ PHASE 5E: Memoize date formatting with 60-second TTL
+  // Date rarely changes, so cache aggressively
+  const dateDisplay = $derived(
+    memoized(
+      'clock-date-display',
+      [currentTime.getDate(), currentTime.getMonth(), currentTime.getFullYear()],
+      () => currentTime.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+      }),
+      60000  // 60 second TTL (date changes once per day)
+    )
+  );
 
   onMount(async () => {
     // Initialize server time synchronization

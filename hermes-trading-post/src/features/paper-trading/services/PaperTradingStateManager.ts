@@ -22,7 +22,10 @@ export class PaperTradingStateManager {
   private backendConnector: BackendConnector;
   private managerStateStore = paperTradingManager.getState();
   private chartComponent: any = null;
-  
+
+  // ⚡ PHASE 5F: Store subscription unsubscribe functions for cleanup
+  private subscriptions: Array<() => void> = [];
+
   public tradingState = writable<TradingState>({
     selectedStrategyType: 'reverse-descending-grid',
     isRunning: false,
@@ -90,23 +93,27 @@ export class PaperTradingStateManager {
   }
 
   private setupBackendStateSubscription() {
-    this.backendConnector.getState().subscribe(state => {
+    // ⚡ PHASE 5F: Track subscription for cleanup
+    const unsubscribe = this.backendConnector.getState().subscribe(state => {
       this.backendState.update(current => ({
         ...current,
         ...state
       }));
     });
+    this.subscriptions.push(unsubscribe);
   }
 
   private setupTradingBackendSubscription() {
     console.log('📡 Setting up tradingBackendService subscription...');
-    tradingBackendService.getState().subscribe(backendState => {
+    // ⚡ PHASE 5F: Track subscription for cleanup
+    const unsubscribe = tradingBackendService.getState().subscribe(backendState => {
       this.logBackendStateUpdate(backendState);
       this.updateTradingState(backendState);
       this.updateChartMarkers(backendState.trades || []);
       this.updateBackendState(backendState);
       this.updateBotTabs();
     });
+    this.subscriptions.push(unsubscribe);
   }
 
   private logBackendStateUpdate(backendState: any) {
@@ -179,10 +186,12 @@ export class PaperTradingStateManager {
   }
 
   private setupManagerStateSubscription() {
-    this.managerStateStore.subscribe(state => {
+    // ⚡ PHASE 5F: Track subscription for cleanup
+    const unsubscribe = this.managerStateStore.subscribe(state => {
       this.managerState = state;
       this.updateBotTabs();
     });
+    this.subscriptions.push(unsubscribe);
   }
 
   private setupPriceFeeding() {
@@ -192,25 +201,21 @@ export class PaperTradingStateManager {
   }
 
   private setupStrategyStoreSubscription() {
-    strategyStore.subscribe(store => {
+    // ⚡ PHASE 5F: Track subscription for cleanup
+    const unsubscribe = strategyStore.subscribe(store => {
       if (store.selectedType && store.selectedType !== get(this.tradingState).selectedStrategyType) {
         this.tradingState.update(current => ({
           ...current,
           selectedStrategyType: store.selectedType
         }));
       }
+      // ⚡ PHASE 5F: Load custom strategies here to avoid duplicate subscription
+      this.customStrategies = store.customStrategies || [];
     });
+    this.subscriptions.push(unsubscribe);
   }
 
-  private async loadCustomStrategies() {
-    try {
-      strategyStore.subscribe(store => {
-        this.customStrategies = store.customStrategies || [];
-      });
-    } catch (error) {
-      console.error('Failed to load custom strategies:', error);
-    }
-  }
+  // ⚡ PHASE 5F: Removed duplicate loadCustomStrategies - now handled in setupStrategyStoreSubscription
 
   private updateBotTabs() {
     this.botTabs = this.managerState.instances?.map((instance: any, index: number) => ({
@@ -274,7 +279,11 @@ export class PaperTradingStateManager {
 
   public destroy() {
     console.log('🗑️ Destroying PaperTradingStateManager');
-    
+
+    // ⚡ PHASE 5F: Unsubscribe from all subscriptions to prevent memory leaks
+    this.subscriptions.forEach(unsubscribe => unsubscribe());
+    this.subscriptions = [];
+
     if (this.orchestrator) {
       this.orchestrator.destroy?.();
     }
