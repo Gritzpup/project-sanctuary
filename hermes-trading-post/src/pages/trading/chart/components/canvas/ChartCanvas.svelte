@@ -47,6 +47,54 @@
   // Positioning debounce
   let positioningTimeout: NodeJS.Timeout | null = null;
 
+  // Track granularity changes to reload data
+  let previousGranularity = chartStore.config.granularity;
+  let previousTimeframe = chartStore.config.timeframe;
+  let granularityChangeInProgress = false;
+
+  // Listen for granularity/timeframe changes and reload data
+  $effect.pre(() => {
+    const currentGranularity = chartStore.config.granularity;
+    const currentTimeframe = chartStore.config.timeframe;
+
+    // Check if granularity or timeframe actually changed
+    const granularityChanged = currentGranularity !== previousGranularity;
+    const timeframeChanged = currentTimeframe !== previousTimeframe;
+
+    if ((granularityChanged || timeframeChanged) && chartCreated && !granularityChangeInProgress) {
+      granularityChangeInProgress = true;
+      previousGranularity = currentGranularity;
+      previousTimeframe = currentTimeframe;
+
+      // Reload data with new granularity/timeframe
+      const pair = 'BTC-USD';
+      const now = Math.floor(Date.now() / 1000);
+
+      const getPeriodSeconds = (period: string): number => {
+        const periodMap: Record<string, number> = {
+          '1H': 3600, '4H': 14400, '6H': 21600, '1D': 86400, '5D': 432000,
+          '1W': 604800, '1M': 2592000, '3M': 7776000, '6M': 15552000, '1Y': 31536000, '5Y': 157680000
+        };
+        return periodMap[period] || 3600;
+      };
+
+      const timeRange = getPeriodSeconds(currentTimeframe);
+      const startTime = now - timeRange;
+
+      // Reload data with new granularity
+      dataStore.loadData(pair, currentGranularity, startTime, now).then(() => {
+        if (chart && candleSeries && dataManager) {
+          dataManager.updateChartData();
+          dataManager.updateVolumeData();
+        }
+        granularityChangeInProgress = false;
+      }).catch(err => {
+        console.error('❌ Failed to reload data on granularity change:', err);
+        granularityChangeInProgress = false;
+      });
+    }
+  });
+
   // ⚡ PHASE 13: Only trigger when candle COUNT changes, not on every price update
   // Subscribe to dataStore updates only when candle count changes
   $effect.pre(() => {
