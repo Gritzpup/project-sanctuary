@@ -192,9 +192,14 @@ class DataStore {
 
       if (cachedData && cachedData.candles.length > 0) {
         // ✅ Cache hit! Show cached data immediately (0ms perceived load time)
-        ChartDebug.log(`⚡ INSTANT LOAD from IndexedDB: ${cachedData.candles.length} candles (${performance.now() - perfStart}ms)`);
+        // 🚀 PHASE 6: Only load maxCandles from cache on initial load (lazy loading)
+        // This ensures we don't load 35k+ candles on page reload
+        const cachedCandles = cachedData.candles;
+        const candlesToLoad = maxCandles ? cachedCandles.slice(-maxCandles) : cachedCandles;
 
-        this.setCandles(cachedData.candles);
+        ChartDebug.log(`⚡ INSTANT LOAD from IndexedDB: ${candlesToLoad.length}/${cachedCandles.length} candles (${performance.now() - perfStart}ms)`);
+
+        this.setCandles(candlesToLoad);
         this.updateStats();
 
         // 🔄 DELTA SYNC: Only fetch new candles since last cache

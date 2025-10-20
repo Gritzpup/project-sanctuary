@@ -234,6 +234,10 @@
           dataLoadSuccess = true;
           isInitialDataLoaded = true;
 
+          // 🚀 PHASE 6: Update database count after initial load
+          // This ensures DB stat shows total available candles
+          await dataStore.updateDatabaseCount();
+
           // Initialize timeframeCoordinator with current values so it can detect changes
           // This is critical for granularity button functionality
           timeframeCoordinator.initialize(granularity, period);
