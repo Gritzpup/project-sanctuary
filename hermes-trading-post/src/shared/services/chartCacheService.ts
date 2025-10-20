@@ -60,6 +60,11 @@ export class ChartCacheService {
   // Invalidate cache after 5 seconds to ensure fresh real-time data
   private readonly CACHE_TTL_MS = 5000;
 
+  // 🚀 PHASE 5F: Request coalescing - deduplicate concurrent identical requests
+  // Prevents multiple components from making duplicate API calls for same data
+  // Maps from cache key to in-flight request Promise
+  private inFlightRequests = new Map<string, Promise<CandleData[]>>();
+
   private getBackendHost(): string {
     const envHost = (import.meta as any)?.env?.VITE_BACKEND_HOST;
     if (envHost) return envHost;
@@ -109,6 +114,7 @@ export class ChartCacheService {
   /**
    * Fetch historical candles with timeout and fallback support
    * ⚡ PHASE 8A: Prevents chart freeze on backend unavailability
+   * 🚀 PHASE 5F: Added request coalescing to deduplicate concurrent requests
    */
   async fetchCandles(request: DataRequest): Promise<CandleData[]> {
     const { pair, granularity, start, end, limit = 1000 } = request;
@@ -143,6 +149,45 @@ export class ChartCacheService {
       this.memoryCache.delete(cacheKey);
     }
 
+    // 🚀 PHASE 5F: Request coalescing - check for in-flight requests
+    // If another component is already fetching this same data, return that Promise
+    // This prevents duplicate API calls when multiple components request same candles
+    if (this.inFlightRequests.has(cacheKey)) {
+      const inFlightPromise = this.inFlightRequests.get(cacheKey);
+      if (inFlightPromise) {
+        console.log(`[ChartCacheService] ✅ Coalescing request for ${cacheKey} (reusing in-flight request)`);
+        return inFlightPromise;
+      }
+    }
+
+    // 🚀 PHASE 5F: Wrap the entire fetch in a Promise for request coalescing
+    // This way we can track and deduplicate this specific request
+    const fetchPromise = this.performFetch(pair, granularity, start, end, limit, cacheKey);
+
+    // Store the in-flight request
+    this.inFlightRequests.set(cacheKey, fetchPromise);
+
+    try {
+      const result = await fetchPromise;
+      return result;
+    } finally {
+      // Clean up the in-flight request tracker when done
+      this.inFlightRequests.delete(cacheKey);
+    }
+  }
+
+  /**
+   * 🚀 PHASE 5F: Actual fetch implementation (separated for request coalescing)
+   * This is called by fetchCandles and wrapped in Promise deduplication
+   */
+  private async performFetch(
+    pair: string,
+    granularity: string,
+    start: number | undefined,
+    end: number | undefined,
+    limit: number,
+    cacheKey: string
+  ): Promise<CandleData[]> {
     try {
       const params = new URLSearchParams({
         pair: pair || 'BTC-USD',

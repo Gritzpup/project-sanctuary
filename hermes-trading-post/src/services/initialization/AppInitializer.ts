@@ -10,6 +10,7 @@ import { animationManager, initializeAnimationManager } from '../../utils/Animat
 import { metricsCollector, startMetricsCollection } from '../../services/monitoring/MetricsCollector';
 import { chartCacheService } from '../../shared/services/chartCacheService';
 import { chartDataProcessingService } from '../../services/ChartDataProcessingService';
+import { chartIndexedDBCache } from '../../pages/trading/chart/services/ChartIndexedDBCache';
 
 /**
  * Application initialization sequence
@@ -43,7 +44,7 @@ export class AppInitializer {
       initializeAnimationManager();
       console.log('[AppInitializer] ✅ Animation manager ready');
 
-      // Phase 3: Initialize Chart Services
+      // Phase 3: Initialize Chart Services (critical - blocking)
       console.log('[AppInitializer] Phase 3: Initializing chart services...');
       await Promise.all([
         chartCacheService.initialize(),
@@ -54,24 +55,132 @@ export class AppInitializer {
       ]);
       console.log('[AppInitializer] ✅ Chart services ready');
 
-      // Phase 4: Initialize Metrics Collection
-      console.log('[AppInitializer] Phase 4: Initializing metrics collection...');
-      startMetricsCollection();
-      console.log('[AppInitializer] ✅ Metrics collection started');
-
-      // Phase 5: Set up global error handling
-      console.log('[AppInitializer] Phase 5: Setting up error handling...');
+      // Phase 4: Set up global error handling (critical - blocking)
+      console.log('[AppInitializer] Phase 4: Setting up error handling...');
       AppInitializer.setupErrorHandling();
       console.log('[AppInitializer] ✅ Error handling initialized');
 
       AppInitializer.initialized = true;
       console.log('[AppInitializer] ✅ All systems initialized and ready');
+
+      // 🚀 PHASE 5F: Defer non-critical initialization
+      // Schedule these after app is interactive to reduce initial render time
+      AppInitializer.deferNonCriticalInit();
     } catch (error) {
       console.error('[AppInitializer] Initialization failed:', error);
       throw error;
     } finally {
       AppInitializer.initializing = false;
     }
+  }
+
+  /**
+   * 🚀 PHASE 5F: Defer non-critical initialization
+   * Schedules Metrics collection and cache warming after app is interactive
+   * Reduces initial render time by deferring non-essential setup
+   */
+  private static deferNonCriticalInit(): void {
+    // Use requestIdleCallback if available, otherwise use setTimeout
+    const scheduleTask = (callback: () => void) => {
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(callback, { timeout: 15000 }); // 15s timeout
+      } else {
+        setTimeout(callback, 100); // Fallback: 100ms delay
+      }
+    };
+
+    scheduleTask(() => {
+      try {
+        console.log('[AppInitializer] ⏳ Initializing deferred services...');
+
+        // Initialize metrics collection in background
+        console.log('[AppInitializer] Phase 5A: Initializing metrics collection...');
+        startMetricsCollection();
+        console.log('[AppInitializer] ✅ Metrics collection started');
+
+        // Warm chart data cache
+        AppInitializer.warmChartDataCache();
+      } catch (error) {
+        console.warn('[AppInitializer] ⚠️ Deferred initialization error:', error);
+        // Non-critical - app continues normally
+      }
+    });
+  }
+
+  /**
+   * 🚀 PHASE 5F: Warm IndexedDB chart cache in background
+   * Prefetches most common chart data (BTC-USD:1m) for instant repeat visits
+   * Uses requestIdleCallback to avoid blocking main thread
+   */
+  private static warmChartDataCache(): void {
+    // Use requestIdleCallback if available, otherwise use setTimeout
+    const scheduleTask = (callback: () => void) => {
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(callback, { timeout: 10000 }); // 10s timeout
+      } else {
+        setTimeout(callback, 500); // Fallback: 500ms delay
+      }
+    };
+
+    scheduleTask(async () => {
+      try {
+        console.log('[AppInitializer] 🔥 Starting background cache warming...');
+
+        // Initialize IndexedDB if not already done
+        await chartIndexedDBCache.initialize();
+
+        // Prefetch most common chart data (BTC-USD with 1m granularity)
+        const commonPair = 'BTC-USD';
+        const commonGranularities = ['1m', '5m'];
+
+        for (const granularity of commonGranularities) {
+          try {
+            // Check if already cached and fresh
+            const cached = await chartIndexedDBCache.get(commonPair, granularity);
+            const now = Date.now();
+
+            if (cached && (now - cached.timestamp) < 5 * 60 * 1000) {
+              // Cache is fresh (< 5 minutes old), skip fetch
+              console.log(`[AppInitializer] ✅ Chart cache warm (${commonPair}:${granularity})`);
+              continue;
+            }
+
+            // Fetch fresh data and cache it
+            console.log(`[AppInitializer] 📡 Warming chart cache: ${commonPair}:${granularity}...`);
+
+            // Calculate time range (last 7 days worth of candles)
+            const now_sec = Math.floor(Date.now() / 1000);
+            const granularitySeconds = granularity === '1m' ? 60 : 300;
+            const candleCount = (7 * 24 * 60 * 60) / granularitySeconds; // 7 days
+            const startTime = now_sec - (candleCount * granularitySeconds);
+            const endTime = now_sec;
+
+            // Fetch from backend cache service
+            const candles = await chartCacheService.fetchCandles({
+              pair: commonPair,
+              granularity,
+              start: startTime,
+              end: endTime,
+              limit: Math.min(candleCount, 10000)
+            });
+
+            if (candles.length > 0) {
+              // Store in IndexedDB
+              await chartIndexedDBCache.set(commonPair, granularity, candles);
+              console.log(`[AppInitializer] ✅ Cached ${candles.length} ${granularity} candles for ${commonPair}`);
+            }
+          } catch (error) {
+            console.warn(`[AppInitializer] ⚠️ Failed to warm cache for ${commonPair}:${granularity}:`, error);
+            // Continue with next granularity - cache warming is best-effort
+          }
+        }
+
+        console.log('[AppInitializer] ✅ Background cache warming complete');
+      } catch (error) {
+        console.warn('[AppInitializer] ⚠️ Cache warming failed:', error);
+        // Non-critical - app continues normally without cached data
+      }
+    });
   }
 
   /**

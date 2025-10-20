@@ -134,8 +134,11 @@ export class CoinbaseAPI {
     
     return this.rateLimiter.execute(key, async () => {
       try {
+        // 🚀 PHASE 5F: Reduced timeout from 5s to 2s for faster fallback
+        // If Coinbase API is slow, we use cached values instead of blocking user
+        // This prevents 5-second delays on page interactive state
         const response = await axios.get(`${this.baseUrl}/products/${productId}/stats`, {
-          timeout: 5000, // Reduced from 10s to 5s for faster fallback
+          timeout: 2000,
           headers: {
             'Accept': 'application/json',
           }

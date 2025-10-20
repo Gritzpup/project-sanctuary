@@ -59,9 +59,12 @@ export class PaperTradingStateManager {
     console.log('🏗️ PaperTradingStateManager constructor called');
     this.orchestrator = new PaperTradingOrchestrator();
     this.backendConnector = new BackendConnector();
-    
+
     this.logBackendServiceStatus();
     this.initializeSubscriptions();
+
+    // 🚀 PHASE 5F: Fetch backend status in background (non-blocking)
+    // Don't await - let it run in background after subscriptions are set up
     this.fetchBackendStatus();
   }
 
