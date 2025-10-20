@@ -105,31 +105,25 @@
       return;
     }
 
-    // Load cached candles from Redis first - use current granularity from store
-    const pair = 'BTC-USD';
-    const granularity = chartStore.config.granularity;
+    // NOTE: Chart data loading and real-time updates are handled by ChartCore via:
+    // - useDataLoader hook (loads historical data and populates dataStore)
+    // - useRealtimeSubscription hook (subscribes to real-time candle updates)
+    // - ChartCore calls updateChartData() when data is ready
+    //
+    // ChartCanvas is a pure rendering layer that just displays what's in dataStore
+    // It should NOT subscribe to dataStore or load data - that creates:
+    // - Duplicate subscriptions
+    // - Accumulated callbacks in memory
+    // - Infinite reactive loops
+    // - OOM crashes
 
-    // Wait for cache to load before updating chart
-    dataStore.hydrateFromCache(pair, granularity, 24).then(() => {
-      // Cache loaded successfully, update chart with data
-      dataManager.updateChartData();
-      dataManager.updateVolumeData();
-      prevCandleCount = dataStore.candles.length;
-    }).catch(error => {
-      console.error('Cache hydration failed, will use WebSocket data:', error);
-      // Still update chart even if cache fails
-      dataManager.updateChartData();
-      dataManager.updateVolumeData();
-      prevCandleCount = dataStore.candles.length;
-    });
+    // Initialize chart with current dataStore content
+    // ChartCore will handle loading historical data via useDataLoader hook
+    dataManager.updateChartData();
+    dataManager.updateVolumeData();
+    prevCandleCount = dataStore.candles.length;
 
-    // Subscribe to real-time candle updates with current granularity
-    dataStore.subscribeToRealtime(pair, granularity, (candle) => {
-      // Let dataManager handle the realtime update (it updates candle price only, no full reload)
-      dataManager.handleRealtimeUpdate(candle);
-    });
-
-    // Initialize historical data loader
+    // Initialize historical data loader for scrolling to load more
     historicalDataLoader = useHistoricalDataLoader({
       chart,
       candleSeries,
@@ -138,7 +132,7 @@
       debounceMs: 500
     });
 
-    // Notify parent component
+    // Notify parent component chart is ready
     if (onChartReady) {
       onChartReady(chart);
     }
@@ -152,7 +146,7 @@
       positioningTimeout = null;
     }
 
-    // 🔧 FIX: Unsubscribe from realtime updates to prevent memory leaks
+    // 🔧 FIX: Unsubscribe from realtime updates (ChartCore handles subscriptions)
     dataStore.unsubscribeFromRealtime();
 
     // Cleanup services
