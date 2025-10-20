@@ -3,9 +3,11 @@
  * @description Unified Redis cache and data fetching service for chart data
  * Part of Phase 5D: Chart Services Consolidation
  * Replaces RedisChartService with enhanced unified approach
+ * 🚀 PHASE 17: Added LRU cache for bounded memory with automatic eviction
  */
 
 import type { CandleData } from '../../types/coinbase';
+import { LRUCache, createCacheKey } from '../../utils/LRUCache';
 
 interface DataRequest {
   pair: string;
@@ -42,6 +44,16 @@ export class ChartCacheService {
   private backendUrl: string = `http://${this.getBackendHost()}:4828`;
   private readonly FETCH_TIMEOUT_MS = 5000; // 5 second timeout to prevent freezes
   private readonly HEALTH_CHECK_TIMEOUT_MS = 2000; // 2 second timeout for health checks
+
+  // 🚀 PHASE 17: LRU cache for chart data with bounded memory
+  // Stores fetched candles with max 500 entries (each entry ~50KB = 25MB max)
+  private memoryCache = new LRUCache<string, CandleData[]>({
+    maxSize: 500,
+    onEvict: (key, value) => {
+      // Log when old cache entries are evicted (optional debugging)
+      // console.log(`[LRUCache] Evicting ${key} (${value.length} candles)`);
+    }
+  });
 
   private getBackendHost(): string {
     const envHost = (import.meta as any)?.env?.VITE_BACKEND_HOST;
@@ -96,6 +108,24 @@ export class ChartCacheService {
   async fetchCandles(request: DataRequest): Promise<CandleData[]> {
     const { pair, granularity, start, end, limit = 1000 } = request;
 
+    // 🚀 PHASE 17: Check LRU memory cache first (eliminates network call)
+    // Cache key includes pair and granularity (most common request pattern)
+    const cacheKey = createCacheKey(pair, granularity);
+    const cachedCandles = this.memoryCache.get(cacheKey);
+
+    if (cachedCandles) {
+      // Filter to requested time range if needed
+      if (start && end) {
+        return cachedCandles.filter(c => {
+          const time = typeof c.time === 'number' ? c.time : parseInt(c.time as any);
+          return time >= start && time <= end;
+        });
+      }
+
+      // Return up to limit candles
+      return cachedCandles.slice(-limit);
+    }
+
     try {
       const params = new URLSearchParams({
         pair: pair || 'BTC-USD',
@@ -130,7 +160,14 @@ export class ChartCacheService {
         return [];
       }
 
-      return result.data.candles || [];
+      const candles = result.data.candles || [];
+
+      // 🚀 PHASE 17: Store in LRU cache for future requests
+      if (candles.length > 0) {
+        this.memoryCache.set(cacheKey, candles);
+      }
+
+      return candles;
     } catch (error) {
       console.warn('Failed to fetch candles:', error);
       return [];
