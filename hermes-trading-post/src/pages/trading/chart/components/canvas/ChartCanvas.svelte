@@ -123,13 +123,15 @@
     dataManager.updateVolumeData();
     prevCandleCount = dataStore.candles.length;
 
-    // Initialize historical data loader for scrolling to load more
+    // 🚀 PHASE 6: Initialize historical data loader for lazy loading on zoom-out
+    // User zooms out → triggers automatic load of 60 more candles
+    // No button needed - seamless infinite scroll experience
     historicalDataLoader = useHistoricalDataLoader({
       chart,
       candleSeries,
-      loadThreshold: 0.1,
-      loadAmount: 300,
-      debounceMs: 500
+      loadThreshold: 0.1,      // Load when within 10% of data edge
+      loadAmount: 60,          // Load 60 candles at a time (matches initial load)
+      debounceMs: 500          // Debounce zoom events to avoid rapid loads
     });
 
     // Notify parent component chart is ready

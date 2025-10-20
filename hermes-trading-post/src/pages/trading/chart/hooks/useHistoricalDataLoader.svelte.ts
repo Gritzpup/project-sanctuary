@@ -9,17 +9,17 @@ interface UseHistoricalDataLoaderConfig {
   chart: IChartApi | null;
   candleSeries: ISeriesApi<'Candlestick'> | null;
   loadThreshold?: number; // How close to the edge before loading more data (default: 0.1 = 10%)
-  loadAmount?: number; // Number of additional candles to load (default: 300)
+  loadAmount?: number; // Number of additional candles to load (default: 60 - matches initial lazy load)
   debounceMs?: number; // Debounce time for scroll events (default: 500ms)
 }
 
 export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
-  const { 
-    chart, 
-    candleSeries, 
-    loadThreshold = 0.1, 
-    loadAmount = 300,
-    debounceMs = 500 
+  const {
+    chart,
+    candleSeries,
+    loadThreshold = 0.1,
+    loadAmount = 60,  // 🚀 PHASE 6: Changed from 300 to 60 for consistent lazy loading
+    debounceMs = 500
   } = config;
   
   let isLoading = false;

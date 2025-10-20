@@ -15,9 +15,11 @@
   let lastCandleCount = $state(0);
   let animationTimeout: NodeJS.Timeout | null = null;
 
-  // ✅ REACTIVE: Use dataStore.stats.totalCount directly for instant updates
-  // No need to query chart - dataStore already has the count and updates instantly
-  const displayCount = $derived(dataStore.stats.totalCount || 0);
+  // 🚀 PHASE 6: Use visibleCount instead of totalCount
+  // Shows only candles currently visible in chart viewport, not total loaded
+  // This is more useful than showing total DB candles (already shown in "DB:" stat)
+  // Updates as user pans/zooms to show what's actually on screen
+  const displayCount = $derived(dataStore.stats.visibleCount || 0);
 
   // Track new candles for animation
   $effect(() => {
