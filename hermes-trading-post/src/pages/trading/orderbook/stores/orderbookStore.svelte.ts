@@ -34,6 +34,12 @@ class OrderbookStore {
   private _lastBidVersion = 0;
   private _lastAskVersion = 0;
 
+  // 🚀 PHASE 14c: Memoization caches for getBids/getAsks
+  private _bidsMemoCache: Map<number, Array<{ price: number; size: number }>> = new Map();
+  private _asksMemoCache: Map<number, Array<{ price: number; size: number }>> = new Map();
+  private _lastBidsCacheVersion: number = 0;
+  private _lastAsksCacheVersion: number = 0;
+
   public isReady = $state(false);
   public productId = $state('BTC-USD');
 
@@ -521,20 +527,68 @@ class OrderbookStore {
 
   /**
    * Get top N bids for orderbook list display - uses cached sorted array
+   * 🚀 PHASE 14c: Memoized to avoid repeated slicing and mapping
    */
   getBids(count: number = 10): Array<{ price: number; size: number }> {
-    return this._sortedBids
+    // Check cache: if data hasn't changed and count is same, return cached result
+    if (this._lastBidsCacheVersion === this._lastBidVersion) {
+      const cached = this._bidsMemoCache.get(count);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    // Cache miss or data changed: recalculate
+    const result = this._sortedBids
       .slice(0, count)
       .map(([price, size]) => ({ price, size }));
+
+    // Update cache
+    this._bidsMemoCache.set(count, result);
+    this._lastBidsCacheVersion = this._lastBidVersion;
+
+    // 🚀 PHASE 14c: Clean up old cache entries if too many
+    if (this._bidsMemoCache.size > 5) {
+      const keys = Array.from(this._bidsMemoCache.keys());
+      for (let i = 0; i < keys.length - 5; i++) {
+        this._bidsMemoCache.delete(keys[i]);
+      }
+    }
+
+    return result;
   }
 
   /**
    * Get top N asks for orderbook list display - uses cached sorted array
+   * 🚀 PHASE 14c: Memoized to avoid repeated slicing and mapping
    */
   getAsks(count: number = 10): Array<{ price: number; size: number }> {
-    return this._sortedAsks
+    // Check cache: if data hasn't changed and count is same, return cached result
+    if (this._lastAsksCacheVersion === this._lastAskVersion) {
+      const cached = this._asksMemoCache.get(count);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    // Cache miss or data changed: recalculate
+    const result = this._sortedAsks
       .slice(0, count)
       .map(([price, size]) => ({ price, size }));
+
+    // Update cache
+    this._asksMemoCache.set(count, result);
+    this._lastAsksCacheVersion = this._lastAskVersion;
+
+    // 🚀 PHASE 14c: Clean up old cache entries if too many
+    if (this._asksMemoCache.size > 5) {
+      const keys = Array.from(this._asksMemoCache.keys());
+      for (let i = 0; i < keys.length - 5; i++) {
+        this._asksMemoCache.delete(keys[i]);
+      }
+    }
+
+    return result;
   }
 
   /**

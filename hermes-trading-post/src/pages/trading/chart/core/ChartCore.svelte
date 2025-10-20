@@ -169,6 +169,21 @@
 
   onMount(async () => {
     try {
+      // ⚡ CRITICAL FIX: Wait for series to be created before loading data
+      // Otherwise loadData() will have undefined series and won't set chart data
+      let maxWaitTime = 5000; // 5 second timeout
+      let startTime = Date.now();
+      let series = chartCanvas?.getSeries();
+
+      while (!series && (Date.now() - startTime) < maxWaitTime) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        series = chartCanvas?.getSeries();
+      }
+
+      if (!series) {
+        console.warn('Series not created after 5 seconds, proceeding anyway');
+      }
+
       // Use initialization service
       await initService.initialize({
         pair,
@@ -181,7 +196,7 @@
       statusStore.setReady();
       isInitialized = true;
 
-      // Load data in background
+      // Load data in background - series should now exist
       dataLoader.loadData({
         pair,
         granularity,

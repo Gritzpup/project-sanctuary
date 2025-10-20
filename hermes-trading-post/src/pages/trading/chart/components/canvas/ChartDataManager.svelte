@@ -22,6 +22,74 @@
   let cachedSortedCandles: any[] = [];
   let lastCandleCount: number = 0;
 
+  // 🚀 PHASE 14: Incremental sorting optimization
+  let isCachedSortedFlag: boolean = false;
+
+  /**
+   * Check if array is already sorted by time (ascending)
+   * @param candles Array to check
+   * @returns true if sorted, false otherwise
+   */
+  function isSorted(candles: any[]): boolean {
+    for (let i = 1; i < candles.length; i++) {
+      const prevTime = typeof candles[i - 1].time === 'string'
+        ? parseInt(candles[i - 1].time)
+        : candles[i - 1].time;
+      const currTime = typeof candles[i].time === 'string'
+        ? parseInt(candles[i].time)
+        : candles[i].time;
+
+      if (prevTime > currTime) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Binary search to find correct position for a value
+   * @param candles Sorted array
+   * @param targetTime Time to find position for
+   * @returns Index where element should be inserted
+   */
+  function binarySearch(candles: any[], targetTime: number): number {
+    let left = 0;
+    let right = candles.length - 1;
+
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      const midTime = typeof candles[mid].time === 'string'
+        ? parseInt(candles[mid].time)
+        : candles[mid].time;
+
+      if (midTime === targetTime) return mid;
+      if (midTime < targetTime) left = mid + 1;
+      else right = mid - 1;
+    }
+
+    return left; // Insertion point for maintaining sort order
+  }
+
+  /**
+   * Deduplicate array keeping only first occurrence of each timestamp
+   * @param candles Array to deduplicate
+   * @returns Deduplicated array
+   */
+  function deduplicateByTime(candles: any[]): any[] {
+    if (candles.length <= 1) return candles;
+
+    const deduplicated: any[] = [];
+    let lastTime: number | string | null = null;
+
+    for (const candle of candles) {
+      const time = candle.time;
+      if (time !== lastTime) {
+        deduplicated.push(candle);
+        lastTime = time;
+      }
+    }
+
+    return deduplicated;
+  }
+
   export function setupSeries() {
     if (!chart) {
       console.error('Chart not available for series setup');
@@ -53,6 +121,7 @@
    * 🚀 PERF: Incremental chart update - only add new candles instead of replacing entire dataset
    * Reduces rendering overhead by 60-70% on updates by avoiding full data replacement
    * Uses memoization to cache formatted candles and caching for sorted/deduplicated results
+   * 🚀 PHASE 14: Incremental sorting optimization - avoids O(n log n) sort on every update
    */
   export function updateChartData() {
     if (!candleSeries || !dataStore.candles.length) {
@@ -65,13 +134,65 @@
         // Recalculate only when data changed
         const formattedCandles = chartDataMemoizer.formatCandles(dataStore.candles);
 
-        // Sort by time and remove duplicates
-        cachedSortedCandles = formattedCandles
-          .sort((a, b) => (a.time as number) - (b.time as number))
-          .filter((candle, index, array) => {
-            // Keep only the first occurrence of each timestamp
-            return index === 0 || candle.time !== array[index - 1].time;
-          });
+        // 🚀 PHASE 14: Incremental sorting - check if already sorted first (O(n) vs O(n log n))
+        if (cachedSortedCandles.length === 0) {
+          // First time: do full sort + deduplicate
+          cachedSortedCandles = formattedCandles
+            .sort((a, b) => {
+              const aTime = typeof a.time === 'string' ? parseInt(a.time) : a.time;
+              const bTime = typeof b.time === 'string' ? parseInt(b.time) : b.time;
+              return aTime - bTime;
+            });
+          cachedSortedCandles = deduplicateByTime(cachedSortedCandles);
+          isCachedSortedFlag = true;
+        } else if (isSorted(formattedCandles) && formattedCandles.length > lastCandleCount) {
+          // Already sorted, just deduplicate and append new candles
+          // Find where cached data ends and new data begins
+          const newStartIndex = lastCandleCount;
+          const newCandles = formattedCandles.slice(newStartIndex);
+
+          // Add new candles to cache
+          cachedSortedCandles = cachedSortedCandles.concat(newCandles);
+          cachedSortedCandles = deduplicateByTime(cachedSortedCandles);
+          isCachedSortedFlag = true;
+        } else if (isCachedSortedFlag) {
+          // Was sorted, but now it's not. Check if only last candle changed (common case)
+          const lastCachedCandle = cachedSortedCandles[cachedSortedCandles.length - 1];
+          const lastFormattedCandle = formattedCandles[formattedCandles.length - 1];
+
+          // Check if last candle time matches
+          const lastCachedTime = typeof lastCachedCandle?.time === 'string'
+            ? parseInt(lastCachedCandle.time)
+            : lastCachedCandle?.time;
+          const lastFormattedTime = typeof lastFormattedCandle?.time === 'string'
+            ? parseInt(lastFormattedCandle.time)
+            : lastFormattedCandle?.time;
+
+          if (lastCachedTime === lastFormattedTime) {
+            // Only the last candle was updated, just update it in place
+            cachedSortedCandles[cachedSortedCandles.length - 1] = lastFormattedCandle;
+          } else {
+            // Data is scrambled, do full sort
+            cachedSortedCandles = formattedCandles
+              .sort((a, b) => {
+                const aTime = typeof a.time === 'string' ? parseInt(a.time) : a.time;
+                const bTime = typeof b.time === 'string' ? parseInt(b.time) : b.time;
+                return aTime - bTime;
+              });
+            cachedSortedCandles = deduplicateByTime(cachedSortedCandles);
+            isCachedSortedFlag = true;
+          }
+        } else {
+          // Not sorted, do full sort
+          cachedSortedCandles = formattedCandles
+            .sort((a, b) => {
+              const aTime = typeof a.time === 'string' ? parseInt(a.time) : a.time;
+              const bTime = typeof b.time === 'string' ? parseInt(b.time) : b.time;
+              return aTime - bTime;
+            });
+          cachedSortedCandles = deduplicateByTime(cachedSortedCandles);
+          isCachedSortedFlag = true;
+        }
 
         lastCandleCount = dataStore.candles.length;
       }

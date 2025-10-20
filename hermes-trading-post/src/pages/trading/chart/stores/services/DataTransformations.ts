@@ -47,7 +47,7 @@ export class DataTransformations {
   }
 
   private performCandleTransform(candles: any[]): CandlestickDataWithVolume[] {
-    return candles
+    const transformed = candles
       .map(c => this.transformCandle(c))
       .filter((c): c is CandlestickDataWithVolume => c !== null)
       .sort((a, b) => {
@@ -55,6 +55,20 @@ export class DataTransformations {
         const bTime = typeof b.time === 'string' ? parseInt(b.time) : b.time;
         return aTime - bTime;
       });
+
+    // ⚡ Deduplicate candles with same timestamp (keep first one)
+    // This fixes assertion errors in data loader when timestamps are identical
+    const deduplicated: CandlestickDataWithVolume[] = [];
+    let lastTime: number | string | null = null;
+
+    for (const candle of transformed) {
+      if (candle.time !== lastTime) {
+        deduplicated.push(candle);
+        lastTime = candle.time;
+      }
+    }
+
+    return deduplicated;
   }
 
   /**

@@ -19,6 +19,10 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   private colorCache: Map<number, { isPriceUp: boolean; color: string }> = new Map();  // Cache volume colors
   private dataStoreUnsubscribe: (() => void) | null = null;  // Track dataStore subscription
 
+  // 🚀 PHASE 14b: Color caching optimization
+  private lastCacheClearTime: number = Date.now();
+  private CACHE_TTL_MS: number = 30000; // Clear cache every 30 seconds for freshness
+
   constructor(settings?: VolumePluginSettings) {
     
     const defaultSettings: VolumePluginSettings = {
@@ -163,6 +167,9 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       const upColor = settings.upColor || '#26a69aCC';
       const downColor = settings.downColor || '#ef5350CC';
 
+      // 🚀 PHASE 14b: Check if color cache needs clearing (TTL-based invalidation)
+      this.shouldClearColorCache(candles.length);
+
       // 🚀 PHASE 8: Detect if this is a full initialization or incremental update
       const isFullRecalc = this.lastProcessedIndex === -1 || candles.length > this.lastCandleCount;
 
@@ -170,7 +177,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         // Full recalculation: Initialize or reload entire dataset
         // PERF: Disabled - console.log(`VolumePlugin: Full recalculation (${candles.length} candles)`);
         this.volumeData = new Array(candles.length);
-        this.colorCache.clear();
 
         for (let i = 0; i < candles.length; i++) {
           const candle = candles[i];
@@ -227,6 +233,48 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       // PERF: Disabled - console.error('VolumePlugin: Error getting dataStore:', error);
       return [];
     }
+  }
+
+  // 🚀 PHASE 14b: Helper method to get color for a candle with caching
+  private getColorForCandle(
+    index: number,
+    candle: any,
+    prevCandle: any,
+    upColor: string,
+    downColor: string
+  ): string {
+    // Check if cached
+    const cached = this.colorCache.get(index);
+    if (cached) {
+      return cached.color;
+    }
+
+    // Calculate new color
+    const isPriceUp = prevCandle ? candle.close >= prevCandle.close : true;
+    const color = isPriceUp ? upColor : downColor;
+
+    // Cache it
+    this.colorCache.set(index, { isPriceUp, color });
+
+    return color;
+  }
+
+  // 🚀 PHASE 14b: Check if cache needs clearing due to TTL
+  private shouldClearColorCache(candleCount: number): boolean {
+    const timeSinceLastClear = Date.now() - this.lastCacheClearTime;
+    const cacheSize = this.colorCache.size;
+
+    // Clear if:
+    // 1. Cache is 2x larger than current data (stale entries)
+    // 2. TTL expired (30 seconds)
+    const shouldClear = cacheSize > candleCount * 2 || timeSinceLastClear > this.CACHE_TTL_MS;
+
+    if (shouldClear) {
+      this.colorCache.clear();
+      this.lastCacheClearTime = Date.now();
+    }
+
+    return shouldClear;
   }
 
   // Public methods
