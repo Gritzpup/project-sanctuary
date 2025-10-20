@@ -50,26 +50,19 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   let unsubscribeFromDataStore: (() => void) | null = null;  // Track dataStore callback unsubscribe
 
   function scheduleUpdate(price: number, chartSeries?: any, volumeSeries?: any, candleData?: any) {
-    console.log(`📅 [scheduleUpdate] price=${price}, chartSeries=${chartSeries ? '✅' : '❌'}, rafId=${rafId}`);
-
     // Store the latest update
     pendingUpdate = { price, chartSeries, volumeSeries, candleData };
 
     // Only schedule RAF if not already scheduled
     if (!rafId) {
-      console.log(`🎬 [scheduleUpdate] Scheduling RAF callback`);
       rafId = requestAnimationFrame(() => {
-        console.log(`⏱️  [RAF] Executing scheduled update`);
         if (pendingUpdate) {
           const { price, chartSeries, volumeSeries, candleData } = pendingUpdate;
-          console.log(`🎯 [RAF] Calling processUpdate with price=${price}, chartSeries=${chartSeries ? '✅' : '❌'}`);
           processUpdate(price, chartSeries, volumeSeries, candleData);
         }
         rafId = null;
         pendingUpdate = null;
       });
-    } else {
-      console.log(`✋ [scheduleUpdate] RAF already scheduled, updating pending data`);
     }
   }
 
@@ -171,11 +164,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
    * Updates live candle with new price data AND volume data
    */
   function processUpdate(price: number, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any, fullCandleData?: any) {
-    console.log(`📞 [processUpdate] Called with price=${price}, chartSeries=${chartSeries ? '✅' : '❌'}, volumeSeries=${volumeSeries ? '✅' : '❌'}`);
-    if (!chartSeries) {
-      console.error(`❌ [processUpdate] chartSeries is null/undefined - CANNOT UPDATE CHART!`);
-      return;
-    }
+    if (!chartSeries) return;
 
     const candles = dataStore.candles;
     if (candles.length === 0) {
@@ -417,18 +406,12 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   function subscribeToRealtime(config: RealtimeSubscriptionConfig, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any) {
     const { pair, granularity } = config;
 
-    console.log(`🔗 [subscribeToRealtime] pair=${pair}, granularity=${granularity}, chartSeries=${chartSeries ? '✅' : '❌'}`);
-
     // ⚡ PHASE 9A: Store current series references so callbacks can use them
     currentChartSeries = chartSeries || null;
     currentVolumeSeries = volumeSeries || null;
 
-    console.log(`📦 [subscribeToRealtime] Stored series references: currentChartSeries=${currentChartSeries ? '✅' : '❌'}, currentVolumeSeries=${currentVolumeSeries ? '✅' : '❌'}`);
-
     // ⚡ PHASE 10C: Register as dataStore callback so L2 price updates trigger chart candle updates
     // This ensures the chart updates in real-time when L2 orderbook prices change
-    console.log(`📋 [subscribeToRealtime] Registering chart update callback with dataStore`);
-
     // Unsubscribe from previous dataStore callback if one exists
     if (unsubscribeFromDataStore) {
       unsubscribeFromDataStore();
@@ -438,7 +421,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // When L2 prices update the candle, also update the chart series
       if (currentChartSeries && dataStore.candles.length > 0) {
         const lastCandle = dataStore.candles[dataStore.candles.length - 1];
-        console.log(`💾 [ChartCallback] L2 update triggered chart series update: price=${lastCandle.close}`);
         scheduleUpdate(lastCandle.close, currentChartSeries, currentVolumeSeries, lastCandle as any);
       }
     });
@@ -448,8 +430,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       pair,
       granularity,
       (candleData) => {
-        console.log(`🔊 [RTsub callback] Received candle update: close=${candleData.close}, currentChartSeries=${currentChartSeries ? '✅' : '❌'}`);
-
         // ⚡ Use RAF batching to throttle updates to 60 FPS max
         // This prevents UI thread saturation (was causing 135% CPU usage)
         // Use the stored current series references instead of captured params

@@ -598,15 +598,12 @@ class DataStore {
       this.orderbookPriceUnsubscribe();
     }
 
-    // Check if candles are loaded; if not, wait before subscribing
+    // ⚡ PHASE 10C: Defer L2 subscription until candles are loaded to avoid race condition
+    // L2 updates must have candles to update, otherwise they're wasted
     const subscribeToL2 = () => {
-      console.log(`🔌 [L2 Bridge] Subscribing to L2 prices (candles=${this._candles.length})`);
       this.orderbookPriceUnsubscribe = orderbookStore.subscribeToPriceUpdates((price: number) => {
         // Update latest price immediately from L2 data
         this._latestPrice = price;
-
-        // Log every L2 update to debug chart latency
-        console.log(`📊 [L2 Bridge] Price update: $${price.toFixed(2)}, candles.length=${this._candles.length}`);
 
         // ⚡ INSTANT UPDATE: Update candle immediately with L2 price (no RAF delay)
         // Chart must update as fast as orderbook - every L2 tick
@@ -621,14 +618,10 @@ class DataStore {
 
           // Update in place for reactivity
           this._candles[this._candles.length - 1] = updatedCandle;
-          console.log(`📈 [L2 Bridge] Candle updated: close=${price}, high=${updatedCandle.high}, low=${updatedCandle.low}`);
-        } else {
-          console.log(`⚠️  [L2 Bridge] No candles to update!`);
         }
 
         // Update stats and notify subscribers IMMEDIATELY (no batching delay)
         this._dataStats.lastUpdate = Date.now();
-        console.log(`🔔 [L2 Bridge] Calling notifyDataUpdate(true) with ${this.dataUpdateCallbacks.size} callbacks`);
         this.notifyDataUpdate(true);  // ✅ immediate=true skips 16ms batcher
       });
     };
@@ -637,7 +630,7 @@ class DataStore {
     if (this._candles.length > 0) {
       subscribeToL2();
     } else {
-      console.log(`⏱️  [L2 Bridge] Deferring subscription - waiting for candles to load`);
+      // Candles not yet loaded, check periodically and subscribe when ready
       // Clear any existing check interval
       if (this.l2SubscriptionCheckInterval) {
         clearInterval(this.l2SubscriptionCheckInterval);
@@ -797,27 +790,21 @@ class DataStore {
    */
   private notifyDataUpdate(immediate: boolean = false) {
     const executeCallbacks = () => {
-      console.log(`⚡ [notifyDataUpdate] Executing ${this.dataUpdateCallbacks.size} callbacks`);
-      let index = 0;
       this.dataUpdateCallbacks.forEach((callback) => {
         try {
-          console.log(`   → Callback ${++index}/${this.dataUpdateCallbacks.size}`);
           callback();
         } catch (error) {
-          console.error(`❌ [DataStore] Error in data update callback ${index}:`, error);
+          // PERF: Disabled - console.error(`❌ [DataStore] Error in data update callback:`, error);
         }
       });
-      console.log(`✅ [notifyDataUpdate] All callbacks executed`);
     };
 
     if (immediate) {
       // ⚡ PHASE 10: For real-time L2 updates, execute immediately (no 16ms batcher delay)
       // This keeps chart responsive to price changes
-      console.log(`🔥 [notifyDataUpdate] IMMEDIATE mode - executing callbacks now`);
       executeCallbacks();
     } else {
       // For historical data loads, use batcher to group updates
-      console.log(`⏱️  [notifyDataUpdate] BATCHED mode - scheduling callbacks with 16ms delay`);
       dataUpdateNotifier.scheduleNotification(executeCallbacks);
     }
   }
