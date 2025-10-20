@@ -197,6 +197,7 @@ class DataStore {
         const cachedCandles = cachedData.candles;
         const candlesToLoad = maxCandles ? cachedCandles.slice(-maxCandles) : cachedCandles;
 
+        console.log(`[DataStore CACHE HIT] Loading ${candlesToLoad.length} candles (maxCandles=${maxCandles})`);
         ChartDebug.log(`⚡ INSTANT LOAD from IndexedDB: ${candlesToLoad.length}/${cachedCandles.length} candles (${performance.now() - perfStart}ms)`);
 
         this.setCandles(candlesToLoad);
@@ -283,6 +284,7 @@ class DataStore {
           }
         }
 
+        console.log(`[DataStore CACHE MISS - BACKEND] Loading ${data.length} candles from backend`);
         this.setCandles(data);
         this.updateStats();
 
@@ -337,6 +339,7 @@ class DataStore {
       }
     }
 
+    console.log(`[DataStore RELOAD] Loading ${data.length} candles via reloadData`);
     this.setCandles(data);
     this.updateStats();
 
@@ -379,6 +382,10 @@ class DataStore {
 
     if (sortedCandles.length < candles.length) {
       // PERF: Disabled - console.warn(`⚠️ [DataStore] Filtered out ${candles.length - sortedCandles.length} invalid candles`);
+    }
+
+    if (sortedCandles.length > 100) {
+      console.log(`[DataStore] setCandles called with ${sortedCandles.length} candles - Stack:`, new Error().stack?.split('\n').slice(1,5).join('\n'));
     }
 
     this._candles = sortedCandles;
@@ -443,6 +450,7 @@ class DataStore {
   }
 
   async fetchAndPrependHistoricalData(additionalCandleCount: number = 300): Promise<number> {
+    console.log(`[DataStore] fetchAndPrependHistoricalData called with ${additionalCandleCount} candles`);
     try {
       if (this._candles.length === 0) return 0;
       

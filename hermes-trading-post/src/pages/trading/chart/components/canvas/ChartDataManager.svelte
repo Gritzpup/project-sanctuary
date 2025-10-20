@@ -134,6 +134,9 @@
     try {
       // 🚀 PERF: Only recalculate sorted candles if candle count changed
       if (dataStore.candles.length !== lastCandleCount) {
+        if (dataStore.candles.length > 100) {
+          console.log(`[ChartDataManager] updateChartData: candle count changed from ${lastCandleCount} to ${dataStore.candles.length}`);
+        }
         // Recalculate only when data changed
         const formattedCandles = chartDataMemoizer.formatCandles(dataStore.candles);
 

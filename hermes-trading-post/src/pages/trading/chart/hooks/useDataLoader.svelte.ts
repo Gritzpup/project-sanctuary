@@ -166,6 +166,7 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
           console.warn(`⚠️ [DataLoader] Filtered out ${candles.length - validCandles.length} invalid candles before chart display`);
         }
 
+        console.log(`[useDataLoader] Setting chart data with ${validCandles.length} valid candles (from ${candles.length} total)`);
         config.series.setData(validCandles);
 
         // Positioning after setting data - let ChartCanvas handle it
