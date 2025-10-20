@@ -47,53 +47,8 @@
   // Positioning debounce
   let positioningTimeout: NodeJS.Timeout | null = null;
 
-  // ⚡ PHASE 13: Only trigger when candle COUNT changes, not on every price update
-  // Subscribe to dataStore updates only when candle count changes
-  $effect.pre(() => {
-    // Get candle count directly without $derived to avoid reactive loops
-    const currentCandleCount = dataStore.candles.length;
-
-    // Only proceed if we have chart, series, and data
-    if (chart && candleSeries && currentCandleCount > 0) {
-      // Check if candle count changed
-      const candleCountChanged = currentCandleCount !== lastCandleCount;
-
-      // Apply positioning ONLY if:
-      // 1. Candle count changed (new candle arrived), OR
-      // 2. This is the first time we have data (lastCandleCount === 0)
-      if (candleCountChanged || lastCandleCount === 0) {
-        lastCandleCount = currentCandleCount;
-
-        // dataManager will handle price updates via direct L2 subscription
-        // This effect only handles structural changes (new candles)
-        dataManager?.updateChartData();
-
-        // Don't auto-position if user has interacted recently
-        if (interactionTracker && positioningService) {
-          const timeSinceInteraction =
-            Date.now() - interactionTracker.getLastInteractionTime();
-          if (!interactionTracker.hasUserInteracted() || timeSinceInteraction > 10000) {
-            // Debounce positioning
-            if (positioningTimeout) {
-              clearTimeout(positioningTimeout);
-            }
-
-            positioningTimeout = setTimeout(() => {
-              applyOptimalPositioning();
-              positioningTimeout = null;
-
-              // Ensure we scroll to real-time after rendering
-              setTimeout(() => {
-                if (chart && !interactionTracker?.hasUserInteracted()) {
-                  positioningService?.scrollToRealTime();
-                }
-              }, 150);
-            }, 50);
-          }
-        }
-      }
-    }
-  });
+  // Track previous candle count for comparison (avoid reactive dependencies)
+  let prevCandleCount: number = 0;
 
   onMount(() => {
     initializeChart();
@@ -159,15 +114,18 @@
       // Cache loaded successfully, update chart with data
       dataManager.updateChartData();
       dataManager.updateVolumeData();
+      prevCandleCount = dataStore.candles.length;
     }).catch(error => {
       console.error('Cache hydration failed, will use WebSocket data:', error);
       // Still update chart even if cache fails
       dataManager.updateChartData();
       dataManager.updateVolumeData();
+      prevCandleCount = dataStore.candles.length;
     });
 
     // Subscribe to real-time candle updates with current granularity
     dataStore.subscribeToRealtime(pair, granularity, (candle) => {
+      // Let dataManager handle the realtime update (it updates candle price only, no full reload)
       dataManager.handleRealtimeUpdate(candle);
     });
 
@@ -194,6 +152,9 @@
       positioningTimeout = null;
     }
 
+    // 🔧 FIX: Unsubscribe from realtime updates to prevent memory leaks
+    dataStore.unsubscribeFromRealtime();
+
     // Cleanup services
     positioningService?.destroy();
     resizeManager?.destroy();
@@ -212,6 +173,9 @@
 
     candleSeries = null;
     volumeSeries = null;
+
+    // 🔧 FIX: Cleanup dataStore to clear callbacks
+    dataStore.destroy();
   }
 
   // Helper function for applying optimal positioning

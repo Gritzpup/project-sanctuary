@@ -755,11 +755,16 @@ class DataStore {
   // Cleanup
   destroy() {
     this.unsubscribeFromRealtime();
-    
+
     if (this.newCandleTimeout) {
       clearTimeout(this.newCandleTimeout);
     }
-    
+
+    // 🔧 FIX: Clear callback Sets to prevent memory leaks
+    // These Sets accumulate callbacks indefinitely if not cleared
+    this.dataUpdateCallbacks.clear();
+    this.historicalDataLoadedCallbacks.clear();
+
     chartRealtimeService.disconnect();
   }
 
