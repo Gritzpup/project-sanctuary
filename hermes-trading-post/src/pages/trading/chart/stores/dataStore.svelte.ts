@@ -88,10 +88,30 @@ class DataStore {
       this._dataStats.loadingStatus = 'fetching';
       // PERF: Disabled - console.log(`💾 [DataStore] Hydrating from Redis cache for ${pair}:${granularity} (${hours}h)`);
 
-      const response = await fetch(`/api/candles/${pair}/${granularity}?hours=${hours}`);
+      // ⚡ PHASE 13: Add retry logic for transient network failures
+      // Sometimes fetch fails on initial page load due to timing, retry up to 3 times
+      let response = null;
+      let lastError = null;
+      const MAX_RETRIES = 3;
 
-      if (!response.ok) {
-        // PERF: Disabled - console.log(`⏭️ [DataStore] No cached candles available (HTTP ${response.status})`);
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+          response = await fetch(`/api/candles/${pair}/${granularity}?hours=${hours}`, {
+            signal: AbortSignal.timeout(10000) // 10 second timeout per attempt
+          });
+          if (response.ok) break;  // Success, exit retry loop
+          lastError = `HTTP ${response.status}`;
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : String(error);
+          if (attempt < MAX_RETRIES - 1) {
+            // Wait 200-500ms before retrying (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, 200 * Math.pow(1.5, attempt)));
+          }
+        }
+      }
+
+      if (!response?.ok) {
+        // PERF: Disabled - console.log(`⏭️ [DataStore] No cached candles available (${lastError})`);
         this._dataStats.loadingStatus = 'idle';
         return;
       }
