@@ -215,6 +215,9 @@
           isInitialDataLoaded = true;
           ChartDebug.log('✅ Historical data loaded, now safe to subscribe to real-time');
 
+          // Update chart display with loaded data
+          chartCanvas?.updateChartDisplay();
+
           // NOW subscribe to real-time after historical data is loaded
           // This ensures current price candle aligns with historical data
           subscriptionOrchestrator.subscribeAfterPositioning(
@@ -235,6 +238,9 @@
             // User can always refresh manually if needed
             ChartDebug.log('❌ Data load failed after 3 attempts. Subscribing to real-time without historical data.');
             isInitialDataLoaded = true;
+
+            // Update chart display with whatever data we have
+            chartCanvas?.updateChartDisplay();
 
             subscriptionOrchestrator.subscribeAfterPositioning(
               { pair, granularity },

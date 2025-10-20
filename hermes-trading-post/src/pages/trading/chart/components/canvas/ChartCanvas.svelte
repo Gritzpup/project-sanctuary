@@ -260,6 +260,16 @@
     }
     return false;
   }
+
+  // 🔧 FIX: Called by ChartCore after loading data to render it
+  export function updateChartDisplay() {
+    if (!candleSeries || !dataStore.candles.length) {
+      return;
+    }
+    dataManager?.updateChartData();
+    dataManager?.updateVolumeData();
+    prevCandleCount = dataStore.candles.length;
+  }
 </script>
 
 <ChartInitializer bind:this={chartInitializer} {container} {width} {height} />
