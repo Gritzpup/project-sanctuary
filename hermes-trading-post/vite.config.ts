@@ -40,30 +40,79 @@ export default defineConfig({
     }
   },
   // 🚀 PHASE 16b: Build optimization and tree-shaking
+  // 🚀 PHASE 17c: Route-based code splitting for faster initial load
   build: {
     target: 'ES2020',
     minify: 'terser',
     sourcemap: false,
     rollupOptions: {
       output: {
-        // Split vendor code into separate chunk for better caching
+        // 🚀 PHASE 17: Split route-specific code into separate chunks
+        // Each route loads only its dependencies, reducing initial bundle
         manualChunks: (id) => {
+          // High-priority splits (heavy dependencies)
           if (id.includes('lightweight-charts')) {
             return 'chart-lib';
           }
+
+          // 🚀 PHASE 17: Route-specific chunks
+          // Chart route: chart components, plugins, services
+          if (
+            id.includes('pages/trading/chart') &&
+            (id.includes('components') ||
+              id.includes('plugins') ||
+              id.includes('services') ||
+              id.includes('stores') ||
+              id.includes('hooks'))
+          ) {
+            return 'chart-route';
+          }
+
+          // Orderbook route: orderbook components and services
+          if (
+            id.includes('pages/trading/orderbook') &&
+            (id.includes('components') ||
+              id.includes('services') ||
+              id.includes('stores') ||
+              id.includes('utils'))
+          ) {
+            return 'orderbook-route';
+          }
+
+          // Analytics route (if exists)
+          if (
+            id.includes('pages/trading/analytics') ||
+            id.includes('pages/analytics')
+          ) {
+            return 'analytics-route';
+          }
+
+          // Settings route (if exists)
+          if (id.includes('pages/settings')) {
+            return 'settings-route';
+          }
+
+          // Node modules splitting
           if (id.includes('node_modules')) {
-            // Group other node_modules together
+            // Separate Svelte framework from other vendors
             if (id.includes('@sveltejs')) {
-              return 'svelte';
+              return 'svelte-framework';
             }
+            // Separate UI/styling libraries
+            if (id.includes('recharts') || id.includes('d3')) {
+              return 'viz-libs';
+            }
+            // Everything else
             return 'vendor';
           }
         },
+
         // Optimize chunk names
         chunkFileNames: 'chunks/[name]-[hash].js',
         entryFileNames: '[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]'
       },
+
       // Tree-shake unused code
       treeshake: {
         moduleSideEffects: false
