@@ -38,6 +38,7 @@ class DataStore {
   private realtimeUnsubscribe: (() => void) | null = null;
   private orderbookPriceUnsubscribe: (() => void) | null = null;
   private newCandleTimeout: NodeJS.Timeout | null = null;
+  private l2SubscriptionCheckInterval: NodeJS.Timeout | null = null;  // Track the candle-loading check interval
 
   // Subscription mechanism for plugins
   private dataUpdateCallbacks: Set<() => void> = new Set();
@@ -591,39 +592,65 @@ class DataStore {
 
     // ALSO subscribe to orderbook L2 data for instant price updates
     // This is MUCH faster than waiting for candle/ticker updates
+    // ⚠️ WAIT: Only subscribe to L2 if we already have candles loaded
+    // Otherwise we'll get updates for empty array (race condition)
     if (this.orderbookPriceUnsubscribe) {
       this.orderbookPriceUnsubscribe();
     }
 
-    this.orderbookPriceUnsubscribe = orderbookStore.subscribeToPriceUpdates((price: number) => {
-      // Update latest price immediately from L2 data
-      this._latestPrice = price;
+    // Check if candles are loaded; if not, wait before subscribing
+    const subscribeToL2 = () => {
+      console.log(`🔌 [L2 Bridge] Subscribing to L2 prices (candles=${this._candles.length})`);
+      this.orderbookPriceUnsubscribe = orderbookStore.subscribeToPriceUpdates((price: number) => {
+        // Update latest price immediately from L2 data
+        this._latestPrice = price;
 
-      // Log only once to confirm price updates are working
-      if (!this._priceUpdateLoggedOnce) {
-        // PERF: Disabled - console.log(`✅ [DataStore] L2 price updates active: $${price.toFixed(2)}`);
-        this._priceUpdateLoggedOnce = true;
+        // Log every L2 update to debug chart latency
+        console.log(`📊 [L2 Bridge] Price update: $${price.toFixed(2)}, candles.length=${this._candles.length}`);
+
+        // ⚡ INSTANT UPDATE: Update candle immediately with L2 price (no RAF delay)
+        // Chart must update as fast as orderbook - every L2 tick
+        if (this._candles.length > 0) {
+          const lastCandle = this._candles[this._candles.length - 1];
+          const updatedCandle = {
+            ...lastCandle,
+            close: price,
+            high: Math.max(lastCandle.high, price),
+            low: Math.min(lastCandle.low, price)
+          };
+
+          // Update in place for reactivity
+          this._candles[this._candles.length - 1] = updatedCandle;
+          console.log(`📈 [L2 Bridge] Candle updated: close=${price}, high=${updatedCandle.high}, low=${updatedCandle.low}`);
+        } else {
+          console.log(`⚠️  [L2 Bridge] No candles to update!`);
+        }
+
+        // Update stats and notify subscribers IMMEDIATELY (no batching delay)
+        this._dataStats.lastUpdate = Date.now();
+        console.log(`🔔 [L2 Bridge] Calling notifyDataUpdate(true) with ${this.dataUpdateCallbacks.size} callbacks`);
+        this.notifyDataUpdate(true);  // ✅ immediate=true skips 16ms batcher
+      });
+    };
+
+    // Subscribe immediately if candles are already loaded, otherwise defer
+    if (this._candles.length > 0) {
+      subscribeToL2();
+    } else {
+      console.log(`⏱️  [L2 Bridge] Deferring subscription - waiting for candles to load`);
+      // Clear any existing check interval
+      if (this.l2SubscriptionCheckInterval) {
+        clearInterval(this.l2SubscriptionCheckInterval);
       }
-
-      // ⚡ INSTANT UPDATE: Update candle immediately with L2 price (no RAF delay)
-      // Chart must update as fast as orderbook - every L2 tick
-      if (this._candles.length > 0) {
-        const lastCandle = this._candles[this._candles.length - 1];
-        const updatedCandle = {
-          ...lastCandle,
-          close: price,
-          high: Math.max(lastCandle.high, price),
-          low: Math.min(lastCandle.low, price)
-        };
-
-        // Update in place for reactivity
-        this._candles[this._candles.length - 1] = updatedCandle;
-      }
-
-      // Update stats and notify subscribers IMMEDIATELY (no batching delay)
-      this._dataStats.lastUpdate = Date.now();
-      this.notifyDataUpdate(true);  // ✅ immediate=true skips 16ms batcher
-    });
+      // Use a timeout to check periodically if candles are loaded
+      this.l2SubscriptionCheckInterval = setInterval(() => {
+        if (this._candles.length > 0) {
+          clearInterval(this.l2SubscriptionCheckInterval!);
+          this.l2SubscriptionCheckInterval = null;
+          subscribeToL2();
+        }
+      }, 100); // Check every 100ms
+    }
   }
 
   unsubscribeFromRealtime() {
@@ -636,6 +663,12 @@ class DataStore {
     if (this.orderbookPriceUnsubscribe) {
       this.orderbookPriceUnsubscribe();
       this.orderbookPriceUnsubscribe = null;
+    }
+
+    // Clear any pending L2 subscription check
+    if (this.l2SubscriptionCheckInterval) {
+      clearInterval(this.l2SubscriptionCheckInterval);
+      this.l2SubscriptionCheckInterval = null;
     }
   }
 
@@ -764,21 +797,27 @@ class DataStore {
    */
   private notifyDataUpdate(immediate: boolean = false) {
     const executeCallbacks = () => {
+      console.log(`⚡ [notifyDataUpdate] Executing ${this.dataUpdateCallbacks.size} callbacks`);
+      let index = 0;
       this.dataUpdateCallbacks.forEach((callback) => {
         try {
+          console.log(`   → Callback ${++index}/${this.dataUpdateCallbacks.size}`);
           callback();
         } catch (error) {
-          // PERF: Disabled - console.error(`❌ [DataStore] Error in data update callback:`, error);
+          console.error(`❌ [DataStore] Error in data update callback ${index}:`, error);
         }
       });
+      console.log(`✅ [notifyDataUpdate] All callbacks executed`);
     };
 
     if (immediate) {
       // ⚡ PHASE 10: For real-time L2 updates, execute immediately (no 16ms batcher delay)
       // This keeps chart responsive to price changes
+      console.log(`🔥 [notifyDataUpdate] IMMEDIATE mode - executing callbacks now`);
       executeCallbacks();
     } else {
       // For historical data loads, use batcher to group updates
+      console.log(`⏱️  [notifyDataUpdate] BATCHED mode - scheduling callbacks with 16ms delay`);
       dataUpdateNotifier.scheduleNotification(executeCallbacks);
     }
   }

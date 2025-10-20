@@ -563,6 +563,7 @@ class OrderbookStore {
    * This provides faster price updates than candle/ticker data
    */
   subscribeToPriceUpdates(callback: (price: number) => void): () => void {
+    console.log(`🔗 [Orderbook] New subscriber added, total: ${this.priceSubscribers.size + 1}`);
     this.priceSubscribers.add(callback);
 
     // Immediately notify with current price if available
@@ -570,12 +571,16 @@ class OrderbookStore {
       const bestBid = this._sortedBids[0][0];
       const bestAsk = this._sortedAsks[0][0];
       const midPrice = (bestBid + bestAsk) / 2;
+      console.log(`💥 [Orderbook] Initial price notify: ${midPrice}`);
       callback(midPrice);
+    } else {
+      console.log(`⚠️  [Orderbook] No bids/asks yet for initial notify`);
     }
 
     // Return unsubscribe function
     return () => {
       this.priceSubscribers.delete(callback);
+      console.log(`🔌 [Orderbook] Subscriber removed, total: ${this.priceSubscribers.size}`);
     };
   }
 
@@ -591,17 +596,21 @@ class OrderbookStore {
 
       // Only notify if price actually changed
       if (this._lastNotifiedMidPrice === midPrice) {
+        console.log(`📊 [Orderbook] Price unchanged: ${midPrice}, skipping notification`);
         return;  // Skip redundant notifications
       }
 
       this._lastNotifiedMidPrice = midPrice;
 
+      console.log(`💱 [Orderbook] Price changed to ${midPrice}, notifying ${this.priceSubscribers.size} subscribers`);
+
       // Notify all subscribers
-      this.priceSubscribers.forEach(callback => {
+      this.priceSubscribers.forEach((callback, index) => {
         try {
+          console.log(`   → Calling price subscriber callback`);
           callback(midPrice);
         } catch (error) {
-          // PERF: Disabled - console.error('Error in price subscriber callback:', error);
+          console.error('Error in price subscriber callback:', error);
         }
       });
     }
