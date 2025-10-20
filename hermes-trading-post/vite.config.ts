@@ -38,5 +38,36 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  // 🚀 PHASE 16b: Build optimization and tree-shaking
+  build: {
+    target: 'ES2020',
+    minify: 'terser',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        // Split vendor code into separate chunk for better caching
+        manualChunks: (id) => {
+          if (id.includes('lightweight-charts')) {
+            return 'chart-lib';
+          }
+          if (id.includes('node_modules')) {
+            // Group other node_modules together
+            if (id.includes('@sveltejs')) {
+              return 'svelte';
+            }
+            return 'vendor';
+          }
+        },
+        // Optimize chunk names
+        chunkFileNames: 'chunks/[name]-[hash].js',
+        entryFileNames: '[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]'
+      },
+      // Tree-shake unused code
+      treeshake: {
+        moduleSideEffects: false
+      }
+    }
   }
 })
