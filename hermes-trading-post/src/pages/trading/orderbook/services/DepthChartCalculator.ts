@@ -43,6 +43,13 @@ export interface AskWithCumulative {
  * Depth Chart Calculator - handles all calculation logic for orderbook depth visualization
  */
 export class DepthChartCalculator {
+  // 🚀 PHASE 15b: String caching for price/volume formatting
+  private static priceCache: Map<string, string> = new Map();
+  private static volumeCache: Map<string, string> = new Map();
+  private static lastCacheClearTime: number = Date.now();
+  private static readonly CACHE_TTL_MS: number = 60000; // Clear every 60 seconds
+  private static readonly MAX_CACHE_SIZE: number = 500;
+
   /**
    * Calculate cumulative volumes for bids
    */
@@ -192,19 +199,78 @@ export class DepthChartCalculator {
   }
 
   /**
+   * 🚀 PHASE 15b: Helper to clear cache when TTL expires
+   */
+  private static maybeClearCache(): void {
+    const now = Date.now();
+    if (now - this.lastCacheClearTime > this.CACHE_TTL_MS) {
+      this.priceCache.clear();
+      this.volumeCache.clear();
+      this.lastCacheClearTime = now;
+    }
+  }
+
+  /**
    * Format price for display
+   * 🚀 PHASE 15b: Cached to avoid repeated string allocations
    */
   static formatPrice(price: number): string {
-    if (price >= 1000000) return `$${(price / 1000000).toFixed(1)}M`;
-    if (price >= 1000) return `$${(price / 1000).toFixed(1)}k`;
-    return `$${price.toFixed(0)}`;
+    // Check TTL
+    this.maybeClearCache();
+
+    // Check cache
+    const cacheKey = price.toString();
+    const cached = this.priceCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Format
+    let formatted: string;
+    if (price >= 1000000) {
+      formatted = `$${(price / 1000000).toFixed(1)}M`;
+    } else if (price >= 1000) {
+      formatted = `$${(price / 1000).toFixed(1)}k`;
+    } else {
+      formatted = `$${price.toFixed(0)}`;
+    }
+
+    // Cache (limit size to prevent unbounded growth)
+    if (this.priceCache.size < this.MAX_CACHE_SIZE) {
+      this.priceCache.set(cacheKey, formatted);
+    }
+
+    return formatted;
   }
 
   /**
    * Format volume for display
+   * 🚀 PHASE 15b: Cached to avoid repeated string allocations
    */
   static formatVolume(volume: number): string {
-    if (volume >= 1000) return `${(volume / 1000).toFixed(1)}k`;
-    return volume.toFixed(1);
+    // Check TTL
+    this.maybeClearCache();
+
+    // Check cache
+    const cacheKey = volume.toString();
+    const cached = this.volumeCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Format
+    let formatted: string;
+    if (volume >= 1000) {
+      formatted = `${(volume / 1000).toFixed(1)}k`;
+    } else {
+      formatted = volume.toFixed(1);
+    }
+
+    // Cache (limit size to prevent unbounded growth)
+    if (this.volumeCache.size < this.MAX_CACHE_SIZE) {
+      this.volumeCache.set(cacheKey, formatted);
+    }
+
+    return formatted;
   }
 }

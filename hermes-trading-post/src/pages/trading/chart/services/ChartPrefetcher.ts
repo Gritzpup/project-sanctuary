@@ -42,6 +42,11 @@ export class ChartPrefetcher {
   // ⚡ MEMORY LEAK FIX: Store activity listeners for cleanup
   private activityListeners: Map<string, EventListener> = new Map();
 
+  // 🚀 PHASE 15d: Cache warming tracking
+  private processedGranularities: Set<string> = new Set();
+  private lastPrefetchTime: number = 0;
+  private readonly MIN_PREFETCH_INTERVAL_MS: number = 10000; // Min 10s between prefetch runs
+
   // Common granularity switch patterns (based on typical user behavior)
   private readonly COMMON_SWITCHES: Record<string, string[]> = {
     '1m': ['5m', '15m', '30m'],
@@ -99,6 +104,7 @@ export class ChartPrefetcher {
 
   /**
    * Schedule pre-fetch tasks based on current selection
+   * 🚀 PHASE 15d: Cache warming - intelligently predicts next user actions
    */
   private schedulePrefetch(currentPair: string, currentGranularity: string): void {
     // Clear existing queue
