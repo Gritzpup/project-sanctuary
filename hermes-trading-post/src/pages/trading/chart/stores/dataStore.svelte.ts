@@ -714,7 +714,16 @@ class DataStore {
     this._dataStats.newestTime = count > 0 ? (this._candles[count - 1].time as number) : null;
     this._dataStats.lastUpdate = Date.now();
   }
-  
+
+  /**
+   * 🚀 PHASE 6 FIX: Update visible candle count from chart viewport
+   * This is called by VisibleCandleTracker whenever the user pans/zooms
+   * Separate from totalCount (all loaded candles in memory)
+   */
+  updateVisibleCandleCount(count: number): void {
+    this._dataStats.visibleCount = Math.max(0, count);
+  }
+
   // Get actual count from database via the existing Redis service
   async updateDatabaseCount() {
     try {
@@ -724,16 +733,8 @@ class DataStore {
       const backendHost = (import.meta.env.VITE_BACKEND_HOST as string) || window.location.hostname || 'localhost';
       const backendUrl = `http://${backendHost}:4828`;
 
-      // Get total count across ALL granularities
-      const totalResponse = await fetch(`${backendUrl}/api/trading/total-candles?pair=${config.pair}`);
-      if (totalResponse.ok) {
-        const totalData = await totalResponse.json();
-        if (totalData.success) {
-          this._dataStats.totalDatabaseCount = totalData.data.totalCandles;
-        }
-      }
-
-      // Also get count for current granularity
+      // Get total count for current granularity from database
+      // This is the total available in the database for the current pair/granularity
       const response = await chartCacheService.fetchCandlesWithMetadata({
         pair: config.pair,
         granularity: config.granularity,
@@ -742,8 +743,19 @@ class DataStore {
 
       if (response && response.metadata) {
         // Use storageMetadata.totalCandles if available, otherwise metadata.totalCandles
+        // This represents ALL candles available in the database for this granularity
         const dbCount = response.metadata.storageMetadata?.totalCandles || response.metadata.totalCandles || 0;
-        this._dataStats.totalCount = dbCount;
+        this._dataStats.totalDatabaseCount = dbCount;
+      }
+
+      // Also get total count across ALL granularities for reference
+      const totalResponse = await fetch(`${backendUrl}/api/trading/total-candles?pair=${config.pair}`);
+      if (totalResponse.ok) {
+        const totalData = await totalResponse.json();
+        if (totalData.success) {
+          // This is just for reference, not displayed
+          // ChartDebug.log(`Total database count across all granularities: ${totalData.data.totalCandles}`);
+        }
       }
     } catch (error) {
       // PERF: Disabled - console.error('Error getting database count:', error);

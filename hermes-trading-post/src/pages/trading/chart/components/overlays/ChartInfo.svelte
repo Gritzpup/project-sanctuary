@@ -96,7 +96,7 @@
     <div class="info-item">
       <span class="info-label">DB:</span>
       <span class="info-value">
-        {formatNumber(dataStore.stats.totalDatabaseCount || dataStore.stats.totalCount)}
+        {formatNumber(dataStore.stats.totalDatabaseCount || 0)}
       </span>
     </div>
     <div class="info-item">

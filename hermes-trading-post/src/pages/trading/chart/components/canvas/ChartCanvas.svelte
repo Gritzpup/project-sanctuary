@@ -10,6 +10,7 @@
   import { ChartPositioningService } from './services/ChartPositioningService';
   import { ChartResizeManager } from './services/ChartResizeManager';
   import { ChartInteractionTracker } from './services/ChartInteractionTracker';
+  import { VisibleCandleTracker } from '../../services/VisibleCandleTracker';
 
   // Props using Svelte 5 runes syntax
   const {
@@ -34,6 +35,7 @@
   let positioningService: ChartPositioningService | null = null;
   let resizeManager: ChartResizeManager | null = null;
   let interactionTracker: ChartInteractionTracker | null = null;
+  let visibleCandleTracker: VisibleCandleTracker | null = null;
 
   // Historical data loader
   let historicalDataLoader: ReturnType<typeof useHistoricalDataLoader>;
@@ -134,6 +136,12 @@
       debounceMs: 500          // Debounce zoom events to avoid rapid loads
     });
 
+    // 🚀 PHASE 6 FIX: Initialize visible candle tracker
+    // Tracks which candles are currently visible in the viewport
+    // Updates dataStore.stats.visibleCount whenever user pans/zooms
+    visibleCandleTracker = new VisibleCandleTracker(chart);
+    visibleCandleTracker.start();
+
     // Notify parent component chart is ready
     if (onChartReady) {
       onChartReady(chart);
@@ -155,6 +163,12 @@
     positioningService?.destroy();
     resizeManager?.destroy();
     interactionTracker?.destroy();
+
+    // Clean up visible candle tracker
+    if (visibleCandleTracker) {
+      visibleCandleTracker.stop();
+      visibleCandleTracker = null;
+    }
 
     // Clean up historical data loader
     if (historicalDataLoader) {
