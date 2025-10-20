@@ -193,24 +193,57 @@
       // which causes sync issues where current price candle doesn't align with historical data
       ChartDebug.log('📊 Waiting for historical data to load before real-time subscription...');
 
-      await dataLoader.loadData({
-        pair,
-        granularity,
-        timeframe: period,
-        chart: chartCanvas?.getChart(),
-        series: chartCanvas?.getSeries()
-      });
+      // ⚡ RETRY LOGIC: If data loading fails, retry up to 3 times before giving up
+      let dataLoadAttempt = 0;
+      const maxLoadRetries = 3;
+      let dataLoadSuccess = false;
 
-      isInitialDataLoaded = true;
-      ChartDebug.log('✅ Historical data loaded, now safe to subscribe to real-time');
+      while (dataLoadAttempt < maxLoadRetries && !dataLoadSuccess) {
+        try {
+          dataLoadAttempt++;
+          ChartDebug.log(`📊 Attempting to load historical data (attempt ${dataLoadAttempt}/${maxLoadRetries})...`);
 
-      // NOW subscribe to real-time after historical data is loaded
-      // This ensures current price candle aligns with historical data
-      subscriptionOrchestrator.subscribeAfterPositioning(
-        { pair, granularity },
-        chartCanvas?.getSeries() || null,
-        pluginManager
-      );
+          await dataLoader.loadData({
+            pair,
+            granularity,
+            timeframe: period,
+            chart: chartCanvas?.getChart(),
+            series: chartCanvas?.getSeries()
+          });
+
+          dataLoadSuccess = true;
+          isInitialDataLoaded = true;
+          ChartDebug.log('✅ Historical data loaded, now safe to subscribe to real-time');
+
+          // NOW subscribe to real-time after historical data is loaded
+          // This ensures current price candle aligns with historical data
+          subscriptionOrchestrator.subscribeAfterPositioning(
+            { pair, granularity },
+            chartCanvas?.getSeries() || null,
+            pluginManager
+          );
+        } catch (loadError) {
+          ChartDebug.log(`⚠️ Data load attempt ${dataLoadAttempt} failed: ${loadError instanceof Error ? loadError.message : String(loadError)}`);
+
+          if (dataLoadAttempt < maxLoadRetries) {
+            // Wait before retrying (exponential backoff: 500ms, 1000ms, 1500ms)
+            const backoffMs = 500 * dataLoadAttempt;
+            ChartDebug.log(`⏳ Retrying in ${backoffMs}ms...`);
+            await new Promise(resolve => setTimeout(resolve, backoffMs));
+          } else {
+            // All retries failed - still subscribe to real-time with whatever data we have
+            // User can always refresh manually if needed
+            ChartDebug.log('❌ Data load failed after 3 attempts. Subscribing to real-time without historical data.');
+            isInitialDataLoaded = true;
+
+            subscriptionOrchestrator.subscribeAfterPositioning(
+              { pair, granularity },
+              chartCanvas?.getSeries() || null,
+              pluginManager
+            );
+          }
+        }
+      }
 
       // Track usage for prefetching
       initService.trackUsage(pair, granularity);
