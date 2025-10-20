@@ -142,11 +142,19 @@
   function handleResizeEnd() {
     resizing = false;
     resizingPaneIndex = -1;
-    
+
     document.removeEventListener('mousemove', handleResizeMove);
     document.removeEventListener('mouseup', handleResizeEnd);
   }
-  
+
+  // 🚀 PHASE 6 FIX: Cleanup event listeners on component destroy to prevent memory leak
+  // If these listeners weren't removed, they would accumulate on every chart re-render
+  onDestroy(() => {
+    // Remove any lingering listeners in case resize was interrupted
+    document.removeEventListener('mousemove', handleResizeMove);
+    document.removeEventListener('mouseup', handleResizeEnd);
+  });
+
   // Calculate actual pixel heights
   $: paneStyles = panes.map((pane, index) => {
     const isLast = index === panes.length - 1;

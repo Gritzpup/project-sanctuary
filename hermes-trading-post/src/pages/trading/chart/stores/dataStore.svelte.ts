@@ -636,7 +636,9 @@ class DataStore {
       });
     };
 
-    // ⚡ PHASE 13: Subscribe immediately if ready, otherwise defer with efficient timeout
+    // 🚀 PHASE 6 FIX: Subscribe immediately if ready, otherwise defer with timeout
+    // CRITICAL: Prevent L2 race condition where subscription starts before candles load
+    // This ensures we never try to update candles that don't exist yet
     if (this._candles.length > 0) {
       subscribeToL2();
     } else {
