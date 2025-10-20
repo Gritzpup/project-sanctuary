@@ -63,6 +63,8 @@
   });
 
   let autoGranularity: any = null;
+  let previousTrackedGranularity = granularity;
+  let previousTrackedPeriod = period;
 
   // Set up chart context for child components
   const chartContext = {
@@ -88,9 +90,27 @@
   }
 
   // Handle granularity/period changes after initial load
-  $: if (isInitialized && isInitialDataLoaded && (granularity || period)) {
-    timeframeCoordinator.onGranularityChange(granularity, chartCanvas?.getSeries() || null, pluginManager);
-    timeframeCoordinator.onPeriodChange(period, chartCanvas?.getSeries() || null, pluginManager);
+  // Check for actual prop changes and trigger coordinator
+  $: {
+    // Always log to debug why reactive block might not trigger
+    if (isInitialDataLoaded) {
+      // This reactive dependency should trigger whenever any of these change
+      const _ = [granularity, period, isInitialized];
+
+      if (isInitialized && isInitialDataLoaded) {
+        if (granularity !== previousTrackedGranularity) {
+          ChartDebug.log(`⏱️ Granularity prop changed: ${previousTrackedGranularity} → ${granularity}`);
+          previousTrackedGranularity = granularity;
+          timeframeCoordinator.onGranularityChange(granularity, chartCanvas?.getSeries() || null, pluginManager);
+        }
+
+        if (period !== previousTrackedPeriod) {
+          ChartDebug.log(`⏱️ Period prop changed: ${previousTrackedPeriod} → ${period}`);
+          previousTrackedPeriod = period;
+          timeframeCoordinator.onPeriodChange(period, chartCanvas?.getSeries() || null, pluginManager);
+        }
+      }
+    }
   }
 
   // Initialize subscriptions orchestrator with hook
@@ -213,6 +233,11 @@
 
           dataLoadSuccess = true;
           isInitialDataLoaded = true;
+
+          // Initialize timeframeCoordinator with current values so it can detect changes
+          // This is critical for granularity button functionality
+          timeframeCoordinator.initialize(granularity, period);
+
           ChartDebug.log('✅ Historical data loaded, now safe to subscribe to real-time');
 
           // Update chart display with loaded data
@@ -238,6 +263,9 @@
             // User can always refresh manually if needed
             ChartDebug.log('❌ Data load failed after 3 attempts. Subscribing to real-time without historical data.');
             isInitialDataLoaded = true;
+
+            // Initialize timeframeCoordinator even on failure so granularity changes can still work
+            timeframeCoordinator.initialize(granularity, period);
 
             // Update chart display with whatever data we have
             chartCanvas?.updateChartDisplay();
@@ -336,6 +364,41 @@
     }
 
     chartCanvas.show60Candles();
+  }
+
+  /**
+   * Reload data for a new granularity (called directly by parent component)
+   * This bypasses reactive block issues by providing explicit control
+   */
+  export async function reloadForGranularity(newGranularity: string) {
+    ChartDebug.log(`📊 ChartCore.reloadForGranularity() called: ${newGranularity}`);
+    console.log(`🔧 ChartCore DEBUG: chartCanvas exists = ${!!chartCanvas}, has resetAndUpdateDisplay = ${typeof chartCanvas?.resetAndUpdateDisplay}`);
+
+    await timeframeCoordinator.onGranularityChange(
+      newGranularity,
+      chartCanvas?.getSeries() || null,
+      pluginManager
+    );
+
+    // CRITICAL: Reset chart state and update display after data loads
+    // This ensures the chart completely redraws with new timeframe data
+    // resetAndUpdateDisplay clears all cached chart state and forces a fresh render
+    // Also resets volume plugin state so volume candles display correctly
+    setTimeout(() => {
+      console.log(`🔧 setTimeout callback: chartCanvas exists = ${!!chartCanvas}, has resetAndUpdateDisplay = ${typeof chartCanvas?.resetAndUpdateDisplay}`);
+      if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
+        ChartDebug.log(`📊 Resetting and updating chart display after granularity reload...`);
+        chartCanvas.resetAndUpdateDisplay(pluginManager);
+        console.log(`✅ resetAndUpdateDisplay() called successfully with pluginManager`);
+      } else {
+        console.warn(`⚠️ WARNING: resetAndUpdateDisplay not available, falling back to updateChartDisplay`);
+        if (chartCanvas && typeof chartCanvas.updateChartDisplay === 'function') {
+          chartCanvas.updateChartDisplay();
+        } else {
+          console.error(`❌ ERROR: chartCanvas is null/undefined or methods not available!`);
+        }
+      }
+    }, 700); // Wait for data load and positioning to complete (1500ms max + buffer)
   }
 </script>
 

@@ -61,7 +61,7 @@ export class AppInitializer {
 
       // Phase 5: Set up global error handling
       console.log('[AppInitializer] Phase 5: Setting up error handling...');
-      setupErrorHandling();
+      AppInitializer.setupErrorHandling();
       console.log('[AppInitializer] ✅ Error handling initialized');
 
       AppInitializer.initialized = true;

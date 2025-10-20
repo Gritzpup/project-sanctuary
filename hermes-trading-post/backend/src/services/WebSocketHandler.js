@@ -84,6 +84,7 @@ export class WebSocketHandler {
       //   }
       // }
 
+
       switch (data.type) {
         case 'createBot':
           this.handleCreateBot(ws, data);
@@ -439,13 +440,28 @@ export class WebSocketHandler {
     // Force refresh of level2 orderbook snapshot by re-subscribing
     console.log('📸 [Backend] Level2 snapshot requested by client', ws._clientId);
 
-    // Unsubscribe and re-subscribe to force Coinbase to send a fresh snapshot
+    // 🔧 FIX: Send cached snapshot only if it has data, otherwise wait for real data
+    if (this.cachedLevel2Snapshot && this.cachedLevel2Snapshot.bids && this.cachedLevel2Snapshot.bids.length > 0) {
+      console.log(`✅ [Backend] Sending cached level2 snapshot to client (${this.cachedLevel2Snapshot.bids.length} bids, ${this.cachedLevel2Snapshot.asks.length} asks)`);
+      try {
+        ws.send(JSON.stringify({
+          type: 'level2',
+          data: this.cachedLevel2Snapshot
+        }));
+      } catch (error) {
+        console.error('❌ [Backend] Failed to send cached snapshot:', error);
+      }
+    } else {
+      console.warn('⚠️ [Backend] No valid cached level2 snapshot yet (waiting for Coinbase data...)');
+    }
+
+    // Also unsubscribe and re-subscribe to get fresh data for future updates
     this.coinbaseWebSocket.unsubscribe('BTC-USD', 'level2');
 
     // Wait a moment before re-subscribing
     setTimeout(() => {
       this.coinbaseWebSocket.subscribeLevel2('BTC-USD');
-      console.log('📡 [Backend] Re-subscribed to level2 to get fresh snapshot');
+      console.log('📡 [Backend] Re-subscribed to level2 to get fresh updates');
     }, 500);
   }
 

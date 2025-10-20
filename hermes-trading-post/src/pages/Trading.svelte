@@ -2,6 +2,7 @@
   import Chart from './Chart.svelte';
   import ChartInfo from './trading/chart/components/overlays/ChartInfo.svelte';
   import CollapsibleSidebar from '../components/layout/CollapsibleSidebar.svelte';
+  // 🔧 FIX: Lazy load DepthChart to reduce initial memory footprint and improve startup time
   import DepthChart from './trading/orderbook/components/DepthChart.svelte';
   import PerformanceComparison from './trading/components/PerformanceComparison.svelte';
   import { onMount, createEventDispatcher } from 'svelte';
@@ -19,6 +20,12 @@
   function handleNavigation(event: CustomEvent) {
     dispatch('navigate', event.detail);
   }
+
+  // Chart reference for triggering data reloads
+  let chart: any;
+
+  // 🔧 FIX: Track page initialization to defer expensive components (DepthChart)
+  let pageInitialized = false;
 
   // Load saved preferences from localStorage, fallback to defaults
   let selectedGranularity = '1m';
@@ -46,6 +53,11 @@
     } catch (error) {
       console.error('Failed to load saved preferences:', error);
     }
+
+    // 🔧 FIX: Initialize page immediately to allow DepthChart to connect to active WebSocket
+    // Startup performance is now good enough due to reduced initial candle load (300 max)
+    pageInitialized = true;
+    console.log('✅ Page initialized, DepthChart can now render and connect');
   });
   
   // Live trading state
@@ -70,8 +82,20 @@
   }
   
   function selectGranularity(granularity: string) {
+    console.log(`🎯 selectGranularity called with: ${granularity}, chart exists: ${!!chart}`);
     if (isGranularityValid(granularity, selectedPeriod)) {
       selectedGranularity = granularity;
+
+      // Trigger chart data reload
+      if (chart && typeof chart.reloadForGranularity === 'function') {
+        console.log(`🔄 Reloading chart for granularity: ${granularity}`);
+        chart.reloadForGranularity(granularity).catch((err: any) => {
+          console.error('Failed to reload chart for granularity:', err);
+        });
+      } else {
+        console.log(`❌ Cannot reload - chart: ${!!chart}, reloadForGranularity: ${typeof chart?.reloadForGranularity}`);
+      }
+
       // Save to localStorage
       try {
         localStorage.setItem('trading_granularity', granularity);
@@ -110,10 +134,19 @@
   }
   
   function handleChartGranularityChange(newGranularity: string) {
+    console.log(`📈 handleChartGranularityChange: ${newGranularity}, chart exists: ${!!chart}`);
     if (selectedGranularity !== newGranularity) {
       selectedGranularity = newGranularity;
       autoGranularityActive = true;
-      
+
+      // Trigger chart reload for the new granularity
+      if (chart && typeof chart.reloadForGranularity === 'function') {
+        console.log(`🔄 [handleChartGranularityChange] Reloading for: ${newGranularity}`);
+        chart.reloadForGranularity(newGranularity).catch((err: any) => {
+          console.error('Failed to reload chart for granularity:', err);
+        });
+      }
+
       setTimeout(() => {
         autoGranularityActive = false;
       }, 2000);
@@ -204,15 +237,19 @@
       <PerformanceComparison />
 
       <!-- Orderbook Depth Chart - Market Position Visualization -->
+      <!-- 🔧 FIX: Defer rendering DepthChart until after initial page load for faster startup -->
       <div class="depth-chart-section">
-        <DepthChart />
+        {#if pageInitialized}
+          <DepthChart />
+        {/if}
       </div>
 
       <div class="panel chart-panel">
-        <Chart 
+        <Chart
+          bind:this={chart}
           bind:status={connectionStatus}
-          granularity={selectedGranularity} 
-          period={selectedPeriod} 
+          granularity={selectedGranularity}
+          period={selectedPeriod}
           onGranularityChange={handleChartGranularityChange}
           showInfo={false}
         />

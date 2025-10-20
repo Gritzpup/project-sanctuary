@@ -10,6 +10,7 @@
   export let currentTimeframe: string;
   export let availableGranularities: string[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
   export let showGranularities: boolean = true;
+  export let onGranularityChange: ((granularity: string) => void) | undefined = undefined;
 
   const dispatch = createEventDispatcher();
   let isDebouncing = false;
@@ -33,6 +34,11 @@
     // Clear existing timer if any
     if (debounceTimer !== null) {
       clearTimeout(debounceTimer);
+    }
+
+    // Call parent callback directly for immediate prop updates
+    if (onGranularityChange) {
+      onGranularityChange(granularity);
     }
 
     dispatch('granularityChange', { granularity });

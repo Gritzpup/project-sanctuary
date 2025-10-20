@@ -42,7 +42,8 @@ interface RedisChartDataResponse {
  */
 export class ChartCacheService {
   private backendUrl: string = `http://${this.getBackendHost()}:4828`;
-  private readonly FETCH_TIMEOUT_MS = 5000; // 5 second timeout to prevent freezes
+  // 🔧 FIX: Increased from 5s to 15s for historical data requests (loading 1000 candles can take time)
+  private readonly FETCH_TIMEOUT_MS = 15000; // 15 second timeout for chart data (was 5s causing timeouts)
   private readonly HEALTH_CHECK_TIMEOUT_MS = 2000; // 2 second timeout for health checks
 
   // 🚀 PHASE 17: LRU cache for chart data with bounded memory

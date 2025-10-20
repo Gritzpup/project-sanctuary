@@ -379,10 +379,18 @@
     return () => {
       clearInterval(connectInterval);
       resizeObserver.disconnect();
-      // Clean up WebSocket event listener (don't close the WebSocket - it's shared!)
-      if (ws && (ws as any).__depthChartHandler) {
-        ws.removeEventListener('message', (ws as any).__depthChartHandler);
-        delete (ws as any).__depthChartHandler;
+      // Clean up WebSocket event listeners (don't close the WebSocket - it's shared!)
+      if (ws) {
+        // Remove message handler
+        if ((ws as any).__depthChartHandler) {
+          ws.removeEventListener('message', (ws as any).__depthChartHandler);
+          delete (ws as any).__depthChartHandler;
+        }
+        // Remove pending open handler if still waiting
+        if ((ws as any).__depthChartOpenHandler) {
+          ws.removeEventListener('open', (ws as any).__depthChartOpenHandler);
+          delete (ws as any).__depthChartOpenHandler;
+        }
       }
       if (chart) chart.remove();
     };
@@ -393,33 +401,66 @@
     ws = dataStore.getWebSocket();
 
     if (!ws) {
+      console.log('⏳ [DepthChart] WebSocket not available yet, retrying...');
       return false; // WebSocket not ready yet
     }
 
-    // Silent connection - no console spam
-    // Use addEventListener instead of wrapping onmessage to avoid breaking the main chart
+    console.log(`🔧 [DepthChart] WebSocket readyState: ${ws.readyState} (CONNECTING=0, OPEN=1, CLOSING=2, CLOSED=3)`);
+
+    // 🔧 FIX: Register message handler IMMEDIATELY before checking readyState
+    // This ensures we're listening for messages before any events are fired
     const messageHandler = (event: MessageEvent) => {
       try {
         const message = JSON.parse(event.data);
         if (message.type === 'level2') {
+          console.log(`📊 [DepthChart] Received level2 message`, message.data ? `with ${message.data.bids?.length || 0} bids and ${message.data.asks?.length || 0} asks` : 'but no data');
           handleLevel2Message(message.data);
         } else if (message.type === 'orderbook-delta') {
           // 🚀 PERF: Handle orderbook deltas from Redis Pub/Sub
           // Only the changed price levels - ultra-efficient
+          console.log(`📊 [DepthChart] Received orderbook delta`);
           handleOrderbookDelta(message.data);
         }
       } catch (error) {
-        console.error('Error parsing orderbook message:', error);
+        console.error('❌ [DepthChart] Error parsing orderbook message:', error);
       }
     };
 
+    // Register message listener FIRST before any state checks
+    console.log('📨 [DepthChart] Registering message handler');
     ws.addEventListener('message', messageHandler);
-
-    // Store the handler for cleanup
     (ws as any).__depthChartHandler = messageHandler;
 
-    // Request fresh level2 snapshot from backend
-    ws.send(JSON.stringify({ type: 'requestLevel2Snapshot' }));
+    // Now check state and send snapshot request
+    if (ws.readyState === WebSocket.OPEN) {
+      // WebSocket is ready, send immediately
+      console.log('✅ [DepthChart] WebSocket OPEN, sending snapshot request immediately');
+      try {
+        ws.send(JSON.stringify({ type: 'requestLevel2Snapshot' }));
+        console.log('✅ [DepthChart] Snapshot request sent successfully');
+      } catch (error) {
+        console.error('❌ [DepthChart] Failed to send snapshot request:', error);
+        return false;
+      }
+    } else if (ws.readyState === WebSocket.CONNECTING) {
+      // WebSocket is still connecting, wait for it to open
+      console.log('⏳ [DepthChart] WebSocket CONNECTING, waiting for OPEN event');
+      const onceOpenHandler = () => {
+        try {
+          console.log('✅ [DepthChart] WebSocket now OPEN, sending snapshot request');
+          ws?.send(JSON.stringify({ type: 'requestLevel2Snapshot' }));
+          console.log('✅ [DepthChart] Snapshot request sent after connection opened');
+        } catch (error) {
+          console.warn('⚠️ Failed to send snapshot request after connection opened:', error);
+        }
+      };
+      ws.addEventListener('open', onceOpenHandler, { once: true });
+      // Store handler reference for cleanup
+      (ws as any).__depthChartOpenHandler = onceOpenHandler;
+    } else if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+      console.warn('⚠️ WebSocket connection is closed/closing, cannot send snapshot request');
+      return false;
+    }
 
     return true; // Successfully connected
   }

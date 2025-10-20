@@ -25,6 +25,9 @@
   // 🚀 PHASE 14: Incremental sorting optimization
   let isCachedSortedFlag: boolean = false;
 
+  // 🔧 FIX: Limit cache size to prevent unbounded memory growth
+  const MAX_CACHED_CANDLES: number = 1000; // Don't cache more than 1000 candles
+
   /**
    * Check if array is already sorted by time (ascending)
    * @param candles Array to check
@@ -197,6 +200,14 @@
         lastCandleCount = dataStore.candles.length;
       }
 
+      // 🔧 FIX: Trim cache if it exceeds MAX_CACHED_CANDLES to prevent memory bloat
+      if (cachedSortedCandles.length > MAX_CACHED_CANDLES) {
+        const trimAmount = cachedSortedCandles.length - MAX_CACHED_CANDLES;
+        cachedSortedCandles = cachedSortedCandles.slice(trimAmount); // Keep newest candles
+        lastProcessedIndex = Math.max(-1, lastProcessedIndex - trimAmount);
+        console.log(`🧹 [ChartDataManager] Trimmed cache (removed ${trimAmount} candles, kept ${cachedSortedCandles.length})`);
+      }
+
       // Use cached sorted candles
       const sortedCandles = cachedSortedCandles;
 
@@ -236,6 +247,21 @@
   export function updateVolumeData() {
     // Volume data is now handled by VolumePlugin
     return;
+  }
+
+  /**
+   * 🔧 FIX: Reset all chart state for granularity changes
+   * When granularity changes, we need to clear all cached data and start fresh
+   * This ensures the chart properly displays the new timeframe data
+   */
+  export function resetForNewTimeframe() {
+    console.log('🔄 [ChartDataManager] Resetting for new timeframe...');
+    lastProcessedIndex = -1;
+    isInitialized = false;
+    cachedSortedCandles = [];
+    lastCandleCount = 0;
+    isCachedSortedFlag = false;
+    console.log('✅ [ChartDataManager] Reset complete');
   }
   
   export function handleRealtimeUpdate(candle: any) {

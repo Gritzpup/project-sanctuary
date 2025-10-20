@@ -70,14 +70,19 @@ export class ChartTimeframeCoordinator {
     chartSeries: ISeriesApi<'Candlestick'> | null,
     pluginManager: PluginManager | null
   ): Promise<void> {
+    ChartDebug.log(`🔍 onGranularityChange called: newGranularity=${newGranularity}, previousGranularity=${this.previousGranularity}`);
+
     if (newGranularity === this.previousGranularity) {
+      ChartDebug.log(`⏭️ Granularity unchanged (${newGranularity}), skipping reload`);
       return; // No change
     }
 
     if (!this.shouldReload(newGranularity, this.previousPeriod)) {
+      ChartDebug.log(`⏭️ shouldReload returned false for ${newGranularity}/${this.previousPeriod}`);
       return; // Skip reload
     }
 
+    ChartDebug.log(`✅ Reloading data for new granularity: ${newGranularity}`);
     await this.reloadDataForNewTimeframe(
       newGranularity,
       this.previousPeriod,
@@ -189,9 +194,10 @@ export class ChartTimeframeCoordinator {
         this.prefetcher.trackUsage(dataStore.pair || 'BTC-USD', granularity);
       }
 
-      // Step 4: Refresh all plugins after a delay
+      // Step 4: Refresh all plugins after a delay (including volume candles for new granularity)
       if (pluginManager && typeof (pluginManager as any).refreshAll === 'function') {
         setTimeout(() => {
+          ChartDebug.log(`🔄 Refreshing all plugins (volume candles for ${granularity})...`);
           (pluginManager as any).refreshAll(500);
         }, 500);
       }

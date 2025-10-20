@@ -32,7 +32,7 @@
   export let defaultPlugins: string[] = ['volume'];
   export let multiPane: boolean = false;
   export let onReady: ((chart: IChartApi, pluginManager: PluginManager | null) => void) | undefined = undefined;
-  export const onGranularityChange: ((granularity: string) => void) | undefined = undefined;
+  export let onGranularityChange: ((granularity: string) => void) | undefined = undefined;
   export let onPairChange: ((pair: string) => void) | undefined = undefined;
   
   let chartCore: ChartCore;
@@ -220,11 +220,24 @@
       console.error('ChartCore not available for show60Candles');
       return;
     }
-    
+
     if (typeof chartCore.show60Candles === 'function') {
       chartCore.show60Candles();
     } else {
       console.error('ChartCore does not have show60Candles method');
+    }
+  }
+
+  export async function reloadForGranularity(newGranularity: string): Promise<void> {
+    if (!chartCore) {
+      console.error('ChartCore not available for reloadForGranularity');
+      return;
+    }
+
+    if (typeof chartCore.reloadForGranularity === 'function') {
+      await chartCore.reloadForGranularity(newGranularity);
+    } else {
+      console.error('ChartCore does not have reloadForGranularity method');
     }
   }
 </script>
@@ -232,7 +245,7 @@
 <div class="chart-container">
   {#if showControls}
     <div class="chart-header">
-      <ChartControls 
+      <ChartControls
         showTimeframes={true}
         showGranularities={true}
         showRefresh={true}
@@ -240,6 +253,7 @@
         showSpeed={true}
         {pair}
         {onPairChange}
+        {onGranularityChange}
       />
     </div>
   {/if}

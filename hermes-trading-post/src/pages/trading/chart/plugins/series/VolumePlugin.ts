@@ -142,6 +142,22 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
     super.onDestroy();
   }
 
+  /**
+   * 🔧 FIX: Reset volume plugin state for granularity changes
+   * When granularity changes, we need to clear all cached data so volume candles regenerate correctly
+   * This prevents old volume data from being shown with new timeframe candles
+   */
+  public resetForNewTimeframe(): void {
+    console.log('🔄 [VolumePlugin] Resetting for new timeframe...');
+    this.volumeData = [];
+    this.lastCandleCount = 0;
+    this.lastCandleTime = 0;
+    this.lastProcessedIndex = -1;
+    this.colorCache.clear();
+    this.lastCacheClearTime = Date.now();
+    console.log('✅ [VolumePlugin] Reset complete');
+  }
+
   protected getData(): HistogramData[] {
     try {
       const dataStore = this.getDataStore();

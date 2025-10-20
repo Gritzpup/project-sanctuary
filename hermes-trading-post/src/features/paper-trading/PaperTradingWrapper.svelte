@@ -80,7 +80,16 @@
     if (event.type === 'pairChange') {
       selectedPair = event.detail.pair;
     } else if (event.type === 'granularityChange') {
-      selectedGranularity = event.detail.granularity;
+      const newGranularity = event.detail.granularity;
+      selectedGranularity = newGranularity;
+
+      // Trigger chart reload for new granularity
+      if (chartComponent && typeof chartComponent.reloadForGranularity === 'function') {
+        console.log(`🔄 [PaperTrading] Reloading for granularity: ${newGranularity}`);
+        chartComponent.reloadForGranularity(newGranularity).catch((err: any) => {
+          console.error('Failed to reload chart for granularity:', err);
+        });
+      }
     } else if (event.type === 'periodChange') {
       selectedPeriod = event.detail.period;
     } else if (event.type === 'speedChange') {

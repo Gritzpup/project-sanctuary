@@ -108,6 +108,9 @@ const broadcastService = new BroadcastService(wss, {
   deltaSubscriber: null // Will be updated after Redis connection
 });
 
+// Note: We'll set up the level2 listener after Coinbase connects and subscribes
+// This is done in the async IIFE below
+
 // Phase 5C: Initialize REST API service
 const restAPIService = new RESTAPIService({
   redisOrderbookCache,
@@ -148,6 +151,18 @@ const restAPIService = new RESTAPIService({
     coinbaseWebSocket.subscribeLevel2('BTC-USD');
     coinbaseWebSocket.subscribeTicker('BTC-USD');
     console.log('📊 Subscribed to BTC-USD level2 and ticker');
+
+    // 🔧 FIX: Link Coinbase level2 events to WebSocketHandler snapshot cache
+    // Set this up AFTER subscription so we don't miss events
+    coinbaseWebSocket.on('level2', (data) => {
+      console.log(`📨 [Backend] Received Coinbase level2 event with ${data?.bids?.length || 0} bids and ${data?.asks?.length || 0} asks`);
+      if (data && data.bids && data.asks) {
+        // Forward the snapshot to WebSocketHandler so clients can request it
+        console.log(`✅ [Backend] Caching level2 snapshot for WebSocketHandler (${data.bids.length} bids, ${data.asks.length} asks)`);
+        wsHandler.setCachedLevel2Snapshot(data);
+      }
+    });
+    console.log('🔗 Linked Coinbase level2 events to WebSocketHandler');
   } catch (error) {
     console.error('❌ Failed to connect to Coinbase WebSocket:', error.message);
   }

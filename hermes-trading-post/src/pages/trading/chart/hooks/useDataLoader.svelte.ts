@@ -112,12 +112,16 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       
       // Load data
       perfTest.mark('dataStore-loadData-start');
+      // 🔧 FIX: Cap initial candle load to 300 for faster startup (instead of 2x expected candles)
+      // This prevents loading 1000+ candles on first load which causes 5+ second delays
+      const candleLoadLimit = Math.min(candleCount * 2, 300);
+      ChartDebug.log(`📊 Limiting initial candle load to ${candleLoadLimit} (calculated: ${candleCount * 2})`);
       await dataStore.loadData(
         config.pair,
         config.granularity,
         startTime,
         alignedNow,
-        candleCount * 2 // Request 2x expected candles to ensure we have enough
+        candleLoadLimit
       );
       perfTest.measure('DataStore loadData', 'dataStore-loadData-start');
       

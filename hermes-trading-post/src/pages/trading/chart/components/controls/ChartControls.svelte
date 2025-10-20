@@ -17,6 +17,7 @@
   export let availableGranularities: string[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
   export let pair: string = 'BTC-USD';
   export let onPairChange: ((pair: string) => void) | undefined = undefined;
+  export let onGranularityChange: ((granularity: string) => void) | undefined = undefined;
   
   // Speed control
   let currentSpeed: string = '1x';
@@ -43,6 +44,11 @@
 
   function handleGranularityChange(event: CustomEvent) {
     const { granularity } = event.detail;
+    // Call parent callback first so props update
+    if (onGranularityChange) {
+      onGranularityChange(granularity);
+    }
+    // Also update chartStore for internal tracking
     controlsService.handleGranularityChange(granularity);
   }
 
@@ -86,6 +92,7 @@
     currentTimeframe={chartStore.config.timeframe}
     {availableGranularities}
     {showGranularities}
+    {onGranularityChange}
     on:granularityChange={handleGranularityChange}
   />
   

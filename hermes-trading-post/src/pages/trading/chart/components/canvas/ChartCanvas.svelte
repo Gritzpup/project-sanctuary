@@ -270,6 +270,51 @@
     dataManager?.updateVolumeData();
     prevCandleCount = dataStore.candles.length;
   }
+
+  /**
+   * 🔧 FIX: Reset chart data state and update display for granularity changes
+   * This is called when granularity changes to force a complete redraw
+   */
+  export function resetAndUpdateDisplay(pluginManager?: any) {
+    console.log('🔄 [ChartCanvas] resetAndUpdateDisplay called');
+    if (!dataManager) {
+      console.warn('⚠️ DataManager not available');
+      return;
+    }
+
+    // Reset internal state
+    dataManager.resetForNewTimeframe();
+
+    // 🔧 FIX: Also reset volume plugin state so volume candles regenerate correctly
+    if (pluginManager) {
+      console.log(`🔧 [ChartCanvas] pluginManager exists, attempting to reset volume plugin...`);
+      try {
+        const volumePlugin = pluginManager.get('volume');
+        console.log(`🔧 [ChartCanvas] volumePlugin result:`, volumePlugin, `has resetForNewTimeframe:`, typeof volumePlugin?.resetForNewTimeframe);
+        if (volumePlugin && typeof volumePlugin.resetForNewTimeframe === 'function') {
+          volumePlugin.resetForNewTimeframe();
+          console.log('✅ [ChartCanvas] Volume plugin reset successfully');
+        } else {
+          console.warn('⚠️ [ChartCanvas] Volume plugin does not have resetForNewTimeframe method');
+        }
+      } catch (error) {
+        console.warn('⚠️ [ChartCanvas] Could not reset volume plugin:', error);
+      }
+    } else {
+      console.warn('⚠️ [ChartCanvas] pluginManager not provided to resetAndUpdateDisplay');
+    }
+
+    // Now update with fresh data
+    if (!candleSeries || !dataStore.candles.length) {
+      console.warn('⚠️ No candles available for update');
+      return;
+    }
+
+    dataManager.updateChartData();
+    dataManager.updateVolumeData();
+    prevCandleCount = dataStore.candles.length;
+    console.log('✅ [ChartCanvas] resetAndUpdateDisplay complete');
+  }
 </script>
 
 <ChartInitializer bind:this={chartInitializer} {container} {width} {height} />

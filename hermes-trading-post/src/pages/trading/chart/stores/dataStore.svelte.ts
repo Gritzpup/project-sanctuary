@@ -40,6 +40,7 @@ class DataStore {
   private newCandleTimeout: NodeJS.Timeout | null = null;
   private l2SubscriptionCheckInterval: NodeJS.Timeout | null = null;  // Track the candle-loading check interval
   private l2NotifyRafId: number | null = null;  // RAF throttle for notifyDataUpdate calls
+  private maxCallbacksSize: number = 50; // Max callbacks to prevent memory leaks
 
   // Subscription mechanism for plugins
   private dataUpdateCallbacks: Set<() => void> = new Set();
@@ -794,7 +795,12 @@ class DataStore {
 
   // Plugin subscription methods
   onDataUpdate(callback: () => void): () => void {
-    this.dataUpdateCallbacks.add(callback);
+    // Prevent memory leaks by limiting callback Set size
+    if (this.dataUpdateCallbacks.size < this.maxCallbacksSize) {
+      this.dataUpdateCallbacks.add(callback);
+    } else {
+      ChartDebug.warn(`⚠️ DataStore: Max callbacks (${this.maxCallbacksSize}) reached for dataUpdateCallbacks, dropping new subscription`);
+    }
     // Return unsubscribe function
     return () => {
       this.dataUpdateCallbacks.delete(callback);
@@ -802,7 +808,12 @@ class DataStore {
   }
 
   onHistoricalDataLoaded(callback: () => void): () => void {
-    this.historicalDataLoadedCallbacks.add(callback);
+    // Prevent memory leaks by limiting callback Set size
+    if (this.historicalDataLoadedCallbacks.size < this.maxCallbacksSize) {
+      this.historicalDataLoadedCallbacks.add(callback);
+    } else {
+      ChartDebug.warn(`⚠️ DataStore: Max callbacks (${this.maxCallbacksSize}) reached for historicalDataLoadedCallbacks, dropping new subscription`);
+    }
     // Return unsubscribe function
     return () => {
       this.historicalDataLoadedCallbacks.delete(callback);

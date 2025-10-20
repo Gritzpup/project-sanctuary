@@ -24,6 +24,19 @@ export class ChartInteractionTracker {
   private interactionCallback: InteractionCallback | null = null;
   private resetZoomCallback: ResetZoomCallback | null = null;
 
+  // Store bound handlers to enable proper cleanup
+  private mousedownHandler = () => this.markUserInteraction();
+  private touchstartHandler = () => this.markUserInteraction();
+  private wheelHandler = () => this.markUserInteraction();
+  private dblclickHandler = () => {
+    this.markUserInteraction();
+    if (this.resetZoomCallback) {
+      this.resetZoomCallback();
+    }
+  };
+  private visibleRangeHandler = () => this.markUserInteraction();
+  private visibleRangeUnsubscribe: (() => void) | null = null;
+
   constructor(chart: IChartApi, container: HTMLDivElement) {
     this.chart = chart;
     this.container = container;
@@ -59,7 +72,7 @@ export class ChartInteractionTracker {
   private setupMouseTracking(): void {
     if (!this.container) return;
 
-    this.container.addEventListener('mousedown', () => this.markUserInteraction());
+    this.container.addEventListener('mousedown', this.mousedownHandler);
   }
 
   /**
@@ -69,7 +82,7 @@ export class ChartInteractionTracker {
   private setupTouchTracking(): void {
     if (!this.container) return;
 
-    this.container.addEventListener('touchstart', () => this.markUserInteraction());
+    this.container.addEventListener('touchstart', this.touchstartHandler);
   }
 
   /**
@@ -79,7 +92,7 @@ export class ChartInteractionTracker {
   private setupWheelTracking(): void {
     if (!this.container) return;
 
-    this.container.addEventListener('wheel', () => this.markUserInteraction());
+    this.container.addEventListener('wheel', this.wheelHandler);
   }
 
   /**
@@ -89,12 +102,7 @@ export class ChartInteractionTracker {
   private setupDoubleClickTracking(): void {
     if (!this.container) return;
 
-    this.container.addEventListener('dblclick', () => {
-      this.markUserInteraction();
-      if (this.resetZoomCallback) {
-        this.resetZoomCallback();
-      }
-    });
+    this.container.addEventListener('dblclick', this.dblclickHandler);
   }
 
   /**
@@ -105,9 +113,7 @@ export class ChartInteractionTracker {
     if (!this.chart) return;
 
     // Track chart zoom and pan events
-    this.chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
-      this.markUserInteraction();
-    });
+    this.visibleRangeUnsubscribe = this.chart.timeScale().subscribeVisibleLogicalRangeChange(this.visibleRangeHandler);
   }
 
   /**
@@ -153,11 +159,19 @@ export class ChartInteractionTracker {
    */
   destroy(): void {
     if (this.container) {
-      this.container.removeEventListener('mousedown', () => this.markUserInteraction());
-      this.container.removeEventListener('touchstart', () => this.markUserInteraction());
-      this.container.removeEventListener('wheel', () => this.markUserInteraction());
-      this.container.removeEventListener('dblclick', () => this.markUserInteraction());
+      // Remove all event listeners using the same handler references that were added
+      this.container.removeEventListener('mousedown', this.mousedownHandler);
+      this.container.removeEventListener('touchstart', this.touchstartHandler);
+      this.container.removeEventListener('wheel', this.wheelHandler);
+      this.container.removeEventListener('dblclick', this.dblclickHandler);
     }
+
+    // Unsubscribe from timeScale changes
+    if (this.visibleRangeUnsubscribe) {
+      this.visibleRangeUnsubscribe();
+      this.visibleRangeUnsubscribe = null;
+    }
+
     this.chart = null;
     this.container = null;
     this.interactionCallback = null;

@@ -83,6 +83,10 @@
   export function show60Candles(): void {
     return chartContainer?.show60Candles();
   }
+
+  export async function reloadForGranularity(newGranularity: string): Promise<void> {
+    return chartContainer?.reloadForGranularity(newGranularity);
+  }
 </script>
 
 <ChartContainer
