@@ -113,6 +113,9 @@ export class ChartCacheService {
     const cacheKey = createCacheKey(pair, granularity);
     const cachedCandles = this.memoryCache.get(cacheKey);
 
+    // ⚡ TEMPORARY DISABLE: LRU cache causing candle sync issues
+    // TODO: Fix cache invalidation logic for real-time updates
+    /*
     if (cachedCandles) {
       // Filter to requested time range if needed
       if (start && end) {
@@ -125,6 +128,7 @@ export class ChartCacheService {
       // Return up to limit candles
       return cachedCandles.slice(-limit);
     }
+    */
 
     try {
       const params = new URLSearchParams({
