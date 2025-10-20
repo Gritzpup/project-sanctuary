@@ -49,9 +49,9 @@
 
   // ⚡ PHASE 13: Only trigger when candle COUNT changes, not on every price update
   // Subscribe to dataStore updates only when candle count changes
-  $effect(() => {
-    // Derive candle count to minimize reactivity triggers
-    const currentCandleCount = $derived(dataStore.candles.length);
+  $effect.pre(() => {
+    // Get candle count directly without $derived to avoid reactive loops
+    const currentCandleCount = dataStore.candles.length;
 
     // Only proceed if we have chart, series, and data
     if (chart && candleSeries && currentCandleCount > 0) {
