@@ -1,37 +1,36 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
   import { chartStore } from '../../stores/chartStore.svelte';
   import { getGranularitySeconds } from '../../utils/granularityHelpers';
   import ServerTimeService from '../../../../../services/ServerTimeService';
 
   // Props using Svelte 5 runes syntax
-  // ⚡ PHASE 5B: Optimized interval from 500ms to 1000ms (20-30% faster)
-  // Humans perceive 1-second granularity; no need for 500ms updates
   const {
-    updateInterval = 1000,
     showUrgentStyling = true
   }: {
-    updateInterval?: number;
     showUrgentStyling?: boolean;
   } = $props();
 
   // Internal state
-  let countdownInterval: NodeJS.Timeout;
   let timeToNextCandle = $state(0);
+  let rafId: number | null = null;
+  let isInitialized = $state(false);
 
   // Get current granularity
   const granularity = $derived(chartStore.config.granularity);
 
-  // Format countdown display
+  // Format countdown display - show decimals for smooth animation
   function formatCountdown(seconds: number): string {
     if (seconds <= 0) return '0s';
-    return `${seconds}s`;
+    // Show decimals only in last 5 seconds for smooth countdown
+    if (seconds <= 5) {
+      return `${seconds.toFixed(1)}s`;
+    }
+    return `${Math.ceil(seconds)}s`;
   }
 
-  // Update countdown timer using server time
+  // Update countdown timer using server time - RAF for smooth updates
   function updateCandleCountdown() {
     // 🕐 Use SERVER time (synchronized with backend)
-    // This ensures candle countdown stays in sync across all clients
     const now = ServerTimeService.getNowSeconds();
     const currentGranularity = chartStore.config.granularity;
 
@@ -42,11 +41,14 @@
     const alignedTime = Math.floor(now / granularitySeconds) * granularitySeconds;
     const nextCandleTime = alignedTime + granularitySeconds;
 
-    // Calculate remaining time (always positive)
-    const remainingSeconds = Math.max(1, nextCandleTime - now);
+    // Calculate remaining time with decimals (always positive)
+    const remainingSeconds = Math.max(0.01, nextCandleTime - now);
 
     // Update state
     timeToNextCandle = remainingSeconds;
+
+    // Schedule next RAF update for smooth per-frame animation
+    rafId = requestAnimationFrame(updateCandleCountdown);
   }
 
   // Urgency styling classes
@@ -54,23 +56,24 @@
   const urgent = $derived(showUrgentStyling && timeToNextCandle <= 5);
   const veryUrgent = $derived(showUrgentStyling && timeToNextCandle <= 2);
 
-  onMount(async () => {
-    // Initialize server time synchronization
-    await ServerTimeService.initServerTime();
+  // Initialize on mount
+  $effect.pre(async () => {
+    if (!isInitialized) {
+      // Initialize server time synchronization
+      await ServerTimeService.initServerTime();
+      isInitialized = true;
 
-    // Initial countdown update
-    updateCandleCountdown();
-
-    // Set up interval for countdown updates (now synchronized with server time)
-    countdownInterval = setInterval(() => {
+      // Start RAF loop
       updateCandleCountdown();
-    }, updateInterval);
-  });
-
-  onDestroy(() => {
-    if (countdownInterval) {
-      clearInterval(countdownInterval);
     }
+
+    // Cleanup RAF on unmount
+    return () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    };
   });
 </script>
 

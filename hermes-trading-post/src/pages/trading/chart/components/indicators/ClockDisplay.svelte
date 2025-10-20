@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
   import { memoized } from '../../utils/memoization';
   import ServerTimeService from '../../../../../services/ServerTimeService';
 
@@ -7,21 +6,37 @@
   const {
     showDate = false,
     showSeconds = true,
-    updateInterval = 1000,
     format24Hour = true
   }: {
     showDate?: boolean;
     showSeconds?: boolean;
-    updateInterval?: number;
     format24Hour?: boolean;
   } = $props();
 
-  // Internal state - cache formatted strings to avoid unnecessary re-renders
+  // Internal state - RAF updates for smooth per-frame time display
   let currentTime = $state(ServerTimeService.getNowDate());
-  let clockInterval: NodeJS.Timeout;
+  let rafId: number | null = null;
+  let isInitialized = $state(false);
+  let lastSecond = -1;  // Track last second to avoid unnecessary formatting
 
-  // ⚡ PHASE 5E: Memoize time formatting with 1-second TTL
-  // Prevents expensive Date.toLocaleTimeString() calls on every millisecond tick
+  // ⚡ PHASE 12: RAF-based time updates for smooth per-frame display
+  // Updates every frame (60 FPS) but only reformats when seconds actually change
+  function updateClock() {
+    const now = ServerTimeService.getNowDate();
+    const currentSecond = now.getSeconds();
+
+    // Only update state if second changed (avoids unnecessary reactivity)
+    if (currentSecond !== lastSecond) {
+      currentTime = now;
+      lastSecond = currentSecond;
+    }
+
+    // Schedule next RAF update for smooth animation
+    rafId = requestAnimationFrame(updateClock);
+  }
+
+  // ⚡ Memoize time formatting with 1-second TTL
+  // Prevents expensive Date.toLocaleTimeString() calls
   const clockDisplay = $derived(
     memoized(
       'clock-display',
@@ -36,8 +51,7 @@
     )
   );
 
-  // ⚡ PHASE 5E: Memoize date formatting with 60-second TTL
-  // Date rarely changes, so cache aggressively
+  // ⚡ Memoize date formatting with 60-second TTL
   const dateDisplay = $derived(
     memoized(
       'clock-date-display',
@@ -51,21 +65,25 @@
     )
   );
 
-  onMount(async () => {
-    // Initialize server time synchronization
-    await ServerTimeService.initServerTime();
+  // Initialize on mount
+  $effect.pre(async () => {
+    if (!isInitialized) {
+      // Initialize server time synchronization
+      await ServerTimeService.initServerTime();
+      isInitialized = true;
+      lastSecond = ServerTimeService.getNowDate().getSeconds();
 
-    // Start clock interval using SERVER TIME (synchronized with backend)
-    // This ensures all clients see the same time
-    clockInterval = setInterval(() => {
-      currentTime = ServerTimeService.getNowDate();
-    }, updateInterval);
-  });
-
-  onDestroy(() => {
-    if (clockInterval) {
-      clearInterval(clockInterval);
+      // Start RAF loop for smooth updates
+      updateClock();
     }
+
+    // Cleanup RAF on unmount
+    return () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    };
   });
 </script>
 
