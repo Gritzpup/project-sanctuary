@@ -47,13 +47,17 @@ export class ChartCacheService {
 
   // 🚀 PHASE 17: LRU cache for chart data with bounded memory
   // Stores fetched candles with max 500 entries (each entry ~50KB = 25MB max)
-  private memoryCache = new LRUCache<string, CandleData[]>({
+  private memoryCache = new LRUCache<string, { candles: CandleData[]; timestamp: number }>({
     maxSize: 500,
     onEvict: (key, value) => {
       // Log when old cache entries are evicted (optional debugging)
-      // console.log(`[LRUCache] Evicting ${key} (${value.length} candles)`);
+      // console.log(`[LRUCache] Evicting ${key} (${value.candles.length} candles)`);
     }
   });
+
+  // 🚀 PHASE 17b: Cache TTL for real-time update validation
+  // Invalidate cache after 5 seconds to ensure fresh real-time data
+  private readonly CACHE_TTL_MS = 5000;
 
   private getBackendHost(): string {
     const envHost = (import.meta as any)?.env?.VITE_BACKEND_HOST;
@@ -108,27 +112,35 @@ export class ChartCacheService {
   async fetchCandles(request: DataRequest): Promise<CandleData[]> {
     const { pair, granularity, start, end, limit = 1000 } = request;
 
-    // 🚀 PHASE 17: Check LRU memory cache first (eliminates network call)
+    // 🚀 PHASE 17b: Check LRU memory cache with TTL validation
     // Cache key includes pair and granularity (most common request pattern)
     const cacheKey = createCacheKey(pair, granularity);
-    const cachedCandles = this.memoryCache.get(cacheKey);
+    const cachedEntry = this.memoryCache.get(cacheKey);
 
-    // ⚡ TEMPORARY DISABLE: LRU cache causing candle sync issues
-    // TODO: Fix cache invalidation logic for real-time updates
-    /*
-    if (cachedCandles) {
-      // Filter to requested time range if needed
-      if (start && end) {
-        return cachedCandles.filter(c => {
-          const time = typeof c.time === 'number' ? c.time : parseInt(c.time as any);
-          return time >= start && time <= end;
-        });
+    // 🚀 PHASE 17b: Validate cache freshness with TTL
+    // If cache is fresh (< 5 seconds old), use it; otherwise fetch fresh data
+    if (cachedEntry) {
+      const now = Date.now();
+      const cacheAge = now - cachedEntry.timestamp;
+
+      // Only use cache if it's fresh (within TTL window)
+      if (cacheAge < this.CACHE_TTL_MS) {
+        const cachedCandles = cachedEntry.candles;
+
+        // Filter to requested time range if needed
+        if (start && end) {
+          return cachedCandles.filter(c => {
+            const time = typeof c.time === 'number' ? c.time : parseInt(c.time as any);
+            return time >= start && time <= end;
+          });
+        }
+
+        // Return up to limit candles
+        return cachedCandles.slice(-limit);
       }
-
-      // Return up to limit candles
-      return cachedCandles.slice(-limit);
+      // Cache is stale, delete it and fetch fresh data
+      this.memoryCache.delete(cacheKey);
     }
-    */
 
     try {
       const params = new URLSearchParams({
@@ -167,8 +179,12 @@ export class ChartCacheService {
       const candles = result.data.candles || [];
 
       // 🚀 PHASE 17: Store in LRU cache for future requests
+      // 🚀 PHASE 17b: Wrap with timestamp for TTL validation
       if (candles.length > 0) {
-        this.memoryCache.set(cacheKey, candles);
+        this.memoryCache.set(cacheKey, {
+          candles,
+          timestamp: Date.now()
+        });
       }
 
       return candles;
