@@ -157,14 +157,6 @@
       }
     );
 
-    // Resubscribe after positioning completes
-    setTimeout(() => {
-      subscriptionOrchestrator.subscribeAfterPositioning(
-        { pair, granularity },
-        chartCanvas?.getSeries() || null,
-        pluginManager
-      );
-    }, 600);
   }
 
   onMount(async () => {
@@ -196,19 +188,29 @@
       statusStore.setReady();
       isInitialized = true;
 
-      // Load data in background - series should now exist
-      dataLoader.loadData({
+      // ⚡ CRITICAL FIX: Wait for initial historical data to load BEFORE subscribing to real-time
+      // This prevents real-time updates from arriving before historical candles are set,
+      // which causes sync issues where current price candle doesn't align with historical data
+      ChartDebug.log('📊 Waiting for historical data to load before real-time subscription...');
+
+      await dataLoader.loadData({
         pair,
         granularity,
         timeframe: period,
         chart: chartCanvas?.getChart(),
         series: chartCanvas?.getSeries()
-      }).then(() => {
-        isInitialDataLoaded = true;
-      }).catch(error => {
-        console.warn('Background data load failed (non-critical):', error);
-        isInitialDataLoaded = true;
       });
+
+      isInitialDataLoaded = true;
+      ChartDebug.log('✅ Historical data loaded, now safe to subscribe to real-time');
+
+      // NOW subscribe to real-time after historical data is loaded
+      // This ensures current price candle aligns with historical data
+      subscriptionOrchestrator.subscribeAfterPositioning(
+        { pair, granularity },
+        chartCanvas?.getSeries() || null,
+        pluginManager
+      );
 
       // Track usage for prefetching
       initService.trackUsage(pair, granularity);
