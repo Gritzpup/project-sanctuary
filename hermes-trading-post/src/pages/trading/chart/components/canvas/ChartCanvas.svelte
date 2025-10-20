@@ -153,13 +153,18 @@
     // Load cached candles from Redis first - use current granularity from store
     const pair = 'BTC-USD';
     const granularity = chartStore.config.granularity;
-    dataStore.hydrateFromCache(pair, granularity, 24).catch(error => {
-      console.error('Cache hydration failed, will use WebSocket data:', error);
-    });
 
-    // Initial data load
-    dataManager.updateChartData();
-    dataManager.updateVolumeData();
+    // Wait for cache to load before updating chart
+    dataStore.hydrateFromCache(pair, granularity, 24).then(() => {
+      // Cache loaded successfully, update chart with data
+      dataManager.updateChartData();
+      dataManager.updateVolumeData();
+    }).catch(error => {
+      console.error('Cache hydration failed, will use WebSocket data:', error);
+      // Still update chart even if cache fails
+      dataManager.updateChartData();
+      dataManager.updateVolumeData();
+    });
 
     // Subscribe to real-time candle updates with current granularity
     dataStore.subscribeToRealtime(pair, granularity, (candle) => {
