@@ -47,20 +47,26 @@
   // Positioning debounce
   let positioningTimeout: NodeJS.Timeout | null = null;
 
-  // Simple reactive update when dataStore changes
-  $effect(() => {
+  // ⚡ PHASE 13: Only trigger when candle COUNT changes, not on every price update
+  // Use manual effect tracking to avoid reactivity on candle VALUE changes
+  $effect.tracking(() => {
     // Only update if we have chart, series, and data
     if (chart && candleSeries && dataStore.candles.length > 0) {
-      dataManager?.updateChartData();
+      // Track ONLY candle count for reactivity trigger
+      const currentCandleCount = dataStore.candles.length;
 
-      // Track if candle count changed
-      const candleCountChanged = dataStore.candles.length !== lastCandleCount;
+      // Check if candle count changed
+      const candleCountChanged = currentCandleCount !== lastCandleCount;
 
-      // Apply positioning if:
-      // 1. Candle count changed, OR
+      // Apply positioning ONLY if:
+      // 1. Candle count changed (new candle arrived), OR
       // 2. This is the first time we have data (lastCandleCount === 0)
       if (candleCountChanged || lastCandleCount === 0) {
-        lastCandleCount = dataStore.candles.length;
+        lastCandleCount = currentCandleCount;
+
+        // dataManager will handle price updates via direct L2 subscription
+        // This effect only handles structural changes (new candles)
+        dataManager?.updateChartData();
 
         // Don't auto-position if user has interacted recently
         if (interactionTracker && positioningService) {

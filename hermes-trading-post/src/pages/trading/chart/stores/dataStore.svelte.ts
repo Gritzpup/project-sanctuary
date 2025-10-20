@@ -635,23 +635,29 @@ class DataStore {
       });
     };
 
-    // Subscribe immediately if candles are already loaded, otherwise defer
+    // ⚡ PHASE 13: Subscribe immediately if ready, otherwise defer with efficient timeout
     if (this._candles.length > 0) {
       subscribeToL2();
     } else {
-      // Candles not yet loaded, check periodically and subscribe when ready
-      // Clear any existing check interval
+      // Candles not yet loaded - use efficient single timeout chain instead of polling loop
+      // Clear any existing timeout
       if (this.l2SubscriptionCheckInterval) {
-        clearInterval(this.l2SubscriptionCheckInterval);
+        clearTimeout(this.l2SubscriptionCheckInterval as any);
+        this.l2SubscriptionCheckInterval = null;
       }
-      // Use a timeout to check periodically if candles are loaded
-      this.l2SubscriptionCheckInterval = setInterval(() => {
+
+      // Recursive timeout: check once, then schedule next check only if needed
+      const checkAndSubscribe = () => {
         if (this._candles.length > 0) {
-          clearInterval(this.l2SubscriptionCheckInterval!);
-          this.l2SubscriptionCheckInterval = null;
           subscribeToL2();
+        } else {
+          // Schedule next check in 1 second (typical load time is <500ms)
+          this.l2SubscriptionCheckInterval = setTimeout(checkAndSubscribe, 1000) as any;
         }
-      }, 100); // Check every 100ms
+      };
+
+      // Initial check after 100ms (allow time for API response)
+      this.l2SubscriptionCheckInterval = setTimeout(checkAndSubscribe, 100) as any;
     }
   }
 
@@ -669,7 +675,7 @@ class DataStore {
 
     // Clear any pending L2 subscription check
     if (this.l2SubscriptionCheckInterval) {
-      clearInterval(this.l2SubscriptionCheckInterval);
+      clearTimeout(this.l2SubscriptionCheckInterval as any);
       this.l2SubscriptionCheckInterval = null;
     }
 
