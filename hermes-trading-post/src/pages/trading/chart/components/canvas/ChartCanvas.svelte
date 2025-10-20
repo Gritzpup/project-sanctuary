@@ -47,50 +47,50 @@
   // Positioning debounce
   let positioningTimeout: NodeJS.Timeout | null = null;
 
-  // Track granularity changes to reload data
-  let previousGranularity = chartStore.config.granularity;
-  let previousTimeframe = chartStore.config.timeframe;
-  let granularityChangeInProgress = false;
+  // Track last processed granularity/timeframe to reload data on changes
+  let lastProcessedGranularity = chartStore.config.granularity;
+  let lastProcessedTimeframe = chartStore.config.timeframe;
 
-  // Listen for granularity/timeframe changes and reload data
-  $effect.pre(() => {
+  // Handle granularity and timeframe changes by reloading data
+  $effect(() => {
     const currentGranularity = chartStore.config.granularity;
     const currentTimeframe = chartStore.config.timeframe;
 
-    // Check if granularity or timeframe actually changed
-    const granularityChanged = currentGranularity !== previousGranularity;
-    const timeframeChanged = currentTimeframe !== previousTimeframe;
+    // Check if either value changed
+    const granularityChanged = currentGranularity !== lastProcessedGranularity;
+    const timeframeChanged = currentTimeframe !== lastProcessedTimeframe;
 
-    if ((granularityChanged || timeframeChanged) && chartCreated && !granularityChangeInProgress) {
-      granularityChangeInProgress = true;
-      previousGranularity = currentGranularity;
-      previousTimeframe = currentTimeframe;
+    // Update tracking
+    lastProcessedGranularity = currentGranularity;
+    lastProcessedTimeframe = currentTimeframe;
 
-      // Reload data with new granularity/timeframe
-      const pair = 'BTC-USD';
-      const now = Math.floor(Date.now() / 1000);
+    // Only reload if we're ready and something actually changed
+    if ((granularityChanged || timeframeChanged) && chartCreated) {
+      // Reset candle tracking to force chart update
+      lastCandleCount = 0;
 
-      const getPeriodSeconds = (period: string): number => {
-        const periodMap: Record<string, number> = {
-          '1H': 3600, '4H': 14400, '6H': 21600, '1D': 86400, '5D': 432000,
-          '1W': 604800, '1M': 2592000, '3M': 7776000, '6M': 15552000, '1Y': 31536000, '5Y': 157680000
+      // Schedule data reload after a microtask to avoid infinite loops
+      Promise.resolve().then(() => {
+        if (!chart || !candleSeries || !dataManager) return;
+
+        const pair = 'BTC-USD';
+        const now = Math.floor(Date.now() / 1000);
+
+        const getPeriodSeconds = (period: string): number => {
+          const periodMap: Record<string, number> = {
+            '1H': 3600, '4H': 14400, '6H': 21600, '1D': 86400, '5D': 432000,
+            '1W': 604800, '1M': 2592000, '3M': 7776000, '6M': 15552000, '1Y': 31536000, '5Y': 157680000
+          };
+          return periodMap[period] || 3600;
         };
-        return periodMap[period] || 3600;
-      };
 
-      const timeRange = getPeriodSeconds(currentTimeframe);
-      const startTime = now - timeRange;
+        const timeRange = getPeriodSeconds(currentTimeframe);
+        const startTime = now - timeRange;
 
-      // Reload data with new granularity
-      dataStore.loadData(pair, currentGranularity, startTime, now).then(() => {
-        if (chart && candleSeries && dataManager) {
-          dataManager.updateChartData();
-          dataManager.updateVolumeData();
-        }
-        granularityChangeInProgress = false;
-      }).catch(err => {
-        console.error('❌ Failed to reload data on granularity change:', err);
-        granularityChangeInProgress = false;
+        dataStore.loadData(pair, currentGranularity, startTime, now).then(() => {
+          dataManager?.updateChartData();
+          dataManager?.updateVolumeData();
+        }).catch(err => console.error('Failed to reload data:', err));
       });
     }
   });
