@@ -164,6 +164,8 @@ export default function tradingRoutes(botManager) {
     try {
       const { pair = 'BTC-USD', granularity = '1m', startTime, endTime, maxCandles = 1000 } = req.query;
 
+      console.log(`[Backend] /chart-data request: pair=${pair}, granularity=${granularity}, maxCandles=${maxCandles}, startTime=${startTime}, endTime=${endTime}`);
+
       const now = Math.floor(Date.now() / 1000);
       const calculatedEndTime = endTime ? parseInt(endTime) : now;
 
@@ -197,6 +199,8 @@ export default function tradingRoutes(botManager) {
       const candles = allCandles.length > maxCandlesInt ?
         allCandles.slice(-maxCandlesInt) :
         allCandles;
+
+      console.log(`[Backend] /chart-data response: returning ${candles.length} candles (fetched ${allCandles.length} total, limit was ${maxCandlesInt})`);
 
       // Calculate cache metrics
       const expectedCandles = Math.ceil((calculatedEndTime - calculatedStartTime) / granularitySeconds);
