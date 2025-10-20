@@ -148,10 +148,13 @@ export class AppInitializer {
             // Fetch fresh data and cache it
             console.log(`[AppInitializer] 📡 Warming chart cache: ${commonPair}:${granularity}...`);
 
-            // Calculate time range (last 7 days worth of candles)
+            // 🚀 PHASE 5F FIX: Reduce memory footprint - load only 1 hour of data
+            // OLD: 7 days = 10,080 candles (1m) + 2,016 candles (5m) = 12,096 total = ~1.2 MB
+            // NEW: 1 hour = 60 candles (1m) + 12 candles (5m) = 72 total = ~10 KB (99.2% less!)
+            // This was causing V8 JavaScript OOM crashes on page load
             const now_sec = Math.floor(Date.now() / 1000);
             const granularitySeconds = granularity === '1m' ? 60 : 300;
-            const candleCount = (7 * 24 * 60 * 60) / granularitySeconds; // 7 days
+            const candleCount = (1 * 60 * 60) / granularitySeconds; // 1 hour instead of 7 days
             const startTime = now_sec - (candleCount * granularitySeconds);
             const endTime = now_sec;
 
@@ -161,7 +164,7 @@ export class AppInitializer {
               granularity,
               start: startTime,
               end: endTime,
-              limit: Math.min(candleCount, 10000)
+              limit: Math.min(candleCount, 1000)
             });
 
             if (candles.length > 0) {

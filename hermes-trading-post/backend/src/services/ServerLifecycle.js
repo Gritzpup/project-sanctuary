@@ -94,11 +94,23 @@ export class ServerLifecycle {
       console.log('🛑 Stopping memory monitor...');
       this.memoryMonitor.stop();
 
-      // 5. Close Coinbase WebSocket
+      // 5. Remove Coinbase WebSocket event listeners (prevent memory leak)
+      console.log('🚀 Removing Coinbase WebSocket event listeners...');
+      if (this.coinbaseWebSocket.__level2Handler) {
+        this.coinbaseWebSocket.off('level2', this.coinbaseWebSocket.__level2Handler);
+      }
+      if (this.coinbaseWebSocket.__errorHandler) {
+        this.coinbaseWebSocket.off('error', this.coinbaseWebSocket.__errorHandler);
+      }
+      if (this.coinbaseWebSocket.__disconnectedHandler) {
+        this.coinbaseWebSocket.off('disconnected', this.coinbaseWebSocket.__disconnectedHandler);
+      }
+
+      // 6. Close Coinbase WebSocket
       console.log('🛑 Disconnecting from Coinbase WebSocket...');
       this.coinbaseWebSocket.disconnect();
 
-      // 6. Close all client WebSocket connections
+      // 7. Close all client WebSocket connections
       console.log(`🛑 Closing ${this.wss.clients.size} client connections...`);
       this.wss.clients.forEach(client => {
         client.close(1001, 'Server shutting down');

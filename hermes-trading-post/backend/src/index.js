@@ -154,26 +154,37 @@ const restAPIService = new RESTAPIService({
 
     // 🔧 FIX: Link Coinbase level2 events to WebSocketHandler snapshot cache
     // Set this up AFTER subscription so we don't miss events
-    coinbaseWebSocket.on('level2', (data) => {
+    // 🚀 PHASE 5F FIX: Store handler references for cleanup to prevent memory leaks
+    const level2Handler = (data) => {
       console.log(`📨 [Backend] Received Coinbase level2 event with ${data?.bids?.length || 0} bids and ${data?.asks?.length || 0} asks`);
       if (data && data.bids && data.asks) {
         // Forward the snapshot to WebSocketHandler so clients can request it
         console.log(`✅ [Backend] Caching level2 snapshot for WebSocketHandler (${data.bids.length} bids, ${data.asks.length} asks)`);
         wsHandler.setCachedLevel2Snapshot(data);
       }
-    });
+    };
+
+    const errorHandler = (error) => {
+      console.error('Coinbase WebSocket error:', error);
+    };
+
+    const disconnectedHandler = () => {
+      console.log('Coinbase WebSocket disconnected');
+    };
+
+    coinbaseWebSocket.on('level2', level2Handler);
+    coinbaseWebSocket.on('error', errorHandler);
+    coinbaseWebSocket.on('disconnected', disconnectedHandler);
+
+    // Store references for cleanup
+    coinbaseWebSocket.__level2Handler = level2Handler;
+    coinbaseWebSocket.__errorHandler = errorHandler;
+    coinbaseWebSocket.__disconnectedHandler = disconnectedHandler;
+
     console.log('🔗 Linked Coinbase level2 events to WebSocketHandler');
   } catch (error) {
     console.error('❌ Failed to connect to Coinbase WebSocket:', error.message);
   }
-
-  coinbaseWebSocket.on('error', (error) => {
-    console.error('Coinbase WebSocket error:', error);
-  });
-
-  coinbaseWebSocket.on('disconnected', () => {
-    console.log('Coinbase WebSocket disconnected');
-  });
 })();
 
 app.use('/api/trading', tradingRoutes(botManager));
