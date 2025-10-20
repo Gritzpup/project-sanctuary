@@ -20,9 +20,10 @@ export default defineConfig({
         secure: true,
         timeout: 30000,
         configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('Proxy error:', err);
-          });
+          // Reduced logging - commented for cleaner output
+          // proxy.on('error', (err, _req, _res) => {
+          //   console.log('Proxy error:', err);
+          // });
           proxy.on('proxyReq', (_proxyReq, req, _res) => {
             // Disabled verbose logging
             // console.log('Sending Request to the Target:', req.method, req.url);
@@ -30,6 +31,10 @@ export default defineConfig({
         }
       },
       '/api/trading': {
+        target: 'http://localhost:4828',
+        changeOrigin: true
+      },
+      '/api/time': {
         target: 'http://localhost:4828',
         changeOrigin: true
       },

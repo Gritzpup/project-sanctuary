@@ -76,25 +76,32 @@ export class WebSocketHandler {
     try {
       const data = JSON.parse(message.toString());
 
-      // 🔇 PERF: Only log important messages with minimal overhead
-      // DO NOT use JSON.stringify in hot path - causes massive performance degradation
-      // Only log message type for debugging, not full payload
-      if (data.type !== 'getStatus' && data.type !== 'getManagerState' && data.type !== 'realtimePrice') {
-        // Only log on significant operations, not every message
-        if (data.type === 'createBot' || data.type === 'deleteBot' || data.type === 'startBot' || data.type === 'stopBot') {
-          console.log('📥 [Backend]', data.type, '- botId:', data.botId);
-        }
-      }
+      // 🔇 REDUCED LOGGING: Commented out for cleaner console
+      // Only uncomment for debugging specific issues
+      // if (data.type !== 'getStatus' && data.type !== 'getManagerState' && data.type !== 'realtimePrice') {
+      //   if (data.type === 'createBot' || data.type === 'deleteBot' || data.type === 'startBot' || data.type === 'stopBot') {
+      //     console.log('📥 [Backend]', data.type, '- botId:', data.botId);
+      //   }
+      // }
 
       switch (data.type) {
         case 'createBot':
           this.handleCreateBot(ws, data);
           break;
         case 'selectBot':
-          this.botManager.selectBot(data.botId);
+          try {
+            this.botManager.selectBot(data.botId);
+          } catch (error) {
+            // Silently ignore if bot doesn't exist yet
+            // This happens when client tries to select bot before it's fully created
+          }
           break;
         case 'deleteBot':
-          this.botManager.deleteBot(data.botId);
+          try {
+            this.botManager.deleteBot(data.botId);
+          } catch (error) {
+            // Silently ignore if bot doesn't exist
+          }
           break;
         case 'getManagerState':
           ws.send(JSON.stringify({
@@ -147,7 +154,8 @@ export class WebSocketHandler {
           this.handleRequestLevel2Snapshot(ws, data);
           break;
         default:
-          console.log('Unknown message type:', data.type);
+          // Reduced logging - uncomment for debugging
+          // console.log('Unknown message type:', data.type);
       }
     } catch (error) {
       console.error('Error processing message:', error);
@@ -173,11 +181,12 @@ export class WebSocketHandler {
    * Handle start trading command
    */
   handleStartTrading(ws, data) {
-    console.log('Start trading request received:', {
-      config: data.config,
-      activeBotId: this.botManager.activeBotId,
-      hasActiveBot: !!this.botManager.getActiveBot()
-    });
+    // Reduced logging - commented out for cleaner output
+    // console.log('Start trading request received:', {
+    //   config: data.config,
+    //   activeBotId: this.botManager.activeBotId,
+    //   hasActiveBot: !!this.botManager.getActiveBot()
+    // });
     this.botManager.startTrading(data.config);
   }
 
@@ -187,7 +196,11 @@ export class WebSocketHandler {
   handleStopTrading(ws, data) {
     // If botId provided, select that bot first
     if (data.botId) {
-      this.botManager.selectBot(data.botId);
+      try {
+        this.botManager.selectBot(data.botId);
+      } catch (error) {
+        // Silently ignore if bot doesn't exist
+      }
     }
     this.botManager.stopTrading();
     // Send updated status
@@ -203,7 +216,11 @@ export class WebSocketHandler {
   handlePauseTrading(ws, data) {
     // If botId provided, select that bot first
     if (data.botId) {
-      this.botManager.selectBot(data.botId);
+      try {
+        this.botManager.selectBot(data.botId);
+      } catch (error) {
+        // Silently ignore if bot doesn't exist
+      }
     }
     this.botManager.pauseTrading();
   }
@@ -214,7 +231,11 @@ export class WebSocketHandler {
   handleResumeTrading(ws, data) {
     // If botId provided, select that bot first
     if (data.botId) {
-      this.botManager.selectBot(data.botId);
+      try {
+        this.botManager.selectBot(data.botId);
+      } catch (error) {
+        // Silently ignore if bot doesn't exist
+      }
     }
     this.botManager.resumeTrading();
   }
