@@ -624,14 +624,15 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         });
       }
 
-      // 🚀 PERFORMANCE: Apply update to cache and check throttling
+      // ⚡ PHASE 13: Check throttling FIRST to avoid expensive operations
+      // Throttle to 10 updates/sec BEFORE applying to cache or parsing
+      if (this.orderbookCacheEnabled && redisOrderbookCache.shouldThrottle(productId, 10)) {
+        return; // Skip this update without expensive operations
+      }
+
+      // 🚀 PERFORMANCE: Apply update to cache only if not throttled
       if (this.orderbookCacheEnabled) {
         await redisOrderbookCache.applyUpdate(productId, updates.changes);
-
-        // Check throttling - only forward max 10 updates/sec per product
-        if (redisOrderbookCache.shouldThrottle(productId, 10)) {
-          return; // Skip this update
-        }
 
         // 🚀 PERF: Publish orderbook deltas via Redis Pub/Sub (only changed levels)
         const changedLevels = await redisOrderbookCache.getChangedLevels(productId);
