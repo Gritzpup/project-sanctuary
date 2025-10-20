@@ -246,8 +246,9 @@ class DataStore {
           // Merge delta with cached data
           await chartIndexedDBCache.appendCandles(pair, granularity, deltaAsChartData);
 
-          // Update UI with merged data
-          const mergedCandles = [...cachedData.candles, ...deltaAsChartData].sort(
+          // 🚀 PHASE 6: Merge delta with already-loaded candles (not full cache)
+          // Only merge with candlesToLoad to maintain maxCandles limit
+          const mergedCandles = [...candlesToLoad, ...deltaAsChartData].sort(
             (a, b) => (a.time as number) - (b.time as number)
           );
 
