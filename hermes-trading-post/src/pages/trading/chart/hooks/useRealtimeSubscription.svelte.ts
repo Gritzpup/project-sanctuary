@@ -13,6 +13,7 @@
 import { dataStore } from '../stores/dataStore.svelte';
 import { statusStore } from '../stores/statusStore.svelte';
 import { chartStore } from '../stores/chartStore.svelte';
+import { orderbookStore } from '../../orderbook/stores/orderbookStore.svelte';
 import { ChartDebug } from '../utils/debug';
 import { getCandleCount } from '../../../../lib/chart/TimeframeCompatibility';
 import { getGranularitySeconds } from '../utils/granularityHelpers';
@@ -48,6 +49,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   let currentChartSeries: ISeriesApi<'Candlestick'> | null = null;
   let currentVolumeSeries: any = null;
   let unsubscribeFromDataStore: (() => void) | null = null;  // Track dataStore callback unsubscribe
+  let unsubscribeFromL2: (() => void) | null = null;  // Track L2 price subscription unsubscribe
 
   function scheduleUpdate(price: number, chartSeries?: any, volumeSeries?: any, candleData?: any) {
     // Store the latest update
@@ -402,6 +404,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
    * Subscribe to real-time data streams
    * ⚡ PHASE 9A: Fix stale chartSeries references by storing series at subscription time
    * ⚡ PHASE 10C: Register chart update as dataStore callback for L2 price bridge updates
+   * ⚡ PHASE 11: Direct L2 price subscription (bypasses RAF throttling for instant updates)
    */
   function subscribeToRealtime(config: RealtimeSubscriptionConfig, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any) {
     const { pair, granularity } = config;
@@ -410,15 +413,43 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     currentChartSeries = chartSeries || null;
     currentVolumeSeries = volumeSeries || null;
 
-    // ⚡ PHASE 10C: Register as dataStore callback so L2 price updates trigger chart candle updates
-    // This ensures the chart updates in real-time when L2 orderbook prices change
+    // ⚡ PHASE 11: Subscribe directly to L2 prices for INSTANT chart candle updates
+    // This bypasses dataStore RAF throttling and updates at full orderbook speed (10-30 Hz)
+    // Unsubscribe from previous L2 subscription if one exists
+    if (unsubscribeFromL2) {
+      unsubscribeFromL2();
+    }
+
+    unsubscribeFromL2 = orderbookStore.subscribeToPriceUpdates((l2Price: number) => {
+      // Direct L2 price update - instant, no RAF delay
+      if (currentChartSeries && dataStore.candles.length > 0) {
+        const lastCandle = dataStore.candles[dataStore.candles.length - 1];
+
+        // Update candle with L2 price directly
+        const updatedCandle = {
+          ...lastCandle,
+          high: Math.max(lastCandle.high, l2Price),
+          low: Math.min(lastCandle.low, l2Price),
+          close: l2Price
+        };
+
+        // Update chart directly (no RAF, instant)
+        if (currentChartSeries) {
+          currentChartSeries.update(updatedCandle as any);
+          statusStore.setPriceUpdate();
+        }
+      }
+    });
+
+    // ⚡ PHASE 10C: Register as dataStore callback for non-L2 candle updates
+    // This handles WebSocket candle updates when L2 is not available
     // Unsubscribe from previous dataStore callback if one exists
     if (unsubscribeFromDataStore) {
       unsubscribeFromDataStore();
     }
 
     unsubscribeFromDataStore = dataStore.onDataUpdate(() => {
-      // When L2 prices update the candle, also update the chart series
+      // When candle data updates (WebSocket), trigger chart update
       if (currentChartSeries && dataStore.candles.length > 0) {
         const lastCandle = dataStore.candles[dataStore.candles.length - 1];
         scheduleUpdate(lastCandle.close, currentChartSeries, currentVolumeSeries, lastCandle as any);
@@ -457,10 +488,16 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   function unsubscribeFromRealtime() {
     dataStore.unsubscribeFromRealtime();
 
-    // Also unsubscribe from dataStore callbacks
+    // Unsubscribe from dataStore callbacks
     if (unsubscribeFromDataStore) {
       unsubscribeFromDataStore();
       unsubscribeFromDataStore = null;
+    }
+
+    // Unsubscribe from L2 price updates
+    if (unsubscribeFromL2) {
+      unsubscribeFromL2();
+      unsubscribeFromL2 = null;
     }
   }
 

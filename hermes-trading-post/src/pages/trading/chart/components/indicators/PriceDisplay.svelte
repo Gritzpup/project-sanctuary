@@ -1,5 +1,6 @@
 <script lang="ts">
   import { dataStore } from '../../stores/dataStore.svelte';
+  import { orderbookStore } from '../../../orderbook/stores/orderbookStore.svelte';
   import { formatPrice } from '../../../../../utils/formatters/priceFormatters';
 
   // Props using Svelte 5 runes syntax
@@ -13,8 +14,31 @@
   let isNewPrice = $state(false);
   let previousPrice = $state<number | null>(null);
 
-  // Reactive derived values - using $derived for proper Svelte 5 reactivity
-  let currentPrice = $derived(dataStore.latestPrice);
+  // Subscribe to direct L2 prices on mount (instant, no lag)
+  // Falls back to dataStore if L2 not available
+  let currentPrice = $state<number | null>(null);
+
+  $effect.pre(() => {
+    // Subscribe to L2 prices directly
+    const unsubscribe = orderbookStore.subscribeToPriceUpdates((price: number) => {
+      if (price > 0) {
+        // Update current price instantly from L2
+        currentPrice = price;
+      }
+    });
+
+    // Fallback to dataStore price if no L2 price yet
+    if (!currentPrice && dataStore.latestPrice) {
+      currentPrice = dataStore.latestPrice;
+    }
+
+    // Cleanup subscription on unmount
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  });
 
   // Reactive display price
   let displayPrice = $derived.by(() => {
