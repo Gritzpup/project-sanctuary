@@ -150,8 +150,10 @@
       return;
     }
 
-    // Load cached candles from Redis first
-    dataStore.hydrateFromCache('BTC-USD', '1m', 24).catch(error => {
+    // Load cached candles from Redis first - use current granularity from store
+    const pair = 'BTC-USD';
+    const granularity = chartStore.config.granularity;
+    dataStore.hydrateFromCache(pair, granularity, 24).catch(error => {
       console.error('Cache hydration failed, will use WebSocket data:', error);
     });
 
@@ -159,8 +161,8 @@
     dataManager.updateChartData();
     dataManager.updateVolumeData();
 
-    // Subscribe to real-time candle updates
-    dataStore.subscribeToRealtime('BTC-USD', '1m', (candle) => {
+    // Subscribe to real-time candle updates with current granularity
+    dataStore.subscribeToRealtime(pair, granularity, (candle) => {
       dataManager.handleRealtimeUpdate(candle);
     });
 
