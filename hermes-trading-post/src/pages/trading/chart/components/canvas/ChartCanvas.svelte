@@ -48,13 +48,13 @@
   let positioningTimeout: NodeJS.Timeout | null = null;
 
   // ⚡ PHASE 13: Only trigger when candle COUNT changes, not on every price update
-  // Use manual effect tracking to avoid reactivity on candle VALUE changes
-  $effect.tracking(() => {
-    // Only update if we have chart, series, and data
-    if (chart && candleSeries && dataStore.candles.length > 0) {
-      // Track ONLY candle count for reactivity trigger
-      const currentCandleCount = dataStore.candles.length;
+  // Subscribe to dataStore updates only when candle count changes
+  $effect(() => {
+    // Derive candle count to minimize reactivity triggers
+    const currentCandleCount = $derived(dataStore.candles.length);
 
+    // Only proceed if we have chart, series, and data
+    if (chart && candleSeries && currentCandleCount > 0) {
       // Check if candle count changed
       const candleCountChanged = currentCandleCount !== lastCandleCount;
 
