@@ -425,31 +425,41 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       if (currentChartSeries && dataStore.candles.length > 0) {
         const lastCandle = dataStore.candles[dataStore.candles.length - 1];
 
-        // Update candle with L2 price directly
-        const updatedCandle = {
-          ...lastCandle,
+        // Ensure time is preserved as a number
+        const updatedCandle: CandlestickData = {
+          time: lastCandle.time,  // Preserve time as-is
+          open: lastCandle.open,
           high: Math.max(lastCandle.high, l2Price),
           low: Math.min(lastCandle.low, l2Price),
-          close: l2Price
+          close: l2Price,
+          volume: (lastCandle as any).volume || 0
         };
 
         // Update chart directly (no RAF, instant)
         if (currentChartSeries) {
-          currentChartSeries.update(updatedCandle as any);
-          statusStore.setPriceUpdate();
+          try {
+            currentChartSeries.update(updatedCandle);
+            statusStore.setPriceUpdate();
+          } catch (error) {
+            // Silently handle chart update errors - they're expected during candle transitions
+            if (!(error as Error).message?.includes('Cannot update')) {
+              console.warn('[L2 Direct] Chart update error:', error);
+            }
+          }
         }
       }
     });
 
-    // ⚡ PHASE 10C: Register as dataStore callback for non-L2 candle updates
-    // This handles WebSocket candle updates when L2 is not available
+    // ⚡ PHASE 11: Keep dataStore callback for WebSocket ticker updates (fallback)
+    // The L2 subscription handles orderbook prices, this handles ticker/WebSocket updates
     // Unsubscribe from previous dataStore callback if one exists
     if (unsubscribeFromDataStore) {
       unsubscribeFromDataStore();
     }
 
     unsubscribeFromDataStore = dataStore.onDataUpdate(() => {
-      // When candle data updates (WebSocket), trigger chart update
+      // When candle data updates (WebSocket ticker), trigger chart update
+      // This is a fallback for non-L2 price updates
       if (currentChartSeries && dataStore.candles.length > 0) {
         const lastCandle = dataStore.candles[dataStore.candles.length - 1];
         scheduleUpdate(lastCandle.close, currentChartSeries, currentVolumeSeries, lastCandle as any);
