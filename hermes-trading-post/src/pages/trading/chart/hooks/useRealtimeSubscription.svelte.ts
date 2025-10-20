@@ -51,7 +51,20 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   let unsubscribeFromDataStore: (() => void) | null = null;  // Track dataStore callback unsubscribe
   let unsubscribeFromL2: (() => void) | null = null;  // Track L2 price subscription unsubscribe
 
+  // ⚡ PHASE 13c: Deduplication - track last update time to avoid duplicate chart renders
+  // L2 updates at 10-30 Hz, ticker updates at ~1 Hz, so same update within 50ms is a duplicate
+  let lastChartUpdateTime: number = 0;
+  const UPDATE_DEDUP_WINDOW_MS = 50;  // 50ms window to catch duplicate updates
+
   function scheduleUpdate(price: number, chartSeries?: any, volumeSeries?: any, candleData?: any) {
+    // ⚡ PHASE 13c: Deduplication - skip if this is a duplicate update from L2
+    // If L2 just updated the chart (within last 50ms), skip dataStore callback update
+    const now = Date.now();
+    if (now - lastChartUpdateTime < UPDATE_DEDUP_WINDOW_MS) {
+      // This is likely a duplicate update, skip it
+      return;
+    }
+
     // Store the latest update
     pendingUpdate = { price, chartSeries, volumeSeries, candleData };
 
@@ -64,6 +77,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         }
         rafId = null;
         pendingUpdate = null;
+        lastChartUpdateTime = Date.now();  // Track when update completes
       });
     }
   }
@@ -421,7 +435,8 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     }
 
     unsubscribeFromL2 = orderbookStore.subscribeToPriceUpdates((l2Price: number) => {
-      // Direct L2 price update - instant, no RAF delay
+      // ⚡ PHASE 13c: Direct L2 price update - instant, no RAF delay
+      // Mark this timestamp to prevent duplicate updates from dataStore callback
       if (currentChartSeries && dataStore.candles.length > 0) {
         const lastCandle = dataStore.candles[dataStore.candles.length - 1];
 
@@ -440,6 +455,8 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
           try {
             currentChartSeries.update(updatedCandle);
             statusStore.setPriceUpdate();
+            // ⚡ PHASE 13c: Mark L2 update time to prevent duplicate dataStore updates within 50ms
+            lastChartUpdateTime = Date.now();
           } catch (error) {
             // Silently handle chart update errors - they're expected during candle transitions
             if (!(error as Error).message?.includes('Cannot update')) {

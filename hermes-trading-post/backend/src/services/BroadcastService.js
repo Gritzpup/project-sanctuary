@@ -107,7 +107,8 @@ export class BroadcastService {
   /**
    * Setup candle data broadcast
    * Triggered by coinbaseWebSocket 'candle' events
-   * Includes subscription filtering and throttling (100ms minimum)
+   * ⚡ PHASE 13c: Throttling optimized - 1000ms for incomplete, immediate for complete
+   * Reduces WebSocket traffic by 90% for incomplete candles while keeping complete candles instant
    */
   setupCandleBroadcast() {
     this.coinbaseWebSocket.on('candle', (candleData) => {
@@ -128,11 +129,14 @@ export class BroadcastService {
 
               // Only send to subscribed clients
               if (clientSubs.has(subscriptionKey)) {
-                // 🔥 THROTTLE: Only emit complete candles or throttle intermediate updates (100ms)
+                // ⚡ PHASE 13c THROTTLE: Complete candles (type='complete') sent immediately
+                // Incomplete updates throttled to 1000ms (down from 100ms) to reduce traffic 90%
                 const emissionKey = `${client._clientId}:${subscriptionKey}`;
                 const lastEmitTime = this.lastEmissionTimes.get(emissionKey) || 0;
 
-                const shouldEmit = candleData.type === 'complete' || (now - lastEmitTime >= 100);
+                // COMPLETE: Send immediately | INCOMPLETE: Throttle to 1000ms
+                const throttleWindowMs = candleData.type === 'complete' ? 0 : 1000;
+                const shouldEmit = candleData.type === 'complete' || (now - lastEmitTime >= throttleWindowMs);
 
                 if (shouldEmit) {
                   this.lastEmissionTimes.set(emissionKey, now);
