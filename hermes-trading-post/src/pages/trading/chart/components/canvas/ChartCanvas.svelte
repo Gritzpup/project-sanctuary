@@ -47,9 +47,6 @@
   // Positioning debounce
   let positioningTimeout: NodeJS.Timeout | null = null;
 
-  // Handle granularity changes via subscription (not reactive effect to avoid loops)
-  let unsubscribeFromGranularityChanges: (() => void) | null = null;
-
   // ⚡ PHASE 13: Only trigger when candle COUNT changes, not on every price update
   // Subscribe to dataStore updates only when candle count changes
   $effect.pre(() => {
@@ -183,35 +180,6 @@
       debounceMs: 500
     });
 
-    // Subscribe to granularity changes and reload data when they occur
-    unsubscribeFromGranularityChanges = chartStore.subscribeToEvents((event: any) => {
-      if ((event.type === 'granularity-change' || event.type === 'period-change') && chart && candleSeries && dataManager) {
-        // Reset chart data for clean reload
-        lastCandleCount = 0;
-
-        // Reload data with new granularity/timeframe
-        const newGranularity = chartStore.config.granularity;
-        const newTimeframe = chartStore.config.timeframe;
-        const now = Math.floor(Date.now() / 1000);
-
-        const getPeriodSeconds = (period: string): number => {
-          const periodMap: Record<string, number> = {
-            '1H': 3600, '4H': 14400, '6H': 21600, '1D': 86400, '5D': 432000,
-            '1W': 604800, '1M': 2592000, '3M': 7776000, '6M': 15552000, '1Y': 31536000, '5Y': 157680000
-          };
-          return periodMap[period] || 3600;
-        };
-
-        const timeRange = getPeriodSeconds(newTimeframe);
-        const startTime = now - timeRange;
-
-        dataStore.loadData(pair, newGranularity, startTime, now).then(() => {
-          dataManager?.updateChartData();
-          dataManager?.updateVolumeData();
-        }).catch(err => console.error('Failed to reload data on granularity change:', err));
-      }
-    });
-
     // Notify parent component
     if (onChartReady) {
       onChartReady(chart);
@@ -224,12 +192,6 @@
     if (positioningTimeout) {
       clearTimeout(positioningTimeout);
       positioningTimeout = null;
-    }
-
-    // Cleanup granularity subscription
-    if (unsubscribeFromGranularityChanges) {
-      unsubscribeFromGranularityChanges();
-      unsubscribeFromGranularityChanges = null;
     }
 
     // Cleanup services
