@@ -39,6 +39,7 @@ class DataStore {
   private orderbookPriceUnsubscribe: (() => void) | null = null;
   private newCandleTimeout: NodeJS.Timeout | null = null;
   private l2SubscriptionCheckInterval: NodeJS.Timeout | null = null;  // Track the candle-loading check interval
+  private l2NotifyRafId: number | null = null;  // RAF throttle for notifyDataUpdate calls
 
   // Subscription mechanism for plugins
   private dataUpdateCallbacks: Set<() => void> = new Set();
@@ -620,9 +621,17 @@ class DataStore {
           this._candles[this._candles.length - 1] = updatedCandle;
         }
 
-        // Update stats and notify subscribers IMMEDIATELY (no batching delay)
+        // Update stats and notify subscribers
+        // ⚡ THROTTLE: Use RAF to limit callback notifications to 60 FPS max
+        // This prevents memory bloat from too many callback executions
         this._dataStats.lastUpdate = Date.now();
-        this.notifyDataUpdate(true);  // ✅ immediate=true skips 16ms batcher
+
+        if (!this.l2NotifyRafId) {
+          this.l2NotifyRafId = requestAnimationFrame(() => {
+            this.notifyDataUpdate(true);  // ✅ immediate=true skips 16ms batcher
+            this.l2NotifyRafId = null;
+          });
+        }
       });
     };
 
@@ -662,6 +671,12 @@ class DataStore {
     if (this.l2SubscriptionCheckInterval) {
       clearInterval(this.l2SubscriptionCheckInterval);
       this.l2SubscriptionCheckInterval = null;
+    }
+
+    // Cancel any pending RAF notification
+    if (this.l2NotifyRafId) {
+      cancelAnimationFrame(this.l2NotifyRafId);
+      this.l2NotifyRafId = null;
     }
   }
 
