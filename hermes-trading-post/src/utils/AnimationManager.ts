@@ -263,7 +263,7 @@ export const animationManager = AnimationManager.getInstance();
  * Schedule animation task
  * @example
  * scheduleAnimation(() => {
- *   element.style.transform = `translateX(${x}px)`;
+ *   element.style.transform = "translateX(" + x + "px)";
  * });
  */
 export function scheduleAnimation(callback: () => void, priority?: number): string {
@@ -274,8 +274,10 @@ export function scheduleAnimation(callback: () => void, priority?: number): stri
  * Batch animation tasks
  * @example
  * batchAnimations([
- *   () => { /* update 1 */ },
- *   () => { /* update 2 */ }
+ *   () => { // update 1
+ *   },
+ *   () => { // update 2
+ *   }
  * ]);
  */
 export function batchAnimations(callbacks: (() => void)[], priority?: number): string[] {
