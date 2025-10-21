@@ -20,6 +20,11 @@
   $: recommendedGranularities = RECOMMENDED_GRANULARITIES[currentTimeframe] || [];
   $: validGranularities = VALID_GRANULARITIES[currentTimeframe] || [];
 
+  // Log granularity changes for debugging
+  $: if (currentGranularity) {
+    console.log(`[GranularityControls] Current granularity updated to: ${currentGranularity}`);
+  }
+
   // Show all valid granularities for the current timeframe
   $: filteredGranularities = showGranularities ?
     availableGranularities.filter(g => validGranularities.includes(g)) :

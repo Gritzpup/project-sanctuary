@@ -497,11 +497,13 @@ class DataStore {
 
           // If we escalated granularity, update the config to use the new granularity
           if (granularityToTry !== config.granularity) {
-            console.log(`[DataStore] Escalated granularity from ${config.granularity} to ${granularityToTry}`);
+            console.log(`[DataStore] 🎯 ESCALATED granularity from ${config.granularity} to ${granularityToTry}`);
             this._config = { ...config, granularity: granularityToTry };
 
             // Update chart store config so UI reflects new granularity
+            // This triggers GranularityControls button to highlight the new granularity
             chartStore.updateConfig({ granularity: granularityToTry });
+            console.log(`[DataStore] ✅ Updated chartStore granularity to ${granularityToTry}`);
           }
 
           // Merge historical data with existing data (prepend historical data)
