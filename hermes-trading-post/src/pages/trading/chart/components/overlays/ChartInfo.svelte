@@ -100,6 +100,12 @@
       </span>
     </div>
     <div class="info-item">
+      <span class="info-label">Loaded:</span>
+      <span class="info-value">
+        {formatNumber(dataStore.stats.loadedCount || 0)}
+      </span>
+    </div>
+    <div class="info-item">
       <span class="info-label">Candles:</span>
       <span class="info-value">
         <CandleCounter updateInterval={2000} showAnimation={true} />

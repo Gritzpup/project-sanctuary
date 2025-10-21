@@ -148,23 +148,32 @@ export class AppInitializer {
             // Fetch fresh data and cache it
             console.log(`[AppInitializer] 📡 Warming chart cache: ${commonPair}:${granularity}...`);
 
-            // 🚀 PHASE 5F FIX: Reduce memory footprint - load only 1 hour of data
-            // OLD: 7 days = 10,080 candles (1m) + 2,016 candles (5m) = 12,096 total = ~1.2 MB
-            // NEW: 1 hour = 60 candles (1m) + 12 candles (5m) = 72 total = ~10 KB (99.2% less!)
-            // This was causing V8 JavaScript OOM crashes on page load
+            // 🚀 PHASE 11: Load appropriate amount per granularity for instant cache
+            // Balance between memory (small) and UX (show meaningful data immediately)
+            // These match the granularity-specific loads from useDataLoader
+            const granularityCacheAmounts: Record<string, number> = {
+              '1m': 500,     // ~8 hours of 1m data - enough for quick analysis
+              '5m': 300,     // ~25 hours of 5m data
+              '15m': 200,    // ~2+ days of 15m data
+              '30m': 150,    // ~5+ days of 30m data
+              '1h': 100,     // ~4+ days of hourly data
+              '4h': 60,      // ~10+ days of 4h data
+              '1d': 30       // ~month of daily data
+            };
+
             const now_sec = Math.floor(Date.now() / 1000);
-            const granularitySeconds = granularity === '1m' ? 60 : 300;
-            const candleCount = (1 * 60 * 60) / granularitySeconds; // 1 hour instead of 7 days
+            const granularitySeconds = granularity === '1m' ? 60 : granularity === '5m' ? 300 : 900;
+            const candleCount = granularityCacheAmounts[granularity] || 100;
             const startTime = now_sec - (candleCount * granularitySeconds);
             const endTime = now_sec;
 
-            // Fetch from backend cache service
+            // Fetch from backend cache service with granularity-specific amounts
             const candles = await chartCacheService.fetchCandles({
               pair: commonPair,
               granularity,
               start: startTime,
               end: endTime,
-              limit: Math.min(candleCount, 1000)
+              limit: candleCount
             });
 
             if (candles.length > 0) {

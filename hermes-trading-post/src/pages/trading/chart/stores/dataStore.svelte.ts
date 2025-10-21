@@ -33,6 +33,7 @@ class DataStore {
     totalCount: 0,
     totalDatabaseCount: 0, // Total across ALL granularities
     visibleCount: 0,
+    loadedCount: 0, // 🚀 PHASE 11: Candles loaded for current granularity from cache + backend
     oldestTime: null as number | null,
     newestTime: null as number | null,
     lastUpdate: null as number | null,
@@ -208,15 +209,16 @@ class DataStore {
         console.log(`[DataStore CACHE HIT] Loading from cache (cached=${cachedCandles.length}, maxCandles=${requestedCandles})`);
         ChartDebug.log(`⚡ INSTANT LOAD from IndexedDB: ${cachedCandles.length} candles (${performance.now() - perfStart}ms)`);
 
-        // 🚀 PHASE 11: Skip cache enhancement for now - needs refactoring
-        // TODO: Implement smart cache enhancement that doesn't break outer if/else
-
-        // Load from cache (either full if sufficient, or whatever we have)
+        // 🚀 PHASE 11: Load immediately from cache, then fetch additional data asynchronously
+        // This gives instant display while fetching more data from backend
         const candlesToLoad = maxCandles ? cachedCandles.slice(-maxCandles) : cachedCandles;
-
         console.log(`[DataStore CACHE HIT] Loading ${candlesToLoad.length} candles (cached=${cachedCandles.length})`);
         this.setCandles(candlesToLoad);
         this.updateStats();
+
+        // 🚀 PHASE 11: Cache enhancement now happens at app init via AppInitializer
+        // We load sufficient data per granularity during warming, so we don't need additional fetches here
+        // Infinite scroll will handle loading more as user scrolls left
 
         // 🔄 DELTA SYNC: Only fetch new candles since last cache
         const lastCandleTime = cachedData.lastCandleTime;
@@ -483,79 +485,45 @@ class DataStore {
       const firstCandle = this._candles[0];
       const firstCandleTime = firstCandle.time as number;
 
-      // 🚀 PHASE 7: Automatic granularity escalation
-      // Granularity hierarchy: 1m → 5m → 15m → 30m → 1h → 2h → 4h → 6h → 1d
-      const granularityHierarchy = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '1d'];
-      const currentIndex = granularityHierarchy.indexOf(config.granularity);
+      // 🚀 PHASE 11: NO granularity escalation - respect user's granularity choice
+      // Infinite scroll fetches more data for the CURRENT granularity only
+      const granularityMap: Record<string, number> = {
+        '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '1d': 86400
+      };
+      const granularitySeconds = granularityMap[config.granularity] || 60;
+      const fetchStartTime = firstCandleTime - (additionalCandleCount * granularitySeconds);
 
-      // Try current granularity first, then escalate if no data returned
-      let granularityToTry = config.granularity;
-      let attempts = 0;
-      const maxAttempts = granularityHierarchy.length - currentIndex; // Don't go below current level
+      console.log(`[DataStore] 📜 Infinite scroll: Loading ${additionalCandleCount} more ${config.granularity} candles...`);
 
-      while (attempts < maxAttempts) {
-        // Get granularity seconds
-        const granularityMap: Record<string, number> = {
-          '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '1d': 86400
-        };
-        const granularitySeconds = granularityMap[granularityToTry] || 60;
+      // Fetch additional historical data for the CURRENT granularity
+      const historicalData = await chartCacheService.fetchCandles({
+        pair: config.pair,
+        granularity: config.granularity,
+        start: fetchStartTime,
+        end: firstCandleTime - granularitySeconds, // Don't overlap with existing data
+        limit: additionalCandleCount
+      });
 
-        const fetchStartTime = firstCandleTime - (additionalCandleCount * granularitySeconds);
+      if (historicalData.length > 0) {
+        console.log(`[DataStore] ✅ Infinite scroll: Loaded ${historicalData.length} more ${config.granularity} candles`);
 
-        console.log(`[DataStore] Attempting to fetch historical data with granularity: ${granularityToTry} (attempt ${attempts + 1}/${maxAttempts})`);
+        // Merge historical data with existing data (prepend historical data)
+        const mergedCandles = [...historicalData, ...this._candles];
 
-        // Fetch additional historical data from Redis
-        const historicalData = await chartCacheService.fetchCandles({
-          pair: config.pair,
-          granularity: granularityToTry,
-          start: fetchStartTime,
-          end: firstCandleTime - granularitySeconds, // Don't overlap with existing data
-          limit: additionalCandleCount
-        });
+        // Sort by time to ensure proper order (should already be sorted, but safety check)
+        mergedCandles.sort((a, b) => (a.time as number) - (b.time as number));
 
-        if (historicalData.length > 0) {
-          console.log(`[DataStore] Successfully loaded ${historicalData.length} candles at ${granularityToTry}`);
+        // Use setCandles to ensure proper reactivity and notifications
+        this.setCandles(mergedCandles);
 
-          // If we escalated granularity, update the config to use the new granularity
-          if (granularityToTry !== config.granularity) {
-            console.log(`[DataStore] 🎯 ESCALATED granularity from ${config.granularity} to ${granularityToTry}`);
-            this._config = { ...config, granularity: granularityToTry };
+        // Notify plugins that historical data was loaded (separate from real-time updates)
+        this.notifyHistoricalDataLoaded();
 
-            // Update chart store config so UI reflects new granularity
-            // This triggers GranularityControls button to highlight the new granularity
-            chartStore.updateConfig({ granularity: granularityToTry });
-            console.log(`[DataStore] ✅ Updated chartStore granularity to ${granularityToTry}`);
-          }
-
-          // Merge historical data with existing data (prepend historical data)
-          const mergedCandles = [...historicalData, ...this._candles];
-
-          // Sort by time to ensure proper order (should already be sorted, but safety check)
-          mergedCandles.sort((a, b) => (a.time as number) - (b.time as number));
-
-          // Use setCandles to ensure proper reactivity and notifications
-          this.setCandles(mergedCandles);
-
-          // Notify plugins that historical data was loaded (separate from real-time updates)
-          this.notifyHistoricalDataLoaded();
-
-          return historicalData.length;
-        }
-
-        // No data at this granularity, try coarser granularity
-        attempts++;
-        const nextIndex = currentIndex + attempts;
-        if (nextIndex < granularityHierarchy.length) {
-          granularityToTry = granularityHierarchy[nextIndex];
-          console.log(`[DataStore] No data found, escalating to ${granularityToTry}...`);
-        } else {
-          console.log(`[DataStore] Reached maximum granularity (1d), no more data available`);
-          break;
-        }
+        return historicalData.length;
+      } else {
+        console.log(`[DataStore] No additional data available for ${config.granularity}`);
+        return 0;
       }
-
-      console.log(`[DataStore] Could not fetch historical data at any granularity level`);
-      return 0;
     } catch (error) {
       // PERF: Disabled - console.error('❌ Error fetching historical data:', error);
       return 0;
@@ -799,6 +767,8 @@ class DataStore {
     // ⚡ SVELTE 5 OPTIMIZATION: Update individual properties instead of spreading
     // Direct assignment avoids reactive cascade overhead
     this._dataStats.totalCount = count;
+    // 🚀 PHASE 11: Track loadedCount - total candles loaded for this granularity
+    this._dataStats.loadedCount = count;
     // 🚀 PHASE 6 FIX: DON'T overwrite visibleCount here!
     // visibleCount is managed by VisibleCandleTracker and updateVisibleCandleCount()
     // Overwriting it here breaks the connection to the actual chart viewport
