@@ -22,7 +22,18 @@
   // Speed control
   let currentSpeed: string = '1x';
   const availableSpeeds = ['1x', '1.5x', '2x', '3x', '10x'];
-  
+
+  // 🚀 PHASE 7.1: Make granularity reactive for auto-updates during zoom
+  // This ensures the GranularityControls button highlights update when granularity escalates
+  let currentGranularity = $state(chartStore.config.granularity);
+  let currentTimeframe = $state(chartStore.config.timeframe);
+
+  // Subscribe to store changes and update reactive variables
+  $effect(() => {
+    currentGranularity = chartStore.config.granularity;
+    currentTimeframe = chartStore.config.timeframe;
+  });
+
   // Service instance
   let controlsService: ChartControlsService;
   let isRefreshing = false;
@@ -81,15 +92,15 @@
   />
   
   <TimeframeControls
-    currentTimeframe={chartStore.config.timeframe}
+    {currentTimeframe}
     {availableTimeframes}
     {showTimeframes}
     on:timeframeChange={handleTimeframeChange}
   />
-  
+
   <GranularityControls
-    currentGranularity={chartStore.config.granularity}
-    currentTimeframe={chartStore.config.timeframe}
+    {currentGranularity}
+    {currentTimeframe}
     {availableGranularities}
     {showGranularities}
     {onGranularityChange}
