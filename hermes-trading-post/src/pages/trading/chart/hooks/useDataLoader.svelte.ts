@@ -125,13 +125,24 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       
       // Load data
       perfTest.mark('dataStore-loadData-start');
-      // 🚀 PHASE 2: Optimized candle loading with 300 candle limit
-      // Advanced Trade API max = 300 candles per request
-      // This provides optimal balance between startup speed and data availability
-      // OLD: Loaded only 60 candles = too little data = forced escalation
-      // NEW: Load 300 candles = maximum API efficiency = no unnecessary escalations
-      const candleLoadLimit = 300; // Load maximum from API to prevent escalation
-      ChartDebug.log(`📊 Loading: Starting with ${candleLoadLimit} candles (full range: ${candleCount} candles)`);
+      // 🚀 PHASE 11: Aggressive initial data load for rich chart experience
+      // Load substantially more data on initialization for proper infinite scroll
+      // - 1m granularity: Load ~2000 candles (~1.4 days) for smooth scrolling
+      // - 5m granularity: Load ~1000 candles (~3.5 days)
+      // - 1h granularity: Load ~500 candles (~3 weeks)
+      // - 1d granularity: Load ~300 candles (~10 months)
+      // This matches TradingView/Coinbase behavior for rich historical context
+      const granularityCandles: Record<string, number> = {
+        '1m': 2000,   // ~1.4 days of minute data
+        '5m': 1000,   // ~3.5 days of 5m data
+        '15m': 800,   // ~8+ days of 15m data
+        '30m': 500,   // ~10+ days of 30m data
+        '1h': 500,    // ~3 weeks of hourly data
+        '4h': 400,    // ~2+ months of 4h data
+        '1d': 300     // ~10 months of daily data
+      };
+      const candleLoadLimit = granularityCandles[config.granularity] || 300;
+      ChartDebug.log(`📊 Loading: Starting with ${candleLoadLimit} candles (full range: ${candleCount} candles) for ${config.granularity}`);
       await dataStore.loadData(
         config.pair,
         config.granularity,

@@ -8,18 +8,18 @@ import { ChartDebug } from '../utils/debug';
 interface UseHistoricalDataLoaderConfig {
   chart: IChartApi | null;
   candleSeries: ISeriesApi<'Candlestick'> | null;
-  loadThreshold?: number; // How close to the edge before loading more data (default: 0.1 = 10%)
-  loadAmount?: number; // Number of additional candles to load (default: 60 - matches initial lazy load)
-  debounceMs?: number; // Debounce time for scroll events (default: 500ms)
+  loadThreshold?: number; // How close to the edge before loading more data (default: 0.15 = 15% for aggressive infinite scroll)
+  loadAmount?: number; // Number of additional candles to load per scroll (default: 200 for chunked loading)
+  debounceMs?: number; // Debounce time for scroll events (default: 300ms for responsive UI)
 }
 
 export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
   const {
     chart,
     candleSeries,
-    loadThreshold = 0.1,
-    loadAmount = 60,  // 🚀 PHASE 6: Changed from 300 to 60 for consistent lazy loading
-    debounceMs = 500
+    loadThreshold = 0.15, // 🚀 PHASE 11: Increased from 0.1 to 0.15 (15%) for more aggressive loading
+    loadAmount = 200,     // 🚀 PHASE 11: Increased from 60 to 200 for chunked loading during scroll
+    debounceMs = 300      // 🚀 PHASE 11: Reduced from 500 to 300ms for faster responsiveness
   } = config;
   
   let isLoading = false;
@@ -91,13 +91,15 @@ export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
     ChartDebug.log('Scroll position check', {
       from,
       totalCandles,
-      scrollPosition,
-      threshold: loadThreshold,
+      scrollPosition: (scrollPosition * 100).toFixed(1) + '%',
+      threshold: (loadThreshold * 100).toFixed(0) + '%',
       shouldLoad: scrollPosition <= loadThreshold && from <= totalCandles * loadThreshold
     });
 
     // If user has scrolled to within the threshold of the beginning, load more historical data
+    // This implements infinite scroll pattern for professional trading charts
     if (scrollPosition <= loadThreshold && from <= totalCandles * loadThreshold) {
+      ChartDebug.log(`📜 Infinite scroll triggered: ${(scrollPosition * 100).toFixed(1)}% from start (threshold: ${(loadThreshold * 100).toFixed(0)}%)`);
       await loadMoreHistoricalData();
     }
   }
@@ -113,9 +115,9 @@ export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
 
     try {
       const addedCount = await dataStore.fetchAndPrependHistoricalData(loadAmount);
-      
+
       if (addedCount > 0) {
-        ChartDebug.log(`Successfully loaded ${addedCount} historical candles`);
+        ChartDebug.log(`✅ Infinite scroll: Loaded ${addedCount} candles (total: ${dataStore.candles.length}`);
 
         // 🚀 PHASE 6 FIX: Cap total loaded candles to prevent crashes
         // Only keep last 1000 candles in memory to avoid rendering 129k+ which crashes

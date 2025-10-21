@@ -9,6 +9,7 @@ import { chartCacheService } from '../../../../shared/services/chartCacheService
 import { chartRealtimeService } from '../../../../shared/services/chartRealtimeService';
 import { chartIndexedDBCache } from '../services/ChartIndexedDBCache';
 import { ChartDebug } from '../utils/debug';
+import { getGranularitySeconds } from '../utils/granularityHelpers';
 import { chartStore } from './chartStore.svelte';
 import { orderbookStore } from '../../orderbook/stores/orderbookStore.svelte';
 import { dataUpdateNotifier, historicalDataNotifier } from '../../../../services/NotificationBatcher';
@@ -200,14 +201,55 @@ class DataStore {
 
       if (cachedData && cachedData.candles.length > 0) {
         // ✅ Cache hit! Show cached data immediately (0ms perceived load time)
-        // 🚀 PHASE 6: Only load maxCandles from cache on initial load (lazy loading)
-        // This ensures we don't load 35k+ candles on page reload
+        // 🚀 PHASE 11: Check if cache needs enhancement BEFORE slicing
         const cachedCandles = cachedData.candles;
+        const requestedCandles = maxCandles || 1000;
+
+        console.log(`[DataStore CACHE HIT] Loading from cache (cached=${cachedCandles.length}, maxCandles=${requestedCandles})`);
+        ChartDebug.log(`⚡ INSTANT LOAD from IndexedDB: ${cachedCandles.length} candles (${performance.now() - perfStart}ms)`);
+
+        // 🚀 PHASE 11: If cache is smaller than requested, fetch more from backend FIRST
+        // This ensures we have the full amount before rendering
+        if (cachedCandles.length < requestedCandles) {
+          ChartDebug.log(`📚 Cache insufficient (${cachedCandles.length} < ${requestedCandles}), fetching additional from backend...`);
+
+          // Fetch earlier data to fill the gap
+          const oldestCacheTime = cachedCandles[0]?.time as number;
+          const fetchStartTime = oldestCacheTime ? oldestCacheTime - requestedCandles * getGranularitySeconds(granularity) : startTime;
+
+          try {
+            const additionalData = await chartCacheService.fetchCandles({
+              pair,
+              granularity,
+              start: Math.max(fetchStartTime, startTime),
+              end: oldestCacheTime || endTime,
+              limit: requestedCandles * 2
+            });
+
+            if (additionalData.length > 0) {
+              // Merge with cached data
+              const mergedCandles = [...additionalData, ...cachedCandles].sort((a, b) => (a.time as number) - (b.time as number));
+              const uniqueCandles = Array.from(new Map(mergedCandles.map(c => [c.time, c])).values());
+
+              // Update cache with enhanced data
+              await chartIndexedDBCache.set(pair, granularity, uniqueCandles);
+
+              // Use the enhanced cache
+              this.setCandles(uniqueCandles);
+              ChartDebug.log(`✅ Enhanced cache: ${additionalData.length} new candles added (total: ${uniqueCandles.length})`);
+              this.updateStats();
+              return;
+            }
+          } catch (error) {
+            ChartDebug.warn(`Failed to fetch additional data to enhance cache: ${error}`);
+            // Continue with what we have from cache
+          }
+        }
+
+        // Load from cache (either full if sufficient, or whatever we have)
         const candlesToLoad = maxCandles ? cachedCandles.slice(-maxCandles) : cachedCandles;
 
-        console.log(`[DataStore CACHE HIT] Loading ${candlesToLoad.length} candles (maxCandles=${maxCandles})`);
-        ChartDebug.log(`⚡ INSTANT LOAD from IndexedDB: ${candlesToLoad.length}/${cachedCandles.length} candles (${performance.now() - perfStart}ms)`);
-
+        console.log(`[DataStore CACHE HIT] Loading ${candlesToLoad.length} candles (cached=${cachedCandles.length})`);
         this.setCandles(candlesToLoad);
         this.updateStats();
 
