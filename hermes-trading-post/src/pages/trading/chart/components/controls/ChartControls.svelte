@@ -16,7 +16,7 @@
     showClearCache = true,
     showSpeed = true,
     availableTimeframes = ['1H', '6H', '1D', '1W', '1M', '5Y'],
-    availableGranularities = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'],
+    availableGranularities = ['1m', '5m', '15m', '1h', '6h', '1d'],
     pair = 'BTC-USD',
     onPairChange,
     onGranularityChange
