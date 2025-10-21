@@ -150,15 +150,15 @@ export class AppInitializer {
 
             // 🚀 PHASE 11: Load appropriate amount per granularity for instant cache
             // Balance between memory (small) and UX (show meaningful data immediately)
-            // These match the granularity-specific loads from useDataLoader
+            // Keep amounts reasonable to avoid memory issues
             const granularityCacheAmounts: Record<string, number> = {
-              '1m': 500,     // ~8 hours of 1m data - enough for quick analysis
-              '5m': 300,     // ~25 hours of 5m data
-              '15m': 200,    // ~2+ days of 15m data
-              '30m': 150,    // ~5+ days of 30m data
-              '1h': 100,     // ~4+ days of hourly data
-              '4h': 60,      // ~10+ days of 4h data
-              '1d': 30       // ~month of daily data
+              '1m': 200,     // ~3 hours of 1m data - enough for initial view
+              '5m': 150,     // ~12 hours of 5m data
+              '15m': 100,    // ~25 hours of 15m data
+              '30m': 75,     // ~37 hours of 30m data
+              '1h': 50,      // ~2 days of hourly data
+              '4h': 30,      // ~5 days of 4h data
+              '1d': 15       // ~2 weeks of daily data
             };
 
             const now_sec = Math.floor(Date.now() / 1000);
