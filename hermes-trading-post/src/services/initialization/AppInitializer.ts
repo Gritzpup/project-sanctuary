@@ -135,12 +135,18 @@ export class AppInitializer {
 
         for (const granularity of commonGranularities) {
           try {
-            // Check if already cached and fresh
+            // 🚀 PHASE 11 FIX: Always fetch fresh 1m data since it changes frequently
+            // For 5m and coarser, use cache if fresh (< 5 minutes old)
             const cached = await chartIndexedDBCache.get(commonPair, granularity);
             const now = Date.now();
+            const cacheAgeMs = cached ? (now - cached.timestamp) : Infinity;
 
-            if (cached && (now - cached.timestamp) < 5 * 60 * 1000) {
-              // Cache is fresh (< 5 minutes old), skip fetch
+            // 1m data changes every minute, so always fetch fresh
+            // Other granularities can use cache if < 5 minutes old
+            const shouldSkipFetch = granularity !== '1m' && cached && cacheAgeMs < 5 * 60 * 1000;
+
+            if (shouldSkipFetch) {
+              // Cache is fresh and not 1m, skip fetch
               console.log(`[AppInitializer] ✅ Chart cache warm (${commonPair}:${granularity})`);
               continue;
             }
