@@ -66,7 +66,7 @@ export class ChartPositioningService {
       // Set visible logical range
       this.chart.timeScale().setVisibleLogicalRange({
         from: startIndex,
-        to: candleCount + 2 // +2 for right padding
+        to: candleCount // rightOffset property handles right padding
       });
 
       // Apply bar spacing and right offset
@@ -98,23 +98,24 @@ export class ChartPositioningService {
     if (!this.chart || candleCount === 0) return;
 
     const showCandles = Math.min(candleCount, STANDARD_VISIBLE_CANDLES);
-    const startIndex = Math.max(0, candleCount - showCandles);
 
-    // Set visible logical range to show exactly 60 candles
-    this.chart.timeScale().setVisibleLogicalRange({
-      from: startIndex,
-      to: candleCount + 2 // +2 for right padding
-    });
-
-    // Calculate and apply bar spacing
+    // 🚀 PHASE 6.2 FIX: Reset to exact 60 candles view with proper spacing
+    // Calculate bar spacing for 60 candles
     const barSpacing = this.calculateBarSpacing(showCandles);
+
+    // Apply bar spacing first
     this.chart.timeScale().applyOptions({
       barSpacing: Math.max(MINIMUM_BAR_SPACING, barSpacing),
       rightOffset: RIGHT_OFFSET
     });
 
-    // Scroll to real-time
-    this.chart.timeScale().scrollToRealTime();
+    // Set visible range to match the bar spacing we just applied
+    // This ensures the right-side gap is consistent with initial load
+    const startIndex = Math.max(0, candleCount - showCandles);
+    this.chart.timeScale().setVisibleLogicalRange({
+      from: startIndex,
+      to: candleCount
+    });
   }
 
   /**
@@ -133,7 +134,7 @@ export class ChartPositioningService {
 
       this.chart.timeScale().setVisibleLogicalRange({
         from: startIndex,
-        to: candleCount + 2 // +2 for right padding
+        to: candleCount // rightOffset property handles right padding
       });
 
       // Calculate and apply bar spacing

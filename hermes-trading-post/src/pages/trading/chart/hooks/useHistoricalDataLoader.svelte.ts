@@ -116,11 +116,22 @@ export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
       
       if (addedCount > 0) {
         ChartDebug.log(`Successfully loaded ${addedCount} historical candles`);
-        
-        // Force chart update if we have access to the chart and series
+
+        // 🚀 PHASE 6 FIX: Cap total loaded candles to prevent crashes
+        // Only keep last 1000 candles in memory to avoid rendering 129k+ which crashes
+        // This allows zooming but prevents memory bloat
         if (chart && candleSeries) {
           const allCandles = dataStore.candles;
-          const formattedCandles = allCandles.map(candle => ({
+          const MAX_CANDLES_IN_CHART = 1000; // Reasonable limit for chart rendering
+
+          let candlesToDisplay = allCandles;
+          if (allCandles.length > MAX_CANDLES_IN_CHART) {
+            // Keep the most recent 1000 candles
+            candlesToDisplay = allCandles.slice(-MAX_CANDLES_IN_CHART);
+            ChartDebug.log(`⚠️ Limiting chart display to ${MAX_CANDLES_IN_CHART} candles (have ${allCandles.length} total loaded)`);
+          }
+
+          const formattedCandles = candlesToDisplay.map(candle => ({
             time: candle.time as any,
             open: candle.open,
             high: candle.high,
@@ -129,7 +140,7 @@ export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
           }));
           candleSeries.setData(formattedCandles);
         }
-        
+
         return true;
       } else {
         ChartDebug.log('No additional historical data available');

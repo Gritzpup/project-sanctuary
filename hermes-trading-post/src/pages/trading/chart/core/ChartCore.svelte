@@ -286,11 +286,15 @@
       // Track usage for prefetching
       initService.trackUsage(pair, granularity);
 
+      // 🚀 PHASE 6 FIX: Don't automatically fill data gaps!
+      // Gap filling was loading ALL backend data (35,923+ candles) defeating lazy loading
+      // Instead, rely on realtime WebSocket updates for recent data
+      // Historical data loads on-demand when user scrolls left (via useHistoricalDataLoader)
       // Check for data gaps
-      setTimeout(() => {
-        dataLoader.checkAndFillDataGaps(chartCanvas?.getChart(), chartCanvas?.getSeries())
-          .catch(error => console.warn('Gap fill failed (non-critical):', error));
-      }, 1000);
+      // setTimeout(() => {
+      //   dataLoader.checkAndFillDataGaps(chartCanvas?.getChart(), chartCanvas?.getSeries())
+      //     .catch(error => console.warn('Gap fill failed (non-critical):', error));
+      // }, 1000);
 
     } catch (error) {
       console.error('Chart initialization failed:', error);

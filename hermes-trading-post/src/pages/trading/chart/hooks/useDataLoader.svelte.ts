@@ -166,19 +166,33 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
           console.warn(`⚠️ [DataLoader] Filtered out ${candles.length - validCandles.length} invalid candles before chart display`);
         }
 
-        console.log(`[useDataLoader] Setting chart data with ${validCandles.length} valid candles (from ${candles.length} total)`);
-        config.series.setData(validCandles);
+        // 🚀 PHASE 6 FIX: Cap chart render to prevent crashes with too many candles
+        const MAX_CANDLES_TO_RENDER = 1000;
+        let candlesToRender = validCandles;
 
-        // Positioning after setting data - let ChartCanvas handle it
+        if (validCandles.length > MAX_CANDLES_TO_RENDER) {
+          // Keep the most recent candles for display
+          candlesToRender = validCandles.slice(-MAX_CANDLES_TO_RENDER);
+          console.warn(`⚠️ [useDataLoader] Limiting chart display to ${MAX_CANDLES_TO_RENDER} candles (have ${validCandles.length} valid total)`);
+        }
+
+        console.log(`[useDataLoader] Setting chart data with ${candlesToRender.length} candles for rendering (${validCandles.length} total loaded)`);
+        config.series.setData(candlesToRender);
+
+        // Positioning after setting data - Force 60 candles visible
         if (config.chart && validCandles.length > 0) {
           setTimeout(() => {
-            // For 1H timeframes, scroll to real-time but don't override chart positioning
-            if (config.timeframe === '1H') {
-              config.chart!.timeScale().scrollToRealTime();
-            } else {
-              config.chart!.timeScale().fitContent();
-              config.chart!.timeScale().scrollToRealTime();
-            }
+            // 🚀 PHASE 6 FIX: Force exactly 60 candles visible regardless of viewport width
+            // This makes candles narrow enough to show 60 on initial load
+            const totalCandles = candlesToRender.length;
+
+            // Set visible range: show last 60 candles (or all if less than 60)
+            const visibleRange = {
+              from: Math.max(0, totalCandles - 60),
+              to: totalCandles
+            };
+
+            config.chart!.timeScale().setVisibleLogicalRange(visibleRange);
           }, 200);
         }
       }

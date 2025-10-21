@@ -119,7 +119,9 @@ class DataStore {
 
       // Update stats
       this._dataStats.totalCount = sortedCandles.length;
-      this._dataStats.visibleCount = sortedCandles.length;
+      // 🚀 PHASE 6 FIX: Don't set visibleCount here!
+      // visibleCount is managed by VisibleCandleTracker and will be set when chart initializes
+      // this._dataStats.visibleCount = sortedCandles.length;
       if (sortedCandles.length > 0) {
         this._dataStats.oldestTime = sortedCandles[0].time as number;
         this._dataStats.newestTime = sortedCandles[sortedCandles.length - 1].time as number;
@@ -178,6 +180,7 @@ class DataStore {
     endTime: number,
     maxCandles?: number
   ): Promise<void> {
+    console.log(`[DataStore] loadData called: pair=${pair}, granularity=${granularity}, maxCandles=${maxCandles}`);
     const perfStart = performance.now();
 
     // Update current pair/granularity
@@ -443,7 +446,8 @@ class DataStore {
     this._dataStats.totalCount = this._candles.length;
     this._dataStats.newestTime = validCandle.time as number;
     this._dataStats.lastUpdate = Date.now();
-    this._dataStats.visibleCount = this._visibleCandles.length;
+    // 🚀 PHASE 6 FIX: Don't update visibleCount here - it's managed by VisibleCandleTracker
+    // this._dataStats.visibleCount = this._visibleCandles.length;
 
     // Notify plugins of data update
     this.notifyDataUpdate();
@@ -453,45 +457,81 @@ class DataStore {
     console.log(`[DataStore] fetchAndPrependHistoricalData called with ${additionalCandleCount} candles`);
     try {
       if (this._candles.length === 0) return 0;
-      
-      // Calculate start time for additional data
+
       const config = this.getCurrentConfig();
       const firstCandle = this._candles[0];
       const firstCandleTime = firstCandle.time as number;
-      
-      // Get granularity seconds
-      const granularitySeconds = config.granularity === '5m' ? 300 : 
-                                config.granularity === '15m' ? 900 :
-                                config.granularity === '30m' ? 1800 :
-                                config.granularity === '1h' ? 3600 : 60; // default to 1m
-      
-      const fetchStartTime = firstCandleTime - (additionalCandleCount * granularitySeconds);
-      
-      // Fetch additional historical data from Redis
-      const historicalData = await chartCacheService.fetchCandles({
-        pair: config.pair,
-        granularity: config.granularity,
-        start: fetchStartTime,
-        end: firstCandleTime - granularitySeconds, // Don't overlap with existing data
-        limit: additionalCandleCount
-      });
 
-      if (historicalData.length > 0) {
-        // Merge historical data with existing data (prepend historical data)
-        const mergedCandles = [...historicalData, ...this._candles];
+      // 🚀 PHASE 7: Automatic granularity escalation
+      // Granularity hierarchy: 1m → 5m → 15m → 1h → 6h → 1d
+      const granularityHierarchy = ['1m', '5m', '15m', '1h', '6h', '1d'];
+      const currentIndex = granularityHierarchy.indexOf(config.granularity);
 
-        // Sort by time to ensure proper order (should already be sorted, but safety check)
-        mergedCandles.sort((a, b) => (a.time as number) - (b.time as number));
+      // Try current granularity first, then escalate if no data returned
+      let granularityToTry = config.granularity;
+      let attempts = 0;
+      const maxAttempts = granularityHierarchy.length - currentIndex; // Don't go below current level
 
-        // Use setCandles to ensure proper reactivity and notifications
-        this.setCandles(mergedCandles);
+      while (attempts < maxAttempts) {
+        // Get granularity seconds
+        const granularityMap: Record<string, number> = {
+          '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '6h': 21600, '1d': 86400
+        };
+        const granularitySeconds = granularityMap[granularityToTry] || 60;
 
-        // Notify plugins that historical data was loaded (separate from real-time updates)
-        this.notifyHistoricalDataLoaded();
+        const fetchStartTime = firstCandleTime - (additionalCandleCount * granularitySeconds);
 
-        return historicalData.length;
+        console.log(`[DataStore] Attempting to fetch historical data with granularity: ${granularityToTry} (attempt ${attempts + 1}/${maxAttempts})`);
+
+        // Fetch additional historical data from Redis
+        const historicalData = await chartCacheService.fetchCandles({
+          pair: config.pair,
+          granularity: granularityToTry,
+          start: fetchStartTime,
+          end: firstCandleTime - granularitySeconds, // Don't overlap with existing data
+          limit: additionalCandleCount
+        });
+
+        if (historicalData.length > 0) {
+          console.log(`[DataStore] Successfully loaded ${historicalData.length} candles at ${granularityToTry}`);
+
+          // If we escalated granularity, update the config to use the new granularity
+          if (granularityToTry !== config.granularity) {
+            console.log(`[DataStore] Escalated granularity from ${config.granularity} to ${granularityToTry}`);
+            this._config = { ...config, granularity: granularityToTry };
+
+            // Update chart store config so UI reflects new granularity
+            chartStore.updateConfig({ granularity: granularityToTry });
+          }
+
+          // Merge historical data with existing data (prepend historical data)
+          const mergedCandles = [...historicalData, ...this._candles];
+
+          // Sort by time to ensure proper order (should already be sorted, but safety check)
+          mergedCandles.sort((a, b) => (a.time as number) - (b.time as number));
+
+          // Use setCandles to ensure proper reactivity and notifications
+          this.setCandles(mergedCandles);
+
+          // Notify plugins that historical data was loaded (separate from real-time updates)
+          this.notifyHistoricalDataLoaded();
+
+          return historicalData.length;
+        }
+
+        // No data at this granularity, try coarser granularity
+        attempts++;
+        const nextIndex = currentIndex + attempts;
+        if (nextIndex < granularityHierarchy.length) {
+          granularityToTry = granularityHierarchy[nextIndex];
+          console.log(`[DataStore] No data found, escalating to ${granularityToTry}...`);
+        } else {
+          console.log(`[DataStore] Reached maximum granularity (1d), no more data available`);
+          break;
+        }
       }
 
+      console.log(`[DataStore] Could not fetch historical data at any granularity level`);
       return 0;
     } catch (error) {
       // PERF: Disabled - console.error('❌ Error fetching historical data:', error);
@@ -504,7 +544,8 @@ class DataStore {
       candle => candle.time >= from && candle.time <= to
     );
 
-    this._dataStats.visibleCount = this._visibleCandles.length;
+    // 🚀 PHASE 6 FIX: Don't update visibleCount here - it's managed by VisibleCandleTracker
+    // this._dataStats.visibleCount = this._visibleCandles.length;
   }
 
   // Realtime updates
@@ -581,7 +622,8 @@ class DataStore {
               this._dataStats.totalCount = this._candles.length;
               this._dataStats.newestTime = candleData.time as number;
               this._dataStats.lastUpdate = Date.now();
-              this._dataStats.visibleCount = this._visibleCandles.length;
+              // 🚀 PHASE 6 FIX: Don't update visibleCount here - it's managed by VisibleCandleTracker
+              // this._dataStats.visibleCount = this._visibleCandles.length;
             }
           }
         }
@@ -723,7 +765,10 @@ class DataStore {
     // ⚡ SVELTE 5 OPTIMIZATION: Update individual properties instead of spreading
     // Direct assignment avoids reactive cascade overhead
     this._dataStats.totalCount = count;
-    this._dataStats.visibleCount = this._visibleCandles.length;
+    // 🚀 PHASE 6 FIX: DON'T overwrite visibleCount here!
+    // visibleCount is managed by VisibleCandleTracker and updateVisibleCandleCount()
+    // Overwriting it here breaks the connection to the actual chart viewport
+    // this._dataStats.visibleCount = this._visibleCandles.length;
     this._dataStats.oldestTime = count > 0 ? (this._candles[0].time as number) : null;
     this._dataStats.newestTime = count > 0 ? (this._candles[count - 1].time as number) : null;
     this._dataStats.lastUpdate = Date.now();

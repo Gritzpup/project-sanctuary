@@ -28,30 +28,58 @@ export class VisibleCandleTracker {
   start(): void {
     if (!this.chart) return;
 
-    this.visibleRangeChangeHandler = (logicalRange: LogicalRange) => {
+    this.visibleRangeChangeHandler = (logicalRange: LogicalRange | null) => {
       // Only update if we have valid range data
       if (logicalRange && typeof logicalRange.from === 'number' && typeof logicalRange.to === 'number') {
-        // Calculate visible candle count
-        const visibleCount = Math.max(0, logicalRange.to - logicalRange.from);
+        // 🚀 PHASE 6 FIX: Clamp visible count to actual loaded candles
+        // The logical range can be larger than actual candles (e.g., when zoomed far out)
+        // We should never show more candles than are actually loaded
+        const logicalVisibleCount = Math.max(0, logicalRange.to - logicalRange.from);
+        const actualLoadedCandles = dataStore.candles.length;
+
+        // Clamp to actual candles available - can't show more than what's loaded
+        let visibleCount = Math.min(logicalVisibleCount, actualLoadedCandles);
+
+        // 🚀 PHASE 6 FIX: Round to integer - avoid decimal display issues
+        // Decimal values like 35.923 get formatted as "35,923" by Intl.NumberFormat
+        visibleCount = Math.round(visibleCount);
 
         ChartDebug.log('🔍 Visible candle range changed', {
           from: Math.round(logicalRange.from),
           to: Math.round(logicalRange.to),
-          visibleCount,
-          totalCandles: dataStore.candles.length
+          logicalVisibleCount: Math.round(logicalVisibleCount),
+          actualLoadedCandles,
+          roundedVisibleCount: visibleCount
         });
 
         // Update dataStore with visible candle count
+        console.log(`[VisibleCandleTracker] Updating visibleCount to ${visibleCount} (rounded from ${logicalVisibleCount.toFixed(2)}, loaded: ${actualLoadedCandles})`);
         dataStore.updateVisibleCandleCount(visibleCount);
+      } else {
+        console.log(`[VisibleCandleTracker] Invalid or null logicalRange:`, logicalRange);
       }
     };
 
     // Subscribe to visible range changes
-    this.unsubscribe = this.chart.timeScale().subscribeVisibleLogicalRangeChange(
-      this.visibleRangeChangeHandler
-    );
+    console.log(`[VisibleCandleTracker] Subscribing to visible range changes...`);
+    try {
+      this.unsubscribe = this.chart.timeScale().subscribeVisibleLogicalRangeChange(
+        this.visibleRangeChangeHandler as any
+      );
+      console.log(`[VisibleCandleTracker] Subscription successful`);
+
+      // Get and log initial range immediately
+      const initialRange = this.chart.timeScale().getVisibleLogicalRange();
+      console.log(`[VisibleCandleTracker] Initial visible range:`, initialRange);
+      if (initialRange) {
+        this.visibleRangeChangeHandler(initialRange);
+      }
+    } catch (error) {
+      console.error(`[VisibleCandleTracker] Failed to subscribe:`, error);
+    }
 
     ChartDebug.log('✅ Visible candle tracker started');
+    console.log(`[VisibleCandleTracker] Tracker fully initialized`);
   }
 
   /**
