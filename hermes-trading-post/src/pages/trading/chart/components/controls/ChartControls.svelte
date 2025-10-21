@@ -16,7 +16,7 @@
     showClearCache = true,
     showSpeed = true,
     availableTimeframes = ['1H', '6H', '1D', '1W', '1M', '5Y'],
-    availableGranularities = ['1m', '5m', '15m', '1h', '6h', '1d'],
+    availableGranularities = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '1d'],
     pair = 'BTC-USD',
     onPairChange,
     onGranularityChange
@@ -32,9 +32,9 @@
     onPairChange?: (pair: string) => void;
     onGranularityChange?: (granularity: string) => void;
   }>()
-  
+
   // Speed control
-  let currentSpeed: string = '1x';
+  let currentSpeed = $state('1x');
   const availableSpeeds = ['1x', '1.5x', '2x', '3x', '10x'];
 
   // 🚀 PHASE 7.1: Make granularity reactive for auto-updates during zoom
@@ -50,8 +50,8 @@
 
   // Service instance
   let controlsService: ChartControlsService;
-  let isRefreshing = false;
-  let isClearingCache = false;
+  let isRefreshing = $state(false);
+  let isClearingCache = $state(false);
 
   // Event handlers
   function handlePairChange(event: CustomEvent) {

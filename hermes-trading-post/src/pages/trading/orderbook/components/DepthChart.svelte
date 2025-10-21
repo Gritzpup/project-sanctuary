@@ -670,8 +670,8 @@
     <div
       bind:this={chartContainer}
       class="depth-chart"
-      on:mousemove={handleMouseMove}
-      on:mouseleave={handleMouseLeave}
+      onmousemove={handleMouseMove}
+      onmouseleave={handleMouseLeave}
       role="img"
       aria-label="Orderbook depth chart"
     >

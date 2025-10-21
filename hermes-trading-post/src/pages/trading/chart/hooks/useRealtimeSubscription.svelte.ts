@@ -515,6 +515,12 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   function unsubscribeFromRealtime() {
     dataStore.unsubscribeFromRealtime();
 
+    // ✅ FIXED: Cancel pending RAF callbacks
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+
     // Unsubscribe from dataStore callbacks
     if (unsubscribeFromDataStore) {
       unsubscribeFromDataStore();

@@ -23,6 +23,7 @@ export class HistoricalDataService {
    */
   async fetchHistoricalData(pair, granularity, daysBack = 30) {
     if (this.isRunning) {
+      console.log(`⏳ Historical data fetch already in progress`);
       return;
     }
 
@@ -33,6 +34,8 @@ export class HistoricalDataService {
       errors: 0,
       startTime: Date.now()
     };
+
+    console.log(`📥 Starting historical data fetch: ${pair} @ ${granularity} for last ${daysBack} days`);
 
 
     try {
@@ -100,8 +103,9 @@ export class HistoricalDataService {
       }
 
       const duration = (Date.now() - this.stats.startTime) / 1000;
-
+      console.log(`✅ Historical data fetch completed: ${this.stats.totalCandles} candles in ${duration.toFixed(1)}s (${this.stats.totalRequests} requests, ${this.stats.errors} errors)`);
     } catch (error) {
+      console.error(`❌ Historical data fetch error:`, error.message);
     } finally {
       this.isRunning = false;
     }
@@ -154,27 +158,33 @@ export class HistoricalDataService {
    * Initialize with default data fetch
    */
   async initialize(pair = 'BTC-USD', granularity = '1m') {
-    
+    console.log(`🔧 Historical Data Service initializing for ${pair} @ ${granularity}...`);
+
     // Test API connection first
     const connected = await coinbaseAPI.testConnection();
     if (!connected) {
+      console.warn(`⚠️ Coinbase API test connection failed`);
       return false;
     }
+    console.log(`✅ Coinbase API connection verified`);
 
     // Check if we need initial data
     try {
       const metadata = await redisCandleStorage.getMetadata(pair, granularity);
       const candleCount = metadata?.totalCandles || 0;
-
+      console.log(`📊 Redis has ${candleCount} candles stored for ${pair} @ ${granularity}`);
 
       if (candleCount < 1000) {
+        console.log(`📥 Need more data: ${candleCount} < 1000, fetching 7 days of history...`);
         await this.fetchHistoricalData(pair, granularity, 7);
       } else {
+        console.log(`📥 Have enough data: ${candleCount} >= 1000, just filling gaps...`);
         await this.fillRecentGaps(pair, granularity, 6);
       }
 
       return true;
     } catch (error) {
+      console.error(`❌ Historical Data Service initialization error:`, error.message);
       return false;
     }
   }

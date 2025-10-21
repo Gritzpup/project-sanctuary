@@ -31,6 +31,10 @@ export interface UseDataLoaderOptions {
 export function useDataLoader(options: UseDataLoaderOptions = {}) {
   const { onDataLoaded, onGapFilled, onError } = options;
 
+  // ✅ PHASE 5 FIX: Mutex to prevent concurrent loadData() calls
+  // This prevents race conditions where multiple parallel loads corrupt dataStore state
+  let isLoading = false;
+
   /**
    * Get period in seconds from timeframe string
    */
@@ -81,18 +85,27 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
    * Load initial chart data
    */
   async function loadData(config: DataLoaderConfig): Promise<void> {
+    // ✅ PHASE 5 FIX: Early return if already loading
+    // Prevents concurrent loadData() calls from corrupting state
+    if (isLoading) {
+      ChartDebug.warn('[DataLoader] Load already in progress, ignoring concurrent call');
+      return;
+    }
+
+    isLoading = true;
+
     const loadStartTime = performance.now();
     perfTest.reset();
     perfTest.mark('loadData-start');
-    
+
     if (config.timeframe === '3M' && config.granularity === '1d') {
       ChartDebug.critical(`[PERF FLOW START] Loading 3M/1d data at ${new Date().toISOString()}`);
       ChartDebug.critical(`[PERF] Step 1: Starting loadData()`);
     }
-    
+
     statusStore.setLoading('Loading chart data...');
     chartStore.setLoading(true);
-    
+
     try {
       const now = Math.floor(Date.now() / 1000);
       
@@ -112,13 +125,13 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       
       // Load data
       perfTest.mark('dataStore-loadData-start');
-      // 🚀 PHASE 6: Lazy candle loading - only load 60 candles on startup
-      // User can zoom out to load more data on demand
-      // OLD: Loaded 300 candles = 30 KB per granularity = slow startup
-      // NEW: Load 60 candles = 6 KB per granularity = 5x faster startup
-      // This prevents unnecessary memory usage and API calls on initial page load
-      const candleLoadLimit = 60; // Only load enough for current viewport
-      ChartDebug.log(`📊 Lazy loading: Starting with ${candleLoadLimit} candles (full range: ${candleCount} candles)`);
+      // 🚀 PHASE 2: Optimized candle loading with 300 candle limit
+      // Advanced Trade API max = 300 candles per request
+      // This provides optimal balance between startup speed and data availability
+      // OLD: Loaded only 60 candles = too little data = forced escalation
+      // NEW: Load 300 candles = maximum API efficiency = no unnecessary escalations
+      const candleLoadLimit = 300; // Load maximum from API to prevent escalation
+      ChartDebug.log(`📊 Loading: Starting with ${candleLoadLimit} candles (full range: ${candleCount} candles)`);
       await dataStore.loadData(
         config.pair,
         config.granularity,
@@ -211,16 +224,20 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       if (onDataLoaded) {
         onDataLoaded(candles);
       }
-      
+
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error loading data';
       ChartDebug.error('[DataLoader] Failed to load data:', error);
       statusStore.setError(`Failed to load data: ${errorMessage}`);
       chartStore.setLoading(false);
-      
+
       if (onError) {
         onError(errorMessage);
       }
+    } finally {
+      // ✅ PHASE 5 FIX: Always reset loading flag
+      // Ensures isLoading is cleared even if exception occurs
+      isLoading = false;
     }
   }
 

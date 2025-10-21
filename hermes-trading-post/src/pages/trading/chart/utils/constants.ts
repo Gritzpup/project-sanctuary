@@ -27,21 +27,23 @@ export const PERIOD_TO_DAYS: Record<string, number> = {
   '5Y': 1825       // 5 years
 };
 
-// ✅ VALIDATED Coinbase API Granularities (tested 2025-10-06)
+// ✅ VALIDATED Coinbase Advanced Trade API Granularities (2025-10-21)
+// 🚀 Upgraded from Exchange API to Advanced Trade API - now supports 30m, 2h, 4h
 export const GRANULARITY_TO_SECONDS: Record<string, number> = {
   '1m': 60,        // 1 minute
   '5m': 300,       // 5 minutes
   '15m': 900,      // 15 minutes
+  '30m': 1800,     // 30 minutes ✅ Re-enabled
   '1h': 3600,      // 1 hour
+  '2h': 7200,      // 2 hours ✅ Now supported
+  '4h': 14400,     // 4 hours ✅ Re-enabled
   '6h': 21600,     // 6 hours
   '1d': 86400      // 1 day
 };
 
-// ❌ UNSUPPORTED by Coinbase API (removed):
-// '30m': 1800,     // 30 minutes - HTTP 400
-// '2h': 7200,      // 2 hours - HTTP 400
-// '4h': 14400,     // 4 hours - HTTP 400
-// '12h': 43200,    // 12 hours - HTTP 400
+// Advanced Trade API note:
+// The Advanced Trade API provides additional granularities that were not available
+// in the old Exchange API. This allows better flexibility for different trading timeframes.
 
 // Display names
 export const PERIOD_DISPLAY_NAMES: Record<string, string> = {
@@ -67,30 +69,31 @@ export const GRANULARITY_DISPLAY_NAMES: Record<string, string> = {
   '1d': '1 Day'
 };
 
-// ✅ Validated trading intervals for each timeframe (using only supported granularities)
+// ✅ Validated trading intervals for each timeframe (Advanced Trade API - 2025-10-21)
+// 🚀 Updated to include 30m, 2h, 4h for more flexible trading
 export const RECOMMENDED_GRANULARITIES: Record<string, string[]> = {
-  '1H': ['1m', '5m', '15m'],            // 60-12-4 candles
-  '4H': ['5m', '15m', '1h'],            // 48-16-4 candles
-  '6H': ['5m', '15m'],                  // 72-24 candles
-  '1D': ['15m', '1h'],                  // 96-24 candles
-  '5D': ['1h', '6h'],                   // 120-20 candles
-  '1W': ['1h', '6h'],                   // 168-28 candles
-  '1M': ['6h', '1d'],                   // 120-30 candles
+  '1H': ['1m', '5m', '15m', '30m'],     // 60-12-4-2 candles
+  '4H': ['5m', '15m', '30m', '1h'],     // 48-16-8-4 candles
+  '6H': ['5m', '15m', '30m', '1h'],     // 72-24-12-6 candles
+  '1D': ['15m', '30m', '1h', '2h', '4h', '6h'],  // 96-48-24-12-6-4 candles
+  '5D': ['1h', '2h', '4h', '6h'],       // 120-60-30-20 candles
+  '1W': ['1h', '2h', '4h', '6h'],       // 168-84-42-28 candles
+  '1M': ['4h', '6h', '1d'],             // 180-120-30 candles
   '3M': ['1d'],                         // 90 candles
   '6M': ['1d'],                         // 180 candles
   '1Y': ['1d'],                         // 365 candles
   '5Y': ['1d']                          // 1825 candles
 };
 
-// ✅ All supported intervals for each timeframe (only API-validated granularities)
+// ✅ All supported intervals for each timeframe (Advanced Trade API validated)
 export const VALID_GRANULARITIES: Record<string, string[]> = {
-  '1H': ['1m', '5m', '15m'],
-  '4H': ['5m', '15m', '1h'],
-  '6H': ['5m', '15m', '1h'],
-  '1D': ['15m', '1h', '6h'],
-  '5D': ['1h', '6h', '1d'],
-  '1W': ['1h', '6h', '1d'],
-  '1M': ['6h', '1d'],
+  '1H': ['1m', '5m', '15m', '30m'],
+  '4H': ['5m', '15m', '30m', '1h', '2h'],
+  '6H': ['5m', '15m', '30m', '1h', '2h'],
+  '1D': ['15m', '30m', '1h', '2h', '4h', '6h'],
+  '5D': ['1h', '2h', '4h', '6h', '1d'],
+  '1W': ['1h', '2h', '4h', '6h', '1d'],
+  '1M': ['2h', '4h', '6h', '1d'],
   '3M': ['1d'],
   '6M': ['1d'],
   '1Y': ['1d'],

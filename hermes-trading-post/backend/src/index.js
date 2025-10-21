@@ -131,7 +131,18 @@ const restAPIService = new RESTAPIService({
   
   // Initialize Historical Data Service (fetch historical candles)
   console.log('🚀 Initializing Historical Data Service...');
-  await historicalDataService.initialize('BTC-USD', '1m');
+  try {
+    const histResult = await historicalDataService.initialize('BTC-USD', '1m');
+    if (histResult) {
+      console.log('✅ Historical Data Service initialized successfully');
+      const status = historicalDataService.getStatus();
+      console.log(`📊 Historical Data Status: ${status.stats.totalCandles} candles, ${status.stats.totalRequests} requests, ${status.stats.errors} errors`);
+    } else {
+      console.warn('⚠️ Historical Data Service returned false - may need manual fetch');
+    }
+  } catch (error) {
+    console.error('❌ Failed to initialize Historical Data Service:', error.message);
+  }
 
   // Initialize Continuous Candle Updater for constant API updates
   console.log('🔄 Starting Continuous Candle Updater Service...');

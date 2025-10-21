@@ -108,11 +108,11 @@
 </script>
 
 <div class="chart-status {positionClass} {sizeClasses[size]}" class:transitioning={isTransitioning}>
-  <div 
-    class="status-indicator" 
-    on:click={toggleHistory}
-    on:keydown={handleKeydown}
-    role="button" 
+  <div
+    class="status-indicator"
+    onclick={toggleHistory}
+    onkeydown={handleKeydown}
+    role="button"
     tabindex="0"
     aria-label="Toggle status history"
   >
@@ -136,7 +136,7 @@
     <div class="status-history" transition:fade={{ duration: 200 }}>
       <div class="history-header">
         <span>Status History</span>
-        <button class="close-button" on:click={() => historyVisible = false}>×</button>
+        <button class="close-button" onclick={() => historyVisible = false}>×</button>
       </div>
       <div class="history-items">
         {#each statusStore.history.slice(-10).reverse() as item}

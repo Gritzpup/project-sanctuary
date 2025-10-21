@@ -47,6 +47,10 @@ class OrderbookStore {
   private priceSubscribers: Set<(price: number) => void> = new Set();
   private _lastNotifiedMidPrice: number | null = null;  // Track last notified price to avoid redundant updates
 
+  // ✅ PHASE 6 FIX: Mutex to prevent concurrent snapshot processing
+  // Prevents race conditions where multiple parallel processSnapshot() calls corrupt state
+  private isProcessingSnapshot = false;
+
   private _lastUpdateTime = 0;
   private _updateCount = 0;
 
@@ -105,10 +109,20 @@ class OrderbookStore {
    * Process orderbook snapshot - optimized to detect actual changes
    */
   processSnapshot(data: { product_id: string; bids: OrderbookLevel[]; asks: OrderbookLevel[] }) {
-    const now = Date.now();
-    const timeSinceLastUpdate = now - this._lastUpdateTime;
-    this._updateCount++;
-    this._metrics.snapshotCount++;
+    // ✅ PHASE 6 FIX: Early return if already processing snapshot
+    // Prevents concurrent processSnapshot() calls from corrupting state
+    if (this.isProcessingSnapshot) {
+      // PERF: Disabled - console.warn('[Orderbook] Snapshot processing already in progress, ignoring concurrent call');
+      return;
+    }
+
+    this.isProcessingSnapshot = true;
+
+    try {
+      const now = Date.now();
+      const timeSinceLastUpdate = now - this._lastUpdateTime;
+      this._updateCount++;
+      this._metrics.snapshotCount++;
 
     // Track updates per second
     if (now - this._metrics.lastSecondTimestamp >= 1000) {
@@ -244,11 +258,16 @@ class OrderbookStore {
       this._lastAskVersion++;
     }
 
-    this.isReady = true;
+      this.isReady = true;
 
-    // Notify price subscribers if data changed
-    if (bidsChanged || asksChanged) {
-      this.notifyPriceSubscribers();
+      // Notify price subscribers if data changed
+      if (bidsChanged || asksChanged) {
+        this.notifyPriceSubscribers();
+      }
+    } finally {
+      // ✅ PHASE 6 FIX: Always reset processing flag
+      // Ensures isProcessingSnapshot is cleared even if exception occurs
+      this.isProcessingSnapshot = false;
     }
   }
 

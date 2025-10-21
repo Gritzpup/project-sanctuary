@@ -63,8 +63,14 @@ export class WebSocketBatcher {
     this.onBatchReady = callback;
 
     // Return unsubscribe function
+    // ✅ PHASE 7 FIX: Clear batch timeout on unsubscribe
+    // Prevents orphaned timers from continuing to fire after unsubscribe
     return () => {
       this.onBatchReady = null;
+      if (this.batchTimeoutId) {
+        clearTimeout(this.batchTimeoutId);
+        this.batchTimeoutId = null;
+      }
     };
   }
 

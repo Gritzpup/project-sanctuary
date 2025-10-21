@@ -90,10 +90,10 @@
   <div class="code-header">
     <h4>Strategy Source Code</h4>
     <div class="code-actions">
-      <button class="btn-base btn-sm" on:click={createNewStrategy}>
+      <button class="btn-base btn-sm" onclick={createNewStrategy}>
         Create New Strategy
       </button>
-      <button class="btn-base btn-sm" on:click={() => editStrategy(selectedStrategyType)}>
+      <button class="btn-base btn-sm" onclick={() => editStrategy(selectedStrategyType)}>
         Edit Current Strategy
       </button>
     </div>
@@ -115,10 +115,10 @@
             <span class="strategy-description">{strategy.description}</span>
           </div>
           <div class="strategy-actions">
-            <button class="btn-base btn-xs" on:click={() => editStrategy(strategy.value)}>
+            <button class="btn-base btn-xs" onclick={() => editStrategy(strategy.value)}>
               Edit
             </button>
-            <button class="btn-base btn-xs btn-danger" on:click={() => deleteStrategy(strategy.value)}>
+            <button class="btn-base btn-xs btn-danger" onclick={() => deleteStrategy(strategy.value)}>
               Delete
             </button>
           </div>
@@ -130,13 +130,13 @@
 
 <!-- Strategy Editor Modal -->
 {#if showStrategyEditor}
-  <div class="strategy-editor-overlay" on:click={closeEditor} role="button" tabindex="0" aria-label="Close dialog">
-    <div class="strategy-editor-modal" on:click|stopPropagation role="dialog" aria-labelledby="strategy-editor-title">
+  <div class="strategy-editor-overlay" onclick={closeEditor} role="button" tabindex="0" aria-label="Close dialog" onkeydown={(e) => e.key === 'Enter' && closeEditor()}>
+    <div class="strategy-editor-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="strategy-editor-title" tabindex="0">
       <div class="modal-header">
         <h3 id="strategy-editor-title">
           {editingStrategy ? 'Edit Strategy' : 'Create New Strategy'}
         </h3>
-        <button class="btn-base btn-sm" on:click={closeEditor}>✕</button>
+        <button class="btn-base btn-sm" onclick={closeEditor}>✕</button>
       </div>
 
       <div class="modal-content">
@@ -186,12 +186,12 @@
       </div>
 
       <div class="modal-actions">
-        <button class="btn-base btn-secondary" on:click={closeEditor}>
+        <button class="btn-base btn-secondary" onclick={closeEditor}>
           Cancel
         </button>
-        <button 
-          class="btn-base btn-primary" 
-          on:click={saveStrategy}
+        <button
+          class="btn-base btn-primary"
+          onclick={saveStrategy}
           disabled={!newStrategyName || !newStrategyLabel || !newStrategyCode}
         >
           {editingStrategy ? 'Update Strategy' : 'Create Strategy'}

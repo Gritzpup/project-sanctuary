@@ -69,7 +69,6 @@
             class="form-input"
             placeholder="Enter backup name"
             required
-            autofocus
             aria-describedby="backup-name-hint"
           />
           <div id="backup-name-hint" class="form-hint">

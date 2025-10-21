@@ -176,6 +176,11 @@ export class ChartTimeframeCoordinator {
         this.subscriptionOrchestrator.unsubscribeFromRealtime();
       }
 
+      // Step 1.5: ✅ PHASE 2 - Clear old candles to prevent memory leaks
+      // When granularity changes, we need fresh data, not merged with old candles
+      dataStore.reset();
+      ChartDebug.log(`🧹 DataStore reset for granularity change (old data cleared)`);
+
       // Step 2: Load data with new timeframe
       if (this.dataLoader) {
         await this.dataLoader.loadData({

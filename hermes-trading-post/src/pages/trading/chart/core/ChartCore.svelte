@@ -29,6 +29,19 @@
   let isInitialized = false;
   let isInitialDataLoaded = false;
 
+  // ✅ PHASE 2: Timeout registry for cleanup
+  // Tracks all setTimeout calls to prevent memory leaks on component destroy
+  const timeoutRegistry: Set<NodeJS.Timeout> = new Set();
+
+  function createTimeout(callback: () => void, delay: number): NodeJS.Timeout {
+    const timeoutId = setTimeout(() => {
+      timeoutRegistry.delete(timeoutId);
+      callback();
+    }, delay);
+    timeoutRegistry.add(timeoutId);
+    return timeoutId;
+  }
+
   // Initialize services
   const initService = new ChartInitializationService();
   const readinessOrchestrator = new ChartReadinessOrchestrator();
@@ -303,6 +316,11 @@
   });
 
   onDestroy(async () => {
+    // ✅ PHASE 2: Clear all pending timeouts to prevent memory leaks
+    timeoutRegistry.forEach(timeoutId => clearTimeout(timeoutId));
+    timeoutRegistry.clear();
+    ChartDebug.log(`🧹 Cleared ${timeoutRegistry.size} pending timeouts on destroy`);
+
     performanceStore.stopMonitoring();
     subscriptionOrchestrator.unsubscribeFromRealtime();
 
@@ -392,7 +410,7 @@
     // This ensures the chart completely redraws with new timeframe data
     // resetAndUpdateDisplay clears all cached chart state and forces a fresh render
     // Also resets volume plugin state so volume candles display correctly
-    setTimeout(() => {
+    createTimeout(() => {
       console.log(`🔧 setTimeout callback: chartCanvas exists = ${!!chartCanvas}, has resetAndUpdateDisplay = ${typeof chartCanvas?.resetAndUpdateDisplay}`);
       if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
         ChartDebug.log(`📊 Resetting and updating chart display after granularity reload...`);

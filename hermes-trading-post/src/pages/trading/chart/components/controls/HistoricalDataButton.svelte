@@ -169,16 +169,9 @@
   /* Mobile adjustments */
   @media (max-width: 768px) {
     .historical-data-controls {
-      padding: var(--space-xs);
-    }
-    
-    .load-historical-btn {
-      padding: var(--space-xs);
-      font-size: var(--font-size-xs);
-    }
-    
-    .candle-count, .loaded-count {
-      font-size: var(--font-size-xs);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
     }
   }
 </style>

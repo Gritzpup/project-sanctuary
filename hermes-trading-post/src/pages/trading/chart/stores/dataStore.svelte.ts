@@ -18,6 +18,9 @@ import { dataStoreSubscriptions } from './services/DataStoreSubscriptions';
 import { typedArrayCache } from '../services/TypedArrayDataCache';
 
 class DataStore {
+  // ✅ PHASE 2: Memory optimization - cap maximum candles to prevent OOM crashes
+  private readonly MAX_CANDLES = 1000; // Browser can safely render 1000 candles
+
   private _candles = $state<CandlestickDataWithVolume[]>([]);
   private _visibleCandles = $state<CandlestickDataWithVolume[]>([]);
   private _latestPrice = $state<number | null>(null);
@@ -39,6 +42,8 @@ class DataStore {
   private orderbookPriceUnsubscribe: (() => void) | null = null;
   private newCandleTimeout: NodeJS.Timeout | null = null;
   private l2SubscriptionCheckInterval: NodeJS.Timeout | null = null;  // Track the candle-loading check interval
+  private l2SubscriptionCheckRetries: number = 0;  // ✅ FIXED: Track retries to prevent infinite loop
+  private l2SubscriptionCheckMaxRetries: number = 30;  // Max 30 seconds (30 * 1 second) before giving up
   private l2NotifyRafId: number | null = null;  // RAF throttle for notifyDataUpdate calls
   private maxCallbacksSize: number = 50; // Max callbacks to prevent memory leaks
 
@@ -391,15 +396,24 @@ class DataStore {
       console.log(`[DataStore] setCandles called with ${sortedCandles.length} candles - Stack:`, new Error().stack?.split('\n').slice(1,5).join('\n'));
     }
 
-    this._candles = sortedCandles;
-    this._visibleCandles = sortedCandles; // Initially all candles are visible
+    // ✅ PHASE 2: Cap maximum candles to prevent OOM crashes
+    // Keep the most recent MAX_CANDLES to maintain viewport + history
+    let cappedCandles = sortedCandles;
+    if (sortedCandles.length > this.MAX_CANDLES) {
+      const excessCandles = sortedCandles.length - this.MAX_CANDLES;
+      cappedCandles = sortedCandles.slice(excessCandles);
+      console.log(`[DataStore] ⚠️ Capped candles from ${sortedCandles.length} to ${this.MAX_CANDLES} (removed oldest ${excessCandles})`);
+    }
+
+    this._candles = cappedCandles;
+    this._visibleCandles = cappedCandles; // Initially all candles are visible
 
     // ⚡ PHASE 2: Automatically cache data in TypedArrays for memory optimization
-    typedArrayCache.store(this._currentPair, this._currentGranularity, sortedCandles);
+    typedArrayCache.store(this._currentPair, this._currentGranularity, cappedCandles);
 
     // Update latest price
-    if (sortedCandles.length > 0) {
-      const lastCandle = sortedCandles[sortedCandles.length - 1];
+    if (cappedCandles.length > 0) {
+      const lastCandle = cappedCandles[cappedCandles.length - 1];
       this._latestPrice = lastCandle.close;
     }
 
@@ -463,8 +477,8 @@ class DataStore {
       const firstCandleTime = firstCandle.time as number;
 
       // 🚀 PHASE 7: Automatic granularity escalation
-      // Granularity hierarchy: 1m → 5m → 15m → 1h → 6h → 1d
-      const granularityHierarchy = ['1m', '5m', '15m', '1h', '6h', '1d'];
+      // Granularity hierarchy: 1m → 5m → 15m → 30m → 1h → 2h → 4h → 6h → 1d
+      const granularityHierarchy = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '1d'];
       const currentIndex = granularityHierarchy.indexOf(config.granularity);
 
       // Try current granularity first, then escalate if no data returned
@@ -475,7 +489,7 @@ class DataStore {
       while (attempts < maxAttempts) {
         // Get granularity seconds
         const granularityMap: Record<string, number> = {
-          '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '6h': 21600, '1d': 86400
+          '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '1d': 86400
         };
         const granularitySeconds = granularityMap[granularityToTry] || 60;
 
@@ -707,13 +721,24 @@ class DataStore {
         this.l2SubscriptionCheckInterval = null;
       }
 
-      // Recursive timeout: check once, then schedule next check only if needed
+      // ✅ FIXED: Recursive timeout with max retry limit
+      this.l2SubscriptionCheckRetries = 0;  // Reset retry counter
       const checkAndSubscribe = () => {
         if (this._candles.length > 0) {
+          // Success: candles loaded
           subscribeToL2();
-        } else {
-          // Schedule next check in 1 second (typical load time is <500ms)
+          this.l2SubscriptionCheckRetries = 0;
+        } else if (this.l2SubscriptionCheckRetries < this.l2SubscriptionCheckMaxRetries) {
+          // Not ready yet, but within retry limit - schedule next check
+          this.l2SubscriptionCheckRetries++;
           this.l2SubscriptionCheckInterval = setTimeout(checkAndSubscribe, 1000) as any;
+        } else {
+          // Max retries exceeded - give up and log failure
+          console.warn(
+            `[DataStore] L2 subscription check reached max retries (${this.l2SubscriptionCheckMaxRetries}s), giving up`
+          );
+          this.l2SubscriptionCheckRetries = 0;
+          this.l2SubscriptionCheckInterval = null;
         }
       };
 
