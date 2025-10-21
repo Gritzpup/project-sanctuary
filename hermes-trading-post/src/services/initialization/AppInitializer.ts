@@ -162,7 +162,10 @@ export class AppInitializer {
             };
 
             const now_sec = Math.floor(Date.now() / 1000);
-            const granularitySeconds = granularity === '1m' ? 60 : granularity === '5m' ? 300 : 900;
+            const granularitySecondsMap: Record<string, number> = {
+              '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400
+            };
+            const granularitySeconds = granularitySecondsMap[granularity] || 60;
             const candleCount = granularityCacheAmounts[granularity] || 100;
             const startTime = now_sec - (candleCount * granularitySeconds);
             const endTime = now_sec;
