@@ -245,10 +245,11 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * Uses Advanced Trade WebSocket with CDP JWT authentication for REAL-TIME PUSH updates
    */
   subscribeLevel2(productId) {
+    console.log(`📡 [CoinbaseWS] subscribeLevel2 called for ${productId}`);
     const subscriptionKey = `level2:${productId}`;
 
-
     if (this.subscriptions.has(subscriptionKey)) {
+      console.log(`⚠️ [CoinbaseWS] Already subscribed to level2:${productId}`);
       return;
     }
 
@@ -257,18 +258,22 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     const subscription = cdpAuth.getWebSocketAuth();
 
     if (!subscription) {
+      console.error(`❌ [CoinbaseWS] Failed to get WebSocket auth for level2:${productId}`);
       return;
     }
 
     // Update product_ids to use the requested productId (not hardcoded BTC-USD)
     subscription.product_ids = [productId];
 
+    console.log(`✅ [CoinbaseWS] Got subscription for level2:${productId}`, JSON.stringify(subscription));
 
     this.subscriptions.set(subscriptionKey, subscription);
 
     if (this.isConnected) {
+      console.log(`📤 [CoinbaseWS] Sending level2 subscription (WebSocket is OPEN)`);
       this.ws.send(JSON.stringify(subscription));
     } else {
+      console.warn(`⏳ [CoinbaseWS] WebSocket not connected yet - subscription queued for when connection opens`);
     }
   }
 
@@ -448,6 +453,8 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   async processLevel2Event(event) {
     const productId = event.product_id;
+
+    console.log(`📊 [CoinbaseWS] Received level2 event for ${productId}: type=${event.type}`);
 
     if (event.type === 'snapshot') {
       // Full orderbook snapshot

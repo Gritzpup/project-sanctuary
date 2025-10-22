@@ -15,8 +15,20 @@ export class CDPAuth {
     this.privateKey = process.env.CDP_API_KEY_PRIVATE?.replace(/\\n/g, '\n');
 
     // Debug logging
+    if (this.keyName) {
+      console.log('✅ [CDPAuth] CDP_API_KEY_NAME is set');
+    } else {
+      console.warn('⚠️ [CDPAuth] CDP_API_KEY_NAME is NOT set - cannot authenticate with Coinbase');
+    }
+
+    if (this.privateKey) {
+      console.log('✅ [CDPAuth] CDP_API_KEY_PRIVATE is set');
+    } else {
+      console.warn('⚠️ [CDPAuth] CDP_API_KEY_PRIVATE is NOT set - cannot generate JWT tokens');
+    }
 
     if (!this.keyName || !this.privateKey) {
+      console.error('❌ [CDPAuth] Missing Coinbase CDP credentials - WebSocket authentication will fail!');
     }
   }
 
@@ -90,15 +102,19 @@ export class CDPAuth {
     const jwt = this.generateWebSocketJWT();
 
     if (!jwt) {
+      console.error('❌ [CDPAuth] Failed to generate JWT - check credentials');
       return null;
     }
 
+    console.log('✅ [CDPAuth] Generated JWT token for WebSocket authentication');
+
     // Advanced Trade API format: simple channel string with jwt field
+    // 🔧 FIX: Use 'l2_data' channel (Advanced Trade API name) not 'level2' (old Exchange API name)
     return {
       type: 'subscribe',
       product_ids: ['BTC-USD'],
-      channel: 'level2', // Changed from channels array to channel string
-      jwt: jwt // Changed from signature/key/timestamp to jwt
+      channel: 'l2_data', // Advanced Trade API uses 'l2_data' not 'level2'
+      jwt: jwt
     };
   }
 }
