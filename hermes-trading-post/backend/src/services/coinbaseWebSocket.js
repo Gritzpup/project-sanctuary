@@ -773,25 +773,11 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       orderbook.bids.sort((a, b) => b.price - a.price);
       orderbook.asks.sort((a, b) => a.price - b.price);
 
-      // 🚀 PERFORMANCE: Cache snapshot in Redis and check if it has changed
+      // ✅ CRITICAL: Always emit snapshots - clients need them for initial orderbook state
+      // Don't filter snapshots based on cache changes - they're needed for state sync
+      // Only store in cache for tracking, but always forward to clients
       if (this.orderbookCacheEnabled) {
         await redisOrderbookCache.storeOrderbookSnapshot(productId, orderbook.bids, orderbook.asks);
-
-        // Only emit if data has actually changed
-        if (!redisOrderbookCache.hasOrderbookChanged(productId)) {
-          return;
-        }
-      }
-
-      // Check throttling - only forward max 10 updates/sec per product
-      if (redisOrderbookCache.shouldThrottle(productId, 10)) {
-        return;
-      }
-
-      // 🚀 PERF: Publish orderbook deltas via Redis Pub/Sub (only changed levels)
-      const changedLevels = await redisOrderbookCache.getChangedLevels(productId);
-      if (changedLevels.bids.length > 0 || changedLevels.asks.length > 0) {
-        redisOrderbookCache.publishOrderbookDelta(productId, changedLevels.bids, changedLevels.asks);
       }
 
       console.log(`📊 [CoinbaseWS] Emitting level2 snapshot: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);

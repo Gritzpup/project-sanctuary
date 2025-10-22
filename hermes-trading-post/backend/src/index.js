@@ -39,6 +39,15 @@ app.use(express.json());
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
+// Track WebSocket client connections
+wss.on('connection', (ws) => {
+  console.log(`🔌 [WebSocket] Client connected - total clients: ${wss.clients.size}`);
+
+  ws.on('close', () => {
+    console.log(`🔌 [WebSocket] Client disconnected - total clients: ${wss.clients.size}`);
+  });
+});
+
 const botManager = new BotManager();
 
 // Phase 5C: Initialize subscription and memory monitoring services
@@ -167,20 +176,39 @@ const restAPIService = new RESTAPIService({
     // Set this up AFTER subscription so we don't miss events
     // 🚀 PHASE 5F FIX: Store handler references for cleanup to prevent memory leaks
     // ✅ CRITICAL: Handle BOTH snapshot (full orderbook) and update (incremental) events
+    // 🔄 BROADCAST: Forward snapshots to all connected WebSocket clients
     const level2Handler = (data) => {
       if (!data) return;
+
+      // Debug: Log all level2 events
+      console.log(`📨 [Backend] Level2Handler received: type=${data.type}, hasBids=${!!data.bids}, hasAsks=${!!data.asks}, hasChanges=${!!data.changes}`);
 
       // Snapshot events contain full orderbook state
       if (data.type === 'snapshot' && data.bids && data.asks) {
         console.log(`📨 [Backend] Received level2 SNAPSHOT: ${data.bids.length} bids, ${data.asks.length} asks`);
         console.log(`✅ [Backend] Caching level2 snapshot for WebSocketHandler`);
         wsHandler.setCachedLevel2Snapshot(data);
+
+        // 🔄 Broadcast snapshot to all connected WebSocket clients via WebSocketHandler
+        const snapshotMessage = {
+          type: 'level2',
+          data: data
+        };
+
+        wsHandler.broadcast(snapshotMessage);
+        console.log(`📤 [Backend] Broadcast level2 snapshot to connected clients`);
       }
       // Update events contain incremental changes (only changed price levels)
       else if (data.type === 'update' && data.changes) {
         console.log(`📨 [Backend] Received level2 UPDATE: ${data.changes.length} changes`);
-        // For updates, we could maintain a local orderbook and forward changes
-        // For now, just acknowledge receipt - clients should use snapshots
+
+        // 🔄 Broadcast updates to all connected WebSocket clients via WebSocketHandler
+        const updateMessage = {
+          type: 'level2',
+          data: data
+        };
+
+        wsHandler.broadcast(updateMessage);
       }
     };
 
