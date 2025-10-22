@@ -153,25 +153,34 @@ const restAPIService = new RESTAPIService({
   broadcastService.initialize();
 
   // Connect to Coinbase WebSocket for real-time market data
-  console.log('🔗 Connecting to Coinbase WebSocket...');
+  console.log('🔗 Connecting to Coinbase Advanced Trade WebSocket...');
   try {
     await coinbaseWebSocket.connect();
-    console.log('✅ Connected to Coinbase WebSocket');
+    console.log('✅ Connected to Coinbase Advanced Trade WebSocket');
 
-    // Subscribe to BTC-USD level2 and ticker streams
+    // Subscribe to BTC-USD level2 and ticker streams via Advanced Trade API
     coinbaseWebSocket.subscribeLevel2('BTC-USD');
     coinbaseWebSocket.subscribeTicker('BTC-USD');
-    console.log('📊 Subscribed to BTC-USD level2 and ticker');
+    console.log('📊 Subscribed to BTC-USD level2 and ticker (both via Advanced Trade API with JWT)');
 
     // 🔧 FIX: Link Coinbase level2 events to WebSocketHandler snapshot cache
     // Set this up AFTER subscription so we don't miss events
     // 🚀 PHASE 5F FIX: Store handler references for cleanup to prevent memory leaks
+    // ✅ CRITICAL: Handle BOTH snapshot (full orderbook) and update (incremental) events
     const level2Handler = (data) => {
-      console.log(`📨 [Backend] Received Coinbase level2 event with ${data?.bids?.length || 0} bids and ${data?.asks?.length || 0} asks`);
-      if (data && data.bids && data.asks) {
-        // Forward the snapshot to WebSocketHandler so clients can request it
-        console.log(`✅ [Backend] Caching level2 snapshot for WebSocketHandler (${data.bids.length} bids, ${data.asks.length} asks)`);
+      if (!data) return;
+
+      // Snapshot events contain full orderbook state
+      if (data.type === 'snapshot' && data.bids && data.asks) {
+        console.log(`📨 [Backend] Received level2 SNAPSHOT: ${data.bids.length} bids, ${data.asks.length} asks`);
+        console.log(`✅ [Backend] Caching level2 snapshot for WebSocketHandler`);
         wsHandler.setCachedLevel2Snapshot(data);
+      }
+      // Update events contain incremental changes (only changed price levels)
+      else if (data.type === 'update' && data.changes) {
+        console.log(`📨 [Backend] Received level2 UPDATE: ${data.changes.length} changes`);
+        // For updates, we could maintain a local orderbook and forward changes
+        // For now, just acknowledge receipt - clients should use snapshots
       }
     };
 
