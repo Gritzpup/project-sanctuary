@@ -683,6 +683,12 @@ class DataStore {
       });
     };
 
+    // 🔧 TEMPORARY FIX: Disable L2 real-time updates to prevent browser OOM
+    // L2 orderbook updates are causing excessive memory pressure and browser crashes
+    // TODO: Re-enable with proper throttling after optimizing chart rendering
+    console.warn('[DataStore] L2 orderbook subscription DISABLED to prevent OOM');
+    return; // Exit early - skip L2 subscription
+
     // 🚀 PHASE 6 FIX: Subscribe immediately if ready, otherwise defer with timeout
     // CRITICAL: Prevent L2 race condition where subscription starts before candles load
     // This ensures we never try to update candles that don't exist yet
