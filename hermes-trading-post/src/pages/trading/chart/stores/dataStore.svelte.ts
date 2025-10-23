@@ -455,6 +455,15 @@ class DataStore {
     this._candles.push(validCandle);
     this._visibleCandles.push(validCandle);
 
+    // 🔧 FIX: Cap candle array to prevent memory leak
+    // Keep max 2000 candles (2x rendering limit for smooth scrollback)
+    const MAX_STORED_CANDLES = 2000;
+    if (this._candles.length > MAX_STORED_CANDLES) {
+      const trimCount = this._candles.length - MAX_STORED_CANDLES;
+      this._candles.splice(0, trimCount);
+      this._visibleCandles.splice(0, trimCount);
+    }
+
     // Update latest price
     this._latestPrice = validCandle.close;
 
@@ -607,6 +616,13 @@ class DataStore {
             // 🚫 CRITICAL: Only append if time > 0 (never append ticker updates)
             if (normalizedTime > 0) {
               this._candles.push(candleData);
+
+              // 🔧 FIX: Cap candle array to prevent memory leak
+              const MAX_STORED_CANDLES = 2000;
+              if (this._candles.length > MAX_STORED_CANDLES) {
+                const trimCount = this._candles.length - MAX_STORED_CANDLES;
+                this._candles.splice(0, trimCount);
+              }
 
               // ⚡ SVELTE 5 OPTIMIZATION: Update individual properties instead of spreading
               // Direct assignment avoids reactive cascade overhead
