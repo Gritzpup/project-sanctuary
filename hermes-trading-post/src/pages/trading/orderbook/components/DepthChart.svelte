@@ -111,25 +111,73 @@
     };
   });
 
-  // Use reactive getters for smooth updates (powered by OrderBookCalculator)
-  let bidsWithCumulative = $derived.by(() => {
-    const bids = orderbookStore.getBids(12);
-    return calculateCumulativeBids(bids);
+  // 🔧 MEMORY FIX: Throttled reactive computations to reduce CPU/memory churn
+  // These UI elements don't need real-time updates - 1 second delay is fine
+  // This prevents recalculating on every single orderbook change (multiple per second)
+
+  let lastUIUpdateTime = 0;
+  const UI_UPDATE_THROTTLE = 1000; // Update UI elements max 1x per second
+
+  // Cache for throttled values
+  let cachedBidsWithCumulative = $state<any[]>([]);
+  let cachedAsksWithCumulative = $state<any[]>([]);
+  let cachedVolumeRange = $state<any[]>([]);
+  let cachedVolumeHotspot = $state<any>({
+    offset: 50,
+    price: 0,
+    side: 'neutral' as const,
+    volume: 0,
+    type: 'Neutral'
   });
 
-  let asksWithCumulative = $derived.by(() => {
-    const asks = orderbookStore.getAsks(12);
-    return calculateCumulativeAsks(asks);
+  // Throttled update function
+  let uiUpdatePending = false;
+  function scheduleUIUpdate() {
+    if (uiUpdatePending) return;
+
+    const now = Date.now();
+    if (now - lastUIUpdateTime < UI_UPDATE_THROTTLE) {
+      // Too soon, skip this update
+      return;
+    }
+
+    uiUpdatePending = true;
+    requestAnimationFrame(() => {
+      const bids = orderbookStore.getBids(12);
+      const asks = orderbookStore.getAsks(12);
+      const summary = orderbookStore.summary;
+
+      cachedBidsWithCumulative = calculateCumulativeBids(bids);
+      cachedAsksWithCumulative = calculateCumulativeAsks(asks);
+
+      const depthData = orderbookStore.getDepthData(25000);
+      cachedVolumeRange = calculateVolumeRange(depthData);
+
+      if (summary.bestBid && summary.bestAsk) {
+        cachedVolumeHotspot = calculateVolumeHotspot(summary.bestBid, summary.bestAsk, depthData);
+      }
+
+      lastUIUpdateTime = Date.now();
+      uiUpdatePending = false;
+    });
+  }
+
+  // Trigger updates when orderbook changes (but throttled)
+  $effect(() => {
+    // Access reactive state to trigger when it changes
+    const _trigger = orderbookStore.versions;
+    scheduleUIUpdate();
   });
 
-  // Reactive derived values for volume bar widths
+  // Expose cached values as derived (for backward compatibility)
+  let bidsWithCumulative = $derived(cachedBidsWithCumulative);
+  let asksWithCumulative = $derived(cachedAsksWithCumulative);
+  let volumeRange = $derived(cachedVolumeRange);
+  let volumeHotspot = $derived(cachedVolumeHotspot);
+
+  // Simple derived values that don't need throttling
   let maxBidSize = $derived.by(() => calculateMaxSize(bidsWithCumulative));
   let maxAskSize = $derived.by(() => calculateMaxSize(asksWithCumulative));
-
-  let volumeRange = $derived.by(() => {
-    const depthData = orderbookStore.getDepthData(25000);
-    return calculateVolumeRange(depthData);
-  });
 
   let priceRange = $derived.by(() => {
     const summary = orderbookStore.summary;
@@ -137,23 +185,6 @@
       return calculatePriceRange(summary.bestBid, summary.bestAsk);
     }
     return { left: 0, center: 0, right: 0 };
-  });
-
-  // Position indicator based on which side has the deepest visible volume
-  let volumeHotspot = $derived.by(() => {
-    const summary = orderbookStore.summary;
-    if (!summary.bestBid || !summary.bestAsk) {
-      return {
-        offset: 50,
-        price: 0,
-        side: 'neutral' as const,
-        volume: 0,
-        type: 'Neutral'
-      };
-    }
-
-    const depthData = orderbookStore.getDepthData(25000);
-    return calculateVolumeHotspot(summary.bestBid, summary.bestAsk, depthData);
   });
 
   // Handle mouse movement for fallback hover tracking
