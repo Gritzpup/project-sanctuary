@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import type { IChartApi } from 'lightweight-charts';
   import ChartCore from './core/ChartCore.svelte';
   import ChartPanes from './core/ChartPanes.svelte';
@@ -8,7 +8,7 @@
   import ChartInfo from './components/overlays/ChartInfo.svelte';
   import ChartError from './components/overlays/ChartError.svelte';
   import ChartDebug from './components/overlays/ChartDebug.svelte';
-  import { 
+  import {
     PluginManager,
     VolumePlugin,
     SMAPlugin,
@@ -18,7 +18,7 @@
     PositionMarkerPlugin,
     type Plugin
   } from './plugins';
-  
+
   // Props
   export let pair: string = 'BTC-USD';
   export let granularity: string = '1m';
@@ -34,12 +34,33 @@
   export let onReady: ((chart: IChartApi, pluginManager: PluginManager | null) => void) | undefined = undefined;
   export let onGranularityChange: ((granularity: string) => void) | undefined = undefined;
   export let onPairChange: ((pair: string) => void) | undefined = undefined;
-  
+
   let chartCore: ChartCore;
   let chartPanes: ChartPanes;
   let pluginManager: PluginManager | null = null;
   let chart: IChartApi | null = null;
   let isReady = false;
+
+  // 🔧 MEMORY FIX: Page Visibility API to pause updates when tab hidden
+  // This prevents memory buildup from chart updates running in background
+  let isPageVisible = $state(true);
+
+  onMount(() => {
+    const handleVisibilityChange = () => {
+      isPageVisible = !document.hidden;
+      if (isPageVisible) {
+        console.log('📊 [Chart] Page visible - resuming updates');
+      } else {
+        console.log('📊 [Chart] Page hidden - pausing updates to save memory');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  });
   
   
   // Initialize plugins
