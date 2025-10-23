@@ -19,21 +19,38 @@
     type Plugin
   } from './plugins';
 
-  // Props
-  export let pair: string = 'BTC-USD';
-  export let granularity: string = '1m';
-  export let period: string = '1H';
-  export let showControls: boolean = true;
-  export const showStatus: boolean = true;
-  export let showInfo: boolean = true;
-  export let showDebug: boolean = false;
-  export let enablePlugins: boolean = true;
-  export let enableAutoGranularity: boolean = true; // Enable automatic granularity switching on zoom
-  export let defaultPlugins: string[] = ['volume'];
-  export let multiPane: boolean = false;
-  export let onReady: ((chart: IChartApi, pluginManager: PluginManager | null) => void) | undefined = undefined;
-  export let onGranularityChange: ((granularity: string) => void) | undefined = undefined;
-  export let onPairChange: ((pair: string) => void) | undefined = undefined;
+  // Props (Svelte 5 runes syntax)
+  let {
+    pair = 'BTC-USD',
+    granularity = '1m',
+    period = '1H',
+    showControls = true,
+    showStatus = true,
+    showInfo = true,
+    showDebug = false,
+    enablePlugins = true,
+    enableAutoGranularity = true,
+    defaultPlugins = ['volume'],
+    multiPane = false,
+    onReady = undefined,
+    onGranularityChange = undefined,
+    onPairChange = undefined
+  }: {
+    pair?: string;
+    granularity?: string;
+    period?: string;
+    showControls?: boolean;
+    showStatus?: boolean;
+    showInfo?: boolean;
+    showDebug?: boolean;
+    enablePlugins?: boolean;
+    enableAutoGranularity?: boolean;
+    defaultPlugins?: string[];
+    multiPane?: boolean;
+    onReady?: (chart: IChartApi, pluginManager: PluginManager | null) => void;
+    onGranularityChange?: (granularity: string) => void;
+    onPairChange?: (pair: string) => void;
+  } = $props();
 
   let chartCore: ChartCore;
   let chartPanes: ChartPanes;
