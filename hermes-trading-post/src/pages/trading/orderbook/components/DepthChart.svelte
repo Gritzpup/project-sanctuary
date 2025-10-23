@@ -470,7 +470,10 @@
   let updatePending = false;
   let hasPendingData = false;
   let lastChartUpdateTime = 0;
-  const CHART_UPDATE_THROTTLE = 200; // Max 5 updates per second
+  // 🔧 MEMORY FIX: Reduce chart re-renders from 5/sec to 0.5/sec
+  // setData() causes full chart re-render - very expensive
+  // Depth chart doesn't need real-time updates - 2s is fine
+  const CHART_UPDATE_THROTTLE = 2000; // Max 0.5 updates per second (was 200ms = 5/sec)
 
   function handleLevel2Message(data: any) {
     // Track that we received an update
