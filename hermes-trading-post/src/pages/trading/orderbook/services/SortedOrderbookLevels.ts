@@ -20,10 +20,6 @@ export class SortedOrderbookLevels {
   private sortedPrices: number[] = []; // Cache of prices in sorted order
   private isDirty = false; // Track if cache needs rebuild
 
-  // 🔧 MEMORY FIX: Cap orderbook depth to prevent infinite accumulation
-  // Coinbase L2 can have thousands of price levels - we only need closest to mid price
-  private readonly MAX_LEVELS = 200; // 200 bids + 200 asks = 400 levels total (~50KB)
-
   constructor(private isDescending: boolean = true) {}
 
   /**
@@ -41,9 +37,6 @@ export class SortedOrderbookLevels {
       // Only update sorted prices if this is a new price
       if (oldSize === undefined) {
         this.insertSortedPrice(price);
-
-        // 🔧 MEMORY FIX: Trim furthest levels if exceeding MAX_LEVELS
-        this.trimExcessLevels();
       }
     } else {
       // Remove level (size = 0)
@@ -130,9 +123,6 @@ export class SortedOrderbookLevels {
       }
     }
     this.rebuildSortedPrices();
-
-    // 🔧 MEMORY FIX: Trim if snapshot exceeds MAX_LEVELS
-    this.trimExcessLevels();
   }
 
   /**
@@ -210,29 +200,5 @@ export class SortedOrderbookLevels {
     }
 
     this.sortedPrices = prices;
-  }
-
-  /**
-   * 🔧 MEMORY FIX: Trim excess levels beyond MAX_LEVELS
-   * Removes furthest price levels (worst bids/asks) to prevent infinite accumulation
-   * For bids (descending): keep first N (highest prices closest to mid)
-   * For asks (ascending): keep first N (lowest prices closest to mid)
-   */
-  private trimExcessLevels(): void {
-    if (this.sortedPrices.length <= this.MAX_LEVELS) {
-      return; // Within limit
-    }
-
-    // Trim levels beyond MAX_LEVELS (furthest from mid price)
-    const trimCount = this.sortedPrices.length - this.MAX_LEVELS;
-    const pricesToRemove = this.sortedPrices.slice(this.MAX_LEVELS); // Last N prices
-
-    // Remove from Map
-    for (const price of pricesToRemove) {
-      this.levels.delete(price);
-    }
-
-    // Trim sorted prices array
-    this.sortedPrices = this.sortedPrices.slice(0, this.MAX_LEVELS);
   }
 }
