@@ -5,7 +5,7 @@
  */
 
 export class NotificationBatcher {
-  private batchWindow = 16; // ~60fps frame budget
+  private batchWindow = 32; // ~30fps frame budget (optimized for performance vs 60fps)
   private batchTimeout: NodeJS.Timeout | null = null;
   private isPending = false;
   private callbacks: Set<() => void> = new Set();

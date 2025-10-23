@@ -282,8 +282,16 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     const lastCandleTime = lastCandle.time as number;
     const incomingCandleTime = fullCandleData?.time as number;
 
-    // Check if this is a new candle (incoming time > last candle time)
-    if (incomingCandleTime && incomingCandleTime > lastCandleTime) {
+    // 🔧 FIX: Granularity-aware candle boundary detection
+    // Check if we've crossed into a new candle period based on granularity
+    const granularitySeconds = getGranularitySeconds(currentGranularity);
+    const lastCandlePeriod = Math.floor(lastCandleTime / granularitySeconds);
+    const incomingCandlePeriod = Math.floor((incomingCandleTime || 0) / granularitySeconds);
+
+    // New candle if we've crossed into a different period OR incoming time > last time
+    const isNewCandlePeriod = incomingCandleTime && incomingCandlePeriod > lastCandlePeriod;
+
+    if (isNewCandlePeriod) {
       // New candle needed
       // Ensure price is valid before creating candle
       if (!price || price <= 0 || isNaN(price)) {
