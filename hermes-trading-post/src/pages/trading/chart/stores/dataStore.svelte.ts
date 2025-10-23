@@ -53,6 +53,67 @@ class DataStore {
   private dataUpdateCallbacks: Set<() => void> = new Set();
   private historicalDataLoadedCallbacks: Set<() => void> = new Set();
 
+  // 🔍 MEMORY DEBUG: Track metrics over time
+  private memoryMonitorInterval: NodeJS.Timeout | null = null;
+  private notifyUpdateCount: number = 0;
+  private lastMemoryReport: number = Date.now();
+
+  constructor() {
+    // 🔍 MEMORY DEBUG: Periodic memory diagnostics
+    this.memoryMonitorInterval = setInterval(() => {
+      this.logMemoryDiagnostics();
+    }, 30000); // Every 30 seconds
+
+    console.log('🔍 [DataStore] Memory monitoring enabled - diagnostics every 30s');
+  }
+
+  /**
+   * 🔍 MEMORY DEBUG: Log memory diagnostics to identify leak sources
+   */
+  private logMemoryDiagnostics(): void {
+    const now = Date.now();
+    const timeSinceLastReport = (now - this.lastMemoryReport) / 1000;
+
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      arrays: {
+        candles: this._candles.length,
+        visibleCandles: this._visibleCandles.length,
+        maxAllowed: this.MAX_CANDLES
+      },
+      callbacks: {
+        dataUpdate: this.dataUpdateCallbacks.size,
+        historicalDataLoaded: this.historicalDataLoadedCallbacks.size,
+        maxAllowed: this.maxCallbacksSize
+      },
+      updateFrequency: {
+        notifyCallsInPeriod: this.notifyUpdateCount,
+        periodSeconds: timeSinceLastReport,
+        callsPerSecond: (this.notifyUpdateCount / timeSinceLastReport).toFixed(2)
+      },
+      browserMemory: (performance as any).memory ? {
+        usedJSHeapSize: ((performance as any).memory.usedJSHeapSize / 1024 / 1024).toFixed(2) + ' MB',
+        totalJSHeapSize: ((performance as any).memory.totalJSHeapSize / 1024 / 1024).toFixed(2) + ' MB',
+        jsHeapSizeLimit: ((performance as any).memory.jsHeapSizeLimit / 1024 / 1024).toFixed(2) + ' MB'
+      } : 'Not available (non-Chromium browser)'
+    };
+
+    console.log('🔍 [Memory Diagnostics]', diagnostics);
+
+    // Reset counters
+    this.notifyUpdateCount = 0;
+    this.lastMemoryReport = now;
+
+    // ⚠️ WARNING: Check for potential memory issues
+    if (this._candles.length > this.MAX_CANDLES * 0.9) {
+      console.warn(`⚠️ [Memory Warning] Candle array approaching limit: ${this._candles.length}/${this.MAX_CANDLES}`);
+    }
+
+    if (this.dataUpdateCallbacks.size > this.maxCallbacksSize * 0.8) {
+      console.warn(`⚠️ [Memory Warning] Data update callbacks growing: ${this.dataUpdateCallbacks.size}/${this.maxCallbacksSize}`);
+    }
+  }
+
   // Helper method to get current chart config
   private getCurrentConfig() {
     return {
@@ -860,6 +921,13 @@ class DataStore {
       clearTimeout(this.newCandleTimeout);
     }
 
+    // 🔍 MEMORY DEBUG: Cleanup memory monitoring
+    if (this.memoryMonitorInterval) {
+      clearInterval(this.memoryMonitorInterval);
+      this.memoryMonitorInterval = null;
+      console.log('🔍 [DataStore] Memory monitoring stopped');
+    }
+
     // 🔧 FIX: Clear callback Sets to prevent memory leaks
     // These Sets accumulate callbacks indefinitely if not cleared
     this.dataUpdateCallbacks.clear();
@@ -925,6 +993,9 @@ class DataStore {
    * ⚡ PHASE 10: Added immediate mode to bypass 16ms batcher delay for real-time updates
    */
   private notifyDataUpdate(immediate: boolean = false) {
+    // 🔍 MEMORY DEBUG: Track notification frequency
+    this.notifyUpdateCount++;
+
     const executeCallbacks = () => {
       this.dataUpdateCallbacks.forEach((callback) => {
         try {
