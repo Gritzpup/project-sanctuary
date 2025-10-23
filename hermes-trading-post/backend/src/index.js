@@ -184,13 +184,10 @@ const restAPIService = new RESTAPIService({
     const level2Handler = (data) => {
       if (!data) return;
 
-      // Debug: Log all level2 events
-      console.log(`📨 [Backend] Level2Handler received: type=${data.type}, hasBids=${!!data.bids}, hasAsks=${!!data.asks}, hasChanges=${!!data.changes}`);
-
       // Snapshot events contain full orderbook state
       if (data.type === 'snapshot' && data.bids && data.asks) {
+        // 🔧 REDUCED LOGGING: Only log snapshots (rare events)
         console.log(`📨 [Backend] Received level2 SNAPSHOT: ${data.bids.length} bids, ${data.asks.length} asks`);
-        console.log(`✅ [Backend] Caching level2 snapshot for WebSocketHandler`);
         wsHandler.setCachedLevel2Snapshot(data);
 
         // 🔄 Broadcast snapshot to all connected WebSocket clients via WebSocketHandler
@@ -205,8 +202,7 @@ const restAPIService = new RESTAPIService({
       }
       // Update events contain incremental changes (only changed price levels)
       else if (data.type === 'update' && data.changes) {
-        console.log(`📨 [Backend] Received level2 UPDATE: ${data.changes.length} changes`);
-
+        // 🔧 REMOVED: Excessive logging for every update - only log broadcasts
         // ⏱️ THROTTLE: Only broadcast if enough time has passed since last broadcast
         // This prevents browser OOM from too many WebSocket messages
         const now = Date.now();
@@ -221,9 +217,8 @@ const restAPIService = new RESTAPIService({
           wsHandler.broadcast(updateMessage);
           lastLevel2BroadcastTime = now;
           console.log(`📤 [Backend] Broadcast level2 update (${data.changes.length} changes)`);
-        } else {
-          console.log(`⏭️ [Backend] Skipped level2 update (throttled, ${LEVEL2_THROTTLE_MS - timeSinceLastBroadcast}ms remaining)`);
         }
+        // 🔧 REMOVED: Excessive "Skipped" logging causing log bloat
       }
     };
 

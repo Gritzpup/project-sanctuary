@@ -413,12 +413,14 @@
       try {
         const message = JSON.parse(event.data);
         if (message.type === 'level2') {
-          console.log(`📊 [DepthChart] Received level2 message`, message.data ? `with ${message.data.bids?.length || 0} bids and ${message.data.asks?.length || 0} asks` : 'but no data');
+          // 🔧 REMOVED: Excessive logging causing browser memory leak
+          // console.log(`📊 [DepthChart] Received level2 message`, message.data ? `with ${message.data.bids?.length || 0} bids and ${message.data.asks?.length || 0} asks` : 'but no data');
           handleLevel2Message(message.data);
         } else if (message.type === 'orderbook-delta') {
           // 🚀 PERF: Handle orderbook deltas from Redis Pub/Sub
           // Only the changed price levels - ultra-efficient
-          console.log(`📊 [DepthChart] Received orderbook delta`);
+          // 🔧 REMOVED: Excessive logging causing browser memory leak
+          // console.log(`📊 [DepthChart] Received orderbook delta`);
           handleOrderbookDelta(message.data);
         }
       } catch (error) {
