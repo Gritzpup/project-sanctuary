@@ -177,6 +177,10 @@ const restAPIService = new RESTAPIService({
     // 🚀 PHASE 5F FIX: Store handler references for cleanup to prevent memory leaks
     // ✅ CRITICAL: Handle BOTH snapshot (full orderbook) and update (incremental) events
     // 🔄 BROADCAST: Forward snapshots to all connected WebSocket clients
+    // ⏱️ THROTTLE: Limit update broadcasts to prevent browser OOM
+    let lastLevel2BroadcastTime = 0;
+    const LEVEL2_THROTTLE_MS = 500; // Broadcast updates max 2x per second to prevent browser OOM
+
     const level2Handler = (data) => {
       if (!data) return;
 
@@ -197,18 +201,29 @@ const restAPIService = new RESTAPIService({
 
         wsHandler.broadcast(snapshotMessage);
         console.log(`📤 [Backend] Broadcast level2 snapshot to connected clients`);
+        lastLevel2BroadcastTime = Date.now();
       }
       // Update events contain incremental changes (only changed price levels)
       else if (data.type === 'update' && data.changes) {
         console.log(`📨 [Backend] Received level2 UPDATE: ${data.changes.length} changes`);
 
-        // 🔄 Broadcast updates to all connected WebSocket clients via WebSocketHandler
-        const updateMessage = {
-          type: 'level2',
-          data: data
-        };
+        // ⏱️ THROTTLE: Only broadcast if enough time has passed since last broadcast
+        // This prevents browser OOM from too many WebSocket messages
+        const now = Date.now();
+        const timeSinceLastBroadcast = now - lastLevel2BroadcastTime;
 
-        wsHandler.broadcast(updateMessage);
+        if (timeSinceLastBroadcast >= LEVEL2_THROTTLE_MS) {
+          const updateMessage = {
+            type: 'level2',
+            data: data
+          };
+
+          wsHandler.broadcast(updateMessage);
+          lastLevel2BroadcastTime = now;
+          console.log(`📤 [Backend] Broadcast level2 update (${data.changes.length} changes)`);
+        } else {
+          console.log(`⏭️ [Backend] Skipped level2 update (throttled, ${LEVEL2_THROTTLE_MS - timeSinceLastBroadcast}ms remaining)`);
+        }
       }
     };
 
