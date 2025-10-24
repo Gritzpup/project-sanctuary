@@ -29,7 +29,7 @@
     showInfo = true,
     showDebug = false,
     enablePlugins = true,
-    enableAutoGranularity = true,
+    enableAutoGranularity = false, // 🔧 FIX: Disabled to prevent granularity switching on page refresh
     defaultPlugins = ['volume'],
     multiPane = false,
     onReady = undefined,

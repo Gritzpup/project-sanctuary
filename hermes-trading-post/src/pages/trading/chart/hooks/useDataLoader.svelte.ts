@@ -112,29 +112,29 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       // ✅ Request ALL available data from database, not just recent timeframe
       const candleCount = getCandleCount(config.granularity, config.timeframe);
       const granularitySeconds = getGranularitySeconds(config.granularity);
-      
+
       // Align to granularity boundaries to ensure we get complete candles
       const alignedNow = alignTimeToGranularity(now, config.granularity);
-      
-      // Calculate appropriate start time based on timeframe
-      // Always load the exact amount of data needed for the selected timeframe
-      const timeRange = getPeriodSeconds(config.timeframe);
-      const startTime = alignedNow - timeRange;
+
+      // 🔧 FIX: Calculate start time based on number of candles (120) not period
+      // This ensures we load 120 candles regardless of the period setting
+      const candlesToLoad = 120; // Always load 120 candles
+      const startTime = alignedNow - (candlesToLoad * granularitySeconds);
 
       ChartDebug.log(`📊 Loading ${config.timeframe} data: ${candleCount} candles for ${config.granularity}`);
       
       // Load data
       perfTest.mark('dataStore-loadData-start');
-      // 🚀 PHASE 11: Balanced initial data load for smooth UX without memory issues
-      // Load enough data for meaningful analysis but avoid memory overhead
+      // 🚀 PHASE 11: Load exactly 120 candles (show 60 visible, 60 for scrollback)
+      // This provides optimal UX with infinite scroll loading more as needed
       const granularityCandles: Record<string, number> = {
-        '1m': 500,    // ~8 hours of minute data
-        '5m': 300,    // ~25 hours of 5m data
-        '15m': 200,   // ~2+ days of 15m data
-        '30m': 150,   // ~3+ days of 30m data
-        '1h': 100,    // ~4 days of hourly data
-        '4h': 50,     // ~8 days of 4h data
-        '1d': 30      // ~month of daily data
+        '1m': 120,    // Load 120, show 60 visible
+        '5m': 120,    // Load 120, show 60 visible
+        '15m': 120,   // Load 120, show 60 visible
+        '30m': 120,   // Load 120, show 60 visible
+        '1h': 120,    // Load 120, show 60 visible
+        '4h': 120,    // Load 120, show 60 visible
+        '1d': 120     // Load 120, show 60 visible
       };
       const candleLoadLimit = granularityCandles[config.granularity] || 300;
       ChartDebug.log(`📊 Loading: Starting with ${candleLoadLimit} candles (full range: ${candleCount} candles) for ${config.granularity}`);

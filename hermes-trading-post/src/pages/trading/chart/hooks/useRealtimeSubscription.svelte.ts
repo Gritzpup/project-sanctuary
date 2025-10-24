@@ -158,18 +158,13 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // For normal datasets, maintain exactly 60 candles visible
       const maxCandles = 60;
       const startIndex = Math.max(0, candles.length - maxCandles);
-      const visibleCandles = candles.slice(startIndex);
-      
-      if (visibleCandles.length > 1) {
-        const firstVisibleTime = visibleCandles[0].time as number;
-        const timeSpan = currentTime - firstVisibleTime;
-        const buffer = timeSpan * 0.05; // 5% buffer
-        
-        chart.timeScale().setVisibleRange({
-          from: (firstVisibleTime - buffer) as any,
-          to: (currentTime + buffer) as any
-        });
-      }
+
+      // 🔧 FIX: Use logical range (indices) instead of time range for precise control
+      // This ensures exactly 60 candles are visible regardless of time gaps
+      chart.timeScale().setVisibleLogicalRange({
+        from: startIndex,
+        to: candles.length
+      });
     } catch (error) {
       ChartDebug.error('Error maintaining candle zoom:', error);
     }

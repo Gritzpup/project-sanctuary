@@ -235,11 +235,23 @@
         lastProcessedIndex = sortedCandles.length - 1;
       }
 
-      // Simple positioning after data is set
+      // 🔧 FIX: Force proper zoom level after data is set
+      // Explicitly set visible range to show 60 candles (or all if less than 60)
+      // This fixes the issue where chart starts extremely zoomed in showing only 2 candles
       setTimeout(() => {
         const chart = (candleSeries as any)?._chart || (candleSeries as any)?.chart;
         if (chart && sortedCandles.length > 1) {
-          chart.timeScale().fitContent();
+          const candleCount = sortedCandles.length;
+          const showCandles = Math.min(candleCount, 60);
+          const startIndex = Math.max(0, candleCount - showCandles);
+
+          // Set visible logical range to show exact number of candles
+          chart.timeScale().setVisibleLogicalRange({
+            from: startIndex,
+            to: candleCount
+          });
+
+          console.log(`✅ [ChartDataManager] Set visible range to show ${showCandles} of ${candleCount} candles (from index ${startIndex} to ${candleCount})`);
         }
       }, 100);
     } catch (error) {
