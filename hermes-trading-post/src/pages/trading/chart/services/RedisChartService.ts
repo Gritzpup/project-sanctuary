@@ -299,6 +299,7 @@ export class RedisChartService {
    * Handle incoming WebSocket messages
    */
   private handleWebSocketMessage(message: any) {
+    console.log(`📨 [RedisChart] Received WebSocket message, type: ${message.type}`);
     switch (message.type) {
       case 'ticker':
         // 🚀 RADICAL OPTIMIZATION: Handle instant ticker updates (no throttle)
@@ -322,6 +323,7 @@ export class RedisChartService {
         break;
 
       case 'candle':
+        console.log(`📊 [RedisChart] Received candle: ${message.pair}:${message.granularity} at $${message.close} (${message.candleType})`);
         const subscriptionKey = `${message.pair}:${message.granularity}`;
         const callback = this.wsSubscriptions.get(subscriptionKey);
 

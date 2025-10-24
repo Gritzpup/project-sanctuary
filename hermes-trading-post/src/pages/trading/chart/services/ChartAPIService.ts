@@ -212,13 +212,17 @@ export class ChartAPIService {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log(`📨 [ChartAPI] Received WebSocket message, type: ${data.type}`);
           if (data.type === 'candle') {
-            
-            const key = `${data.pair}:${data.granularity}`;
+            console.log(`📊 [ChartAPI] Received candle: ${data.data?.pair}:${data.data?.granularity} at $${data.data?.close} (${data.data?.type})`);
+            const key = `${data.data?.pair}:${data.data?.granularity}`;
             const callback = this.wsSubscriptions.get(key);
             if (callback) {
-              const transformedData = this.transformWebSocketCandle(data);
+              const transformedData = this.transformWebSocketCandle(data.data);
               callback(transformedData);
+              console.log(`✅ [ChartAPI] Candle processed and sent to chart`);
+            } else {
+              console.warn(`⚠️ [ChartAPI] No callback for ${key}, have subscriptions for:`, Array.from(this.wsSubscriptions.keys()));
             }
           }
         } catch (error) {

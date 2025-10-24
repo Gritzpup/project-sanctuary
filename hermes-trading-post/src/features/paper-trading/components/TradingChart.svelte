@@ -35,26 +35,12 @@
   let isForwardTestRunning = $state(false);
   let forwardTestInterval: number | null = null;
   
-  // Create reactive variable for latest price
-  let latestPrice = $state(0);
+  // 🔧 FIX: Use $derived for instant reactive updates from L2 orderbook
+  // dataStore.latestPrice updates from L2 orderbook mid-price (fastest possible)
+  // Using $derived ensures header price updates instantly with ZERO delay
+  let latestPrice = $derived(dataStore.latestPrice || currentPrice || 0);
   let live24hChange = $state(0);
   let live24hPercent = $state(0);
-  
-  // Set initial price from dataStore and subscribe to updates
-  $effect(() => {
-    // Set initial price from dataStore
-    latestPrice = dataStore.latestPrice || currentPrice || 0;
-    
-    // Subscribe to data updates for real-time price changes
-    const unsubscribe = dataStore.onDataUpdate(() => {
-      const newPrice = dataStore.latestPrice;
-      if (newPrice && newPrice !== latestPrice) {
-        latestPrice = newPrice;
-      }
-    });
-    
-    return unsubscribe;
-  });
   
   // Fetch live 24-hour Bitcoin data
   async function fetch24hData() {

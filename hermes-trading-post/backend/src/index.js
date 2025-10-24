@@ -230,16 +230,62 @@ const restAPIService = new RESTAPIService({
       console.log('Coinbase WebSocket disconnected');
     };
 
+    // 🔧 FIX: Add ticker event handler for real-time price updates
+    const tickerHandler = (data) => {
+      if (!data) return;
+
+      // Broadcast ticker data to all connected WebSocket clients
+      wsHandler.broadcast({
+        type: 'ticker',
+        data: data
+      });
+
+      // Also update bot manager with current price for trading
+      if (data.price) {
+        botManager.updateRealtimePrice(data.price, data.product_id);
+      }
+    };
+
+    // 🔧 FIX: Add candle event handler for real-time candle updates
+    const candleHandler = (candleData) => {
+      if (!candleData) return;
+
+      // 🔧 FIX: Frontend RedisChartService expects flat structure with 'pair' and 'granularity' at top level
+      // NOT nested in 'data' field
+      const frontendCandle = {
+        type: 'candle',  // Include type at top level
+        pair: candleData.product_id,  // Map product_id to pair for frontend compatibility
+        granularity: candleData.granularityKey || `${candleData.granularity}s`,  // Use string format (e.g., "1m")
+        time: candleData.time,
+        open: candleData.open,
+        high: candleData.high,
+        low: candleData.low,
+        close: candleData.close,
+        volume: candleData.volume || 0,
+        candleType: candleData.type  // Rename 'type' to 'candleType' to avoid conflict
+      };
+
+      // Broadcast candle to all connected WebSocket clients
+      // Send flat structure, NOT nested in data field
+      wsHandler.broadcast(frontendCandle);
+
+      console.log(`📊 [Backend] New ${candleData.type} candle (${candleData.granularityKey}): ${candleData.product_id} at $${candleData.close}`);
+    };
+
     coinbaseWebSocket.on('level2', level2Handler);
+    coinbaseWebSocket.on('ticker', tickerHandler);
+    coinbaseWebSocket.on('candle', candleHandler);
     coinbaseWebSocket.on('error', errorHandler);
     coinbaseWebSocket.on('disconnected', disconnectedHandler);
 
     // Store references for cleanup
     coinbaseWebSocket.__level2Handler = level2Handler;
+    coinbaseWebSocket.__tickerHandler = tickerHandler;
+    coinbaseWebSocket.__candleHandler = candleHandler;
     coinbaseWebSocket.__errorHandler = errorHandler;
     coinbaseWebSocket.__disconnectedHandler = disconnectedHandler;
 
-    console.log('🔗 Linked Coinbase level2 events to WebSocketHandler');
+    console.log('🔗 Linked Coinbase level2, ticker, and candle events to WebSocketHandler');
   } catch (error) {
     console.error('❌ Failed to connect to Coinbase WebSocket:', error.message);
   }

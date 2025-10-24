@@ -10,24 +10,34 @@
   import BottomPanels from './components/BottomPanels.svelte';
   import { PaperTradingStateManager } from './services/PaperTradingState.svelte';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+  import { dataStore } from '../../pages/trading/chart/stores/dataStore.svelte';
 
-  export let sidebarCollapsed = false;
-  export let currentPrice: number = 0;
+  // Props using Svelte 5 runes syntax
+  let {
+    sidebarCollapsed = false
+  }: {
+    sidebarCollapsed?: boolean;
+  } = $props();
+
+  // 🔧 FIX: Use same ticker price as chart from dataStore
+  // Both header and chart show the SAME live ticker price (matches/trades)
+  // dataStore.latestPrice is a $state that updates from ticker WebSocket
+  let currentPrice = $derived(dataStore.latestPrice || 0);
 
   const dispatch = createEventDispatcher();
 
-  // Initialize state manager
-  let stateManager: PaperTradingStateManager;
-  let tradingState: any = {};
-  let backendState: any = {};
+  // Initialize state manager - use $state to make it reactive
+  let stateManager = $state<PaperTradingStateManager | null>(null);
+  let tradingState = $state<any>({});
+  let backendState = $state<any>({});
 
-  // Component state
-  let selectedPair = 'BTC-USD';
-  let selectedGranularity = '1m';
-  let selectedPeriod = '1H';
-  let chartSpeed = '1x';
-  let selectedTestDateString = '';
-  let chartComponent: any = null;
+  // Component state - all need $state() for Svelte 5 reactivity
+  let selectedPair = $state<string>('BTC-USD');
+  let selectedGranularity = $state<string>('1m');
+  let selectedPeriod = $state<string>('1H');
+  let chartSpeed = $state<string>('1x');
+  let selectedTestDateString = $state<string>('');
+  let chartComponent = $state<any>(null);
 
   function toggleSidebar() {
     dispatch('toggle');
@@ -100,21 +110,21 @@
   }
 
   // Trigger chart resize when state manager is ready
-  $: {
+  $effect(() => {
     if (typeof window !== 'undefined' && stateManager?.tradingState && chartComponent) {
       // Just trigger a single chart resize
       setTimeout(() => {
         updateLayout();
       }, 200);
     }
-  }
+  });
 
   // Pass chart component to state manager when available
-  $: {
+  $effect(() => {
     if (stateManager && chartComponent) {
       stateManager.setChartComponent(chartComponent);
     }
-  }
+  });
 
   // Function to trigger chart resize when layout changes
   function updateLayout() {

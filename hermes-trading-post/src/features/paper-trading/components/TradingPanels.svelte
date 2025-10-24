@@ -2,26 +2,57 @@
   import TradingChart from './TradingChart.svelte';
   import StrategyControls from './StrategyControls.svelte';
   import DepthChart from '../../../pages/trading/orderbook/components/DepthChart.svelte';
+  import OrderbookList from '../../../pages/trading/orderbook/components/OrderbookList.svelte';
   import MarketGauge from '../../../components/trading/MarketGauge.svelte';
   import { createEventDispatcher } from 'svelte';
+  import { orderbookStore } from '../../../pages/trading/orderbook/stores/orderbookStore.svelte';
+  import {
+    aggregateOrderbookLevels
+  } from '../../../pages/trading/orderbook/components/services/OrderBookCalculator';
 
-  export let chartComponent: any = null;
-  export let selectedPair: string;
-  export let selectedGranularity: string;
-  export let selectedPeriod: string;
-  export let chartSpeed: string;
-  export let selectedTestDateString: string;
-  export let botTabs: any[];
-  export let activeBotInstance: any;
-  export let tradingState: any;
-  export let backendState: any;
-  export let strategies: any[];
+  // Props using Svelte 5 runes syntax
+  let {
+    chartComponent = $bindable(null),
+    selectedPair,
+    selectedGranularity,
+    selectedPeriod,
+    chartSpeed,
+    selectedTestDateString,
+    botTabs,
+    activeBotInstance,
+    tradingState,
+    backendState,
+    strategies
+  }: {
+    chartComponent?: any;
+    selectedPair: string;
+    selectedGranularity: string;
+    selectedPeriod: string;
+    chartSpeed: string;
+    selectedTestDateString: string;
+    botTabs: any[];
+    activeBotInstance: any;
+    tradingState: any;
+    backendState: any;
+    strategies: any[];
+  } = $props();
 
   const dispatch = createEventDispatcher();
 
   function forwardEvent(event: CustomEvent) {
     dispatch(event.type, event.detail);
   }
+
+  // Reactive orderbook data calculations - EXACTLY 10 rows each side
+  let bids = $derived(orderbookStore.getBids(100));
+  let asks = $derived(orderbookStore.getAsks(100));
+
+  // Aggregate then slice to EXACTLY 10 rows - no more, no less
+  let bidsWithCumulative = $derived(aggregateOrderbookLevels(bids, 10, true).slice(0, 10));
+  let asksWithCumulative = $derived(aggregateOrderbookLevels(asks, 10, false).slice(0, 10));
+
+  let maxBidSize = $derived(Math.max(...bidsWithCumulative.map(b => b.cumulative), 0));
+  let maxAskSize = $derived(Math.max(...asksWithCumulative.map(a => a.cumulative), 0));
 
 </script>
 
@@ -54,12 +85,17 @@
     />
   </div>
 
-  <!-- Middle Column: Orderbook Depth Chart -->
+  <!-- Middle Column: Orderbook Depth Chart and List -->
   <div class="middle-column">
-    <!-- Orderbook Depth Chart -->
-    <div class="depth-chart-container-full">
-      <DepthChart />
-    </div>
+    <DepthChart>
+      <OrderbookList
+        slot="orderbook-list"
+        {bidsWithCumulative}
+        {asksWithCumulative}
+        {maxBidSize}
+        {maxAskSize}
+      />
+    </DepthChart>
   </div>
 
   <!-- Strategy Controls Panel -->
@@ -134,12 +170,6 @@
     flex-direction: column;
     gap: 20px;
     order: 2;
-  }
-
-  .depth-chart-container-full {
-    width: 100%;
-    height: 100%;
-    min-width: 0;
   }
 
   .strategy-container {

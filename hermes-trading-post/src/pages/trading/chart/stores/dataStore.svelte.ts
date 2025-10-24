@@ -98,7 +98,8 @@ class DataStore {
       } : 'Not available (non-Chromium browser)'
     };
 
-    console.log('🔍 [Memory Diagnostics]', diagnostics);
+    // Use JSON.stringify to ensure CDP shows full details (not just "Object")
+    console.log('🔍 [Memory Diagnostics]', JSON.stringify(diagnostics, null, 2));
 
     // Reset counters
     this.notifyUpdateCount = 0;
@@ -728,43 +729,19 @@ class DataStore {
     // L2 updates must have candles to update, otherwise they're wasted
     const subscribeToL2 = () => {
       this.orderbookPriceUnsubscribe = orderbookStore.subscribeToPriceUpdates((price: number) => {
-        // Update latest price immediately from L2 data
+        // ✅ PERFORMANCE FIX: Only update latestPrice for header display
+        // DO NOT update chart candles on every L2 tick - causes freezing
+        // Chart updates from ticker/candle WebSocket messages instead
         this._latestPrice = price;
 
-        // ⚡ INSTANT UPDATE: Update candle immediately with L2 price (no RAF delay)
-        // Chart must update as fast as orderbook - every L2 tick
-        if (this._candles.length > 0) {
-          const lastCandle = this._candles[this._candles.length - 1];
-          const updatedCandle = {
-            ...lastCandle,
-            close: price,
-            high: Math.max(lastCandle.high, price),
-            low: Math.min(lastCandle.low, price)
-          };
-
-          // Update in place for reactivity
-          this._candles[this._candles.length - 1] = updatedCandle;
-        }
-
-        // Update stats and notify subscribers
-        // ⚡ THROTTLE: Use RAF to limit callback notifications to 60 FPS max
-        // This prevents memory bloat from too many callback executions
-        this._dataStats.lastUpdate = Date.now();
-
-        if (!this.l2NotifyRafId) {
-          this.l2NotifyRafId = requestAnimationFrame(() => {
-            this.notifyDataUpdate(true);  // ✅ immediate=true skips 16ms batcher
-            this.l2NotifyRafId = null;
-          });
-        }
+        // NO chart candle updates here - would freeze the UI
+        // Header price updates instantly, chart updates from WebSocket only
       });
     };
 
-    // 🔧 TEMPORARY FIX: Disable L2 real-time updates to prevent browser OOM
-    // L2 orderbook updates are causing excessive memory pressure and browser crashes
-    // TODO: Re-enable with proper throttling after optimizing chart rendering
-    console.warn('[DataStore] L2 orderbook subscription DISABLED to prevent OOM');
-    return; // Exit early - skip L2 subscription
+    // ✅ RE-ENABLED: L2 orderbook for instant price updates
+    // Using orderbook mid-price for fastest possible header price updates
+    console.log('[DataStore] 🚀 L2 orderbook subscription ENABLED for instant price updates');
 
     // 🚀 PHASE 6 FIX: Subscribe immediately if ready, otherwise defer with timeout
     // CRITICAL: Prevent L2 race condition where subscription starts before candles load

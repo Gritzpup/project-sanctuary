@@ -31,8 +31,8 @@ class OrderbookStore {
   // Cached sorted arrays - extracted from SortedOrderbookLevels on demand
   private _sortedBids = $state<Array<[number, number]>>([]);
   private _sortedAsks = $state<Array<[number, number]>>([]);
-  private _lastBidVersion = 0;
-  private _lastAskVersion = 0;
+  private _lastBidVersion = $state(0);
+  private _lastAskVersion = $state(0);
 
   // 🚀 PHASE 14c: Memoization caches for getBids/getAsks
   private _bidsMemoCache: Map<number, Array<{ price: number; size: number }>> = new Map();
@@ -655,6 +655,7 @@ class OrderbookStore {
   /**
    * Notify all price subscribers with current midpoint price
    * Only notifies if price actually changed to avoid redundant updates
+   * 🔧 PERF: Added $1.00 threshold to reduce UI re-renders for small price fluctuations
    */
   private notifyPriceSubscribers() {
     if (this._sortedBids.length > 0 && this._sortedAsks.length > 0) {
@@ -662,9 +663,12 @@ class OrderbookStore {
       const bestAsk = this._sortedAsks[0][0];
       const midPrice = (bestBid + bestAsk) / 2;
 
-      // Only notify if price actually changed
-      if (this._lastNotifiedMidPrice === midPrice) {
-        return;  // Skip redundant notifications
+      // Only notify if price changed by at least $1.00 to reduce constant re-renders
+      if (this._lastNotifiedMidPrice !== null) {
+        const priceChange = Math.abs(midPrice - this._lastNotifiedMidPrice);
+        if (priceChange < 1.00) {
+          return;  // Skip small fluctuations
+        }
       }
 
       this._lastNotifiedMidPrice = midPrice;

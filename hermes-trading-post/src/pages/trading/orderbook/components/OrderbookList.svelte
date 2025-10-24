@@ -25,7 +25,7 @@
     maxBidSize,
     maxAskSize
   }: Props = $props();
-
+</script>
 
 <div class="orderbook-list">
   <div class="orderbook-side bids">

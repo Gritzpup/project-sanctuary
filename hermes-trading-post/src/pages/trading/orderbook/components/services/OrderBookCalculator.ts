@@ -54,14 +54,8 @@ export function calculateCumulativeBids(
   bids: Array<{ price: number; size: number }>,
   startIndex = 0
 ): OrderLevel[] {
-  // ⚡ PHASE 3: Memoize cumulative calculations (40-50% faster)
-  // Cumulative sum runs on every orderbook update (multiple times per second)
-  return memoized(
-    `cumulative-bids-${startIndex}`,
-    [bids],
-    () => performCalculateCumulativeBids(bids, startIndex),
-    300 // TTL: 300ms (orderbook updates frequently)
-  );
+  // 🔧 FIX: Don't memoize - array reference changes cause cache pollution
+  return performCalculateCumulativeBids(bids, startIndex);
 }
 
 function performCalculateCumulativeBids(
@@ -89,13 +83,8 @@ export function calculateCumulativeAsks(
   asks: Array<{ price: number; size: number }>,
   startIndex = 0
 ): OrderLevel[] {
-  // ⚡ PHASE 3: Memoize cumulative calculations (40-50% faster)
-  return memoized(
-    `cumulative-asks-${startIndex}`,
-    [asks],
-    () => performCalculateCumulativeAsks(asks, startIndex),
-    300
-  );
+  // 🔧 FIX: Don't memoize - array reference changes cause cache pollution
+  return performCalculateCumulativeAsks(asks, startIndex);
 }
 
 function performCalculateCumulativeAsks(
@@ -133,14 +122,8 @@ export function calculateVolumeRange(depthData: {
   bids: Array<{ depth: number }>;
   asks: Array<{ depth: number }>;
 }): VolumeRangePoint[] {
-  // ⚡ PHASE 3: Memoize volume range calculation (25-35% faster)
-  // Math.max and array generation run frequently for unchanged depth data
-  return memoized(
-    `volume-range-${depthData.bids.length}-${depthData.asks.length}`,
-    [depthData],
-    () => performCalculateVolumeRange(depthData),
-    300 // TTL: 300ms
-  );
+  // 🔧 FIX: Don't memoize - object reference changes cause cache pollution
+  return performCalculateVolumeRange(depthData);
 }
 
 function performCalculateVolumeRange(depthData: {
@@ -173,14 +156,8 @@ export function calculatePriceRange(
   bestAsk: number,
   rangeOffset = 25000
 ): PriceRange {
-  // ⚡ PHASE 3: Memoize price range calculation (20-30% faster)
-  // Price range calculation runs on every depth update with simple math operations
-  return memoized(
-    `price-range-${rangeOffset}`,
-    [bestBid, bestAsk],
-    () => performCalculatePriceRange(bestBid, bestAsk, rangeOffset),
-    300 // TTL: 300ms
-  );
+  // 🔧 Simple calculation, no need to memoize
+  return performCalculatePriceRange(bestBid, bestAsk, rangeOffset);
 }
 
 function performCalculatePriceRange(
@@ -213,14 +190,8 @@ export function calculateVolumeHotspot(
   },
   rangeOffset = 25000
 ): VolumeHotspot {
-  // ⚡ PHASE 3: Memoize complex market pressure calculation (35-45% faster)
-  // Hotspot calculation involves many Math operations - significant win with memoization
-  return memoized(
-    `volume-hotspot-${rangeOffset}`,
-    [bestBid, bestAsk, depthData],
-    () => performCalculateVolumeHotspot(bestBid, bestAsk, depthData, rangeOffset),
-    300
-  );
+  // 🔧 FIX: Don't memoize - object reference changes cause cache pollution
+  return performCalculateVolumeHotspot(bestBid, bestAsk, depthData, rangeOffset);
 }
 
 function performCalculateVolumeHotspot(
@@ -325,4 +296,79 @@ export function formatPrice(price: number): string {
 export function formatVolume(volume: number): string {
   if (volume >= 1000) return `${(volume / 1000).toFixed(1)}k`;
   return volume.toFixed(1);
+}
+
+/**
+ * Aggregate orderbook levels into wider price ranges to reduce update frequency
+ * Groups orders by price buckets (e.g., $100 ranges) and shows averaged/summed data
+ * This dramatically reduces lag by showing fewer, more stable levels
+ *
+ * @param levels Raw orderbook levels
+ * @param bucketSize Price range width (e.g., 100 = group into $100 buckets)
+ * @param isBid Whether these are bid levels (affects rounding direction)
+ * @returns Aggregated levels with averaged prices and summed volumes
+ */
+export function aggregateOrderbookLevels(
+  levels: Array<{ price: number; size: number }>,
+  bucketSize: number = 100,
+  isBid: boolean = true
+): OrderLevel[] {
+  // 🔧 FIX: Don't memoize - array reference changes on every update, causing cache pollution
+  // Instead, the caller should throttle how often this is called
+  return performAggregateOrderbookLevels(levels, bucketSize, isBid);
+}
+
+function performAggregateOrderbookLevels(
+  levels: Array<{ price: number; size: number }>,
+  bucketSize: number,
+  isBid: boolean
+): OrderLevel[] {
+  if (levels.length === 0) return [];
+
+  // Group levels into price buckets
+  const buckets = new Map<number, { prices: number[]; totalSize: number }>();
+
+  for (const level of levels) {
+    // Round price to nearest bucket
+    // For bids: floor (e.g., 110,234 → 110,200 for bucket=100)
+    // For asks: ceil (e.g., 110,234 → 110,300 for bucket=100)
+    const bucketKey = isBid
+      ? Math.floor(level.price / bucketSize) * bucketSize
+      : Math.ceil(level.price / bucketSize) * bucketSize;
+
+    if (!buckets.has(bucketKey)) {
+      buckets.set(bucketKey, { prices: [], totalSize: 0 });
+    }
+
+    const bucket = buckets.get(bucketKey)!;
+    bucket.prices.push(level.price);
+    bucket.totalSize += level.size;
+  }
+
+  // Convert buckets to aggregated levels with cumulative sums
+  const aggregated: OrderLevel[] = [];
+  let cumulative = 0;
+
+  // Sort bucket keys appropriately (bids descending, asks ascending)
+  const sortedKeys = Array.from(buckets.keys()).sort((a, b) =>
+    isBid ? b - a : a - b
+  );
+
+  for (const bucketKey of sortedKeys) {
+    const bucket = buckets.get(bucketKey)!;
+
+    // Use weighted average price for the bucket
+    const avgPrice = bucket.prices.reduce((sum, p) => sum + p, 0) / bucket.prices.length;
+
+    cumulative += bucket.totalSize;
+
+    aggregated.push({
+      price: avgPrice,
+      size: bucket.totalSize,
+      cumulative,
+      key: `${bucketKey}-${bucket.totalSize.toFixed(4)}`
+    });
+  }
+
+  return aggregated;
 }

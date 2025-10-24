@@ -487,25 +487,42 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
   /**
    * Subscribe to ticker updates for a product
+   * 🔧 FIX: Advanced Trade API requires JWT authentication for ALL channels including ticker
    */
   subscribeTicker(productId) {
+    console.log(`📡 [Ticker] Subscribe request for ${productId}`);
     const subscriptionKey = `ticker:${productId}`;
 
     if (this.subscriptions.has(subscriptionKey)) {
+      console.log(`⚠️ [Ticker] Already subscribed to ticker:${productId}`);
       return;
     }
 
-    // ✅ FIXED: Advanced Trade API uses 'channel' (string), not 'channels' (array)
-    const subscription = {
-      type: 'subscribe',
-      product_ids: [productId],
-      channel: 'ticker'  // Changed from channels: ['ticker']
-    };
+    // ✅ CRITICAL FIX: Use Advanced Trade API with JWT authentication
+    // Advanced Trade API requires JWT for ALL subscriptions (ticker, level2, market_trades, etc.)
+    // Get subscription with JWT from CDPAuth
+    const subscription = cdpAuth.getWebSocketAuth();
+
+    if (!subscription) {
+      console.error('❌ [Ticker] Failed to generate JWT - cannot subscribe to ticker');
+      return;
+    }
+
+    // Update channel and product_ids to the requested values
+    subscription.channel = 'ticker';  // Advanced Trade API uses 'channel' (string), not 'channels' (array)
+    subscription.product_ids = [productId];
+
+    console.log(`✅ [Ticker] Subscription for ${productId} using Advanced Trade API with JWT`);
+    console.log(`📡 This will provide REAL-TIME ticker updates (price, bid, ask, volume) via CDP`);
 
     this.subscriptions.set(subscriptionKey, subscription);
 
-    if (this.isConnected) {
+    // Send immediately if already connected
+    if (this.isConnected && this.ws) {
+      console.log(`📤 [Ticker] Sending ticker subscription to Advanced Trade API`);
       this.ws.send(JSON.stringify(subscription));
+    } else {
+      console.log(`⏳ [Ticker] Advanced Trade API not connected yet - subscription will be sent on connection`);
     }
   }
 
@@ -553,21 +570,34 @@ export class CoinbaseWebSocketClient extends EventEmitter {
   /**
    * Subscribe to market_trades (trades) for real-time multi-granularity aggregation
    * Note: Advanced Trade API uses 'market_trades' channel (not 'matches' from old Exchange API)
+   * 🔧 FIX: Advanced Trade API requires JWT authentication for ALL channels including market_trades
    */
   subscribeMatches(productId, granularity = '60') {
+    console.log(`📡 [MarketTrades] Subscribe request for ${productId}`);
     const subscriptionKey = `matches:${productId}`;
 
 
     if (this.subscriptions.has(subscriptionKey)) {
+      console.log(`⚠️ [MarketTrades] Already subscribed to matches:${productId}`);
       return;
     }
 
-    // ✅ FIXED: Advanced Trade API uses 'channel' (string) and 'market_trades' (not 'matches')
-    const subscription = {
-      type: 'subscribe',
-      product_ids: [productId],
-      channel: 'market_trades'  // Changed from channels: ['matches']
-    };
+    // ✅ CRITICAL FIX: Use Advanced Trade API with JWT authentication
+    // Advanced Trade API requires JWT for ALL subscriptions (ticker, level2, market_trades, etc.)
+    // Get subscription with JWT from CDPAuth
+    const subscription = cdpAuth.getWebSocketAuth();
+
+    if (!subscription) {
+      console.error('❌ [MarketTrades] Failed to generate JWT - cannot subscribe to market_trades');
+      return;
+    }
+
+    // Update channel and product_ids to the requested values
+    subscription.channel = 'market_trades';  // Advanced Trade API uses 'channel' (string), not 'channels' (array)
+    subscription.product_ids = [productId];
+
+    console.log(`✅ [MarketTrades] Subscription for ${productId} using Advanced Trade API with JWT`);
+    console.log(`📡 This will provide REAL-TIME trade data for candle aggregation via CDP`);
 
     this.subscriptions.set(subscriptionKey, subscription);
 
@@ -575,6 +605,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     const aggregatorKey = productId; // Key by product only, since it handles all granularities
     if (!this.candleAggregators.has(aggregatorKey)) {
       const aggregator = new MultiGranularityAggregator(productId);
+      console.log(`📊 [MarketTrades] Created MultiGranularityAggregator for ${productId}`);
 
       // Listen for gap detection events from the aggregator
       aggregator.on('gap_detected', async (gapInfo) => {
@@ -584,9 +615,12 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       this.candleAggregators.set(aggregatorKey, aggregator);
     }
 
-    if (this.isConnected) {
+    // Send immediately if already connected
+    if (this.isConnected && this.ws) {
+      console.log(`📤 [MarketTrades] Sending market_trades subscription to Advanced Trade API`);
       this.ws.send(JSON.stringify(subscription));
     } else {
+      console.log(`⏳ [MarketTrades] Advanced Trade API not connected yet - subscription will be sent on connection`);
       // Subscription is already added to this.subscriptions map, will be sent on connection via resubscribe()
     }
   }

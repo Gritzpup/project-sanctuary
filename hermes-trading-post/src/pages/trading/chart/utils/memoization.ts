@@ -257,6 +257,27 @@ export class MemoizationCache {
  */
 export const chartMemoCache = new MemoizationCache();
 
+// 🔧 FIX: Aggressive cache cleanup to prevent memory leaks
+// Monitor and clean cache every 30 seconds
+if (typeof window !== 'undefined') {
+  setInterval(() => {
+    const stats = chartMemoCache.getStats();
+
+    // Always log cache stats to diagnose memory leak
+    console.log(`[Memoization] Cache: ${stats.cacheSize} entries, ${(stats.totalSize / 1024 / 1024).toFixed(2)}MB, ${stats.hitRate}% hit rate`);
+
+    // Aggressive cleanup: >500 entries or >10MB triggers eviction
+    if (stats.cacheSize > 500 || stats.totalSize > 10 * 1024 * 1024) {
+      console.log(`[Memoization] 🧹 CLEANING cache: ${stats.cacheSize} entries, ${(stats.totalSize / 1024 / 1024).toFixed(2)}MB`);
+      chartMemoCache['evictLRU'](); // Force eviction of 25% of entries
+
+      // Log after cleanup
+      const afterStats = chartMemoCache.getStats();
+      console.log(`[Memoization] ✅ After cleanup: ${afterStats.cacheSize} entries, ${(afterStats.totalSize / 1024 / 1024).toFixed(2)}MB`);
+    }
+  }, 30 * 1000); // Every 30 seconds
+}
+
 /**
  * Decorator-friendly memoization wrapper
  * Usage: memoized('namespace', [inputs], () => expensiveCalculation())

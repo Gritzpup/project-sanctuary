@@ -770,46 +770,10 @@
       </div>
     </div>
 
-  <!-- Orderbook List -->
-  <div class="orderbook-list">
-    <div class="orderbook-side bids">
-      <div class="orderbook-header">
-        <span>Quantity</span>
-        <span>Buy Price</span>
-      </div>
-      <div class="orderbook-rows">
-        {#each bidsWithCumulative as bid, i (bid.key)}
-          <div class="orderbook-row bid-row"
-               class:top-order={i === 0}
-               style="--volume-width: {(bid.size / maxBidSize * 100)}%"
-               data-price={bid.price}>
-            <div class="volume-bar bid-bar"></div>
-            <span class="quantity">{bid.cumulative.toFixed(5)}</span>
-            <span class="price">{FastNumberFormatter.formatPrice(Math.floor(bid.price))}</span>
-          </div>
-        {/each}
-      </div>
+    <!-- Orderbook List integrated into panel -->
+    <div class="integrated-orderbook">
+      <slot name="orderbook-list" />
     </div>
-
-    <div class="orderbook-side asks">
-      <div class="orderbook-header">
-        <span>Sell Price</span>
-        <span>Quantity</span>
-      </div>
-      <div class="orderbook-rows">
-        {#each asksWithCumulative as ask, i (ask.key)}
-          <div class="orderbook-row ask-row"
-               class:top-order={i === 0}
-               style="--volume-width: {(ask.size / maxAskSize * 100)}%"
-               data-price={ask.price}>
-            <div class="volume-bar ask-bar"></div>
-            <span class="price">{FastNumberFormatter.formatPrice(Math.floor(ask.price))}</span>
-            <span class="quantity">{ask.cumulative.toFixed(5)}</span>
-          </div>
-        {/each}
-      </div>
-    </div>
-  </div>
   </div>
 </div>
 
@@ -924,9 +888,16 @@
   .panel-content {
     padding: 15px; /* Restore padding */
     overflow-y: auto;
-    flex: 1;
+    flex: 0 0 auto; /* Don't expand */
     display: flex;
     flex-direction: column;
+  }
+
+  .integrated-orderbook {
+    margin-top: 0;
+    padding: 0;
+    flex: 1;
+    overflow: hidden;
   }
 
   .depth-chart-legend {
@@ -958,7 +929,7 @@
 
   .depth-chart {
     width: 100%;
-    height: 230px;
+    height: 204px;
     position: relative;
     margin-bottom: 15px;
     overflow: hidden;
