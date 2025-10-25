@@ -2,7 +2,7 @@
   import TradingChart from './TradingChart.svelte';
   import StrategyControls from './StrategyControls.svelte';
   import DepthChart from '../../../pages/trading/orderbook/components/DepthChart.svelte';
-  import OrderbookList from '../../../pages/trading/orderbook/components/OrderbookList.svelte';
+  import FixedOrderbookList from '../../../pages/trading/orderbook/components/FixedOrderbookList.svelte';
   import MarketGauge from '../../../components/trading/MarketGauge.svelte';
   import { createEventDispatcher } from 'svelte';
   import { orderbookStore } from '../../../pages/trading/orderbook/stores/orderbookStore.svelte';
@@ -88,13 +88,9 @@
   <!-- Middle Column: Orderbook Depth Chart and List -->
   <div class="middle-column">
     <DepthChart>
-      <OrderbookList
-        slot="orderbook-list"
-        {bidsWithCumulative}
-        {asksWithCumulative}
-        {maxBidSize}
-        {maxAskSize}
-      />
+      {#snippet children()}
+        <FixedOrderbookList />
+      {/snippet}
     </DepthChart>
   </div>
 

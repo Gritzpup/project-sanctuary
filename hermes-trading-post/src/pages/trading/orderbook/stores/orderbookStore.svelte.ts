@@ -92,10 +92,18 @@ class OrderbookStore {
       // PERF: Disabled - console.log(`💾 [Orderbook] Hydrating from cache: ${cachedOrderbook.bids.length} bids, ${cachedOrderbook.asks.length} asks`);
 
       // Process cached data as if it were a snapshot
+      // Backend returns bids/asks as array of {price, size} objects
+      const formattedBids = cachedOrderbook.bids.map((bid: any) =>
+        Array.isArray(bid) ? bid : [bid.price, bid.size]
+      );
+      const formattedAsks = cachedOrderbook.asks.map((ask: any) =>
+        Array.isArray(ask) ? ask : [ask.price, ask.size]
+      );
+
       this.processSnapshot({
         product_id: cachedOrderbook.product_id || productId,
-        bids: cachedOrderbook.bids,
-        asks: cachedOrderbook.asks
+        bids: formattedBids,
+        asks: formattedAsks
       });
 
       // PERF: Disabled - console.log(`✅ [Orderbook] Cache hydration complete - chart should now display instantly!`);

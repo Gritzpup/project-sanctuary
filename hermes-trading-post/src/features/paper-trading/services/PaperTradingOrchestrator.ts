@@ -1,17 +1,10 @@
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 import type { Strategy } from '../../../strategies/base/Strategy';
 import type { Position } from '../../../strategies/base/StrategyTypes';
 import type { Trade, Signal } from '../../../types/trading/core';
 import { paperTradingManager } from '../../../services/state/paperTradingManager';
-import { ReverseRatioStrategy } from '../../../strategies/implementations/ReverseRatioStrategy';
-import { GridTradingStrategy } from '../../../strategies/implementations/GridTradingStrategy';
-import { RSIMeanReversionStrategy } from '../../../strategies/implementations/RSIMeanReversionStrategy';
-import { DCAStrategy } from '../../../strategies/implementations/DCAStrategy';
-import { VWAPBounceStrategy } from '../../../strategies/implementations/VWAPBounceStrategy';
-import { MicroScalpingStrategy } from '../../../strategies/implementations/MicroScalpingStrategy';
-import { ProperScalpingStrategy } from '../../../strategies/implementations/ProperScalpingStrategy';
-import { get } from 'svelte/store';
 import { getBackendWsUrl } from '../../../utils/backendConfig';
+import { loadStrategy, preloadStrategy } from './StrategyRegistry';
 
 export interface TradingState {
   isRunning: boolean;
@@ -186,43 +179,27 @@ export class PaperTradingOrchestrator {
     }
   }
 
-  createStrategy(strategyType: string): Strategy | null {
-    switch (strategyType) {
-      case 'reverse-descending-grid':
-        return new ReverseRatioStrategy({
-          initialDropPercent: 0.1,
-          levelDropPercent: 0.1,
-          profitTarget: 0.85,
-          maxLevels: 12,
-          basePositionPercent: 6
-        });
-      case 'grid-trading':
-        return new GridTradingStrategy();
-      case 'rsi-mean-reversion':
-        return new RSIMeanReversionStrategy();
-      case 'dca':
-        return new DCAStrategy();
-      case 'vwap-bounce':
-        return new VWAPBounceStrategy();
-      case 'micro-scalping':
-        return new MicroScalpingStrategy();
-      case 'proper-scalping':
-        return new ProperScalpingStrategy();
-      case 'ultra-micro-scalping':
-        return new UltraMicroScalpingStrategy();
-      default:
-        return null;
+  async createStrategy(strategyType: string): Promise<Strategy | null> {
+    // Use lazy loading registry to load strategies on demand
+    const strategy = await loadStrategy(strategyType);
+
+    // Special configuration for reverse-ratio (legacy name for reverse-descending-grid)
+    if (strategyType === 'reverse-descending-grid' || strategyType === 'reverse-ratio') {
+      // Note: Configuration will be handled by the strategy itself
+      // or via a separate config method if needed
     }
+
+    return strategy;
   }
 
-  startTrading(strategyType: string, currentPrice: number) {
-    console.log('🚀 START TRADING - Orchestrator', { 
-      strategyType, 
+  async startTrading(strategyType: string, currentPrice: number) {
+    console.log('🚀 START TRADING - Orchestrator', {
+      strategyType,
       currentPrice,
       backendConnected: this.backendConnected,
       currentState: get(this.state)
     });
-    
+
     if (this.backendWs && this.backendConnected) {
       console.log('Sending START command to backend...');
       this.backendWs.send(JSON.stringify({
@@ -240,24 +217,24 @@ export class PaperTradingOrchestrator {
       }));
       return;
     }
-    
+
     // Fallback to local logic
     try {
       paperTradingManager.selectStrategy(strategyType);
       const activeBot = paperTradingManager.getActiveBot();
-      
+
       if (activeBot && !get(this.state).isRunning) {
         this.updateState({
           recentHigh: currentPrice,
           recentLow: currentPrice
         });
-        
-        const strategy = this.createStrategy(strategyType);
-        
+
+        const strategy = await this.createStrategy(strategyType); // Now async with lazy loading
+
         if (strategy) {
           console.log('Starting bot with strategy:', strategy.getName());
           activeBot.service.start(strategy, 'BTC-USD', get(this.state).balance);
-          
+
           const botState = activeBot.service.getState();
           const currentBotState = get(botState);
           this.updateState({
