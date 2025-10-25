@@ -15,10 +15,10 @@
   // Get current price
   $: currentPrice = orderbookStore.summary?.currentPrice || 100000;
 
-  // Calculate fixed price levels for 15 rows covering $25k range
-  // Bids: current - 25k to current, divided into 15 levels
-  // Asks: current to current + 25k, divided into 15 levels
-  const ROWS = 15;
+  // Calculate fixed price levels for 14 rows covering $25k range
+  // Bids: current - 25k to current, divided into 14 levels
+  // Asks: current to current + 25k, divided into 14 levels
+  const ROWS = 14;
   const RANGE = 25000;
 
   function calculatePriceLevels(basePrice: number, isBid: boolean) {
@@ -41,25 +41,31 @@
   $: bidPriceLevels = calculatePriceLevels(currentPrice, true);
   $: askPriceLevels = calculatePriceLevels(currentPrice, false);
 
-  // Get quantities for each price level from orderbook
-  function getQuantityAtPrice(price: number, isBid: boolean) {
-    const book = isBid ? orderbookStore.bids : orderbookStore.asks;
+  // Make orderbook data reactive by accessing it in reactive statements
+  $: allBids = orderbookStore.getBids(1000);
+  $: allAsks = orderbookStore.getAsks(1000);
 
+  // Debug: log when orderbook updates
+  $: if (allBids.length > 0 || allAsks.length > 0) {
+    console.log(`[FixedOrderbook] Updated: ${allBids.length} bids, ${allAsks.length} asks`);
+  }
+
+  // Get quantities for each price level from orderbook
+  function getQuantityAtPrice(price: number, levels: Array<{price: number, size: number}>) {
     // Find closest price in orderbook
-    for (const [bookPrice, size] of book) {
-      if (Math.abs(parseFloat(bookPrice) - price) < 100) {
-        return parseFloat(size);
+    for (const level of levels) {
+      if (Math.abs(level.price - price) < 100) {
+        return level.size;
       }
     }
-
     return 0;
   }
 
-  // Calculate cumulative depth
-  function calculateCumulative(levels: number[], isBid: boolean) {
+  // Calculate cumulative depth with reactive orderbook data
+  function calculateCumulative(priceLevels: number[], orderbookLevels: Array<{price: number, size: number}>) {
     let cumulative = 0;
-    return levels.map(price => {
-      const qty = getQuantityAtPrice(price, isBid);
+    return priceLevels.map(price => {
+      const qty = getQuantityAtPrice(price, orderbookLevels);
       cumulative += qty;
       return {
         price,
@@ -69,8 +75,9 @@
     });
   }
 
-  $: bidRows = calculateCumulative(bidPriceLevels, true);
-  $: askRows = calculateCumulative(askPriceLevels, false);
+  // These will re-run when allBids or allAsks change
+  $: bidRows = calculateCumulative(bidPriceLevels, allBids);
+  $: askRows = calculateCumulative(askPriceLevels, allAsks);
 
   // Get max sizes for bar scaling
   $: maxBidSize = Math.max(...bidRows.map(r => r.size), 0.001);

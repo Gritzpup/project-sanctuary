@@ -117,6 +117,8 @@ class OrderbookStore {
    * Process orderbook snapshot - optimized to detect actual changes
    */
   processSnapshot(data: { product_id: string; bids: OrderbookLevel[]; asks: OrderbookLevel[] }) {
+    console.log(`[OrderbookStore] Processing snapshot: ${data.bids?.length || 0} bids, ${data.asks?.length || 0} asks`);
+
     // ✅ PHASE 6 FIX: Early return if already processing snapshot
     // Prevents concurrent processSnapshot() calls from corrupting state
     if (this.isProcessingSnapshot) {
