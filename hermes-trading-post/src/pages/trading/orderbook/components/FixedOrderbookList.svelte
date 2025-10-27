@@ -130,11 +130,9 @@
     <div class="orderbook-rows">
       {#each askRows as row}
         <div class="orderbook-row ask">
+          <div class="size-bar ask-bar" style="width: {(row.size / maxAskSize) * 100}%"></div>
           <span class="price">{formatPrice(row.price)}</span>
-          <div class="quantity-container">
-            <div class="size-bar ask-bar" style="width: {(row.size / maxAskSize) * 100}%"></div>
-            <span class="quantity">{row.size.toFixed(8)}</span>
-          </div>
+          <span class="quantity">{row.size.toFixed(8)}</span>
         </div>
       {/each}
     </div>
@@ -192,14 +190,12 @@
   }
 
   .orderbook-row.ask {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto 1fr auto;
   }
 
-  .quantity-container {
-    position: relative;
-    display: flex;
-    align-items: center;
-    padding-right: 8px;
+  .ask .quantity {
+    text-align: right;
+    margin-left: auto;
   }
 
   .quantity, .price {
@@ -240,7 +236,7 @@
 
   .ask-bar {
     background: #ef5350;
-    width: 100%; /* Fill the quantity-container space */
+    left: 0;
   }
 
   /* Fix alignment */
