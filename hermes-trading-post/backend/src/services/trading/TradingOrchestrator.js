@@ -89,13 +89,16 @@ export class TradingOrchestrator extends EventEmitter {
       this.strategyConfig = config.strategyConfig || {};
       try {
         const strategyType = config.strategyType || this.selectedStrategyType || 'reverse-descending-grid';
+        console.log(`🎯 [Orchestrator] Creating strategy: ${strategyType}`);
         this.strategy = strategyRegistry.createStrategy(strategyType, this.strategyConfig);
-        
+        console.log(`✅ [Orchestrator] Strategy created successfully: ${strategyType}`);
+
         // Restore positions to strategy if they exist
         if (this.positionManager.getPositions().length > 0) {
           this.strategy.restorePositions(this.positionManager.getPositions());
         }
       } catch (strategyError) {
+        console.error(`❌ [Orchestrator] FAILED to create strategy:`, strategyError);
         this.strategy = null;
       }
 
@@ -237,17 +240,24 @@ export class TradingOrchestrator extends EventEmitter {
     try {
       // Only proceed with strategy analysis if strategy exists
       if (this.strategy) {
+        console.log(`🔍 [Orchestrator] Analyzing strategy at price $${price}`);
         // Analyze market conditions
         const signal = this.strategy.analyze(this.candles, price);
-        
+        console.log(`📡 [Orchestrator] Strategy signal: ${signal.type}, reason: ${signal.reason || 'none'}`);
+
         if (signal.type === 'buy') {
+          console.log(`💵 [Orchestrator] BUY signal received!`);
           await this.executeBuySignal(signal, price);
         } else if (signal.type === 'sell') {
+          console.log(`💰 [Orchestrator] SELL signal received!`);
           await this.executeSellSignal(signal, price);
         }
+      } else {
+        console.log(`⚠️ [Orchestrator] No strategy set, skipping analysis`);
       }
-      
+
     } catch (error) {
+      console.error(`❌ [Orchestrator] Strategy execution error:`, error);
     }
   }
 
@@ -728,8 +738,24 @@ export class TradingOrchestrator extends EventEmitter {
             this.positionManager.addPosition(position);
           });
         }
-        
-        
+
+        // 🔧 FIX: Recreate strategy if bot was running
+        if (this.isRunning && this.selectedStrategyType) {
+          try {
+            console.log(`🔄 [Orchestrator] Recreating strategy on loadState: ${this.selectedStrategyType}`);
+            this.strategy = strategyRegistry.createStrategy(this.selectedStrategyType, this.strategyConfig || {});
+            console.log(`✅ [Orchestrator] Strategy recreated: ${this.selectedStrategyType}`);
+
+            // Restore positions to strategy if they exist
+            if (this.positionManager.getPositions().length > 0) {
+              this.strategy.restorePositions(this.positionManager.getPositions());
+            }
+          } catch (strategyError) {
+            console.error(`❌ [Orchestrator] Failed to recreate strategy on load:`, strategyError);
+            this.strategy = null;
+          }
+        }
+
         // Save the migrated state
         await this.saveState();
       }

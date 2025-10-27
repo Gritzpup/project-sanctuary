@@ -28,6 +28,9 @@ export class ReverseRatioStrategy extends BaseStrategy {
     const dropFromHigh = ((this.recentHigh - currentPrice) / this.recentHigh) * 100;
     const currentLevel = this.positions.length + 1;
 
+    // 🔍 DEBUG: Log drop analysis
+    console.log(`📊 [ReverseRatio] Analysis: price=$${currentPrice.toFixed(2)}, recentHigh=$${this.recentHigh.toFixed(2)}, drop=${dropFromHigh.toFixed(3)}%, level=${currentLevel}, positions=${this.positions.length}`);
+
     // Special handling for initial position - be VERY aggressive
     if (this.positions.length === 0) {
       // For the first position, open immediately or on ANY drop
@@ -50,6 +53,8 @@ export class ReverseRatioStrategy extends BaseStrategy {
       const requiredDrop = this.config.initialDropPercent +
                           (currentLevel - 1) * this.config.levelDropPercent;
 
+      console.log(`🎯 [ReverseRatio] Level ${currentLevel}: requiredDrop=${requiredDrop.toFixed(3)}%, actualDrop=${dropFromHigh.toFixed(3)}%, needMore=${(requiredDrop - dropFromHigh).toFixed(3)}%`);
+
       if (dropFromHigh >= requiredDrop) {
         return {
           type: 'buy',
@@ -64,7 +69,28 @@ export class ReverseRatioStrategy extends BaseStrategy {
 
   calculatePositionSize(totalBalance, signal, currentPrice) {
     const level = signal.metadata?.level || 1;
-    const baseAmount = totalBalance * (this.config.basePositionPercent / 100);
+
+    // 🔧 CAPITAL RESERVATION: Reserve 50% of funds for deep dips ($5000+ below recent buys)
+    // Calculate average entry price from existing positions
+    let avgEntryPrice = 0;
+    if (this.positions.length > 0) {
+      const totalValue = this.positions.reduce((sum, pos) => sum + (pos.entryPrice * pos.size), 0);
+      const totalSize = this.positions.reduce((sum, pos) => sum + pos.size, 0);
+      avgEntryPrice = totalValue / totalSize;
+    } else {
+      avgEntryPrice = this.recentHigh; // Use recent high if no positions yet
+    }
+
+    // Check if we're in a deep dip (> $5000 below recent buys)
+    const dipFromAvgEntry = avgEntryPrice - currentPrice;
+    const isDeepDip = dipFromAvgEntry >= 5000;
+
+    // Reserve 50% of capital unless we're in a deep dip
+    const availableBalance = isDeepDip ? totalBalance : totalBalance * 0.5;
+
+    console.log(`💰 [ReverseRatio] Position sizing: balance=$${totalBalance.toFixed(2)}, avgEntry=$${avgEntryPrice.toFixed(2)}, dip=$${dipFromAvgEntry.toFixed(2)}, deepDip=${isDeepDip}, available=$${availableBalance.toFixed(2)}`);
+
+    const baseAmount = availableBalance * (this.config.basePositionPercent / 100);
     const multiplier = Math.pow(1.5, level - 1); // Increase size with each level
     return (baseAmount * multiplier) / currentPrice;
   }

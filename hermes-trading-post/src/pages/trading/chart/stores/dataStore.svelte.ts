@@ -249,7 +249,8 @@ class DataStore {
     endTime: number,
     maxCandles?: number
   ): Promise<void> {
-    console.log(`[DataStore] loadData called: pair=${pair}, granularity=${granularity}, maxCandles=${maxCandles}`);
+    console.log(`🚀🚀🚀 [DataStore] loadData called: pair=${pair}, granularity=${granularity}, maxCandles=${maxCandles || 'default(120)'}`);
+    console.log(`🚀🚀🚀 [DataStore] Time range: ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
     const perfStart = performance.now();
 
     // Update current pair/granularity
@@ -351,27 +352,100 @@ class DataStore {
           limit: maxCandles || 10000
         });
 
-        // ⚡ PHASE 8A: Fallback if backend returns empty (timeout/error occurred)
-        if (data.length === 0) {
-          ChartDebug.log(`⚠️ Backend fetch returned empty - checking for any cached data as fallback`);
-          // Try to get any available cached data as fallback
-          const anyCache = await chartIndexedDBCache.get(pair, granularity);
-          if (anyCache && anyCache.candles.length > 0) {
-            ChartDebug.log(`📊 Using stale cache as fallback: ${anyCache.candles.length} candles`);
-            this.setCandles(anyCache.candles);
+        console.log(`[DataStore CACHE MISS - BACKEND] Loading ${data.length} candles from backend`);
+
+        // 🎯 ALWAYS FETCH FRESH 60 CANDLES: If we have less than 60 candles, fetch fresh from Coinbase
+        // This ensures we always display a complete chart on every refresh
+        const MIN_CANDLES = 60;
+        const requestedCandles = Math.max(maxCandles || 120, MIN_CANDLES);
+
+        if (data.length < MIN_CANDLES) {
+          console.log(`🚀 [DataStore] Only ${data.length} candles in Redis - fetching fresh ${MIN_CANDLES} from Coinbase API...`);
+
+          // Fetch fresh 60 candles directly from Coinbase
+          const granularityMap: Record<string, number> = {
+            '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '1d': 86400
+          };
+          const granularitySeconds = granularityMap[granularity] || 60;
+          const timeRange = MIN_CANDLES * granularitySeconds;
+          const fetchStart = endTime - timeRange;
+
+          const freshCandles = await this.fetchGapData(fetchStart, endTime);
+          console.log(`✅ [DataStore] Fetched ${freshCandles.length} fresh candles from Coinbase`);
+
+          if (freshCandles.length > 0) {
+            this.setCandles(freshCandles as CandlestickDataWithVolume[]);
             this.updateStats();
+            console.log(`🎯🎯🎯 [DataStore] Loaded ${this._candles.length} fresh candles from Coinbase API`);
+
+            // Cache for next time
+            await chartIndexedDBCache.set(pair, granularity, freshCandles);
+            ChartDebug.log(`⏱️ Full load time (fresh from Coinbase): ${performance.now() - perfStart}ms`);
             return;
           }
         }
 
-        console.log(`[DataStore CACHE MISS - BACKEND] Loading ${data.length} candles from backend`);
+        // If we have enough candles or Coinbase fetch failed, use Redis data
         this.setCandles(data);
         this.updateStats();
+        console.log(`🎯🎯🎯 [DataStore] After setCandles: ${this._candles.length} candles in memory`);
 
-        // Cache the data for next time
-        if (data.length > 0) {
-          await chartIndexedDBCache.set(pair, granularity, data);
-          ChartDebug.log(`💾 Cached ${data.length} candles to IndexedDB`);
+        // 🔧 AUTO-FILL: If we got fewer candles than requested, try to backfill older ones
+        if (data.length < requestedCandles && data.length > 0) {
+          console.log(`⚠️ [DataStore] Have ${data.length}/${requestedCandles} candles, backfilling older ones...`);
+
+          // Calculate how far back we need to go to get the requested number of candles
+          const granularityMap: Record<string, number> = {
+            '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '1d': 86400
+          };
+          const granularitySeconds = granularityMap[granularity] || 60;
+          const candlesNeeded = requestedCandles - data.length;
+          const timeRangeNeeded = candlesNeeded * granularitySeconds;
+
+          // If we have no data, fetch from endTime backwards; otherwise fetch before oldest candle
+          let fetchStartTime: number;
+          let fetchEndTime: number;
+
+          if (data.length === 0) {
+            // No data at all - fetch the requested amount backwards from endTime
+            fetchEndTime = endTime;
+            fetchStartTime = endTime - timeRangeNeeded;
+            console.log(`📥 [DataStore] No Redis data - fetching ${candlesNeeded} candles from scratch`);
+          } else {
+            // Have some data - fetch older candles
+            const oldestCandleTime = data[0].time as number;
+            fetchStartTime = oldestCandleTime - timeRangeNeeded;
+            fetchEndTime = oldestCandleTime - granularitySeconds; // Don't overlap with existing data
+            console.log(`📥 [DataStore] Have ${data.length} candles - backfilling ${candlesNeeded} older ones`);
+          }
+
+          // Fetch additional historical data from Coinbase API
+          try {
+            const additionalCandles = await this.fetchGapData(fetchStartTime, fetchEndTime);
+            if (additionalCandles.length > 0) {
+              console.log(`✅ [DataStore] Fetched ${additionalCandles.length} additional candles from Coinbase API`);
+
+              // Merge with existing candles and update
+              const allCandles = [...additionalCandles, ...data].sort((a, b) => (a.time as number) - (b.time as number));
+              this.setCandles(allCandles as CandlestickDataWithVolume[]);
+              this.updateStats();
+              console.log(`🎯🎯🎯 [DataStore] FINAL COUNT after API backfill: ${this._candles.length} candles (${data.length} from Redis + ${additionalCandles.length} from API)`);
+
+              // Cache the enhanced dataset
+              await chartIndexedDBCache.set(pair, granularity, allCandles);
+              console.log(`💾 [DataStore] Cached ${allCandles.length} candles (original ${data.length} + ${additionalCandles.length} from API)`);
+            } else {
+              console.warn(`⚠️ [DataStore] Could not fetch additional candles from Coinbase API`);
+            }
+          } catch (error) {
+            console.error(`❌ [DataStore] Error fetching additional candles:`, error);
+          }
+        } else {
+          // Cache the data for next time (normal case - got enough candles)
+          if (data.length > 0) {
+            await chartIndexedDBCache.set(pair, granularity, data);
+            ChartDebug.log(`💾 Cached ${data.length} candles to IndexedDB`);
+          }
         }
 
         ChartDebug.log(`⏱️ Full load time (cache miss): ${performance.now() - perfStart}ms`);
@@ -430,28 +504,73 @@ class DataStore {
   }
 
   async fetchGapData(fromTime: number, toTime: number): Promise<CandlestickData[]> {
-    ChartDebug.log(`Fetching gap data from ${new Date(fromTime * 1000).toISOString()} to ${new Date(toTime * 1000).toISOString()}`);
-    
+    console.log(`🔍 [fetchGapData] Fetching gap data from ${new Date(fromTime * 1000).toISOString()} to ${new Date(toTime * 1000).toISOString()}`);
+
     try {
-      // Fetch data for the gap period from Redis
       const config = this.getCurrentConfig();
-      const gapData = await chartCacheService.fetchCandles({
+      console.log(`🔍 [fetchGapData] Config: pair=${config.pair}, granularity=${config.granularity}`);
+
+      // First try to fetch from Redis/backend cache
+      let gapData = await chartCacheService.fetchCandles({
         pair: config.pair,
         granularity: config.granularity,
         start: fromTime,
         end: toTime,
         limit: 5000
       });
-      
+
+      console.log(`📥 [fetchGapData] chartCacheService.fetchCandles returned ${gapData.length} candles from Redis`);
+
+      // If Redis doesn't have the data, fetch from Coinbase API
+      if (gapData.length === 0) {
+        console.log(`🌐 [fetchGapData] No data in Redis, fetching from Coinbase API...`);
+
+        // Convert granularity to seconds for Coinbase API
+        const granularityMap: Record<string, number> = {
+          '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '1d': 86400
+        };
+        const granularitySeconds = granularityMap[config.granularity] || 60;
+
+        // Direct fetch to Coinbase API to avoid Axios import issues
+        const url = `https://api.exchange.coinbase.com/products/${config.pair}/candles?start=${fromTime}&end=${toTime}&granularity=${granularitySeconds}`;
+        console.log(`🔗 [fetchGapData] Fetching: ${url}`);
+
+        try {
+          const response = await fetch(url);
+          if (!response.ok) {
+            console.error(`❌ [fetchGapData] Coinbase API error: ${response.status} ${response.statusText}`);
+            gapData = [];
+          } else {
+            const apiData = await response.json();
+            console.log(`📥 [fetchGapData] Coinbase API returned ${apiData.length} raw candles`);
+
+            // Convert Coinbase API format [time, low, high, open, close, volume] to our format
+            gapData = apiData.map((candle: any[]) => ({
+              time: candle[0],
+              low: candle[1],
+              high: candle[2],
+              open: candle[3],
+              close: candle[4],
+              volume: candle[5] || 0
+            }));
+
+            console.log(`📥 [fetchGapData] Converted ${gapData.length} candles to chart format`);
+          }
+        } catch (fetchError) {
+          console.error(`❌ [fetchGapData] Fetch error:`, fetchError);
+          gapData = [];
+        }
+      }
+
       // Filter out any candles we already have
       const existingTimes = new Set(this._candles.map(c => c.time));
       const newCandles = gapData.filter(candle => !existingTimes.has(candle.time));
-      
-      ChartDebug.log(`Gap fetch returned ${gapData.length} candles, ${newCandles.length} are new`);
-      
+
+      console.log(`✅ [fetchGapData] Gap fetch returned ${gapData.length} candles, ${newCandles.length} are new (${existingTimes.size} existing)`);
+
       return newCandles;
     } catch (error) {
-      ChartDebug.error('Error fetching gap data:', error);
+      console.error('❌ [fetchGapData] Error fetching gap data:', error);
       return [];
     }
   }
@@ -462,6 +581,13 @@ class DataStore {
 
     if (sortedCandles.length < candles.length) {
       // PERF: Disabled - console.warn(`⚠️ [DataStore] Filtered out ${candles.length - sortedCandles.length} invalid candles`);
+    }
+
+    // 🔍 DEBUG: Log candle time range
+    if (sortedCandles.length > 0) {
+      const firstTime = sortedCandles[0].time as number;
+      const lastTime = sortedCandles[sortedCandles.length - 1].time as number;
+      console.log(`📊 [DataStore] setCandles: ${sortedCandles.length} candles from ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
     }
 
     if (sortedCandles.length > 100) {
@@ -494,13 +620,96 @@ class DataStore {
 
     // Notify plugins of data update
     this.notifyDataUpdate();
+
+    // 🔧 AUTO GAP DETECTION: Scan for gaps in loaded data and auto-fill them
+    this.detectAndFillGaps();
+  }
+
+  /**
+   * Scan loaded candles for gaps and automatically fill them from backend
+   */
+  private async detectAndFillGaps() {
+    if (this._candles.length < 2) return;
+
+    const config = this.getCurrentConfig();
+    const granularityMap: Record<string, number> = {
+      '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '1d': 86400
+    };
+    const granularitySeconds = granularityMap[config.granularity] || 60;
+
+    const gaps: Array<{ start: number; end: number; count: number }> = [];
+
+    // Scan for gaps between consecutive candles
+    for (let i = 1; i < this._candles.length; i++) {
+      const prevTime = this._candles[i - 1].time as number;
+      const currentTime = this._candles[i].time as number;
+      const expectedTime = prevTime + granularitySeconds;
+      const gapSize = currentTime - expectedTime;
+
+      if (gapSize >= granularitySeconds) {
+        const missedCandles = Math.floor(gapSize / granularitySeconds);
+        gaps.push({
+          start: expectedTime,
+          end: currentTime - granularitySeconds,
+          count: missedCandles
+        });
+      }
+    }
+
+    if (gaps.length > 0) {
+      console.log(`⚠️ [DataStore] Found ${gaps.length} gap(s) in loaded data, auto-filling...`);
+      console.log(`🔍 [DataStore] Gap details:`, gaps.map(g => ({
+        start: new Date(g.start * 1000).toISOString(),
+        end: new Date(g.end * 1000).toISOString(),
+        count: g.count
+      })));
+
+      // Fill each gap asynchronously
+      let totalFilled = 0;
+      for (const gap of gaps) {
+        try {
+          console.log(`🔄 [DataStore] Fetching gap data: ${gap.count} candles from ${new Date(gap.start * 1000).toISOString()} to ${new Date(gap.end * 1000).toISOString()}`);
+          const gapCandles = await this.fetchGapData(gap.start, gap.end);
+          console.log(`📥 [DataStore] fetchGapData returned ${gapCandles.length} candles`);
+
+          if (gapCandles.length > 0) {
+            console.log(`✅ [DataStore] Auto-filled gap: ${gapCandles.length} candles from ${new Date(gap.start * 1000).toISOString()}`);
+
+            // Insert gap candles into the correct position
+            const insertIndex = this._candles.findIndex(c => (c.time as number) >= (gapCandles[0].time as number));
+            console.log(`📍 [DataStore] Insert index: ${insertIndex}, total candles before: ${this._candles.length}`);
+            if (insertIndex !== -1) {
+              this._candles.splice(insertIndex, 0, ...gapCandles);
+              this._visibleCandles.splice(insertIndex, 0, ...gapCandles);
+              totalFilled += gapCandles.length;
+              console.log(`✅ [DataStore] Inserted ${gapCandles.length} candles at index ${insertIndex}, total candles now: ${this._candles.length}`);
+            } else {
+              console.warn(`⚠️ [DataStore] Could not find insert index for gap candles`);
+            }
+          } else {
+            console.warn(`⚠️ [DataStore] No candles returned for gap from ${new Date(gap.start * 1000).toISOString()}`);
+          }
+        } catch (err) {
+          console.error(`❌ [DataStore] Failed to fill gap:`, err);
+        }
+      }
+
+      // Notify after all gaps are filled
+      if (totalFilled > 0) {
+        console.log(`🎉 [DataStore] Gap filling complete! Added ${totalFilled} total candles`);
+        this.updateStats();
+        this.notifyDataUpdate();
+      } else {
+        console.warn(`⚠️ [DataStore] Gap filling completed but no candles were added`);
+      }
+    }
   }
 
   /**
    * Add a single new candle (for real-time updates)
    * This is used when new candles arrive via WebSocket
    */
-  addCandle(candle: CandlestickDataWithVolume) {
+  async addCandle(candle: CandlestickDataWithVolume) {
     // Use service transformation for validation and normalization
     const transformed = dataTransformations.transformCandles([candle]);
     if (transformed.length === 0) {
@@ -514,9 +723,60 @@ class DataStore {
       return; // Ticker update, not a new candle
     }
 
+    // 🔧 AUTO GAP DETECTION: Check if there's a gap before adding new candle
+    if (this._candles.length > 0) {
+      const lastCandle = this._candles[this._candles.length - 1];
+      const config = this.getCurrentConfig();
+      const granularityMap: Record<string, number> = {
+        '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '1d': 86400
+      };
+      const granularitySeconds = granularityMap[config.granularity] || 60;
+      const expectedNextTime = (lastCandle.time as number) + granularitySeconds;
+      const actualTime = validCandle.time as number;
+      const gapSize = actualTime - expectedNextTime;
+
+      // 🎯 INDUSTRY STANDARD: Block and backfill gaps BEFORE adding new candle
+      // This prevents visual discontinuities when transitioning from historical → live data
+      // Used by TradingView, Binance, Coinbase, and other professional platforms
+      if (gapSize >= granularitySeconds) {
+        const missedCandles = Math.floor(gapSize / granularitySeconds);
+        console.log(`⚠️ [DataStore] Gap detected: ${missedCandles} missing candles between ${new Date(expectedNextTime * 1000).toISOString()} and ${new Date(actualTime * 1000).toISOString()}`);
+        console.log(`🔄 [DataStore] BLOCKING to backfill gap before adding new candle (industry best practice)`);
+
+        try {
+          // ✅ BLOCKING: Wait for gap data before proceeding
+          const gapCandles = await this.fetchGapData(expectedNextTime, actualTime - granularitySeconds);
+
+          if (gapCandles.length > 0) {
+            console.log(`✅ [DataStore] Successfully backfilled ${gapCandles.length} missing candles`);
+            // Insert gap candles in correct position
+            const insertIndex = this._candles.findIndex(c => (c.time as number) >= (gapCandles[0].time as number));
+            if (insertIndex !== -1) {
+              this._candles.splice(insertIndex, 0, ...gapCandles);
+              this._visibleCandles.splice(insertIndex, 0, ...gapCandles);
+            } else {
+              // Gap candles go at the end (before new candle)
+              this._candles.push(...gapCandles);
+              this._visibleCandles.push(...gapCandles);
+            }
+            this.notifyDataUpdate();
+          } else {
+            console.warn(`⚠️ [DataStore] Gap backfill returned 0 candles - no data available for gap period`);
+          }
+        } catch (err) {
+          console.error('❌ [DataStore] Gap backfill failed:', err);
+          // Continue anyway - add the new candle even if gap fill fails
+        }
+      }
+    }
+
     // Add to candles array
     this._candles.push(validCandle);
     this._visibleCandles.push(validCandle);
+
+    // 🔍 DEBUG: Log new candle addition
+    const candleTime = new Date((validCandle.time as number) * 1000).toISOString();
+    console.log(`➕ [DataStore] addCandle: New candle at ${candleTime}, price: $${validCandle.close}, total: ${this._candles.length}`);
 
     // 🔧 FIX: Cap candle array to prevent memory leak
     // Keep max 2000 candles (2x rendering limit for smooth scrollback)

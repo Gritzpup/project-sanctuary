@@ -350,6 +350,7 @@ export class BotManager {
   }
 
   updateRealtimePrice(price, productId) {
+    console.log(`💰 [BotManager] updateRealtimePrice: ${productId} @ $${price}, updating ${this.bots.size} bots`);
     // Update ALL bots with the real-time price (not just running ones)
     // This ensures bots waiting for initial price can start
     for (const [botId, bot] of this.bots.entries()) {
@@ -360,6 +361,7 @@ export class BotManager {
   getStatus() {
     const bot = this.getActiveBot();
     if (!bot) {
+      console.log('⚠️ [BotManager] getStatus: No active bot');
       return {
         isRunning: false,
         isPaused: false,
@@ -367,8 +369,10 @@ export class BotManager {
         message: 'No active bot'
       };
     }
+    const status = bot.getStatus();
+    console.log(`📊 [BotManager] getStatus: activeBotId=${this.activeBotId}, isRunning=${status.isRunning}, positions=${status.positions?.length || 0}`);
     return {
-      ...bot.getStatus(),
+      ...status,
       activeBotId: this.activeBotId,
       botName: bot.botName
     };
