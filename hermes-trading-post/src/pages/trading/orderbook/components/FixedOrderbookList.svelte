@@ -1,8 +1,8 @@
 <script lang="ts">
   /**
    * @file FixedOrderbookList.svelte
-   * @description Fixed 15-row orderbook display with no animations
-   * Shows persistent rows for $25k range on each side
+   * @description Fixed orderbook display with no animations
+   * Shows persistent rows with bars between price and quantity
    */
 
   import { orderbookStore } from '../stores/orderbookStore.svelte';
@@ -12,14 +12,20 @@
     return `$${price.toFixed(0)}`;
   }
 
-  // Get current price
-  $: currentPrice = orderbookStore.summary?.currentPrice || 100000;
+  // Get current price using $derived - calculate from mid-price of best bid/ask
+  const currentPrice = $derived.by(() => {
+    const summary = orderbookStore.summary;
+    if (summary?.bestBid && summary?.bestAsk) {
+      return (summary.bestBid + summary.bestAsk) / 2;
+    }
+    return 100000; // Fallback
+  });
 
-  // Calculate fixed price levels for 14 rows covering $25k range
-  // Bids: current - 25k to current, divided into 14 levels
-  // Asks: current to current + 25k, divided into 14 levels
-  const ROWS = 14;
-  const RANGE = 25000;
+  // Calculate fixed price levels for 11 rows covering narrow range around current price
+  // Bids: current - $500 to current, divided into 11 levels
+  // Asks: current to current + $500, divided into 11 levels
+  const ROWS = 11;
+  const RANGE = 500; // Show ±$500 around current price for realistic orderbook depth
 
   function calculatePriceLevels(basePrice: number, isBid: boolean) {
     const levels = [];
@@ -38,17 +44,32 @@
     return levels;
   }
 
-  $: bidPriceLevels = calculatePriceLevels(currentPrice, true);
-  $: askPriceLevels = calculatePriceLevels(currentPrice, false);
+  const bidPriceLevels = $derived(calculatePriceLevels(currentPrice, true));
+  const askPriceLevels = $derived(calculatePriceLevels(currentPrice, false));
 
-  // Make orderbook data reactive by accessing it in reactive statements
-  $: allBids = orderbookStore.getBids(1000);
-  $: allAsks = orderbookStore.getAsks(1000);
+  // Use $state to make allBids/allAsks reactive
+  let allBids = $state<Array<{price: number, size: number}>>([]);
+  let allAsks = $state<Array<{price: number, size: number}>>([]);
 
-  // Debug: log when orderbook updates
-  $: if (allBids.length > 0 || allAsks.length > 0) {
-    console.log(`[FixedOrderbook] Updated: ${allBids.length} bids, ${allAsks.length} asks`);
-  }
+  // Use $effect to update when versions change
+  $effect(() => {
+    const bidVer = orderbookStore.versions.bids;
+    const askVer = orderbookStore.versions.asks;
+    allBids = orderbookStore.getBids(1000);
+    allAsks = orderbookStore.getAsks(1000);
+  });
+
+  // PERF: Disabled debug logging
+  // $: {
+  //   console.log('[FixedOrderbookList] Bids/Asks updated:', {
+  //     bidCount: allBids.length,
+  //     askCount: allAsks.length,
+  //     bidVersion,
+  //     askVersion,
+  //     firstBid: allBids[0],
+  //     firstAsk: allAsks[0]
+  //   });
+  // }
 
   // Get quantities for each price level from orderbook
   function getQuantityAtPrice(price: number, levels: Array<{price: number, size: number}>) {
@@ -75,13 +96,13 @@
     });
   }
 
-  // These will re-run when allBids or allAsks change
-  $: bidRows = calculateCumulative(bidPriceLevels, allBids);
-  $: askRows = calculateCumulative(askPriceLevels, allAsks);
+  // These will re-run when allBids or allAsks change - use $derived
+  const bidRows = $derived(calculateCumulative(bidPriceLevels, allBids));
+  const askRows = $derived(calculateCumulative(askPriceLevels, allAsks));
 
   // Get max sizes for bar scaling
-  $: maxBidSize = Math.max(...bidRows.map(r => r.size), 0.001);
-  $: maxAskSize = Math.max(...askRows.map(r => r.size), 0.001);
+  const maxBidSize = $derived(Math.max(...bidRows.map(r => r.size), 0.001));
+  const maxAskSize = $derived(Math.max(...askRows.map(r => r.size), 0.001));
 </script>
 
 <div class="fixed-orderbook">
@@ -110,8 +131,10 @@
       {#each askRows as row}
         <div class="orderbook-row ask">
           <span class="price">{formatPrice(row.price)}</span>
-          <span class="quantity">{row.size.toFixed(8)}</span>
-          <div class="size-bar ask-bar" style="width: {(row.size / maxAskSize) * 100}%"></div>
+          <div class="quantity-container">
+            <div class="size-bar ask-bar" style="width: {(row.size / maxAskSize) * 100}%"></div>
+            <span class="quantity">{row.size.toFixed(8)}</span>
+          </div>
         </div>
       {/each}
     </div>
@@ -127,7 +150,7 @@
     background: #0a0a0a;
     border: 1px solid rgba(74, 0, 224, 0.2);
     border-radius: 6px;
-    height: 400px;
+    height: 330px; /* 11 rows × ~30px per row */
   }
 
   .orderbook-side {
@@ -156,7 +179,6 @@
 
   .orderbook-row {
     display: grid;
-    grid-template-columns: auto 1fr;
     align-items: center;
     padding: 2px 8px;
     font-size: 11px;
@@ -173,9 +195,18 @@
     grid-template-columns: auto 1fr;
   }
 
+  .quantity-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding-right: 8px;
+  }
+
   .quantity, .price {
     font-family: 'Monaco', monospace;
     font-size: 11px;
+    position: relative;
+    z-index: 1; /* Ensure text is above the bar */
   }
 
   .quantity {
@@ -209,7 +240,7 @@
 
   .ask-bar {
     background: #ef5350;
-    left: 0;
+    width: 100%; /* Fill the quantity-container space */
   }
 
   /* Fix alignment */

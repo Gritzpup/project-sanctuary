@@ -108,14 +108,13 @@ export class CDPAuth {
 
     console.log('✅ [CDPAuth] Generated JWT token for WebSocket authentication');
 
-    // ✅ CRITICAL FIX: Use 'level2' channel (not 'l2_data') with JWT
-    // Advanced Trade API DOES support level2 orderbook streaming via JWT authentication
-    // Verified working in October 18 commit - uses channel: 'level2' with JWT
+    // ✅ CRITICAL FIX: Use 'l2_data' channel for Advanced Trade API
+    // The response comes back with channel: 'l2_data' not 'level2'
     // This provides real-time level2 updates with event.updates format
     return {
       type: 'subscribe',
       product_ids: ['BTC-USD'],
-      channel: 'level2', // ✅ Correct channel for Advanced Trade API level2
+      channel: 'l2_data', // ✅ Changed to l2_data to match Coinbase response
       jwt: jwt
     };
   }

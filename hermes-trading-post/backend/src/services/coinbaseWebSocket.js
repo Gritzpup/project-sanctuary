@@ -1,5 +1,6 @@
 import { WebSocket } from 'ws';
 import { EventEmitter } from 'events';
+import crypto from 'crypto';
 import { redisCandleStorage } from './redis/RedisCandleStorage.js';
 import { redisOrderbookCache } from './redis/RedisOrderbookCache.js';
 import { coinbaseAPI } from './CoinbaseAPIService.js';
@@ -329,7 +330,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     const message = `${timestamp}GET/users/self/verify`;
 
     try {
-      const crypto = require('crypto');
       const sign = crypto.createSign('SHA256');
       sign.update(message);
       sign.end();
@@ -528,8 +528,8 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
   /**
    * 🔧 FIX: Subscribe to level2 orderbook updates using Exchange API
-   * Coinbase Advanced Trade API doesn't support level2 orderbook data
-   * Using Exchange API (wss://ws-feed.exchange.coinbase.com) with 'level2' channel
+   * Coinbase Advanced Trade API sends empty snapshots for level2 data
+   * Need to use Exchange API (wss://ws-feed.exchange.coinbase.com) with 'level2' channel
    */
   subscribeLevel2(productId) {
     console.log(`📡 [Level2] Subscribe request for ${productId}`);
@@ -540,30 +540,104 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       return;
     }
 
-    // ✅ CRITICAL FIX: Use Advanced Trade API with JWT authentication
-    // Advanced Trade API DOES support level2 orderbook streaming with channel: 'level2'
-    // Get subscription with JWT from CDPAuth
-    const subscription = cdpAuth.getWebSocketAuth();
-
-    if (!subscription) {
-      console.error('❌ [Level2] Failed to generate JWT - cannot subscribe to level2');
+    // Connect to Exchange API if not already connected
+    if (!this.exchangeIsConnected && !this.exchangeIsConnecting) {
+      console.log(`🔄 [Level2] Connecting to Exchange API for level2 data...`);
+      this.connectExchangeAPI().then(() => {
+        console.log(`✅ [Level2] Exchange API connected, subscribing to level2`);
+        this.subscribeLevel2Exchange(productId);
+      }).catch(error => {
+        console.error(`❌ [Level2] Failed to connect to Exchange API:`, error);
+      });
       return;
     }
 
-    // Update product_ids to the requested productId
-    subscription.product_ids = [productId];
-
-    console.log(`✅ [Level2] Subscription for ${productId} using Advanced Trade API with JWT`);
-    console.log(`📡 This will provide REAL-TIME PUSH level2 updates via CDP`);
-
-    this.subscriptions.set(subscriptionKey, subscription);
-
-    // Send immediately if already connected
-    if (this.isConnected && this.ws) {
-      console.log(`📤 [Level2] Sending level2 subscription to Advanced Trade API`);
-      this.ws.send(JSON.stringify(subscription));
+    // If Exchange API is already connected, subscribe directly
+    if (this.exchangeIsConnected) {
+      this.subscribeLevel2Exchange(productId);
     } else {
-      console.log(`⏳ [Level2] Advanced Trade API not connected yet - subscription will be sent on connection`);
+      console.log(`⏳ [Level2] Exchange API is connecting, subscription will be sent once connected`);
+      // Store subscription to be sent after connection
+      this.subscriptions.set(subscriptionKey, { productId, type: 'level2' });
+    }
+  }
+
+  /**
+   * Subscribe to level2 on Exchange API
+   */
+  async subscribeLevel2Exchange(productId) {
+    const fetchOrderbook = async () => {
+      try {
+        const response = await fetch(`https://api.exchange.coinbase.com/products/${productId}/book?level=2`);
+        const orderbookData = await response.json();
+
+        if (orderbookData.bids && orderbookData.asks) {
+          // Limit to top 1000 levels to prevent memory issues
+          const bids = orderbookData.bids.slice(0, 1000).map(([price, size]) => ({
+            price: parseFloat(price),
+            size: parseFloat(size)
+          }));
+
+          const asks = orderbookData.asks.slice(0, 1000).map(([price, size]) => ({
+            price: parseFloat(price),
+            size: parseFloat(size)
+          }));
+
+          // Convert to our format
+          const orderbook = {
+            type: 'snapshot',
+            product_id: productId,
+            bids,
+            asks
+          };
+
+          // Already sorted from API
+          // PERF: Disabled console.log(`📊 [Level2] REST API snapshot for ${productId}: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);
+
+          // Cache in Redis
+          if (this.orderbookCacheEnabled) {
+            await redisOrderbookCache.storeOrderbookSnapshot(productId, orderbook.bids, orderbook.asks);
+          }
+
+          // Emit to listeners
+          this.emit('level2', orderbook);
+        }
+      } catch (error) {
+        console.error(`❌ [Level2] Failed to fetch orderbook from REST API:`, error.message);
+      }
+    };
+
+    // Fetch initial orderbook
+    await fetchOrderbook();
+
+    // Set up periodic refresh (every 5 seconds to reduce memory pressure)
+    if (!this.orderbookRefreshIntervals) {
+      this.orderbookRefreshIntervals = new Map();
+    }
+
+    // Clear any existing interval for this product
+    if (this.orderbookRefreshIntervals.has(productId)) {
+      clearInterval(this.orderbookRefreshIntervals.get(productId));
+    }
+
+    // Set new interval for periodic updates
+    const intervalId = setInterval(() => {
+      fetchOrderbook();
+    }, 1000); // Refresh every 1 second for faster orderbook updates
+
+    this.orderbookRefreshIntervals.set(productId, intervalId);
+    console.log(`🔄 [Level2] Set up periodic orderbook refresh for ${productId} every 5 seconds`);
+
+    // Still try WebSocket for potential future updates if auth is fixed
+    const subscription = {
+      type: 'subscribe',
+      product_ids: [productId],
+      channels: ['level2_batch']  // Use level2_batch which might not require auth
+    };
+
+    if (this.exchangeWs && this.exchangeWs.readyState === WebSocket.OPEN) {
+      this.exchangeWs.send(JSON.stringify(subscription));
+      this.exchangeSubscriptions.set(`level2:${productId}`, subscription);
     }
   }
 

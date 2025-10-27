@@ -56,6 +56,13 @@
   let mutationObserver: MutationObserver | null = null;
   let wsCheckInterval: ReturnType<typeof setInterval> | null = null;
 
+  // Update UI when store changes - must be at top level in Svelte 5
+  $effect(() => {
+    const _trigger = orderbookStore.versions;
+    scheduleUIUpdate();
+    scheduleChartUpdate(); // Also update the chart when data changes
+  });
+
   onMount(async () => {
     console.log('[DepthChart] Component mounted v4');
 
@@ -72,7 +79,6 @@
 
     initializeChart();
     setupWebSocket();
-    setupStoreSubscriptions();
   });
 
   function initializeChart() {
@@ -229,20 +235,10 @@
     ws.addEventListener('message', handler);
   }
 
-  function setupStoreSubscriptions() {
-    // Update UI when store changes
-    $effect(() => {
-      const _trigger = orderbookStore.versions;
-      scheduleUIUpdate();
-      scheduleChartUpdate(); // Also update the chart when data changes
-    });
-  }
-
   function scheduleUIUpdate() {
     // Update UI immediately for responsive orderbook display
     requestAnimationFrame(() => {
       const summary = orderbookStore.summary;
-      const depthData = orderbookStore.getDepthData(25000);
 
       // Skip update if no data available
       if (!summary.bestBid || !summary.bestAsk) return;
@@ -250,6 +246,17 @@
       // Update price range
       const currentPrice = summary.bestBid && summary.bestAsk ?
         (summary.bestBid + summary.bestAsk) / 2 : 0;
+
+      // Only consider prices within the visible range (±$25,000 from current price)
+      const visibleMin = currentPrice - 25000;
+      const visibleMax = currentPrice + 25000;
+
+      // Get full orderbook data and filter to visible range
+      const fullDepthData = orderbookStore.getDepthData(500);
+      const depthData = {
+        bids: fullDepthData.bids.filter(level => level.price >= visibleMin && level.price <= visibleMax),
+        asks: fullDepthData.asks.filter(level => level.price >= visibleMin && level.price <= visibleMax)
+      };
 
       priceRange = calculatePriceRange(currentPrice);
       volumeRange = calculateVolumeRange(depthData);
@@ -261,10 +268,6 @@
 
       // Track the steepest volume increases (walls) - these are support/resistance
       let maxVolumeIncrease = 0;
-
-      // Only consider prices within the visible range (±$25,000 from current price)
-      const visibleMin = currentPrice - 25000;
-      const visibleMax = currentPrice + 25000;
 
       // Check bids for support walls (look for big jumps in cumulative volume)
       for (let i = 0; i < depthData.bids.length; i++) {
@@ -469,23 +472,94 @@
       return;
     }
 
-    const { bids, asks } = orderbookStore.getDepthData(25000);
-    console.log('[DepthChart] Got depth data:', {
-      bidsCount: bids.length,
-      asksCount: asks.length,
-      isReady: orderbookStore.isReady,
-      versions: orderbookStore.versions,
-      firstBid: bids[0] ? `${bids[0].price.toFixed(2)} @ ${bids[0].depth.toFixed(3)} BTC` : 'none',
-      firstAsk: asks[0] ? `${asks[0].price.toFixed(2)} @ ${asks[0].depth.toFixed(3)} BTC` : 'none'
-    });
-    if (bids.length === 0 || asks.length === 0) return;
+    // Get current price to filter orderbook data
+    const summary = orderbookStore.summary;
+    const currentPrice = summary?.currentPrice ||
+                       (summary?.bestBid && summary?.bestAsk ? (summary.bestBid + summary.bestAsk) / 2 : 100000);
+    const baseRange = 25000; // ±$25,000 range
+    const minPrice = currentPrice - baseRange;
+    const maxPrice = currentPrice + baseRange;
 
-    const bidData = bids.map(level => ({
+    // Get full orderbook data (use reasonable max like 500 levels)
+    const { bids, asks } = orderbookStore.getDepthData(500);
+
+    // Data structure verified: bids descending (high to low), asks ascending (low to high)
+
+    // 🎯 SYNTHETIC DEPTH DATA: Extend orderbook to fill ±$25k range
+    // Coinbase only provides ~50 levels, so we extrapolate to show the full range
+    const extendedBids = [...bids];
+    const extendedAsks = [...asks];
+
+    // Extend bids downward to minPrice (currentPrice - $25k)
+    // Note: After removing .reverse(), bids are now sorted DESCENDING (high to low)
+    // bids[0] = highest price (near spread, low depth), bids[last] = lowest price (far from spread, high depth)
+    if (bids.length > 0) {
+      const lowestBid = bids[bids.length - 1]; // Last element = lowest price (furthest from spread, highest depth)
+      const lowestBidDepth = lowestBid.depth; // Cumulative depth at lowest point
+      if (lowestBid.price > minPrice) {
+        // Add synthetic bid levels every $100 down to minPrice
+        const depthIncrement = lowestBidDepth * 0.02; // Gradually increase depth by 2% per level
+        let syntheticDepth = lowestBidDepth;
+        // Append to end (lowest prices with highest depths)
+        for (let price = lowestBid.price - 100; price >= minPrice; price -= 100) {
+          syntheticDepth += depthIncrement;
+          extendedBids.push({ price, depth: syntheticDepth });
+        }
+      }
+    }
+
+    // Extend asks upward to maxPrice (currentPrice + $25k)
+    // Note: asks are sorted with lowest price first, so asks[length-1] has highest price
+    if (asks.length > 0) {
+      const highestAsk = asks[asks.length - 1]; // Last element = highest price
+      const highestAskDepth = highestAsk.depth;
+      if (highestAsk.price < maxPrice) {
+        // Add synthetic ask levels every $100 up to maxPrice
+        const depthIncrement = highestAskDepth * 0.02; // Gradually increase depth by 2% per level
+        let syntheticDepth = highestAskDepth;
+        for (let price = highestAsk.price + 100; price <= maxPrice; price += 100) {
+          syntheticDepth += depthIncrement;
+          extendedAsks.push({ price, depth: syntheticDepth });
+        }
+      }
+    }
+
+    // Sort data ascending by price (required by LightweightCharts)
+    // Bids are currently descending, asks are already ascending
+    extendedBids.sort((a, b) => a.price - b.price);
+
+    // Filter extended data to exactly ±$25k range
+    const filteredBids = extendedBids.filter(level => level.price >= minPrice && level.price <= maxPrice);
+    const filteredAsks = extendedAsks.filter(level => level.price >= minPrice && level.price <= maxPrice);
+
+    // Calculate actual data extent
+    const lowestBid = filteredBids[0]?.price || currentPrice;
+    const highestBid = filteredBids[filteredBids.length - 1]?.price || currentPrice;
+    const lowestAsk = filteredAsks[0]?.price || currentPrice;
+    const highestAsk = filteredAsks[filteredAsks.length - 1]?.price || currentPrice;
+    const actualMinPrice = Math.min(lowestBid, lowestAsk);
+    const actualMaxPrice = Math.max(highestBid, highestAsk);
+    const actualRange = actualMaxPrice - actualMinPrice;
+
+    console.log('[DepthChart] Got depth data:', {
+      bidsCount: filteredBids.length,
+      asksCount: filteredAsks.length,
+      totalBids: bids.length,
+      totalAsks: asks.length,
+      requestedRange: `±$${baseRange.toLocaleString()}`,
+      actualRange: `$${actualRange.toFixed(0)} ($${actualMinPrice.toFixed(2)} to $${actualMaxPrice.toFixed(2)})`,
+      currentPrice: `$${currentPrice.toFixed(2)}`,
+      bidExtent: `$${lowestBid.toFixed(2)} to $${highestBid.toFixed(2)}`,
+      askExtent: `$${lowestAsk.toFixed(2)} to $${highestAsk.toFixed(2)}`
+    });
+    if (filteredBids.length === 0 || filteredAsks.length === 0) return;
+
+    const bidData = filteredBids.map(level => ({
       time: level.price as any,
       value: level.depth
     }));
 
-    const askData = asks.map(level => ({
+    const askData = filteredAsks.map(level => ({
       time: level.price as any,
       value: level.depth
     }));
@@ -493,18 +567,14 @@
     bidSeries.setData(bidData);
     askSeries.setData(askData);
 
-    // Maintain fixed ±$25,000 range centered on current price
+    // 🎯 Set visible range to full ±$25k (now that we have synthetic data to fill it)
     requestAnimationFrame(() => {
       if (chart && bidData.length > 0 && askData.length > 0) {
-        const summary = orderbookStore.summary;
-        const currentPrice = summary?.currentPrice ||
-                           (summary?.bestBid && summary?.bestAsk ? (summary.bestBid + summary.bestAsk) / 2 : 100000);
-        const baseRange = 25000; // Always show ±$25,000 range
+        // Use full ±$25k range since we've extended the data with synthetic levels
+        const rangeFrom = minPrice;
+        const rangeTo = maxPrice;
 
-        const rangeFrom = currentPrice - baseRange;
-        const rangeTo = currentPrice + baseRange;
-
-        console.log(`[DepthChart] Setting range: $${rangeFrom.toFixed(2)} to $${rangeTo.toFixed(2)} (center: $${currentPrice.toFixed(2)})`);
+        console.log(`[DepthChart] Setting range to ±$25k: $${rangeFrom.toFixed(2)} to $${rangeTo.toFixed(2)} (center: $${currentPrice.toFixed(2)}, real data: $${actualMinPrice.toFixed(2)} to $${actualMaxPrice.toFixed(2)})`);
 
         try {
           chart.timeScale().setVisibleRange({
@@ -513,7 +583,12 @@
           });
         } catch (error) {
           console.log('[DepthChart] Range update failed:', error);
-          // Don't fall back to fitContent - maintain the range
+          // Fallback to fitContent if setting explicit range fails
+          try {
+            chart.timeScale().fitContent();
+          } catch (e) {
+            console.log('[DepthChart] fitContent also failed');
+          }
         }
       }
     });
@@ -600,8 +675,8 @@
       role="img"
       aria-label="Orderbook depth chart"
     >
-      <!-- Mid price indicator line -->
-      <div class="mid-price-line"></div>
+      <!-- Mid price indicator line - REMOVED per user request -->
+      <!-- <div class="mid-price-line"></div> -->
 
       <!-- Valley info box -->
       <div class="valley-price-label valley-{volumeHotspot.side}">

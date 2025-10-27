@@ -540,7 +540,7 @@
 
 .volume-label {
   position: absolute;
-  left: 8px;
+  left: 0;
   color: #ffffff;
   font-size: 10px;
   font-weight: 600;

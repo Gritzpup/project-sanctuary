@@ -117,7 +117,7 @@ class OrderbookStore {
    * Process orderbook snapshot - optimized to detect actual changes
    */
   processSnapshot(data: { product_id: string; bids: OrderbookLevel[]; asks: OrderbookLevel[] }) {
-    console.log(`[OrderbookStore] Processing snapshot: ${data.bids?.length || 0} bids, ${data.asks?.length || 0} asks`);
+    // PERF: Disabled - console.log(`[OrderbookStore] Processing snapshot: ${data.bids?.length || 0} bids, ${data.asks?.length || 0} asks`);
 
     // ✅ PHASE 6 FIX: Early return if already processing snapshot
     // Prevents concurrent processSnapshot() calls from corrupting state
@@ -198,9 +198,7 @@ class OrderbookStore {
 
     // Check if bids actually changed
     const oldBidsArray = this.bids.getAll();
-    if (!this.isReady && newBidsArray.length < 100) {
-      // PERF: Disabled - console.log(`📊 [DEBUG] newBids.size=${newBidsArray.length}, this.bids.size=${oldBidsArray.length}, filtered=${filteredBidCount}`);
-    }
+
     if (newBidsArray.length !== oldBidsArray.length) {
       bidsChanged = true;
     } else {
@@ -258,12 +256,13 @@ class OrderbookStore {
     }
 
     // Cache sorted arrays from SortedOrderbookLevels for fast access
-    if (!this.isReady || bidsChanged) {
+    // Always update on snapshot to ensure fresh data even if unchanged
+    if (!this.isReady || bidsChanged || true) { // Always update for snapshots
       this._sortedBids = this.bids.getAll();
       this._lastBidVersion++;
     }
 
-    if (!this.isReady || asksChanged) {
+    if (!this.isReady || asksChanged || true) { // Always update for snapshots
       this._sortedAsks = this.asks.getAll();
       this._lastAskVersion++;
     }
@@ -503,11 +502,12 @@ class OrderbookStore {
     // Calculate cumulative depth for BIDS starting from best bid (highest price)
     // Going OUTWARD (toward lower prices), accumulating depth
     // This creates the rising hill: low depth near spread → high depth far away
+    // Note: DON'T reverse - keep highest price (low depth) first, lowest price (high depth) last
     let cumulativeDepth = 0;
     const bidsWithDepth = sortedBids.map(([price, size]) => {
       cumulativeDepth += size;
       return { price, depth: cumulativeDepth };
-    }).reverse();  // Reverse so lowest price (highest depth) is first for charting
+    });
 
     // Calculate cumulative depth for ASKS starting from best ask (lowest price)
     // Going OUTWARD (toward higher prices), accumulating depth

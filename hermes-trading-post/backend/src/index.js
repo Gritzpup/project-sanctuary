@@ -188,17 +188,34 @@ const restAPIService = new RESTAPIService({
       if (data.type === 'snapshot' && data.bids && data.asks) {
         // 🔧 REDUCED LOGGING: Only log snapshots (rare events)
         console.log(`📨 [Backend] Received level2 SNAPSHOT: ${data.bids.length} bids, ${data.asks.length} asks`);
-        wsHandler.setCachedLevel2Snapshot(data);
 
-        // 🔄 Broadcast snapshot to all connected WebSocket clients via WebSocketHandler
-        const snapshotMessage = {
-          type: 'level2',
-          data: data
+        // 🔧 FIX: Limit snapshot size to prevent memory exhaustion
+        // Only keep top 100 bids/asks (closest to current price)
+        // Bids are sorted descending (highest first), asks ascending (lowest first)
+        const limitedData = {
+          ...data,
+          bids: data.bids.slice(0, 100),
+          asks: data.asks.slice(0, 100)
         };
 
-        wsHandler.broadcast(snapshotMessage);
-        console.log(`📤 [Backend] Broadcast level2 snapshot to connected clients`);
-        lastLevel2BroadcastTime = Date.now();
+        wsHandler.setCachedLevel2Snapshot(limitedData);
+
+        // 🔧 FIX: Throttle snapshot broadcasts to prevent memory pressure
+        // Snapshots are huge (1000+ levels) and come frequently, causing OOM
+        const now = Date.now();
+        const timeSinceLastBroadcast = now - lastLevel2BroadcastTime;
+
+        // Only broadcast snapshot every 5 seconds (less frequent than updates)
+        if (timeSinceLastBroadcast >= 5000) {
+          const snapshotMessage = {
+            type: 'level2',
+            data: limitedData
+          };
+
+          wsHandler.broadcast(snapshotMessage);
+          console.log(`📤 [Backend] Broadcast level2 snapshot (100 bids, 100 asks) to connected clients`);
+          lastLevel2BroadcastTime = now;
+        }
       }
       // Update events contain incremental changes (only changed price levels)
       else if (data.type === 'update' && data.changes) {

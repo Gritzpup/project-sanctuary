@@ -37,7 +37,9 @@ export const BID_SERIES_CONFIG = {
   bottomColor: 'rgba(38, 166, 154, 0.02)',
   lineWidth: 2,
   priceScaleId: 'left',
-  crosshairMarkerVisible: false
+  crosshairMarkerVisible: false,
+  priceLineVisible: false,  // Hide horizontal price line
+  lastValueVisible: false   // Hide last value marker
 };
 
 export const ASK_SERIES_CONFIG = {
@@ -46,7 +48,9 @@ export const ASK_SERIES_CONFIG = {
   bottomColor: 'rgba(239, 83, 80, 0.02)',
   lineWidth: 2,
   priceScaleId: 'left',
-  crosshairMarkerVisible: false
+  crosshairMarkerVisible: false,
+  priceLineVisible: false,  // Hide horizontal price line
+  lastValueVisible: false   // Hide last value marker
 };
 
 export const CHART_UPDATE_THROTTLE = 200; // Max 5 updates per second
