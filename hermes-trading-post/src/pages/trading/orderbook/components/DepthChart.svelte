@@ -602,13 +602,10 @@
     mouseY = event.clientY - rect.top;
     isHovering = true;
 
-    // Convert mouse X to price using time scale
-    const timeScale = chart.timeScale();
-    const priceAtX = timeScale.coordinateToLogical(mouseX);
-
-    if (priceAtX === null) return;
-
-    hoverPrice = priceAtX;
+    // Calculate hover price based on chart width and price range
+    const width = rect.width;
+    const xPercent = mouseX / width;
+    hoverPrice = priceRange.left + (priceRange.right - priceRange.left) * xPercent;
 
     // Get orderbook data and find value at this price
     const { bids, asks } = orderbookStore.getDepthData(500);
@@ -633,11 +630,14 @@
 
     hoverVolume = closestPoint?.depth || 0;
 
-    // Convert depth value to Y coordinate using the series price scale
-    const yCoord = bidSeries.priceToCoordinate(closestPoint.depth);
-    if (yCoord !== null) {
-      mouseY = yCoord;
-    }
+    // Calculate Y position manually based on depth
+    // Find max depth in all data for scaling
+    const maxDepth = Math.max(...allData.map(p => p.depth), 1);
+    const height = rect.height;
+
+    // Depth charts show high values at top (low Y), low values at bottom (high Y)
+    const depthPercent = closestPoint.depth / maxDepth;
+    mouseY = height * (1 - depthPercent);
   }
 
   function handleMouseLeave() {
