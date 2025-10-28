@@ -595,27 +595,48 @@
   }
 
   function handleMouseMove(event: MouseEvent) {
-    if (!chartContainer) return;
+    if (!chartContainer || !chart || !bidSeries) return;
 
     const rect = chartContainer.getBoundingClientRect();
     mouseX = event.clientX - rect.left;
     mouseY = event.clientY - rect.top;
     isHovering = true;
 
-    // Calculate hover price based on position
-    const width = rect.width;
-    const xPercent = mouseX / width;
-    hoverPrice = priceRange.left + (priceRange.right - priceRange.left) * xPercent;
+    // Convert mouse X to price using time scale
+    const timeScale = chart.timeScale();
+    const priceAtX = timeScale.coordinateToLogical(mouseX);
 
-    // Calculate hover volume based on Y position
-    const height = rect.height;
-    const yPercent = 1 - (mouseY / height);
-    const maxVolume = volumeRange.length > 0 ? volumeRange[0].value : 100;
-    hoverVolume = maxVolume * yPercent;
+    if (priceAtX === null) return;
 
-    // Debug log
-    if (Math.random() < 0.02) { // Log 2% of the time to avoid spam
-      console.log(`[DepthChart] Hover: price=$${hoverPrice.toFixed(2)}, volume=${hoverVolume.toFixed(3)}, priceRange=[${priceRange.left.toFixed(0)}-${priceRange.right.toFixed(0)}]`);
+    hoverPrice = priceAtX;
+
+    // Get orderbook data and find value at this price
+    const { bids, asks } = orderbookStore.getDepthData(500);
+    const allData = [...bids, ...asks];
+
+    if (allData.length === 0) {
+      hoverVolume = 0;
+      return;
+    }
+
+    // Find closest data point
+    let closestPoint = allData[0];
+    let minDiff = Math.abs(allData[0].price - hoverPrice);
+
+    for (const point of allData) {
+      const diff = Math.abs(point.price - hoverPrice);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestPoint = point;
+      }
+    }
+
+    hoverVolume = closestPoint?.depth || 0;
+
+    // Convert depth value to Y coordinate using the series price scale
+    const yCoord = bidSeries.priceToCoordinate(closestPoint.depth);
+    if (yCoord !== null) {
+      mouseY = yCoord;
     }
   }
 
@@ -670,11 +691,16 @@
     <div
       bind:this={chartContainer}
       class="depth-chart"
-      onmousemove={handleMouseMove}
-      onmouseleave={handleMouseLeave}
       role="img"
       aria-label="Orderbook depth chart"
     >
+      <!-- Transparent mouse capture overlay -->
+      <div
+        class="mouse-capture-overlay"
+        onmousemove={handleMouseMove}
+        onmouseleave={handleMouseLeave}
+      ></div>
+
       <!-- Mid price indicator line - REMOVED per user request -->
       <!-- <div class="mid-price-line"></div> -->
 
