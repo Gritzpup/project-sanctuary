@@ -278,14 +278,23 @@ function performCalculateVolumeHotspot(
 }
 
 /**
- * Format price for display
+ * Format price for display (abbreviated - for orderbook list)
  * @param price Price to format
- * @returns Formatted price string
+ * @returns Formatted price string with abbreviations (e.g., $89.1k)
  */
 export function formatPrice(price: number): string {
   if (price >= 1000000) return `$${(price / 1000000).toFixed(1)}M`;
   if (price >= 1000) return `$${(price / 1000).toFixed(1)}k`;
   return `$${price.toFixed(0)}`;
+}
+
+/**
+ * Format price for display (detailed - for depth chart)
+ * @param price Price to format
+ * @returns Formatted price string with full detail (e.g., $89,505)
+ */
+export function formatPriceDetailed(price: number): string {
+  return `$${Math.floor(price).toLocaleString('en-US')}`;
 }
 
 /**

@@ -359,15 +359,19 @@ class DataStore {
         const MIN_CANDLES = 60;
         const requestedCandles = Math.max(maxCandles || 120, MIN_CANDLES);
 
+        console.log(`🎯 [DataStore 60-CANDLE CHECK] Redis returned ${data.length} candles, MIN_CANDLES=${MIN_CANDLES}, maxCandles=${maxCandles}, requestedCandles=${requestedCandles}`);
+
         if (data.length < MIN_CANDLES) {
           console.log(`🚀 [DataStore] Only ${data.length} candles in Redis - fetching fresh ${MIN_CANDLES} from Coinbase API...`);
 
-          // Fetch fresh 60 candles directly from Coinbase
+          // Fetch fresh 120 candles directly from Coinbase (ask for 2x to ensure we get at least 60)
+          // Coinbase might have gaps or rate limits, so asking for more ensures we hit MIN_CANDLES
+          const FETCH_CANDLE_COUNT = 120;
           const granularityMap: Record<string, number> = {
             '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '1d': 86400
           };
           const granularitySeconds = granularityMap[granularity] || 60;
-          const timeRange = MIN_CANDLES * granularitySeconds;
+          const timeRange = FETCH_CANDLE_COUNT * granularitySeconds; // Fetch 120 candles worth of time
           const fetchStart = endTime - timeRange;
 
           const freshCandles = await this.fetchGapData(fetchStart, endTime);
@@ -376,7 +380,7 @@ class DataStore {
           if (freshCandles.length > 0) {
             this.setCandles(freshCandles as CandlestickDataWithVolume[]);
             this.updateStats();
-            console.log(`🎯🎯🎯 [DataStore] Loaded ${this._candles.length} fresh candles from Coinbase API`);
+            console.log(`🎯🎯🎯 [DataStore 60-CANDLE RESULT] Loaded ${this._candles.length} fresh candles from Coinbase API (requested ${MIN_CANDLES})`);
 
             // Cache for next time
             await chartIndexedDBCache.set(pair, granularity, freshCandles);
@@ -388,7 +392,7 @@ class DataStore {
         // If we have enough candles or Coinbase fetch failed, use Redis data
         this.setCandles(data);
         this.updateStats();
-        console.log(`🎯🎯🎯 [DataStore] After setCandles: ${this._candles.length} candles in memory`);
+        console.log(`🎯🎯🎯 [DataStore 60-CANDLE RESULT] After setCandles: ${this._candles.length} candles in memory (Redis had ${data.length})`);
 
         // 🔧 AUTO-FILL: If we got fewer candles than requested, try to backfill older ones
         if (data.length < requestedCandles && data.length > 0) {

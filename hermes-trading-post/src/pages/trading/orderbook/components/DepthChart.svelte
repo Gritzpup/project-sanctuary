@@ -10,7 +10,7 @@
   import { dataStore } from '../../chart/stores/dataStore.svelte';
   import { FastNumberFormatter } from '../../../../utils/shared/Formatters';
   import { depthChartState } from '../services/DepthChartState.svelte';
-  import { formatPrice, formatVolume } from './services/OrderBookCalculator';
+  import { formatPrice, formatPriceDetailed, formatVolume } from './services/OrderBookCalculator';
   import { CHART_CONFIG, BID_SERIES_CONFIG, ASK_SERIES_CONFIG } from '../services/ChartConfig';
   import { calculateVolumeHotspot, calculateVolumeRange, calculatePriceRange } from '../services/VolumeHotspotCalculator';
   import '../styles/DepthChart.css';
@@ -480,57 +480,29 @@
     const minPrice = currentPrice - baseRange;
     const maxPrice = currentPrice + baseRange;
 
-    // Get full orderbook data (use reasonable max like 500 levels)
-    const { bids, asks } = orderbookStore.getDepthData(500);
+    // Get ALL orderbook data (no limit - we want all the granular L2 data)
+    // This gives us smooth curves instead of angular $100 steps
+    const { bids, asks } = orderbookStore.getDepthData(10000); // Request up to 10k levels for full granularity
 
     // Data structure verified: bids descending (high to low), asks ascending (low to high)
 
-    // 🎯 SYNTHETIC DEPTH DATA: Extend orderbook to fill ±$25k range
-    // Coinbase only provides ~50 levels, so we extrapolate to show the full range
+    // 🎯 USE REAL ORDERBOOK DATA ONLY - No synthetic extension
+    // The L2 orderbook provides real granular data, we shouldn't create fake $100 steps
+    // Just use whatever range the real data covers
     const extendedBids = [...bids];
     const extendedAsks = [...asks];
 
-    // Extend bids downward to minPrice (currentPrice - $25k)
-    // Note: After removing .reverse(), bids are now sorted DESCENDING (high to low)
-    // bids[0] = highest price (near spread, low depth), bids[last] = lowest price (far from spread, high depth)
-    if (bids.length > 0) {
-      const lowestBid = bids[bids.length - 1]; // Last element = lowest price (furthest from spread, highest depth)
-      const lowestBidDepth = lowestBid.depth; // Cumulative depth at lowest point
-      if (lowestBid.price > minPrice) {
-        // Add synthetic bid levels every $100 down to minPrice
-        const depthIncrement = lowestBidDepth * 0.02; // Gradually increase depth by 2% per level
-        let syntheticDepth = lowestBidDepth;
-        // Append to end (lowest prices with highest depths)
-        for (let price = lowestBid.price - 100; price >= minPrice; price -= 100) {
-          syntheticDepth += depthIncrement;
-          extendedBids.push({ price, depth: syntheticDepth });
-        }
-      }
-    }
-
-    // Extend asks upward to maxPrice (currentPrice + $25k)
-    // Note: asks are sorted with lowest price first, so asks[length-1] has highest price
-    if (asks.length > 0) {
-      const highestAsk = asks[asks.length - 1]; // Last element = highest price
-      const highestAskDepth = highestAsk.depth;
-      if (highestAsk.price < maxPrice) {
-        // Add synthetic ask levels every $100 up to maxPrice
-        const depthIncrement = highestAskDepth * 0.02; // Gradually increase depth by 2% per level
-        let syntheticDepth = highestAskDepth;
-        for (let price = highestAsk.price + 100; price <= maxPrice; price += 100) {
-          syntheticDepth += depthIncrement;
-          extendedAsks.push({ price, depth: syntheticDepth });
-        }
-      }
-    }
+    // NO SYNTHETIC EXTENSION - Use real orderbook data only
+    // The angular/stepped appearance was caused by synthetic $100 price increments
+    // Real L2 data is already smooth and granular
 
     // Sort data ascending by price (required by LightweightCharts)
     // Bids are currently descending, asks are already ascending
     extendedBids.sort((a, b) => a.price - b.price);
 
-    // Filter extended data to exactly ±$25k range
-    const filteredBids = extendedBids.filter(level => level.price >= minPrice && level.price <= maxPrice);
-    const filteredAsks = extendedAsks.filter(level => level.price >= minPrice && level.price <= maxPrice);
+    // Use all real data - no artificial filtering to ±$25k
+    const filteredBids = extendedBids;
+    const filteredAsks = extendedAsks;
 
     // Calculate actual data extent
     const lowestBid = filteredBids[0]?.price || currentPrice;
@@ -743,13 +715,13 @@
       <!-- Price gauge overlay -->
       <div class="price-gauge-overlay">
         <div class="price-label" style="left: 10%">
-          {formatPrice(priceRange.left)}
+          {formatPriceDetailed(priceRange.left)}
         </div>
         <div class="price-label price-label-center" style="left: 50%">
-          {formatPrice(priceRange.center)}
+          {formatPriceDetailed(priceRange.center)}
         </div>
         <div class="price-label" style="left: 90%">
-          {formatPrice(priceRange.right)}
+          {formatPriceDetailed(priceRange.right)}
         </div>
       </div>
     </div>
