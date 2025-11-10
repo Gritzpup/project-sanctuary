@@ -152,7 +152,7 @@
         <div class="compact-stat">
           <div class="stat-icon buy-icon">📊</div>
           <div class="stat-info">
-            <span class="stat-text">NEXT BUY</span>
+            <span class="stat-text">LAST BUY</span>
             <span class="stat-number">${displayNextBuyPrice.toFixed(0)}</span>
           </div>
         </div>
@@ -207,14 +207,14 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    background: transparent;
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.6));
   }
 
   .gauge-box {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(26, 26, 26, 0.5);
     border: 1px solid rgba(74, 0, 224, 0.3);
     border-radius: 8px;
-    padding: 15px 15px 8px 15px;
+    padding: 15px 15px 0px 15px;
   }
 
   .price-row {
@@ -305,13 +305,13 @@
   }
 
   .stat-icon {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
+    font-size: 20px;
     flex-shrink: 0;
   }
 
@@ -336,15 +336,15 @@
   }
 
   .stat-text {
-    font-size: 11px;
-    color: #fff;
+    font-size: 12px;
+    color: #888;
     text-transform: uppercase;
-    font-weight: 400;
+    font-weight: 500;
     letter-spacing: 0.5px;
   }
 
   .stat-number {
-    font-size: 15px;
+    font-size: 18px;
     font-weight: 700;
     font-family: 'Courier New', monospace;
     color: #fff;
