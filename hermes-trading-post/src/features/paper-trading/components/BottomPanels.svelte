@@ -21,8 +21,9 @@
       nextBuyPrice={backendState.nextBuyPrice}
       nextSellPrice={backendState.nextSellPrice}
       positions={tradingState.positions}
-      recentHigh={tradingState.recentHigh}
+      recentHigh={backendState.recentHigh || tradingState.recentHigh || 0}
       isRunning={tradingState.isRunning}
+      trades={tradingState.trades || []}
     />
   </div>
 </div>

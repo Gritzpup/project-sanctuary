@@ -5,6 +5,48 @@
   export let positions: any[] = [];
   export let recentHigh: number = 0;
   export let isRunning: boolean = false;
+  export let trades: any[] = [];
+
+  // Get starting price from the first trade, or use current price if no trades
+  $: startingPrice = trades && trades.length > 0 ? trades[0].price : currentPrice;
+
+  // Calculate recentHigh from trades if not provided by backend
+  $: calculatedRecentHigh = (() => {
+    if (recentHigh && recentHigh > 0) return recentHigh;
+    if (trades && trades.length > 0) {
+      const prices = trades.map((t: any) => t.price).filter((p: number) => p > 0);
+      if (prices.length > 0) return Math.max(...prices);
+    }
+    return currentPrice;
+  })();
+
+  // Calculate ACTUAL next buy/sell based on strategy (reverse-descending-grid)
+  // Strategy config: 0.1% initial drop + 0.1% per level, 0.85% profit target
+  $: actualNextBuyPrice = (() => {
+    const high = calculatedRecentHigh;
+    if (!high || high === 0) {
+      console.log('🔴 [MarketGauge] actualNextBuyPrice: NO HIGH', { high, calculatedRecentHigh });
+      return 0;
+    }
+    const nextLevel = positions.length + 1;
+    const requiredDropPercent = 0.1 + (nextLevel - 1) * 0.1;
+    const result = high * (1 - requiredDropPercent / 100);
+    console.log('✅ [MarketGauge] actualNextBuyPrice:', { high, nextLevel, requiredDropPercent, result });
+    return result;
+  })();
+
+  $: actualNextSellPrice = (() => {
+    if (positions.length === 0) {
+      console.log('🔴 [MarketGauge] actualNextSellPrice: NO POSITIONS');
+      return 0;
+    }
+    const totalValue = positions.reduce((sum: number, pos: any) => sum + (pos.entryPrice * pos.size), 0);
+    const totalSize = positions.reduce((sum: number, pos: any) => sum + pos.size, 0);
+    const avgEntryPrice = totalValue / totalSize;
+    const result = avgEntryPrice * (1 + 0.85 / 100);
+    console.log('✅ [MarketGauge] actualNextSellPrice:', { avgEntryPrice, result, positionsCount: positions.length });
+    return result;
+  })();
 
   // Calculate the gauge needle angle based on market position relative to next buy/sell orders
   $: angle = calculateNeedleAngle();
@@ -42,9 +84,22 @@
     }
   }
 
-  // Format display prices - use backend values if available, otherwise show 0
-  $: displayNextBuyPrice = nextBuyPrice || 0;
-  $: displayNextSellPrice = nextSellPrice || 0;
+  // Format display prices - use ACTUAL calculated values from strategy
+  $: {
+    const buy = actualNextBuyPrice || 0;
+    const sell = actualNextSellPrice || 0;
+    console.log(`🔍 [MarketGauge] Setting display: actualBuy=${actualNextBuyPrice} actualSell=${actualNextSellPrice} -> displayBuy=${buy} displaySell=${sell}`);
+    displayNextBuyPrice = buy;
+    displayNextSellPrice = sell;
+  }
+
+  // 🔍 DEBUG: Log the prices being received and calculated
+  $: {
+    console.log(`📊 [MarketGauge] DISPLAY: NextBuy=$${displayNextBuyPrice.toFixed(0)} NextSell=$${displayNextSellPrice.toFixed(0)} | CalcHigh=${calculatedRecentHigh.toFixed(0)} Positions=${positions.length} Trades=${trades.length}`);
+  }
+
+  let displayNextBuyPrice = 0;
+  let displayNextSellPrice = 0;
 </script>
 
 <div class="panel market-gauge">
@@ -62,7 +117,7 @@
         </div>
         <div class="price-item">
           <span class="label">Start</span>
-          <span class="value purple">${currentPrice.toFixed(0)}</span>
+          <span class="value purple">${startingPrice.toFixed(0)}</span>
         </div>
         <div class="price-item">
           <span class="label">Next Sell</span>

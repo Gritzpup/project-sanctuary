@@ -49,6 +49,16 @@
     });
   }
 
+  // 🔍 DEBUG: Log next buy/sell prices
+  $: {
+    console.log('🎯 [TradingStats] Next Buy/Sell:', {
+      nextBuyDistance,
+      nextSellDistance,
+      nextBuyPrice,
+      nextSellPrice
+    });
+  }
+
   // Total value includes current market value of positions
   $: totalValue = balance + (btcBalance * currentPrice) + vaultBalance + (btcVaultBalance * currentPrice);
   $: netFeesAfterRebase = totalFees - totalRebates;
