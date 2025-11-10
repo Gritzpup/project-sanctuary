@@ -149,6 +149,12 @@ export class PaperTradingStateManager {
    * ⚡ PHASE 7D: Apply all batched updates in single transaction
    */
   private applyBatchedUpdates(backendState: any) {
+    // 🔍 DEBUG: Log what backend is sending
+    console.log('📥 [applyBatchedUpdates] Vault values from backend:', {
+      vaultBalance: backendState.vaultBalance,
+      btcVaultBalance: backendState.btcVaultBalance
+    });
+
     // Update all state in single transaction instead of separate calls
     this.tradingState.update(current => ({
       ...current,
@@ -157,11 +163,15 @@ export class PaperTradingStateManager {
       selectedStrategyType: this.determineSelectedStrategyType(current, backendState),
       balance: backendState.balance?.usd || current.balance,
       btcBalance: backendState.balance?.btc || current.btcBalance,
+      vaultBalance: backendState.vaultBalance || 0,
+      btcVaultBalance: backendState.btcVaultBalance || 0,
       trades: backendState.trades || [],
       positions: backendState.positions || [],
       currentPrice: backendState.currentPrice,
-      totalReturn: backendState.profitLoss,
-      totalFees: (backendState.trades || []).reduce((sum: number, trade: any) => sum + (trade.fees || 0), 0)
+      totalReturn: backendState.totalReturn || backendState.profitLoss || 0,
+      totalFees: backendState.totalFees || (backendState.trades || []).reduce((sum: number, trade: any) => sum + (trade.fees || 0), 0),
+      totalRebates: backendState.totalRebates || 0,
+      totalRebalance: backendState.totalRebalance || 0
     }));
 
     // Update backend state
@@ -190,22 +200,40 @@ export class PaperTradingStateManager {
   }
 
   private updateTradingState(backendState: any) {
+    // 🔍 DEBUG: Log what backend is sending for vaults
+    console.log('📥 [StateManager] Received backendState vault values:', {
+      vaultBalance: backendState.vaultBalance,
+      btcVaultBalance: backendState.btcVaultBalance
+    });
+
     this.tradingState.update(current => {
       const selectedStrategyType = this.determineSelectedStrategyType(current, backendState);
-      
-      return {
+
+      const newState = {
         ...current,
         isRunning: backendState.isRunning,
         isPaused: backendState.isPaused,
         selectedStrategyType,
         balance: backendState.balance.usd,
         btcBalance: backendState.balance.btc,
+        vaultBalance: backendState.vaultBalance || 0,
+        btcVaultBalance: backendState.btcVaultBalance || 0,
         trades: backendState.trades || [],
         positions: backendState.positions || [],
         currentPrice: backendState.currentPrice,
-        totalReturn: backendState.profitLoss,
-        totalFees: (backendState.trades || []).reduce((sum, trade) => sum + (trade.fees || 0), 0)
+        totalReturn: backendState.totalReturn || backendState.profitLoss || 0,
+        totalFees: backendState.totalFees || (backendState.trades || []).reduce((sum, trade) => sum + (trade.fees || 0), 0),
+        totalRebates: backendState.totalRebates || 0,
+        totalRebalance: backendState.totalRebalance || 0
       };
+
+      // 🔍 DEBUG: Log what's being set in tradingState
+      console.log('📤 [StateManager] Setting tradingState vault values:', {
+        vaultBalance: newState.vaultBalance,
+        btcVaultBalance: newState.btcVaultBalance
+      });
+
+      return newState;
     });
   }
 

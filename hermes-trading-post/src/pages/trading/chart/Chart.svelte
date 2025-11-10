@@ -33,6 +33,7 @@
   export let enableAutoGranularity: boolean = true; // Enable automatic granularity switching
   export let defaultPlugins: string[] = ['volume'];
   export let multiPane: boolean = false;
+  export let chartRefreshKey: number = Date.now(); // ⚡ SEAMLESS REFRESH: Trigger canvas refresh
   export let onReady: ((chart: IChartApi, pluginManager: PluginManager | null) => void) | undefined = undefined;
   export let onGranularityChange: ((granularity: string) => void) | undefined = undefined;
   export let onPairChange: ((pair: string) => void) | undefined = undefined;
@@ -102,6 +103,7 @@
   {enableAutoGranularity}
   {defaultPlugins}
   {multiPane}
+  {chartRefreshKey}
   {onReady}
   {onGranularityChange}
   {onPairChange}

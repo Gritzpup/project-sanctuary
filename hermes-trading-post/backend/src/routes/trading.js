@@ -317,8 +317,10 @@ export default function tradingRoutes(botManager) {
         });
       }
 
-      // Start historical data fetch (don't await - run in background)
-      historicalDataService.fetchHistoricalData(pair, granularity, parseInt(days));
+      // 🔧 FIX: Await the historical data fetch to properly catch and report errors
+      // Previously this was fire-and-forget, causing errors to be silently swallowed
+      console.log(`📥 [API] Starting historical data fetch: ${pair} @ ${granularity} for ${days} days`);
+      await historicalDataService.fetchHistoricalData(pair, granularity, parseInt(days));
 
       res.json({
         success: true,
@@ -326,7 +328,7 @@ export default function tradingRoutes(botManager) {
           pair,
           granularity,
           days: parseInt(days),
-          message: `Started fetching ${days} days of historical data`,
+          message: `Completed fetching ${days} days of historical data`,
           status: historicalDataService.getStatus()
         }
       });

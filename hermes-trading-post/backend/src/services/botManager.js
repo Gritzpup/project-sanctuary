@@ -1,4 +1,5 @@
 import { TradingService } from './tradingService.js';
+import { BotStatePersistence } from './BotStatePersistence.js';
 
 export class BotManager {
   constructor() {
@@ -7,6 +8,13 @@ export class BotManager {
     this.clients = new Set();
     this.activeBotId = null;
     this.maxBotsPerStrategy = 6;
+    this.persistence = new BotStatePersistence();
+    this.autoSaveEnabled = true;
+
+    // Auto-restore bots on startup
+    this.restoreBotsFromPersistence().catch(err => {
+      console.error('❌ Failed to restore bots from persistence:', err);
+    });
   }
 
   addClient(ws) {
@@ -304,33 +312,50 @@ export class BotManager {
   }
 
   // Forward trading commands to active bot
-  startTrading(config) {
+  async startTrading(config) {
     //   activeBotId: this.activeBotId,
     //   config
     // });
-    
+
     const bot = this.getActiveBot();
     if (!bot) {
       throw new Error('No active bot selected');
     }
-    
-    return bot.startTrading(config);
+
+    const result = await bot.startTrading(config);
+
+    // Save state after starting
+    await this.saveBotStateToPersistence(this.activeBotId);
+
+    return result;
   }
 
-  stopTrading() {
+  async stopTrading() {
     const bot = this.getActiveBot();
     if (!bot) {
       throw new Error('No active bot selected');
     }
-    return bot.stopTrading();
+
+    const result = bot.stopTrading();
+
+    // Save state after stopping
+    await this.saveBotStateToPersistence(this.activeBotId);
+
+    return result;
   }
 
-  pauseTrading() {
+  async pauseTrading() {
     const bot = this.getActiveBot();
     if (!bot) {
       throw new Error('No active bot selected');
     }
-    return bot.pauseTrading();
+
+    const result = bot.pauseTrading();
+
+    // Save state after pausing
+    await this.saveBotStateToPersistence(this.activeBotId);
+
+    return result;
   }
 
   resumeTrading() {
@@ -379,8 +404,105 @@ export class BotManager {
   }
 
   // Clean up all bots
+  /**
+   * Save bot state to persistence
+   */
+  async saveBotStateToPersistence(botId) {
+    if (!this.autoSaveEnabled) return;
+
+    const bot = this.bots.get(botId);
+    if (!bot) return;
+
+    const status = bot.getStatus();
+    await this.persistence.saveBotState(botId, {
+      botId,
+      botName: bot.botName,
+      strategyType: bot.strategy?.constructor?.name || 'unknown',
+      status
+    });
+
+    // Also save which bot is active
+    await this.persistence.saveActiveBotId(this.activeBotId);
+  }
+
+  /**
+   * Restore all bots from persistence on startup
+   */
+  async restoreBotsFromPersistence() {
+    console.log('🔄 [BotManager] Restoring bots from persistence...');
+
+    try {
+      // Get all saved bot IDs
+      const botIds = await this.persistence.getAllBotIds();
+
+      if (botIds.length === 0) {
+        console.log('📭 [BotManager] No saved bots found');
+        return;
+      }
+
+      // Load each bot's state
+      for (const botId of botIds) {
+        const savedState = await this.persistence.loadBotState(botId);
+        if (!savedState || !savedState.status) continue;
+
+        const { botName, strategyType, status } = savedState;
+
+        console.log(`🔄 [BotManager] Restoring bot ${botId}:`, {
+          botName,
+          strategyType,
+          wasRunning: status.isRunning,
+          balance: status.balance
+        });
+
+        // Create the bot (this creates a TradingService instance)
+        try {
+          const restoredBotId = this.createBot(strategyType, botName);
+          const bot = this.bots.get(restoredBotId);
+
+          if (!bot) continue;
+
+          // Restore the bot's state
+          if (status.isRunning && status.strategy) {
+            // Auto-resume trading if it was running
+            console.log(`▶️  [BotManager] Auto-resuming bot ${botId}...`);
+            await bot.startTrading(status.strategy, status.currentPrice || 100000);
+
+            // Restore balance and positions if available
+            if (status.balance) {
+              bot.balance = status.balance.usd || 10000;
+              bot.btcBalance = status.balance.btc || 0;
+            }
+          }
+        } catch (error) {
+          console.error(`❌ [BotManager] Failed to restore bot ${botId}:`, error.message);
+        }
+      }
+
+      // Restore active bot
+      const activeBotId = await this.persistence.loadActiveBotId();
+      if (activeBotId && this.bots.has(activeBotId)) {
+        this.selectBot(activeBotId);
+        console.log(`✅ [BotManager] Restored active bot: ${activeBotId}`);
+      }
+
+      console.log(`✅ [BotManager] Restored ${this.bots.size} bot(s)`);
+    } catch (error) {
+      console.error('❌ [BotManager] Failed to restore bots:', error);
+    }
+  }
+
   cleanup() {
     // console.log('Cleaning up bot manager...');
+
+    // Save all bot states before cleanup
+    if (this.autoSaveEnabled) {
+      for (const [botId] of this.bots.entries()) {
+        this.saveBotStateToPersistence(botId).catch(err => {
+          console.error(`Failed to save bot ${botId} on cleanup:`, err);
+        });
+      }
+    }
+
     for (const [botId, bot] of this.bots.entries()) {
       if (bot.isRunning) {
         bot.stopTrading();
@@ -390,5 +512,10 @@ export class BotManager {
     this.bots.clear();
     this.strategyBots.clear();
     this.clients.clear();
+
+    // Close persistence connection
+    if (this.persistence) {
+      this.persistence.close();
+    }
   }
 }

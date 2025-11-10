@@ -117,7 +117,7 @@ class OrderbookStore {
    * Process orderbook snapshot - optimized to detect actual changes
    */
   processSnapshot(data: { product_id: string; bids: OrderbookLevel[]; asks: OrderbookLevel[] }) {
-    // PERF: Disabled - console.log(`[OrderbookStore] Processing snapshot: ${data.bids?.length || 0} bids, ${data.asks?.length || 0} asks`);
+    console.log(`📊 [OrderbookStore] Processing snapshot: ${data.bids?.length || 0} bids, ${data.asks?.length || 0} asks`);
 
     // ✅ PHASE 6 FIX: Early return if already processing snapshot
     // Prevents concurrent processSnapshot() calls from corrupting state
@@ -288,7 +288,9 @@ class OrderbookStore {
    * Process incremental orderbook update
    */
   processUpdate(data: { product_id: string; changes: Array<{ side: string; price: number; size: number }> }) {
+    console.log(`🔄 [OrderbookStore] Processing update: ${data.changes?.length || 0} changes, isReady=${this.isReady}`);
     if (!this.isReady) {
+      console.log(`⚠️ [OrderbookStore] Not ready, skipping update`);
       return;
     }
 

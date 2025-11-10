@@ -181,6 +181,14 @@ export class ChartTimeframeCoordinator {
       dataStore.reset();
       ChartDebug.log(`🧹 DataStore reset for granularity change (old data cleared)`);
 
+      // Step 1.75: ✅ Update chartStore config BEFORE loading data
+      // This ensures the chart's internal granularity setting matches the data being loaded
+      // CRITICAL: Must be done before loadData() so hover tooltips show correct granularity
+      const { chartStore } = await import('../stores/chartStore.svelte');
+      chartStore.setGranularity(granularity);
+      chartStore.setTimeframe(period);
+      ChartDebug.log(`📝 chartStore updated: granularity=${granularity}, period=${period}`);
+
       // Step 2: Load data with new timeframe
       if (this.dataLoader) {
         await this.dataLoader.loadData({

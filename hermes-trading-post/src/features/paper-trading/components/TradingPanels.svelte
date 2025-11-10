@@ -4,7 +4,7 @@
   import DepthChart from '../../../pages/trading/orderbook/components/DepthChart.svelte';
   import FixedOrderbookList from '../../../pages/trading/orderbook/components/FixedOrderbookList.svelte';
   import MarketGauge from '../../../components/trading/MarketGauge.svelte';
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import { orderbookStore } from '../../../pages/trading/orderbook/stores/orderbookStore.svelte';
   import {
     aggregateOrderbookLevels
@@ -39,6 +39,14 @@
 
   const dispatch = createEventDispatcher();
 
+  // ⚡ SEAMLESS REFRESH: Key changes on every page load to refresh only chart canvases
+  let chartRefreshKey = $state(Date.now());
+
+  onMount(() => {
+    console.log('⚡ [TradingPanels] Component mounted - Chart canvases will seamlessly refresh on F5 while all UI persists');
+    console.log('🔧 [TradingPanels] Selected pair:', selectedPair, 'granularity:', selectedGranularity);
+  });
+
   function forwardEvent(event: CustomEvent) {
     dispatch(event.type, event.detail);
   }
@@ -57,10 +65,11 @@
 </script>
 
 <div class="panels-row main-panels-row">
-  <!-- Chart Panel -->
+  <!-- Chart Panel - 🔒 PERSISTENT: Header/footer stay, only canvas refreshes -->
   <div class="chart-container">
     <TradingChart
     bind:chartComponent
+    {chartRefreshKey}
     {selectedPair}
     {selectedGranularity}
     {selectedPeriod}
@@ -85,16 +94,16 @@
     />
   </div>
 
-  <!-- Middle Column: Orderbook Depth Chart and List -->
+  <!-- Middle Column: Orderbook - 🔒 PERSISTENT: Only data refreshes -->
   <div class="middle-column">
-    <DepthChart>
+    <DepthChart {chartRefreshKey}>
       {#snippet children()}
-        <FixedOrderbookList />
+        <FixedOrderbookList {chartRefreshKey} />
       {/snippet}
     </DepthChart>
   </div>
 
-  <!-- Strategy Controls Panel -->
+  <!-- Strategy Controls Panel - 🔒 PERSISTENT: Never refreshes, maintains state -->
   <div class="strategy-container">
     <StrategyControls
     selectedStrategyType={tradingState.selectedStrategyType}

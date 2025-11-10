@@ -172,7 +172,7 @@
     bottom: 0;
     height: 100%;
     transform: translateX(-50%);
-    transition: left 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition: none;
     pointer-events: none;
     z-index: 100;
   }
@@ -226,7 +226,6 @@
     border-right: 8px solid transparent;
     border-top: 12px solid #a78bfa;
     filter: drop-shadow(0 0 6px rgba(167, 139, 250, 1));
-    animation: valleyPulse 2s ease-in-out infinite;
   }
 
   .valley-line {
@@ -243,16 +242,7 @@
     );
   }
 
-  @keyframes valleyPulse {
-    0%, 100% {
-      opacity: 0.7;
-      transform: translateX(-50%) translateY(0);
-    }
-    50% {
-      opacity: 1;
-      transform: translateX(-50%) translateY(-3px);
-    }
-  }
+  /* Removed valleyPulse animation - static indicator for better performance */
 
   /* Volume hotspot color variations */
   .valley-bullish .valley-point {
@@ -337,8 +327,7 @@
       0 0 8px rgba(0, 0, 0, 0.6);
     transform: translateY(-50%);
     line-height: 1;
-    transition: top 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                opacity 0.2s ease-out;
+    /* NO TRANSITION - instant positioning */
   }
 
   .volume-label-center {
@@ -371,8 +360,7 @@
       0 0 8px rgba(0, 0, 0, 0.6);
     transform: translateX(-50%);
     line-height: 1;
-    transition: opacity 0.15s ease-out,
-                color 0.15s ease-out;
+    /* NO TRANSITION - instant updates */
   }
 
   .price-label-center {

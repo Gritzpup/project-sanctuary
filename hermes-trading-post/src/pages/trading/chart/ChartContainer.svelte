@@ -32,6 +32,7 @@
     enableAutoGranularity = false, // 🔧 FIX: Disabled to prevent granularity switching on page refresh
     defaultPlugins = ['volume'],
     multiPane = false,
+    chartRefreshKey = Date.now(), // ⚡ SEAMLESS REFRESH: Trigger canvas-only refresh
     onReady = undefined,
     onGranularityChange = undefined,
     onPairChange = undefined
@@ -47,6 +48,7 @@
     enableAutoGranularity?: boolean;
     defaultPlugins?: string[];
     multiPane?: boolean;
+    chartRefreshKey?: number;
     onReady?: (chart: IChartApi, pluginManager: PluginManager | null) => void;
     onGranularityChange?: (granularity: string) => void;
     onPairChange?: (pair: string) => void;
@@ -304,6 +306,7 @@
       {period}
       {enablePlugins}
       {enableAutoGranularity}
+      {chartRefreshKey}
       onReady={handleChartReady}
     >
       <div slot="overlays">

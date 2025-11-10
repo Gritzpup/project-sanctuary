@@ -140,22 +140,25 @@
         // Recalculate only when data changed
         const formattedCandles = chartDataMemoizer.formatCandles(dataStore.candles);
 
+        // ⚡ SEAMLESS REFRESH FIX: Always sort the complete dataset to prevent assertion errors
+        // This fixes the issue where Redis cache, WebSocket updates, and hot-reloads
+        // can cause candles to be in the wrong order
+        const alwaysSorted = formattedCandles.sort((a, b) => {
+          const aTime = typeof a.time === 'string' ? parseInt(a.time) : a.time;
+          const bTime = typeof b.time === 'string' ? parseInt(b.time) : b.time;
+          return aTime - bTime;
+        });
+
         // 🚀 PHASE 14: Incremental sorting - check if already sorted first (O(n) vs O(n log n))
         if (cachedSortedCandles.length === 0) {
-          // First time: do full sort + deduplicate
-          cachedSortedCandles = formattedCandles
-            .sort((a, b) => {
-              const aTime = typeof a.time === 'string' ? parseInt(a.time) : a.time;
-              const bTime = typeof b.time === 'string' ? parseInt(b.time) : b.time;
-              return aTime - bTime;
-            });
-          cachedSortedCandles = deduplicateByTime(cachedSortedCandles);
+          // First time: use pre-sorted data + deduplicate
+          cachedSortedCandles = deduplicateByTime(alwaysSorted);
           isCachedSortedFlag = true;
-        } else if (isSorted(formattedCandles) && formattedCandles.length > lastCandleCount) {
+        } else if (isSorted(alwaysSorted) && alwaysSorted.length > lastCandleCount) {
           // Already sorted, just deduplicate and append new candles
           // Find where cached data ends and new data begins
           const newStartIndex = lastCandleCount;
-          const newCandles = formattedCandles.slice(newStartIndex);
+          const newCandles = alwaysSorted.slice(newStartIndex);
 
           // Add new candles to cache
           cachedSortedCandles = cachedSortedCandles.concat(newCandles);
@@ -164,7 +167,7 @@
         } else if (isCachedSortedFlag) {
           // Was sorted, but now it's not. Check if only last candle changed (common case)
           const lastCachedCandle = cachedSortedCandles[cachedSortedCandles.length - 1];
-          const lastFormattedCandle = formattedCandles[formattedCandles.length - 1];
+          const lastFormattedCandle = alwaysSorted[alwaysSorted.length - 1];
 
           // Check if last candle time matches
           const lastCachedTime = typeof lastCachedCandle?.time === 'string'
@@ -178,25 +181,13 @@
             // Only the last candle was updated, just update it in place
             cachedSortedCandles[cachedSortedCandles.length - 1] = lastFormattedCandle;
           } else {
-            // Data is scrambled, do full sort
-            cachedSortedCandles = formattedCandles
-              .sort((a, b) => {
-                const aTime = typeof a.time === 'string' ? parseInt(a.time) : a.time;
-                const bTime = typeof b.time === 'string' ? parseInt(b.time) : b.time;
-                return aTime - bTime;
-              });
-            cachedSortedCandles = deduplicateByTime(cachedSortedCandles);
+            // Data changed, use pre-sorted data
+            cachedSortedCandles = deduplicateByTime(alwaysSorted);
             isCachedSortedFlag = true;
           }
         } else {
-          // Not sorted, do full sort
-          cachedSortedCandles = formattedCandles
-            .sort((a, b) => {
-              const aTime = typeof a.time === 'string' ? parseInt(a.time) : a.time;
-              const bTime = typeof b.time === 'string' ? parseInt(b.time) : b.time;
-              return aTime - bTime;
-            });
-          cachedSortedCandles = deduplicateByTime(cachedSortedCandles);
+          // Not sorted, use pre-sorted data
+          cachedSortedCandles = deduplicateByTime(alwaysSorted);
           isCachedSortedFlag = true;
         }
 
@@ -220,8 +211,30 @@
         candleSeries.setData(sortedCandles);
         isInitialized = true;
         lastProcessedIndex = sortedCandles.length - 1;
+
+        // 🔧 FIX: Force proper zoom level after INITIAL data load ONLY
+        // This fixes the issue where chart starts extremely zoomed in showing only 2 candles
+        // Only run on initial load, not on incremental updates, to avoid interfering with auto-scroll
+        setTimeout(() => {
+          const chart = (candleSeries as any)?._chart || (candleSeries as any)?.chart;
+          if (chart && sortedCandles.length > 1) {
+            const candleCount = sortedCandles.length;
+            const showCandles = Math.min(candleCount, 60);
+            const startIndex = Math.max(0, candleCount - showCandles);
+
+            // Set visible logical range to show exact number of candles
+            chart.timeScale().setVisibleLogicalRange({
+              from: startIndex,
+              to: candleCount
+            });
+
+            console.log(`✅ [ChartDataManager] Initial load: Set visible range to show ${showCandles} of ${candleCount} candles (from index ${startIndex} to ${candleCount})`);
+          }
+        }, 100);
       } else if (sortedCandles.length > lastProcessedIndex + 1) {
         // Incremental update: add only new candles since last update
+        // ⚡ SEAMLESS REFRESH FIX: Don't reset visible range on incremental updates
+        // This allows the chart to naturally auto-scroll as new candles arrive
         for (let i = lastProcessedIndex + 1; i < sortedCandles.length; i++) {
           try {
             candleSeries.update(sortedCandles[i]);
@@ -234,26 +247,6 @@
         }
         lastProcessedIndex = sortedCandles.length - 1;
       }
-
-      // 🔧 FIX: Force proper zoom level after data is set
-      // Explicitly set visible range to show 60 candles (or all if less than 60)
-      // This fixes the issue where chart starts extremely zoomed in showing only 2 candles
-      setTimeout(() => {
-        const chart = (candleSeries as any)?._chart || (candleSeries as any)?.chart;
-        if (chart && sortedCandles.length > 1) {
-          const candleCount = sortedCandles.length;
-          const showCandles = Math.min(candleCount, 60);
-          const startIndex = Math.max(0, candleCount - showCandles);
-
-          // Set visible logical range to show exact number of candles
-          chart.timeScale().setVisibleLogicalRange({
-            from: startIndex,
-            to: candleCount
-          });
-
-          console.log(`✅ [ChartDataManager] Set visible range to show ${showCandles} of ${candleCount} candles (from index ${startIndex} to ${candleCount})`);
-        }
-      }, 100);
     } catch (error) {
       console.error('❌ [ChartDataManager] Error updating chart data:', error);
     }

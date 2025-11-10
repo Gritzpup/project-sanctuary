@@ -41,6 +41,8 @@ export class HistoricalDataService {
    * Fetch historical data for a specific time range
    */
   async fetchHistoricalData(pair, granularity, daysBack = 30) {
+    console.log(`🔍 [HistoricalData] fetchHistoricalData() CALLED with: pair=${pair}, granularity=${granularity}, daysBack=${daysBack}`);
+
     if (this.isRunning) {
       console.log(`⏳ Historical data fetch already in progress`);
       return;
@@ -85,11 +87,14 @@ export class HistoricalDataService {
       // Process batches with rate limiting
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
-        
+
         try {
           // 🔧 FIX: Use unauthenticated Exchange API REST endpoint instead of authenticated Advanced Trade API
           // This avoids ECDSA signature errors with CDP keys
           const url = `https://api.exchange.coinbase.com/products/${pair}/candles?start=${batch.start}&end=${batch.end}&granularity=${granularitySeconds}`;
+
+          console.log(`📥 [HistoricalData] Fetching batch ${i+1}/${batches.length}: ${batch.start} to ${batch.end}`);
+
           const response = await fetch(url);
 
           if (!response.ok) {
@@ -97,6 +102,7 @@ export class HistoricalDataService {
           }
 
           const apiData = await response.json();
+          console.log(`✅ [HistoricalData] Batch ${i+1}/${batches.length}: Received ${apiData.length} candles`);
 
           // Convert Exchange API format [time, low, high, open, close, volume] to our format
           const candles = apiData.map(([time, low, high, open, close, volume]) => ({
@@ -112,6 +118,7 @@ export class HistoricalDataService {
             // Store candles in Redis
             await redisCandleStorage.storeCandles(pair, granularity, candles);
             this.stats.totalCandles += candles.length;
+            console.log(`💾 [HistoricalData] Stored ${candles.length} candles (total: ${this.stats.totalCandles})`);
           }
 
           this.stats.totalRequests++;
@@ -124,6 +131,7 @@ export class HistoricalDataService {
         } catch (error) {
           this.stats.errors++;
           console.error(`❌ [HistoricalData] Batch ${i+1}/${batches.length} failed:`, error.message);
+          console.error(`❌ [HistoricalData] Error details:`, error);
 
           // If rate limited, wait longer
           if (error.message.includes('429') || error.message.includes('rate limit')) {
@@ -140,6 +148,8 @@ export class HistoricalDataService {
       console.log(`✅ Historical data fetch completed: ${this.stats.totalCandles} candles in ${duration.toFixed(1)}s (${this.stats.totalRequests} requests, ${this.stats.errors} errors)`);
     } catch (error) {
       console.error(`❌ Historical data fetch error:`, error.message);
+      console.error(`❌ Full error stack:`, error.stack);
+      console.error(`❌ Error details:`, error);
     } finally {
       this.isRunning = false;
     }

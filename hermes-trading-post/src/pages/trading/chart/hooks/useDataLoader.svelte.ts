@@ -109,35 +109,26 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
     try {
       const now = Math.floor(Date.now() / 1000);
       
-      // ✅ Request ALL available data from database, not just recent timeframe
+      // ✅ Calculate exact number of candles needed based on granularity + period
       const candleCount = getCandleCount(config.granularity, config.timeframe);
       const granularitySeconds = getGranularitySeconds(config.granularity);
 
       // Align to granularity boundaries to ensure we get complete candles
       const alignedNow = alignTimeToGranularity(now, config.granularity);
 
-      // 🔧 FIX: Calculate start time based on number of candles (120) not period
-      // This ensures we load 120 candles regardless of the period setting
-      const candlesToLoad = 120; // Always load 120 candles
+      // ⚡ FIX: Use calculated candle count based on period selection
+      // For example: 1H + 1m = 60 candles, 4H + 1m = 240 candles, 1D + 5m = 288 candles
+      // Add buffer of 60 candles for smooth scrolling (total = calculated + 60)
+      const candlesToLoad = Math.max(candleCount + 60, 120); // Calculated + buffer, minimum 120
       const startTime = alignedNow - (candlesToLoad * granularitySeconds);
 
-      ChartDebug.log(`📊 Loading ${config.timeframe} data: ${candleCount} candles for ${config.granularity}`);
-      
+      ChartDebug.log(`📊 Loading ${config.timeframe} data: ${candleCount} candles needed + 60 buffer = ${candlesToLoad} total for ${config.granularity}`);
+
       // Load data
       perfTest.mark('dataStore-loadData-start');
-      // 🚀 PHASE 11: Load exactly 120 candles (show 60 visible, 60 for scrollback)
-      // This provides optimal UX with infinite scroll loading more as needed
-      const granularityCandles: Record<string, number> = {
-        '1m': 120,    // Load 120, show 60 visible
-        '5m': 120,    // Load 120, show 60 visible
-        '15m': 120,   // Load 120, show 60 visible
-        '30m': 120,   // Load 120, show 60 visible
-        '1h': 120,    // Load 120, show 60 visible
-        '4h': 120,    // Load 120, show 60 visible
-        '1d': 120     // Load 120, show 60 visible
-      };
-      const candleLoadLimit = granularityCandles[config.granularity] || 300;
-      ChartDebug.log(`📊 Loading: Starting with ${candleLoadLimit} candles (full range: ${candleCount} candles) for ${config.granularity}`);
+      // Use the calculated candle count instead of hard-coded limits
+      const candleLoadLimit = candlesToLoad;
+      ChartDebug.log(`📊 Loading: Starting with ${candleLoadLimit} candles (period requires: ${candleCount} candles) for ${config.granularity}`);
       await dataStore.loadData(
         config.pair,
         config.granularity,
@@ -195,23 +186,22 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
           console.warn(`⚠️ [useDataLoader] Limiting chart display to ${MAX_CANDLES_TO_RENDER} candles (have ${validCandles.length} valid total)`);
         }
 
-        console.log(`[useDataLoader] Setting chart data with ${candlesToRender.length} candles for rendering (${validCandles.length} total loaded)`);
+        console.log(`[useDataLoader] Loaded ${candlesToRender.length} candles for rendering (${validCandles.length} total loaded)`);
+        // Set chart data initially so chart displays something
+        // ChartDataManager will handle subsequent updates and positioning
         config.series.setData(candlesToRender);
 
-        // Positioning after setting data - Force 60 candles visible
+        // ⚡ SEAMLESS REFRESH FIX: Force exactly 60 candles visible on initial load
+        // This runs once when data is first loaded
         if (config.chart && validCandles.length > 0) {
           setTimeout(() => {
-            // 🚀 PHASE 6 FIX: Force exactly 60 candles visible regardless of viewport width
-            // This makes candles narrow enough to show 60 on initial load
             const totalCandles = candlesToRender.length;
-
-            // Set visible range: show last 60 candles (or all if less than 60)
             const visibleRange = {
               from: Math.max(0, totalCandles - 60),
               to: totalCandles
             };
-
             config.chart!.timeScale().setVisibleLogicalRange(visibleRange);
+            console.log(`✅ [useDataLoader] Set visible range to show 60 of ${totalCandles} candles`);
           }, 200);
         }
       }

@@ -937,12 +937,14 @@ class DataStore {
             if (existingIndex === lastIndex) {
               // Update the last candle directly - this won't trigger historical candle re-renders
               this._candles[lastIndex] = candleData;
+              console.log(`🔄 [DataStore] Updated EXISTING candle #${this._candles.length}: time=${normalizedTime}, close=$${candleData.close}`);
             }
           } else {
             // New candle - append without replacing the entire array
             // 🚫 CRITICAL: Only append if time > 0 (never append ticker updates)
             if (normalizedTime > 0) {
               this._candles.push(candleData);
+              console.log(`✅ [DataStore] Added NEW candle #${this._candles.length}: time=${normalizedTime}, close=$${candleData.close}`);
 
               // 🔧 FIX: Cap candle array to prevent memory leak
               const MAX_STORED_CANDLES = 2000;

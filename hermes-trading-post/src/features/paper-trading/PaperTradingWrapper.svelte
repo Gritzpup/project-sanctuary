@@ -12,12 +12,19 @@
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { dataStore } from '../../pages/trading/chart/stores/dataStore.svelte';
 
+  // 🔧 DEBUG: Log at very top of script
+  console.log('🚀 [PaperTradingWrapper] Script executing');
+
   // Props using Svelte 5 runes syntax
   let {
-    sidebarCollapsed = false
+    sidebarCollapsed = false,
+    connectionStatus = 'loading'
   }: {
     sidebarCollapsed?: boolean;
+    connectionStatus?: 'connected' | 'disconnected' | 'error' | 'loading';
   } = $props();
+
+  console.log('🔧 [PaperTradingWrapper] Props received:', { sidebarCollapsed, connectionStatus });
 
   // 🔧 FIX: Use same ticker price as chart from dataStore
   // Both header and chart show the SAME live ticker price (matches/trades)
@@ -139,8 +146,10 @@
   }
 
   onMount(() => {
+    console.log('🎯 [PaperTradingWrapper] onMount called');
     // Initialize state manager
     stateManager = new PaperTradingStateManager();
+    console.log('✅ [PaperTradingWrapper] StateManager initialized');
 
     // Subscribe to the reactive stores
     const unsubscribeTradingState = stateManager.tradingState.subscribe(state => {

@@ -10,7 +10,7 @@ export class RESTAPIService {
   constructor(dependencies) {
     this.redisOrderbookCache = dependencies.redisOrderbookCache;
     this.redisCandleStorage = dependencies.redisCandleStorage;
-    this.botManager = dependencies.botManager;
+    // Bot Manager now runs on separate hermes-bots service (port 4829)
     this.coinbaseWebSocket = dependencies.coinbaseWebSocket;
     this.continuousCandleUpdater = dependencies.continuousCandleUpdater;
     this.chartSubscriptions = dependencies.chartSubscriptions;
@@ -281,10 +281,9 @@ export class RESTAPIService {
         activeSubscriptions: this.activeSubscriptions.size,
         granularityMappings: this.granularityMappings.size
       },
-      botManager: {
-        totalBots: this.botManager.bots.size,
-        activeBotId: this.botManager.activeBotId,
-        status: this.botManager.getStatus()
+      botsService: {
+        note: 'Bot management now runs on separate hermes-bots service',
+        url: 'http://localhost:4829/health'
       }
     });
   }

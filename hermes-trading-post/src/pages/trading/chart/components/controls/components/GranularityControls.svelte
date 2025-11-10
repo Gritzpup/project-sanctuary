@@ -31,8 +31,13 @@
     [];
 
   function handleGranularityChange(granularity: string) {
+    console.log(`🎯 [GranularityControls] Button clicked: ${granularity}`);
+
     // Prevent multiple rapid clicks - debounce with 200ms window
-    if (isDebouncing) return;
+    if (isDebouncing) {
+      console.log(`🔒 [GranularityControls] Click blocked - debouncing`);
+      return;
+    }
 
     isDebouncing = true;
 
@@ -40,6 +45,8 @@
     if (debounceTimer !== null) {
       clearTimeout(debounceTimer);
     }
+
+    console.log(`📤 [GranularityControls] Dispatching granularityChange event: ${granularity}`);
 
     // Call parent callback directly for immediate prop updates
     if (onGranularityChange) {

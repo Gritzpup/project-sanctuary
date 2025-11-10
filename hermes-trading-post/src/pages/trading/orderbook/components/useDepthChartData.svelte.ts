@@ -265,13 +265,17 @@ export function useDepthChartData() {
     ws = dataStore.getWebSocket();
 
     if (!ws) {
+      console.error('🔴 [Orderbook] WebSocket is null, cannot connect');
       return false;
     }
+
+    console.log('✅ [Orderbook] Connected to WebSocket, listening for level2 messages');
 
     const messageHandler = (event: MessageEvent) => {
       try {
         const message = JSON.parse(event.data);
         if (message.type === 'level2') {
+          console.log(`📊 [Orderbook] Received level2 message:`, message.data?.type);
           handleLevel2Message(message.data);
           // Call rendering callback if provided
           if (renderCallback) {
@@ -293,10 +297,16 @@ export function useDepthChartData() {
     lastL2UpdateTime = Date.now();
     l2UpdateCount++;
 
+    console.log(`📊 [Orderbook] handleLevel2Message - data.type: ${data?.type}, has bids: ${!!data?.bids}, has asks: ${!!data?.asks}, has changes: ${!!data?.changes}`);
+
     if (data.type === 'snapshot') {
+      console.log(`🎯 [Orderbook] Processing SNAPSHOT with ${data.bids?.length || 0} bids, ${data.asks?.length || 0} asks`);
       orderbookStore.processSnapshot(data);
     } else if (data.type === 'update') {
+      console.log(`🔄 [Orderbook] Processing UPDATE with ${data.changes?.length || 0} changes`);
       orderbookStore.processUpdate(data);
+    } else {
+      console.warn(`⚠️ [Orderbook] Unknown level2 message type: ${data?.type}`);
     }
   }
 

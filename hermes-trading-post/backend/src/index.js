@@ -4,8 +4,8 @@ import { WebSocketServer } from 'ws';
 import Redis from 'ioredis';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import WebSocket from 'ws';
 import { TradingService } from './services/tradingService.js';
-import { BotManager } from './services/botManager.js';
 import { coinbaseWebSocket } from './services/coinbaseWebSocket.js';
 import { historicalDataService } from './services/HistoricalDataService.js';
 import { continuousCandleUpdater } from './services/ContinuousCandleUpdater.js';
@@ -48,7 +48,48 @@ wss.on('connection', (ws) => {
   });
 });
 
-const botManager = new BotManager();
+// 🤖 Bot Manager now runs on separate hermes-bots service (port 4829)
+// Create WebSocket connection to bots service
+const BOTS_SERVICE_URL = process.env.BOTS_SERVICE_URL || 'ws://localhost:4829';
+let botsWebSocket = null;
+
+const connectToBotsService = () => {
+  console.log(`🤖 Connecting to Hermes Bots Service at ${BOTS_SERVICE_URL}...`);
+
+  botsWebSocket = new WebSocket(BOTS_SERVICE_URL);
+
+  botsWebSocket.on('open', () => {
+    console.log('✅ Connected to Hermes Bots Service');
+  });
+
+  botsWebSocket.on('message', (data) => {
+    // Forward bot service messages to all frontend clients
+    try {
+      const message = JSON.parse(data.toString());
+      console.log(`📨 [Backend] Forwarding bot message: ${message.type}`);
+      wss.clients.forEach(client => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+          client.send(JSON.stringify(message));
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error forwarding bot message:', error.message);
+    }
+  });
+
+  botsWebSocket.on('error', (error) => {
+    console.error('❌ Bots Service connection error:', error.message);
+  });
+
+  botsWebSocket.on('close', () => {
+    console.log('🔴 Disconnected from Bots Service, reconnecting in 5s...');
+    botsWebSocket = null;
+    setTimeout(connectToBotsService, 5000);
+  });
+};
+
+// Start connection to bots service
+connectToBotsService();
 
 // Phase 5C: Initialize subscription and memory monitoring services
 const subscriptionManager = new SubscriptionManager();
@@ -87,7 +128,6 @@ let cachedLevel2Snapshot = null;
 
 // Phase 5C: Initialize WebSocket handler service
 const wsHandler = new WebSocketHandler(wss, {
-  botManager,
   coinbaseWebSocket,
   subscriptionManager,
   getGranularitySeconds,
@@ -96,7 +136,8 @@ const wsHandler = new WebSocketHandler(wss, {
   granularityMappings: subscriptionManager.granularityMappings,
   granularityMappingTimes,
   lastEmissionTimes,
-  cachedLevel2Snapshot: null
+  cachedLevel2Snapshot: null,
+  botsWebSocket: () => botsWebSocket // Pass function to get current botsWebSocket
 });
 
 // Initialize WebSocket handlers
@@ -124,7 +165,6 @@ const broadcastService = new BroadcastService(wss, {
 const restAPIService = new RESTAPIService({
   redisOrderbookCache,
   redisCandleStorage,
-  botManager,
   coinbaseWebSocket,
   continuousCandleUpdater,
   chartSubscriptions,
@@ -133,10 +173,9 @@ const restAPIService = new RESTAPIService({
   memoryMonitor
 });
 
-// Initialize default bots on startup
+// Initialize services on startup
 // Use async IIFE to handle async initialization
 (async () => {
-  await botManager.initializeDefaultBots();
   
   // Initialize Historical Data Service (fetch historical candles)
   console.log('🚀 Initializing Historical Data Service...');
@@ -154,8 +193,36 @@ const restAPIService = new RESTAPIService({
   }
 
   // Initialize Continuous Candle Updater for constant API updates
-  console.log('🔄 Starting Continuous Candle Updater Service...');
-  continuousCandleUpdater.startAllGranularities('BTC-USD');
+  // 🔧 DISABLED: Gets 401 errors from Coinbase REST API - CDP auth not working
+  // console.log('🔄 Starting Continuous Candle Updater Service...');
+  // continuousCandleUpdater.startAllGranularities('BTC-USD');
+
+  // 🔧 FIX: Broadcast candles from ContinuousCandleUpdater (REST API fallback)
+  // This ensures chart keeps updating even if WebSocket market_trades stops
+  // ALSO ensures frontend stays in sync with Redis database
+  continuousCandleUpdater.on('candles_updated', (data) => {
+    // data format: { product_id, granularity, candles: [...] }
+    console.log(`📡 [ContinuousUpdater] Broadcasting ${data.candles.length} candles for ${data.product_id} (${data.granularity}) - SYNCING FROM REDIS`);
+
+    // Broadcast each candle to frontend
+    // These are AUTHORITATIVE candles from Redis - they override any WebSocket data
+    data.candles.forEach(candle => {
+      // 🔧 FIX: RedisChartService expects FLAT format (message.pair, not message.data.pair)
+      const candleMessage = {
+        type: 'candle',
+        pair: data.product_id,
+        granularity: data.granularity,
+        time: candle.time,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+        volume: candle.volume || 0,
+        candleType: 'sync' // Mark as sync to indicate this is authoritative Redis data
+      };
+      wsHandler.broadcast(candleMessage);
+    });
+  });
 
   // Initialize Broadcast Service for WebSocket message broadcasting
   console.log('🔊 Initializing Broadcast Service...');
@@ -167,10 +234,11 @@ const restAPIService = new RESTAPIService({
     await coinbaseWebSocket.connect();
     console.log('✅ Connected to Coinbase Advanced Trade WebSocket');
 
-    // Subscribe to BTC-USD level2 and ticker streams via Advanced Trade API
+    // Subscribe to BTC-USD level2, ticker, and candles streams via Advanced Trade API
     coinbaseWebSocket.subscribeLevel2('BTC-USD');
     coinbaseWebSocket.subscribeTicker('BTC-USD');
-    console.log('📊 Subscribed to BTC-USD level2 and ticker (both via Advanced Trade API with JWT)');
+    coinbaseWebSocket.subscribeCandles('BTC-USD'); // ✅ PROPER candles channel - provides 5m OHLCV data every second
+    console.log('📊 Subscribed to BTC-USD level2, ticker, and candles (via Advanced Trade API with JWT)');
 
     // 🔧 FIX: Link Coinbase level2 events to WebSocketHandler snapshot cache
     // Set this up AFTER subscription so we don't miss events
@@ -178,8 +246,10 @@ const restAPIService = new RESTAPIService({
     // ✅ CRITICAL: Handle BOTH snapshot (full orderbook) and update (incremental) events
     // 🔄 BROADCAST: Forward snapshots to all connected WebSocket clients
     // ⏱️ THROTTLE: Limit update broadcasts to prevent browser OOM
-    let lastLevel2BroadcastTime = 0;
-    const LEVEL2_THROTTLE_MS = 500; // Broadcast updates max 2x per second to prevent browser OOM
+    let lastLevel2UpdateBroadcastTime = 0;
+    let lastLevel2SnapshotBroadcastTime = 0;
+    const LEVEL2_UPDATE_THROTTLE_MS = 500; // Broadcast updates max 2x per second to prevent browser OOM
+    const LEVEL2_SNAPSHOT_THROTTLE_MS = 5000; // Broadcast snapshots every 5 seconds
 
     const level2Handler = (data) => {
       if (!data) return;
@@ -203,10 +273,10 @@ const restAPIService = new RESTAPIService({
         // 🔧 FIX: Throttle snapshot broadcasts to prevent memory pressure
         // Snapshots are huge (1000+ levels) and come frequently, causing OOM
         const now = Date.now();
-        const timeSinceLastBroadcast = now - lastLevel2BroadcastTime;
+        const timeSinceLastSnapshot = now - lastLevel2SnapshotBroadcastTime;
 
         // Only broadcast snapshot every 5 seconds (less frequent than updates)
-        if (timeSinceLastBroadcast >= 5000) {
+        if (timeSinceLastSnapshot >= LEVEL2_SNAPSHOT_THROTTLE_MS) {
           const snapshotMessage = {
             type: 'level2',
             data: limitedData
@@ -214,7 +284,7 @@ const restAPIService = new RESTAPIService({
 
           wsHandler.broadcast(snapshotMessage);
           console.log(`📤 [Backend] Broadcast level2 snapshot (100 bids, 100 asks) to connected clients`);
-          lastLevel2BroadcastTime = now;
+          lastLevel2SnapshotBroadcastTime = now;
         }
       }
       // Update events contain incremental changes (only changed price levels)
@@ -223,16 +293,16 @@ const restAPIService = new RESTAPIService({
         // ⏱️ THROTTLE: Only broadcast if enough time has passed since last broadcast
         // This prevents browser OOM from too many WebSocket messages
         const now = Date.now();
-        const timeSinceLastBroadcast = now - lastLevel2BroadcastTime;
+        const timeSinceLastUpdate = now - lastLevel2UpdateBroadcastTime;
 
-        if (timeSinceLastBroadcast >= LEVEL2_THROTTLE_MS) {
+        if (timeSinceLastUpdate >= LEVEL2_UPDATE_THROTTLE_MS) {
           const updateMessage = {
             type: 'level2',
             data: data
           };
 
           wsHandler.broadcast(updateMessage);
-          lastLevel2BroadcastTime = now;
+          lastLevel2UpdateBroadcastTime = now;
           console.log(`📤 [Backend] Broadcast level2 update (${data.changes.length} changes)`);
         }
         // 🔧 REMOVED: Excessive "Skipped" logging causing log bloat
@@ -257,9 +327,12 @@ const restAPIService = new RESTAPIService({
         data: data
       });
 
-      // Also update bot manager with current price for trading
-      if (data.price) {
-        botManager.updateRealtimePrice(data.price, data.product_id);
+      // Forward price updates to bots service via WebSocket
+      if (data.price && botsWebSocket && botsWebSocket.readyState === WebSocket.OPEN) {
+        botsWebSocket.send(JSON.stringify({
+          type: 'ticker',
+          data: data
+        }));
       }
     };
 
@@ -267,23 +340,22 @@ const restAPIService = new RESTAPIService({
     const candleHandler = (candleData) => {
       if (!candleData) return;
 
-      // 🔧 FIX: Frontend RedisChartService expects flat structure with 'pair' and 'granularity' at top level
-      // NOT nested in 'data' field
+      // 🔧 FIX: RedisChartService expects FLAT format (message.pair, not message.data.pair)
+      // RedisChartService.ts line 326: const subscriptionKey = `${message.pair}:${message.granularity}`;
       const frontendCandle = {
-        type: 'candle',  // Include type at top level
-        pair: candleData.product_id,  // Map product_id to pair for frontend compatibility
-        granularity: candleData.granularityKey || `${candleData.granularity}s`,  // Use string format (e.g., "1m")
+        type: 'candle',
+        pair: candleData.product_id,
+        granularity: candleData.granularityKey || `${candleData.granularity}s`,
         time: candleData.time,
         open: candleData.open,
         high: candleData.high,
         low: candleData.low,
         close: candleData.close,
         volume: candleData.volume || 0,
-        candleType: candleData.type  // Rename 'type' to 'candleType' to avoid conflict
+        candleType: candleData.type  // WebSocket or complete
       };
 
       // Broadcast candle to all connected WebSocket clients
-      // Send flat structure, NOT nested in data field
       wsHandler.broadcast(frontendCandle);
 
       console.log(`📊 [Backend] New ${candleData.type} candle (${candleData.granularityKey}): ${candleData.product_id} at $${candleData.close}`);
@@ -308,7 +380,7 @@ const restAPIService = new RESTAPIService({
   }
 })();
 
-app.use('/api/trading', tradingRoutes(botManager));
+app.use('/api/trading', tradingRoutes());
 
 // Phase 5C: Register REST API service routes
 restAPIService.registerRoutes(app);
@@ -322,7 +394,6 @@ app.post('/api/debug-log', (req, res) => {
 
 // Phase 5C: Initialize Server Lifecycle manager
 const serverLifecycle = new ServerLifecycle(server, wss, {
-  botManager,
   continuousCandleUpdater,
   coinbaseWebSocket,
   memoryMonitor,
@@ -330,7 +401,8 @@ const serverLifecycle = new ServerLifecycle(server, wss, {
   activeSubscriptions,
   granularityMappings,
   granularityMappingTimes,
-  lastEmissionTimes
+  lastEmissionTimes,
+  botsWebSocket // Add bots WebSocket for cleanup
 });
 
 // Start the server

@@ -114,6 +114,10 @@ export class BroadcastService {
     this.coinbaseWebSocket.on('candle', (candleData) => {
       const now = Date.now();
 
+      // 🔧 FIX: candleData has 'granularity' (seconds) NOT 'granularitySeconds'
+      // coinbaseWebSocket.js line 1212: granularity: granularitySeconds
+      const granularitySeconds = candleData.granularity;
+
       this.wss.clients.forEach((client) => {
         if (client.readyState === client.OPEN) {
           // Get client's chart subscriptions
@@ -121,7 +125,7 @@ export class BroadcastService {
 
           if (clientSubs) {
             // Check if client is subscribed to this pair/granularity
-            const mappingKey = `${candleData.product_id}:${candleData.granularitySeconds}`;
+            const mappingKey = `${candleData.product_id}:${granularitySeconds}`;
             const granularityStr = this.granularityMappings.get(mappingKey);
 
             if (granularityStr) {
@@ -142,9 +146,20 @@ export class BroadcastService {
                   this.lastEmissionTimes.set(emissionKey, now);
 
                   try {
+                    // 🔧 FIX: Send FLAT format expected by frontend chartRealtimeService.ts
+                    // Frontend expects: {type, pair, granularity, time, open, high, low, close, volume}
+                    // NOT nested: {type, data: {...}}
                     client.send(JSON.stringify({
                       type: 'candle',
-                      data: candleData
+                      pair: candleData.product_id,
+                      granularity: granularityStr,
+                      time: candleData.time,
+                      open: candleData.open,
+                      high: candleData.high,
+                      low: candleData.low,
+                      close: candleData.close,
+                      volume: candleData.volume || 0,
+                      candleType: candleData.type // 'complete' or 'incomplete'
                     }));
                     this.broadcastStats.candle++;
                   } catch (error) {

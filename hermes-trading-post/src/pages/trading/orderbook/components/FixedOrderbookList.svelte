@@ -7,6 +7,9 @@
 
   import { orderbookStore } from '../stores/orderbookStore.svelte';
 
+  // Props (chartRefreshKey for consistency, though not used as data is already reactive)
+  let { chartRefreshKey = Date.now() } = $props();
+
   // Simple price formatter
   function formatPrice(price: number): string {
     return `$${price.toFixed(0)}`;

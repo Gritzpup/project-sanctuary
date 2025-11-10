@@ -152,7 +152,9 @@ export class ChartRealtimeService {
    * Batches: MSG → batch (100ms/50 messages) → process batch → callbacks → chart updates
    */
   private handleWebSocketMessage(message: any) {
+    // 🔧 DEBUG: Log ALL incoming WebSocket messages to diagnose candle flow
     if (message.type === 'candle') {
+      console.log(`📨 [ChartRealtime] Received candle: ${message.pair}:${message.granularity} at $${message.close} (${message.candleType})`);
       const subscriptionKey = `${message.pair}:${message.granularity}`;
 
       // Add to batch for this subscription
@@ -206,9 +208,13 @@ export class ChartRealtimeService {
     const callback = this.wsSubscriptions.get(subscriptionKey);
     if (!callback) {
       // Subscription was removed, discard batch
+      console.log(`⚠️ [ChartRealtime] No callback for ${subscriptionKey}, discarding ${batch.messages.length} messages`);
       batch.messages = [];
       return;
     }
+
+    // 🔧 DEBUG: Log batch processing
+    console.log(`📦 [ChartRealtime] Processing batch of ${batch.messages.length} candles for ${subscriptionKey}`);
 
     // Process each message in batch through callback
     // This preserves message order while benefiting from batching overhead reduction

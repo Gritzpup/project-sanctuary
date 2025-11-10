@@ -9,7 +9,8 @@
 export class WebSocketHandler {
   constructor(wss, dependencies) {
     this.wss = wss;
-    this.botManager = dependencies.botManager;
+    // Bot Manager now runs on separate hermes-bots service (port 4829)
+    this.getBotsWebSocket = dependencies.botsWebSocket; // Function to get botsWebSocket
     this.coinbaseWebSocket = dependencies.coinbaseWebSocket;
     this.subscriptionManager = dependencies.subscriptionManager;
     this.getGranularitySeconds = dependencies.getGranularitySeconds;
@@ -40,12 +41,7 @@ export class WebSocketHandler {
     ws._clientId = Math.random().toString(36).substring(7);
     this.chartSubscriptions.set(ws._clientId, new Set());
 
-    this.botManager.addClient(ws);
-
-    // Also add client to all bot instances for price updates
-    this.botManager.bots.forEach(bot => {
-      bot.addClient(ws);
-    });
+    // Bot management now handled by separate hermes-bots service
 
     // Send cached level2 snapshot to new client immediately
     if (this.cachedLevel2Snapshot) {
@@ -63,9 +59,7 @@ export class WebSocketHandler {
     // Send welcome message with current state
     ws.send(JSON.stringify({
       type: 'connected',
-      message: 'Connected to trading backend with bot manager',
-      managerState: this.botManager.getManagerState(),
-      status: this.botManager.getStatus()
+      message: 'Connected to trading backend (bot manager on separate service: port 4829)'
     }));
   }
 
@@ -86,61 +80,32 @@ export class WebSocketHandler {
 
 
       switch (data.type) {
+        // Bot-related commands - forward to hermes-bots service (port 4829)
         case 'createBot':
-          this.handleCreateBot(ws, data);
-          break;
         case 'selectBot':
-          try {
-            this.botManager.selectBot(data.botId);
-          } catch (error) {
-            // Silently ignore if bot doesn't exist yet
-            // This happens when client tries to select bot before it's fully created
-          }
-          break;
         case 'deleteBot':
-          try {
-            this.botManager.deleteBot(data.botId);
-          } catch (error) {
-            // Silently ignore if bot doesn't exist
-          }
-          break;
         case 'getManagerState':
-          ws.send(JSON.stringify({
-            type: 'managerState',
-            data: this.botManager.getManagerState()
-          }));
-          break;
         case 'start':
-          this.handleStartTrading(ws, data);
-          break;
         case 'stop':
-          this.handleStopTrading(ws, data);
-          break;
         case 'pause':
-          this.handlePauseTrading(ws, data);
-          break;
         case 'resume':
-          this.handleResumeTrading(ws, data);
-          break;
         case 'getStatus':
-          ws.send(JSON.stringify({
-            type: 'status',
-            data: this.botManager.getStatus()
-          }));
-          break;
         case 'updateStrategy':
-          this.botManager.updateStrategy(data.strategy);
-          break;
         case 'updateSelectedStrategy':
-          await this.handleUpdateSelectedStrategy(ws, data);
-          break;
         case 'realtimePrice':
-          if (data.data && data.data.price) {
-            this.botManager.updateRealtimePrice(data.data.price, data.data.product_id);
-          }
-          break;
         case 'reset':
-          await this.handleReset(ws, data);
+          // Forward command to bots service
+          const botsWs = this.getBotsWebSocket();
+          if (botsWs && botsWs.readyState === 1) { // WebSocket.OPEN
+            botsWs.send(message.toString());
+            console.log(`🤖 Forwarded ${data.type} command to bots service`);
+          } else {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Bots service is not connected'
+            }));
+            console.error('❌ Cannot forward command - bots service not connected');
+          }
           break;
         case 'forceSell':
           await this.handleForceSell(ws, data);
@@ -355,7 +320,7 @@ export class WebSocketHandler {
    */
   handleSubscribe(ws, data) {
     // Chart subscription - subscribe to Coinbase real-time data
-    console.log('Chart subscription received:', data.pair, data.granularity);
+    console.log('📊 Chart subscription received:', data.pair, data.granularity);
 
     const subscriptionKey = `${data.pair}:${data.granularity}`;
     const clientSubs = this.chartSubscriptions.get(ws._clientId);
@@ -499,12 +464,7 @@ export class WebSocketHandler {
       this.chartSubscriptions.delete(ws._clientId);
     }
 
-    this.botManager.removeClient(ws);
-
-    // Remove from all bot instances
-    this.botManager.bots.forEach(bot => {
-      bot.removeClient(ws);
-    });
+    // Bot client management now handled by hermes-bots service (port 4829)
 
     // 🔥 RACE CONDITION FIX: Clean up emission throttle tracking
     const keysToDelete = [];
@@ -548,9 +508,21 @@ export class WebSocketHandler {
    * Broadcast message to all connected clients
    */
   broadcast(message) {
+    const clientCount = Array.from(this.wss.clients).filter(c => c.readyState === c.OPEN).length;
+    if (message.type === 'candle') {
+      // 🔧 FIX: Reduced logging - only log summary, not per-client details
+      // Access granularity from flat structure (message.granularity)
+      console.log(`📡 [Broadcast] Broadcasting candle (${message.granularity}) to ${clientCount} clients`);
+    }
+
     this.wss.clients.forEach(client => {
       if (client.readyState === client.OPEN) {
-        client.send(JSON.stringify(message));
+        try {
+          client.send(JSON.stringify(message));
+        } catch (error) {
+          const clientInfo = client._socket ? `${client._socket.remoteAddress}:${client._socket.remotePort}` : 'unknown';
+          console.error(`❌ [Broadcast] Failed to send to ${clientInfo}: ${error.message}`);
+        }
       }
     });
   }

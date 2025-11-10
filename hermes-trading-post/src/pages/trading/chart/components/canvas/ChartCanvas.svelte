@@ -142,6 +142,19 @@
     visibleCandleTracker = new VisibleCandleTracker(chart);
     visibleCandleTracker.start();
 
+    // ⚡ SEAMLESS REFRESH FIX: Reset interaction state on initialization
+    // This ensures the chart shows 60 candles even after page refresh
+    // Without this, the chart would maintain the previous zoom level (e.g., 39 candles)
+    interactionTracker?.resetInteractionState();
+
+    // ⚡ FIX: Force chart to show 60 candles immediately on initialization
+    // This ensures consistent view across page refreshes
+    setTimeout(() => {
+      if (dataStore.candles.length > 0) {
+        positioningService?.showNCandles(dataStore.candles.length, 60);
+      }
+    }, 500); // Wait for data to be loaded
+
     // Notify parent component chart is ready
     if (onChartReady) {
       onChartReady(chart);

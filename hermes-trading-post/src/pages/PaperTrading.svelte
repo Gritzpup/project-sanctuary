@@ -22,4 +22,4 @@
   export let sidebarCollapsed = false;
 </script>
 
-<PaperTradingWrapper {currentPrice} {connectionStatus} {sidebarCollapsed} />
+<PaperTradingWrapper {connectionStatus} {sidebarCollapsed} />

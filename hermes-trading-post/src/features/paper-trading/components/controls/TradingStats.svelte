@@ -4,6 +4,7 @@
   export let totalTrades: number;
   export let totalFees: number;
   export let totalRebates: number;
+  export let totalReturn: number = 0; // Realized profit from backend
   export let positions: any[];
   export let currentPrice: number;
   export let btcBalance: number;
@@ -17,17 +18,40 @@
   // Calculate derived stats
   $: growth = balance - startingBalance;
   $: growthPercent = ((balance - startingBalance) / startingBalance * 100);
-  $: totalValue = balance + (btcBalance * currentPrice);
-  // Calculate total P/L including both realized and unrealized profits
-  $: totalPL = totalValue - startingBalance;
-  // Calculate unrealized P/L from current positions
-  $: unrealizedPL = positions.length > 0 ? (currentPrice - averageEntryPrice) * totalPositionSize : 0;
-  $: netFeesAfterRebase = totalFees - totalRebates;
 
-  // Calculate position stats
+  // Calculate position cost basis (what was SPENT to buy the BTC)
+  $: positionCostBasis = positions.reduce((sum, pos) => sum + ((pos.entryPrice || 0) * (pos.size || 0)), 0);
+
+  // Calculate unrealized P/L from current positions
   $: totalPositionSize = positions.reduce((sum, pos) => sum + (pos.size || 0), 0);
-  $: averageEntryPrice = positions.length > 0 && totalPositionSize > 0 ? 
+  $: averageEntryPrice = positions.length > 0 && totalPositionSize > 0 ?
     positions.reduce((sum, pos) => sum + ((pos.entryPrice || 0) * (pos.size || 0)), 0) / totalPositionSize : 0;
+  $: unrealizedPL = positions.length > 0 ? (currentPrice - averageEntryPrice) * totalPositionSize : 0;
+
+  // 🎯 Total P/L using cost basis (ignores unrealized gains/losses)
+  // This shows realized P/L only - as if the money spent on BTC is still there
+  // Balance + What was spent on BTC + Vaults = How much total capital you have deployed
+  $: currentBtcValue = btcBalance * currentPrice;
+  $: totalCapitalDeployed = balance + positionCostBasis + vaultBalance + (btcVaultBalance * currentPrice);
+  $: totalPL = totalCapitalDeployed - startingBalance;
+
+  // 🔍 DEBUG: Log all values for Total P/L calculation
+  $: {
+    console.log('💰 [TradingStats] P/L Calculation:', {
+      balance,
+      positionCostBasis,
+      vaultBalance,
+      btcVaultBalance,
+      btcVaultValue: btcVaultBalance * currentPrice,
+      totalCapitalDeployed,
+      startingBalance,
+      totalPL
+    });
+  }
+
+  // Total value includes current market value of positions
+  $: totalValue = balance + (btcBalance * currentPrice) + vaultBalance + (btcVaultBalance * currentPrice);
+  $: netFeesAfterRebase = totalFees - totalRebates;
 </script>
 
 <div class="control-group">

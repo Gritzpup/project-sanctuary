@@ -22,6 +22,7 @@
   export let period: string = '1H';
   export let enablePlugins: boolean = true;
   export let enableAutoGranularity: boolean = true;
+  export let chartRefreshKey: number = Date.now(); // ⚡ SEAMLESS REFRESH: Trigger canvas reinit
   export let onReady: ((chart: IChartApi) => void) | undefined = undefined;
 
   let chartCanvas: ChartCanvas;
@@ -178,7 +179,7 @@
           autoGranularity = useAutoGranularity({
             chart,
             candleSeries: chartCanvas?.getSeries() || null,
-            enabled: false,
+            enabled: true,  // ✅ FIX: Enable auto-granularity to switch timeframes on zoom
             debounceMs: 300
           });
         }
@@ -429,11 +430,11 @@
 </script>
 
 <div class="chart-core">
-  <ChartCanvas 
+  <ChartCanvas
     bind:this={chartCanvas}
     onChartReady={handleChartReady}
   />
-  
+
   <slot name="overlays" />
   <slot name="controls" />
 </div>

@@ -42,6 +42,9 @@ export interface BackendTradingState {
   winRate: number;
   winningTrades: number;
   losingTrades: number;
+  // Vault balances
+  vaultBalance: number;
+  btcVaultBalance: number;
   // Next trigger distances
   nextBuyDistance: number | null;
   nextSellDistance: number | null;
@@ -98,6 +101,9 @@ class TradingBackendService {
       winRate: 0,
       winningTrades: 0,
       losingTrades: 0,
+      // Vault balances
+      vaultBalance: 0,
+      btcVaultBalance: 0,
       // Next trigger distances
       nextBuyDistance: null,
       nextSellDistance: null,
@@ -171,6 +177,11 @@ class TradingBackendService {
         break;
         
       case 'status':
+        // 🔍 DEBUG: Log vault balances from WebSocket message
+        console.log('🔌 [WebSocket] Received status message with vaults:', {
+          vaultBalance: message.data?.vaultBalance,
+          btcVaultBalance: message.data?.btcVaultBalance
+        });
         this.updateStateFromBackend(message.data);
         break;
         
@@ -281,6 +292,9 @@ class TradingBackendService {
       winRate: status.winRate || 0,
       winningTrades: status.winningTrades || 0,
       losingTrades: status.losingTrades || 0,
+      // Vault balances
+      vaultBalance: status.vaultBalance || 0,
+      btcVaultBalance: status.btcVaultBalance || 0,
       // Next trigger distances and prices
       nextBuyDistance: status.nextBuyDistance,
       nextSellDistance: status.nextSellDistance,

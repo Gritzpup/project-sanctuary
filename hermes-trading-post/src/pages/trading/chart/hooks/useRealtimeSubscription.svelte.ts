@@ -155,12 +155,27 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         return;
       }
       
-      // For normal datasets, maintain exactly 60 candles visible
-      const maxCandles = 60;
+      // For normal datasets, calculate correct candle count based on granularity + timeframe
+      // 🎯 FIX: Use getCandleCount() to show correct number of candles for the period
+      // Example: 1H period with 5m granularity = 12 candles (NOT 60!)
+      let maxCandles = 60; // Default fallback
+
+      try {
+        if (chartStore?.config?.granularity && chartStore?.config?.timeframe) {
+          const calculatedCandles = getCandleCount(chartStore.config.granularity, chartStore.config.timeframe);
+          if (calculatedCandles > 0) {
+            maxCandles = calculatedCandles;
+            console.log(`🎯 [Realtime] Using calculated candle count: ${maxCandles} for ${chartStore.config.granularity}/${chartStore.config.timeframe}`);
+          }
+        }
+      } catch (error) {
+        console.warn('Could not calculate candle count, using default 60:', error);
+      }
+
       const startIndex = Math.max(0, candles.length - maxCandles);
 
       // 🔧 FIX: Use logical range (indices) instead of time range for precise control
-      // This ensures exactly 60 candles are visible regardless of time gaps
+      // This ensures exactly the correct number of candles are visible for the timeframe
       chart.timeScale().setVisibleLogicalRange({
         from: startIndex,
         to: candles.length

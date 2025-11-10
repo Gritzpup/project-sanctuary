@@ -64,11 +64,13 @@
 
   function handleTimeframeChange(event: CustomEvent) {
     const { timeframe } = event.detail;
+    console.log(`🔵 [ChartControls.svelte] handleTimeframeChange received event:`, timeframe);
     controlsService.handleTimeframeChange(timeframe);
   }
 
   function handleGranularityChange(event: CustomEvent) {
     const { granularity } = event.detail;
+    console.log(`🔵 [ChartControls.svelte] handleGranularityChange received event:`, granularity);
     // Call parent callback first so props update
     if (onGranularityChange) {
       onGranularityChange(granularity);

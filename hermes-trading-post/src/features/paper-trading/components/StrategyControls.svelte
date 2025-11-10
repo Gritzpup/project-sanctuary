@@ -76,8 +76,8 @@
       {nextSellPrice}
     />
     
-    <TradingControlButtons 
-      {isRunning} 
+    <TradingControlButtons
+      {isRunning}
       {isPaused}
       on:start={handleEvent}
       on:pause={handleEvent}

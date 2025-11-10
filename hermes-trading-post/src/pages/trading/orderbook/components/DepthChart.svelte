@@ -16,7 +16,7 @@
   import '../styles/DepthChart.css';
 
   // Props
-  let { children } = $props();
+  let { children, chartRefreshKey = Date.now() } = $props();
 
   let chartContainer: HTMLDivElement;
   let chart: IChartApi;
@@ -63,6 +63,20 @@
     scheduleChartUpdate(); // Also update the chart when data changes
   });
 
+  // ⚡ SEAMLESS REFRESH: Re-initialize chart when key changes
+  $effect(() => {
+    const _key = chartRefreshKey;
+    console.log('[DepthChart] Refreshing depth chart canvas (key changed)');
+
+    // Destroy existing chart if any
+    if (chart) {
+      chart.remove();
+    }
+
+    // Re-initialize
+    initializeChart();
+  });
+
   onMount(async () => {
     console.log('[DepthChart] Component mounted v4');
 
@@ -77,7 +91,6 @@
       console.error('Orderbook cache hydration failed, will use WebSocket data:', error);
     }
 
-    initializeChart();
     setupWebSocket();
   });
 
@@ -377,10 +390,13 @@
     if (!data) return;
 
     console.log('[DepthChart] Processing level2 message:', {
+      dataType: data.type,
       hasChanges: !!data.changes,
       changeCount: data.changes?.length,
       hasBids: !!data.bids,
-      hasAsks: !!data.asks
+      hasAsks: !!data.asks,
+      bidsLength: data.bids?.length,
+      asksLength: data.asks?.length
     });
 
     // The backend sends level2 updates with changes array

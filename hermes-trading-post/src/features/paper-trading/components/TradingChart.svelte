@@ -9,6 +9,7 @@
   import { dataStore } from '../../../pages/trading/chart/stores/dataStore.svelte';
   
   let {
+    chartRefreshKey = Date.now(),
     selectedPair = 'BTC-USD',
     selectedGranularity = '1m',
     selectedPeriod = '1H',
@@ -189,13 +190,14 @@
     />
   </div>
   
-  <ChartProgressBar 
+  <ChartProgressBar
     {forwardTestProgress}
     {isForwardTestRunning}
   />
-  
+
+  <!-- ⚡ SEAMLESS REFRESH: Chart handles its own canvas refresh internally -->
   <div class="chart-container">
-    <Chart 
+    <Chart
       bind:this={chartComponent}
       pair={selectedPair}
       granularity={selectedGranularity}
@@ -205,9 +207,10 @@
       showInfo={false}
       enablePlugins={true}
       defaultPlugins={['volume']}
+      {chartRefreshKey}
     />
   </div>
-  
+
   <ChartControls 
     {selectedPeriod}
     {chartSpeed}

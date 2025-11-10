@@ -18,9 +18,10 @@
   <div class="market-gauge-panel">
     <MarketGauge
       currentPrice={backendState.currentPrice}
+      nextBuyPrice={backendState.nextBuyPrice}
+      nextSellPrice={backendState.nextSellPrice}
       positions={tradingState.positions}
       recentHigh={tradingState.recentHigh}
-      recentLow={tradingState.recentLow}
       isRunning={tradingState.isRunning}
     />
   </div>
