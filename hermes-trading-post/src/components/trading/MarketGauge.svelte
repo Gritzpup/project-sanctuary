@@ -116,9 +116,15 @@
               stroke="url(#sellGradient)"
               stroke-width="18"/>
 
+        <!-- Center arc line running through middle of the gauge -->
+        <path d="M 20 100 A 80 80 0 0 1 180 100"
+              fill="none"
+              stroke="rgba(155, 155, 255, 0.2)"
+              stroke-width="1"/>
+
         <!-- Text labels - positioned under each section -->
         <text x="20" y="105" text-anchor="middle" class="zone-label" fill="#dc2626">BUY</text>
-        <text x="100" y="20" text-anchor="middle" class="zone-label" fill="#6b7bb8">HOLD</text>
+        <text x="100" y="25" text-anchor="middle" class="zone-label" fill="#6b7bb8">HOLD</text>
         <text x="180" y="105" text-anchor="middle" class="zone-label" fill="#10b981">SELL</text>
 
         <!-- Needle - thin and extends into arc -->
@@ -231,7 +237,7 @@
   }
 
   .zone-label {
-    font-size: 11px;
+    font-size: 9px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
