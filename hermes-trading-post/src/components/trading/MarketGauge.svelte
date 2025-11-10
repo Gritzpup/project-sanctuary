@@ -59,7 +59,7 @@
         <span class="value red">${displayNextBuyPrice.toFixed(0)}</span>
       </div>
       <div class="price-item">
-        <span class="label">Current</span>
+        <span class="label">Start</span>
         <span class="value purple">${currentPrice.toFixed(0)}</span>
       </div>
       <div class="price-item">
@@ -143,15 +143,43 @@
         </g>
       </svg>
     </div>
+
+    <!-- Separator -->
+    <div class="separator"></div>
+
+    <!-- Compact stats below gauge -->
+    <div class="compact-stats">
+      <div class="compact-stat">
+        <div class="stat-icon buy-icon">📊</div>
+        <div class="stat-info">
+          <span class="stat-text">NEXT BUY</span>
+          <span class="stat-number">${displayNextBuyPrice.toFixed(0)}</span>
+        </div>
+      </div>
+      <div class="compact-stat">
+        <div class="stat-icon profit-icon">💰</div>
+        <div class="stat-info">
+          <span class="stat-text">PROFIT ZONE</span>
+          <span class="stat-number green">$736.32 (0.6%)</span>
+        </div>
+      </div>
+      <div class="compact-stat">
+        <div class="stat-icon drop-icon">🎯</div>
+        <div class="stat-info">
+          <span class="stat-text">DROP TARGET</span>
+          <span class="stat-number red">5%</span>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
 <style>
   .panel {
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    overflow: visible;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -159,17 +187,18 @@
   }
 
   .panel-header {
-    background: transparent;
-    padding: 12px 16px;
-    border-bottom: 1px solid rgba(74, 0, 224, 0.3);
+    background: var(--bg-primary-subtle);
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-primary);
+    min-height: 50px;
     flex-shrink: 0;
   }
 
   .panel-header h2 {
     margin: 0;
-    font-size: 15px;
+    font-size: 16px;
     color: #a78bfa;
-    font-weight: 600;
+    font-weight: 500;
   }
 
   .panel-content {
@@ -210,7 +239,7 @@
   }
 
   .value.red {
-    color: #dc2626;
+    color: var(--color-error);
   }
 
   .value.purple {
@@ -218,7 +247,7 @@
   }
 
   .value.green {
-    color: #16a34a;
+    color: var(--color-success);
   }
 
   .gauge-container {
@@ -246,5 +275,78 @@
   /* Needle animation - smooth and professional */
   .needle {
     transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .separator {
+    height: 1px;
+    background: rgba(74, 0, 224, 0.3);
+    margin: 8px 16px;
+  }
+
+  .compact-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 16px 12px 16px;
+  }
+
+  .compact-stat {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .stat-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .buy-icon {
+    background: rgba(74, 0, 224, 0.2);
+  }
+
+  .profit-icon {
+    background: rgba(16, 163, 74, 0.2);
+  }
+
+  .drop-icon {
+    background: rgba(220, 38, 38, 0.2);
+  }
+
+  .stat-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .stat-text {
+    font-size: 11px;
+    color: #fff;
+    text-transform: uppercase;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+  }
+
+  .stat-number {
+    font-size: 15px;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    color: #fff;
+  }
+
+  .stat-number.green {
+    color: var(--color-success);
+  }
+
+  .stat-number.red {
+    color: var(--color-error);
   }
 </style>

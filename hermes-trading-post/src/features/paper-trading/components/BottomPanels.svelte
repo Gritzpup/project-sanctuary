@@ -34,7 +34,8 @@
     grid-template-columns: 1fr 1fr 1fr;
     gap: 20px;
     margin-top: 0px;
-    height: 300px;
+    margin-bottom: 40px;
+    height: 400px;
   }
 
   /* First panel (Open Positions) - smaller */
@@ -50,10 +51,6 @@
   /* Third panel (Market Gauge) - aligns with strategy controls */
   .market-gauge-panel {
     grid-column: 3;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 8px;
-    overflow: hidden;
   }
 
   /* Mobile responsive layout */
@@ -61,7 +58,7 @@
     .panels-row-bottom {
       grid-template-columns: 1fr;
       grid-template-rows: 1fr 1fr 1fr;
-      height: 900px;
+      height: 1200px;
     }
 
     .panels-row-bottom > :first-child,

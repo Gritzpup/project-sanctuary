@@ -231,9 +231,10 @@
 <style>
   .dashboard-layout {
     display: flex;
-    min-height: 100vh;
+    height: 100vh;
     background: var(--bg-main);
     color: var(--text-primary);
+    overflow: hidden;
   }
 
   .dashboard-content {
@@ -253,13 +254,14 @@
   .content-wrapper {
     flex: 1;
     overflow-y: auto;
-    padding: var(--space-xl);
+    padding: var(--space-xl) var(--space-xl) 0 0;
   }
 
   .paper-trading-grid {
     display: flex;
     flex-direction: column;
     gap: var(--space-xl);
+    padding-bottom: 40px;
   }
 
   /* Mobile responsive layout */
