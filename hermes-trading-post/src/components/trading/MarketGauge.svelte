@@ -52,25 +52,27 @@
     <h2>Market Position</h2>
   </div>
   <div class="panel-content">
-    <!-- Price display -->
-    <div class="price-row">
-      <div class="price-item">
-        <span class="label">Next Buy</span>
-        <span class="value red">${displayNextBuyPrice.toFixed(0)}</span>
+    <!-- Inner box with background and border -->
+    <div class="gauge-box">
+      <!-- Price display -->
+      <div class="price-row">
+        <div class="price-item">
+          <span class="label">Next Buy</span>
+          <span class="value red">${displayNextBuyPrice.toFixed(0)}</span>
+        </div>
+        <div class="price-item">
+          <span class="label">Start</span>
+          <span class="value purple">${currentPrice.toFixed(0)}</span>
+        </div>
+        <div class="price-item">
+          <span class="label">Next Sell</span>
+          <span class="value green">${displayNextSellPrice.toFixed(0)}</span>
+        </div>
       </div>
-      <div class="price-item">
-        <span class="label">Start</span>
-        <span class="value purple">${currentPrice.toFixed(0)}</span>
-      </div>
-      <div class="price-item">
-        <span class="label">Next Sell</span>
-        <span class="value green">${displayNextSellPrice.toFixed(0)}</span>
-      </div>
-    </div>
-    
-    <!-- Gauge -->
-    <div class="gauge-container">
-      <svg viewBox="0 0 200 120" class="gauge-svg">
+
+      <!-- Gauge -->
+      <div class="gauge-container">
+        <svg viewBox="0 0 200 120" class="gauge-svg">
         <defs>
           <!-- Dimmed gradients for arcs -->
           <linearGradient id="buyGradient" x1="0%" y1="100%" x2="0%" y2="0%">
@@ -143,34 +145,32 @@
         </g>
       </svg>
     </div>
-
-    <!-- Separator -->
-    <div class="separator"></div>
+    </div>
 
     <!-- Compact stats below gauge -->
     <div class="compact-stats">
-      <div class="compact-stat">
-        <div class="stat-icon buy-icon">📊</div>
-        <div class="stat-info">
-          <span class="stat-text">NEXT BUY</span>
-          <span class="stat-number">${displayNextBuyPrice.toFixed(0)}</span>
+        <div class="compact-stat">
+          <div class="stat-icon buy-icon">📊</div>
+          <div class="stat-info">
+            <span class="stat-text">NEXT BUY</span>
+            <span class="stat-number">${displayNextBuyPrice.toFixed(0)}</span>
+          </div>
+        </div>
+        <div class="compact-stat">
+          <div class="stat-icon profit-icon">💰</div>
+          <div class="stat-info">
+            <span class="stat-text">PROFIT ZONE</span>
+            <span class="stat-number green">$736.32 (0.6%)</span>
+          </div>
+        </div>
+        <div class="compact-stat">
+          <div class="stat-icon drop-icon">🎯</div>
+          <div class="stat-info">
+            <span class="stat-text">DROP TARGET</span>
+            <span class="stat-number red">5%</span>
+          </div>
         </div>
       </div>
-      <div class="compact-stat">
-        <div class="stat-icon profit-icon">💰</div>
-        <div class="stat-info">
-          <span class="stat-text">PROFIT ZONE</span>
-          <span class="stat-number green">$736.32 (0.6%)</span>
-        </div>
-      </div>
-      <div class="compact-stat">
-        <div class="stat-icon drop-icon">🎯</div>
-        <div class="stat-info">
-          <span class="stat-text">DROP TARGET</span>
-          <span class="stat-number red">5%</span>
-        </div>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -208,6 +208,13 @@
     flex-direction: column;
     justify-content: center;
     background: transparent;
+  }
+
+  .gauge-box {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(74, 0, 224, 0.3);
+    border-radius: 8px;
+    padding: 15px 15px 8px 15px;
   }
 
   .price-row {
@@ -288,6 +295,7 @@
     flex-direction: column;
     gap: 6px;
     padding: 0 16px 12px 16px;
+    margin-top: 12px;
   }
 
   .compact-stat {
