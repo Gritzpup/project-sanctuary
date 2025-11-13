@@ -161,7 +161,9 @@ class OrderbookStore {
     // Calculate mid-price for depth filtering (only if we have data)
     let midPrice = 0;
     if (data.bids.length > 0 && data.asks.length > 0) {
-      midPrice = (data.bids[0].price + data.asks[0].price) / 2;
+      const bestBid = Array.isArray(data.bids[0]) ? data.bids[0][0] : data.bids[0].price;
+      const bestAsk = Array.isArray(data.asks[0]) ? data.asks[0][0] : data.asks[0].price;
+      midPrice = (bestBid + bestAsk) / 2;
     }
 
     // Define depth limit: ±25000 absolute price range from mid-price
@@ -186,10 +188,14 @@ class OrderbookStore {
     let filteredBidCount = 0;
     for (let i = 0; i < data.bids.length; i++) {
       const level = data.bids[i];
-      if (level.size > 0) {
+      // Check if level is an array [price, size] or object {price, size}
+      const price = Array.isArray(level) ? level[0] : level.price;
+      const size = Array.isArray(level) ? level[1] : level.size;
+
+      if (size > 0) {
         // Only keep bids within ±$25,000 of mid-price
-        if (midPrice === 0 || level.price >= minPrice) {
-          newBidsArray.push([level.price, level.size]);
+        if (midPrice === 0 || price >= minPrice) {
+          newBidsArray.push([price, size]);
         } else {
           filteredBidCount++;
         }
@@ -215,10 +221,14 @@ class OrderbookStore {
     let filteredAskCount = 0;
     for (let i = 0; i < data.asks.length; i++) {
       const level = data.asks[i];
-      if (level.size > 0) {
+      // Check if level is an array [price, size] or object {price, size}
+      const price = Array.isArray(level) ? level[0] : level.price;
+      const size = Array.isArray(level) ? level[1] : level.size;
+
+      if (size > 0) {
         // Only keep asks within ±$25,000 of mid-price
-        if (midPrice === 0 || level.price <= maxPrice) {
-          newAsksArray.push([level.price, level.size]);
+        if (midPrice === 0 || price <= maxPrice) {
+          newAsksArray.push([price, size]);
         } else {
           filteredAskCount++;
         }

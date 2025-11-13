@@ -25,7 +25,9 @@
     currentPrice = 0,
     priceChange24h = 0,
     priceChangePercent24h = 0,
-    tradingData = null
+    tradingData = null,
+    hideProgressBar = false,
+    hidePlaybackControls = false
   } = $props();
   
   const dispatch = createEventDispatcher();
@@ -189,11 +191,13 @@
       on:zoomReset={handleZoomReset}
     />
   </div>
-  
-  <ChartProgressBar
-    {forwardTestProgress}
-    {isForwardTestRunning}
-  />
+
+  {#if !hideProgressBar}
+    <ChartProgressBar
+      {forwardTestProgress}
+      {isForwardTestRunning}
+    />
+  {/if}
 
   <!-- ⚡ SEAMLESS REFRESH: Chart handles its own canvas refresh internally -->
   <div class="chart-container">
@@ -211,7 +215,7 @@
     />
   </div>
 
-  <ChartControls 
+  <ChartControls
     {selectedPeriod}
     {chartSpeed}
     {selectedTestDateString}
@@ -219,6 +223,7 @@
     {isPaused}
     {tradingData}
     {selectedGranularity}
+    {hidePlaybackControls}
     on:periodChange={handlePeriodChange}
     on:granularityChange={handleGranularityChange}
     on:speedChange={handleSpeedChange}

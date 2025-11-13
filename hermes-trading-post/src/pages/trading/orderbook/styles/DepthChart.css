@@ -605,28 +605,16 @@
   opacity: 0 !important;
 }
 
-.depth-chart :global(.tv-lightweight-charts div[style*="cursor: pointer"]) {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-}
-
-.depth-chart :global(.tv-lightweight-charts svg) {
+/* Only hide small SVG watermarks, not the main chart canvas */
+.depth-chart :global(.tv-lightweight-charts svg[width="20"]),
+.depth-chart :global(.tv-lightweight-charts svg[width="30"]),
+.depth-chart :global(.tv-lightweight-charts svg[height="20"]),
+.depth-chart :global(.tv-lightweight-charts svg[height="30"]) {
   display: none !important;
 }
 
 /* Hide watermark by position */
 .depth-chart :global(.tv-lightweight-charts div[style*="position: absolute"][style*="right"][style*="bottom"]) {
-  display: none !important;
-}
-
-/* Remove background images that might be watermarks */
-.depth-chart :global(div[style*="background-image"]) {
-  background-image: none !important;
-}
-
-/* Target the specific watermark container structure */
-.depth-chart :global(.tv-lightweight-charts > div:last-child) {
   display: none !important;
 }
 

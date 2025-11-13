@@ -80,6 +80,9 @@
   onMount(async () => {
     console.log('[DepthChart] Component mounted v4');
 
+    // Initialize chart first
+    initializeChart();
+
     // Clear any stale data first
     orderbookStore.reset();
 
@@ -95,11 +98,16 @@
   });
 
   function initializeChart() {
+    console.log('[DepthChart] initializeChart() called, chartContainer exists:', !!chartContainer, 'chart exists:', !!chart);
     if (!chartContainer) {
       console.log('[DepthChart] Chart container not ready');
       return;
     }
-    console.log('[DepthChart] Initializing chart...');
+    if (chart) {
+      console.log('[DepthChart] Chart already exists, skipping initialization');
+      return;
+    }
+    console.log('[DepthChart] Initializing NEW chart with width:', chartContainer.clientWidth, 'height: 200');
 
     chart = createChart(chartContainer, {
       width: chartContainer.clientWidth,
@@ -542,15 +550,53 @@
     });
     if (filteredBids.length === 0 || filteredAsks.length === 0) return;
 
+    // 🔧 FIX: Add zero-depth anchor points at spread boundaries to prevent overlap
+    // This creates a clear visual separation between bid and ask sides
+    const bestBid = filteredBids[filteredBids.length - 1]?.price || currentPrice;
+    const bestAsk = filteredAsks[0]?.price || currentPrice;
+    const maxBidDepth = filteredBids[filteredBids.length - 1]?.depth || 0;
+
     const bidData = filteredBids.map(level => ({
       time: level.price as any,
       value: level.depth
     }));
 
+    // Add anchor point: drop to zero at best bid + tiny offset to create visual separation
+    // Must maintain ascending price order for LightweightCharts
+    if (bidData.length > 0) {
+      const anchorPrice = bestBid + 0.01; // Slightly above best bid
+      bidData.push({
+        time: anchorPrice as any,
+        value: maxBidDepth
+      });
+      bidData.push({
+        time: (anchorPrice + 0.01) as any,
+        value: 0
+      });
+    }
+
     const askData = filteredAsks.map(level => ({
       time: level.price as any,
       value: level.depth
     }));
+
+    // Add anchor point: start from zero at best ask - tiny offset
+    // Asks are already in ascending order
+    // Must use unshift ONCE with both points in correct order
+    if (askData.length > 0) {
+      const anchorPrice = bestAsk - 0.01; // Slightly below best ask
+      // Unshift adds items to the beginning, so add them in ascending price order
+      askData.unshift(
+        {
+          time: (anchorPrice - 0.01) as any,
+          value: 0
+        },
+        {
+          time: anchorPrice as any,
+          value: 0
+        }
+      );
+    }
 
     bidSeries.setData(bidData);
     askSeries.setData(askData);

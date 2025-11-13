@@ -180,7 +180,7 @@
   </div>
 
   <!-- Preset Management -->
-  {#if customPresets.length > 0}
+  {#if customPresets && customPresets.length > 0}
     <div class="preset-section">
       <h4>Saved Presets</h4>
       

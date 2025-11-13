@@ -20,33 +20,9 @@
     return currentPrice;
   })();
 
-  // Calculate ACTUAL next buy/sell based on strategy (reverse-descending-grid)
-  // Strategy config: 0.1% initial drop + 0.1% per level, 0.85% profit target
-  $: actualNextBuyPrice = (() => {
-    const high = calculatedRecentHigh;
-    if (!high || high === 0) {
-      console.log('🔴 [MarketGauge] actualNextBuyPrice: NO HIGH', { high, calculatedRecentHigh });
-      return 0;
-    }
-    const nextLevel = positions.length + 1;
-    const requiredDropPercent = 0.1 + (nextLevel - 1) * 0.1;
-    const result = high * (1 - requiredDropPercent / 100);
-    console.log('✅ [MarketGauge] actualNextBuyPrice:', { high, nextLevel, requiredDropPercent, result });
-    return result;
-  })();
-
-  $: actualNextSellPrice = (() => {
-    if (positions.length === 0) {
-      console.log('🔴 [MarketGauge] actualNextSellPrice: NO POSITIONS');
-      return 0;
-    }
-    const totalValue = positions.reduce((sum: number, pos: any) => sum + (pos.entryPrice * pos.size), 0);
-    const totalSize = positions.reduce((sum: number, pos: any) => sum + pos.size, 0);
-    const avgEntryPrice = totalValue / totalSize;
-    const result = avgEntryPrice * (1 + 0.85 / 100);
-    console.log('✅ [MarketGauge] actualNextSellPrice:', { avgEntryPrice, result, positionsCount: positions.length });
-    return result;
-  })();
+  // Use backend's calculated next buy/sell prices - they already have the correct strategy logic
+  $: actualNextBuyPrice = nextBuyPrice || 0;
+  $: actualNextSellPrice = nextSellPrice || 0;
 
   // Calculate the gauge needle angle based on market position relative to next buy/sell orders
   $: angle = calculateNeedleAngle();

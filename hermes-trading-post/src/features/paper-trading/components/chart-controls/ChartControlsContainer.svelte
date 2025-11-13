@@ -14,6 +14,7 @@
   export let isPaused: boolean = false;
   export let tradingData: { totalReturn?: number } | null = null;
   export let selectedGranularity: string = '1m';
+  export let hidePlaybackControls: boolean = false;
   
   const dispatch = createEventDispatcher();
   
@@ -89,36 +90,38 @@
         </div>
       </div>
       
-      <!-- Dual Separator with clickable center -->
-      <div class="controls-separator">
-        <div class="separator-line left-line"></div>
-        <button 
-          class="separator-control" 
-          on:click={handleSeparatorClick}
-          on:keydown={handleSeparatorKeydown}
-          aria-label="Center chart controls"
-          title="Click to center the chart controls"
-        ></button>
-        <div class="separator-line right-line"></div>
-      </div>
-      
-      <!-- Right Column -->
-      <div class="right-column">
-        <PlaybackControls 
-          {chartSpeed}
-          {selectedTestDateString}
-          {isRunning}
-          {isPaused}
-          on:speedChange={forwardEvent}
-          on:dateChange={forwardEvent}
-          on:play={forwardEvent}
-          on:pause={forwardEvent}
-          on:stop={forwardEvent}
-        />
-        
-        <!-- Historical Data Loading -->
-        <HistoricalDataButton />
-      </div>
+      {#if !hidePlaybackControls}
+        <!-- Dual Separator with clickable center -->
+        <div class="controls-separator">
+          <div class="separator-line left-line"></div>
+          <button
+            class="separator-control"
+            on:click={handleSeparatorClick}
+            on:keydown={handleSeparatorKeydown}
+            aria-label="Center chart controls"
+            title="Click to center the chart controls"
+          ></button>
+          <div class="separator-line right-line"></div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="right-column">
+          <PlaybackControls
+            {chartSpeed}
+            {selectedTestDateString}
+            {isRunning}
+            {isPaused}
+            on:speedChange={forwardEvent}
+            on:dateChange={forwardEvent}
+            on:play={forwardEvent}
+            on:pause={forwardEvent}
+            on:stop={forwardEvent}
+          />
+
+          <!-- Historical Data Loading -->
+          <HistoricalDataButton />
+        </div>
+      {/if}
     </div>
   </MobileDragHandler>
 </div>
@@ -142,6 +145,12 @@
     max-width: 100%;
     box-sizing: border-box;
     align-content: center;
+  }
+
+  /* Single column layout when playback controls are hidden */
+  .controls-grid:has(.left-column):not(:has(.right-column)) {
+    grid-template-columns: 1fr;
+    justify-items: center;
   }
   
   .controls-separator {
@@ -193,6 +202,11 @@
     align-items: center;
     justify-content: center;
     justify-self: end;
+  }
+
+  /* Center left column when right column is hidden */
+  .controls-grid:has(.left-column):not(:has(.right-column)) .left-column {
+    justify-self: center;
   }
   
   .right-column {

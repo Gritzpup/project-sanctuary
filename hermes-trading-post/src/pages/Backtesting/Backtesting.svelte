@@ -15,7 +15,7 @@
   import BackupsTab from '../../components/backtesting/controls/BackupsTab.svelte';
   
   // Existing Components
-  import BacktestingChart from '../Backtesting/BacktestingChart.svelte';
+  import TradingChart from '../../features/paper-trading/components/TradingChart.svelte';
   import BacktestingResults from '../../components/backtesting/BacktestingResults.svelte';
   import BacktestingStrategyParams from '../../components/backtesting/BacktestingStrategyParams.svelte';
   import BacktestingBackups from '../Backtesting/BacktestingBackups.svelte';
@@ -47,12 +47,19 @@
   }
 
   // Chart state
+  let selectedPair = 'BTC-USD';
   let selectedGranularity = '1m';
   let selectedPeriod = '1H';
+  let chartSpeed = '1x';
+  let selectedTestDateString = '';
   let autoGranularityActive = false;
   let isLoadingChart = false;
   let historicalCandles: CandleData[] = [];
   let refreshInterval: number | null = null;
+  let chartRefreshKey = Date.now();
+  let chartComponent: any = null;
+  let botTabs: any[] = [];
+  let activeBotInstance: any = null;
   
   // Backtesting state
   let selectedStrategyType = 'reverse-descending-grid';
@@ -234,17 +241,29 @@
   
   <div slot="content">
     <PanelsRow>
-      <BacktestingChart
-        slot="chart"
-        {historicalCandles}
-        backtestTrades={backtestResults?.trades || []}
-        {selectedGranularity}
-        {selectedPeriod}
-        {autoGranularityActive}
-        {isLoadingChart}
-        on:selectGranularity={(e) => chartControls?.selectGranularity(e.detail.granularity)}
-        on:selectPeriod={(e) => chartControls?.selectPeriod(e.detail.period)}
-      />
+      <div slot="chart" class="chart-container">
+        <TradingChart
+          bind:chartComponent
+          {chartRefreshKey}
+          {selectedPair}
+          {selectedGranularity}
+          {selectedPeriod}
+          {chartSpeed}
+          {selectedTestDateString}
+          {botTabs}
+          {activeBotInstance}
+          {isRunning}
+          isPaused={false}
+          trades={backtestResults?.trades || []}
+          isPaperTestRunning={false}
+          {currentPrice}
+          priceChange24h={0}
+          priceChangePercent24h={0}
+          tradingData={{}}
+          hideProgressBar={true}
+          hidePlaybackControls={true}
+        />
+      </div>
       
       <StrategyPanel
         slot="controls" 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import ChartControlsContainer from './chart-controls/ChartControlsContainer.svelte';
-  
+
   export let selectedPeriod = '1H';
   export let chartSpeed = '1x';
   export let selectedTestDateString = '';
@@ -8,9 +8,10 @@
   export let isPaused = false;
   export let tradingData = null;
   export let selectedGranularity = '1m';
+  export let hidePlaybackControls = false;
 </script>
 
-<ChartControlsContainer 
+<ChartControlsContainer
   {selectedPeriod}
   {chartSpeed}
   {selectedTestDateString}
@@ -18,6 +19,7 @@
   {isPaused}
   {tradingData}
   {selectedGranularity}
+  {hidePlaybackControls}
   on:periodChange
   on:granularityChange
   on:speedChange
