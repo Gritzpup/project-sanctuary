@@ -52,7 +52,13 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       '1Y': 31536000,   // 365 days
       '5Y': 157680000   // 5 years (1825 days)
     };
-    return periodMap[period] || 3600;
+
+    const result = periodMap[period];
+    if (!result) {
+      console.error(`⚠️ [getPeriodSeconds] Unknown period: "${period}" - defaulting to 1H. Available: ${Object.keys(periodMap).join(', ')}`);
+      return 3600;
+    }
+    return result;
   }
 
   /**
@@ -107,22 +113,34 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
     chartStore.setLoading(true);
 
     try {
+      const loadId = Math.random().toString(36).substring(7);
       const now = Math.floor(Date.now() / 1000);
-      
+
+      console.log(`🔍🔍🔍 [useDataLoader ${loadId}] ===== START =====`);
+      console.log(`🔍 [useDataLoader ${loadId}] config.timeframe="${config.timeframe}", config.granularity="${config.granularity}", config.pair="${config.pair}"`);
+
       // ✅ Calculate exact number of candles needed based on granularity + period
       const candleCount = getCandleCount(config.granularity, config.timeframe);
       const granularitySeconds = getGranularitySeconds(config.granularity);
+      const periodSeconds = getPeriodSeconds(config.timeframe);
+
+      console.log(`🔍 [useDataLoader ${loadId}] Calculated: candleCount=${candleCount}, granularitySeconds=${granularitySeconds}, periodSeconds=${periodSeconds}`);
 
       // Align to granularity boundaries to ensure we get complete candles
       const alignedNow = alignTimeToGranularity(now, config.granularity);
 
-      // ⚡ FIX: Use calculated candle count based on period selection
-      // For example: 1H + 1m = 60 candles, 4H + 1m = 240 candles, 1D + 5m = 288 candles
-      // Add buffer of 60 candles for smooth scrolling (total = calculated + 60)
-      const candlesToLoad = Math.max(candleCount + 60, 120); // Calculated + buffer, minimum 120
-      const startTime = alignedNow - (candlesToLoad * granularitySeconds);
+      // ⚡ FIX: Use period duration instead of candle count for start time calculation
+      // For 5Y: use 157,680,000 seconds (5 years), NOT 1825 * 86400 seconds
+      // This ensures we load the full requested time period, not just what fits in candle count
+      const startTime = alignedNow - periodSeconds;
 
-      ChartDebug.log(`📊 Loading ${config.timeframe} data: ${candleCount} candles needed + 60 buffer = ${candlesToLoad} total for ${config.granularity}`);
+      // 🎯 FIX: Don't add buffer for long-term timeframes (1Y, 5Y) - load exact amount needed
+      const isLongTerm = ['1Y', '5Y'].includes(config.timeframe);
+      const candlesToLoad = isLongTerm
+        ? Math.max(candleCount, 120) // No buffer for long-term
+        : Math.max(candleCount + 60, 120); // +60 buffer for short-term
+
+      ChartDebug.log(`📊 Loading ${config.timeframe} data: ${candleCount} candles needed${isLongTerm ? '' : ' + 60 buffer'} = ${candlesToLoad} total for ${config.granularity}`);
 
       // Load data
       perfTest.mark('dataStore-loadData-start');
@@ -177,7 +195,8 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         }
 
         // 🚀 PHASE 6 FIX: Cap chart render to prevent crashes with too many candles
-        const MAX_CANDLES_TO_RENDER = 1000;
+        // Increased to 2000 to support 5Y timeframe (1825 candles needed)
+        const MAX_CANDLES_TO_RENDER = 2000;
         let candlesToRender = validCandles;
 
         if (validCandles.length > MAX_CANDLES_TO_RENDER) {
@@ -191,17 +210,26 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         // ChartDataManager will handle subsequent updates and positioning
         config.series.setData(candlesToRender);
 
-        // ⚡ SEAMLESS REFRESH FIX: Force exactly 60 candles visible on initial load
-        // This runs once when data is first loaded
+        // ⚡ SEAMLESS REFRESH FIX: Set visible candles based on timeframe
+        // Short-term: Show 60 candles for detail
+        // Long-term (1M+): Show ALL candles for full historical view
         if (config.chart && validCandles.length > 0) {
           setTimeout(() => {
             const totalCandles = candlesToRender.length;
+
+            // For long-term periods (1M, 3M, 6M, 1Y, 5Y), show ALL candles
+            // For short-term periods, show 60 candles for detail
+            const longTermPeriods = ['1M', '3M', '6M', '1Y', '5Y'];
+            const isLongTerm = longTermPeriods.includes(config.timeframe);
+
+            const visibleCandleCount = isLongTerm ? totalCandles : 60;
             const visibleRange = {
-              from: Math.max(0, totalCandles - 60),
+              from: Math.max(0, totalCandles - visibleCandleCount),
               to: totalCandles
             };
+
             config.chart!.timeScale().setVisibleLogicalRange(visibleRange);
-            console.log(`✅ [useDataLoader] Set visible range to show 60 of ${totalCandles} candles`);
+            console.log(`✅ [useDataLoader] Set visible range to show ${visibleCandleCount} of ${totalCandles} candles (${config.timeframe})`);
           }, 200);
         }
       }

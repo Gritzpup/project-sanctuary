@@ -143,13 +143,14 @@ export class ChartPositioningService {
         barSpacing: Math.max(MINIMUM_BAR_SPACING, barSpacing),
         rightOffset: RIGHT_OFFSET
       });
+
+      // Scroll to real-time for short-term views
+      this.chart.timeScale().scrollToRealTime();
     } else {
       // If fewer candles than requested, show all
+      // FIT CONTENT: Don't scroll to real-time - keep all historical data visible
       this.chart.timeScale().fitContent();
     }
-
-    // Scroll to real-time
-    this.chart.timeScale().scrollToRealTime();
   }
 
   /**

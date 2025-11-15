@@ -26,7 +26,8 @@
   let isCachedSortedFlag: boolean = false;
 
   // 🔧 FIX: Limit cache size to prevent unbounded memory growth
-  const MAX_CACHED_CANDLES: number = 1000; // Don't cache more than 1000 candles
+  // Increased to 2000 to support 5Y timeframe (1825 daily candles)
+  const MAX_CACHED_CANDLES: number = 2000;
 
   /**
    * Check if array is already sorted by time (ascending)
