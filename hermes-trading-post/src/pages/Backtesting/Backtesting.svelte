@@ -2,7 +2,6 @@
   // Layout Components
   import CollapsibleSidebar from '../../components/layout/CollapsibleSidebar.svelte';
   import BacktestingLayout from '../../components/backtesting/layout/BacktestingLayout.svelte';
-  import BacktestingHeader from '../../components/backtesting/layout/BacktestingHeader.svelte';
   import PanelsRow from '../../components/backtesting/layout/PanelsRow.svelte';
   
   // Control Components
@@ -227,18 +226,14 @@
 
 <BacktestingLayout {sidebarCollapsed}>
   <div slot="sidebar">
-    <CollapsibleSidebar 
+    <CollapsibleSidebar
       {sidebarCollapsed}
       activeSection="backtesting"
       on:toggle={toggleSidebar}
       on:navigate={handleNavigation}
     />
   </div>
-  
-  <div slot="header">
-    <BacktestingHeader {currentPrice} {connectionStatus} />
-  </div>
-  
+
   <div slot="content">
     <PanelsRow>
       <div slot="chart" class="chart-container">
@@ -265,15 +260,15 @@
         />
       </div>
       
-      <StrategyPanel
-        slot="controls" 
-        {isSynced}
-        {paperTradingActive}
-        {isRunning}
-        {showSyncSuccess}
-        on:syncToPaperTrading={syncToPaperTrading}
-        on:runBacktest={handleRunBacktest}
-      >
+      <div slot="controls" class="strategy-container">
+        <StrategyPanel
+          {isSynced}
+          {paperTradingActive}
+          {isRunning}
+          {showSyncSuccess}
+          on:syncToPaperTrading={syncToPaperTrading}
+          on:runBacktest={handleRunBacktest}
+        >
         <div slot="tabs">
           <StrategyTabs bind:activeTab />
         </div>
@@ -320,17 +315,16 @@
           {/if}
         </div>
       </StrategyPanel>
+      </div>
     </PanelsRow>
-    
-    {#if backtestResults}
-      <BacktestingResults
-        {backtestResults}
-        {selectedStrategyType}
-        {strategyParams}
-        {selectedGranularity}
-        {startBalance}
-      />
-    {/if}
+
+    <BacktestingResults
+      {backtestResults}
+      {selectedStrategyType}
+      {strategyParams}
+      {selectedGranularity}
+      {startBalance}
+    />
   </div>
 </BacktestingLayout>
 

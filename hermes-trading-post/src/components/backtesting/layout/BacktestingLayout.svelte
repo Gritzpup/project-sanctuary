@@ -10,8 +10,6 @@
   <slot name="sidebar" />
 
   <main class="dashboard-content" class:expanded={sidebarCollapsed}>
-    <slot name="header" />
-
     <div class="content-wrapper">
       <div class="backtest-grid">
         <slot name="content" />
