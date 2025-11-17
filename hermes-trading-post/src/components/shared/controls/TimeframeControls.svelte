@@ -10,7 +10,13 @@
    * Now supports flexible configuration for different use cases.
    */
 
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
+
+  onMount(() => {
+    console.log('🎯 🎯 🎯 [TimeframeControls] COMPONENT MOUNTED');
+    console.log(`Available timeframes: ${availableTimeframes.join(', ')}`);
+    console.log(`Current timeframe: ${currentTimeframe}`);
+  });
 
   export let currentTimeframe: string = '1H';
   export let availableTimeframes: string[] = ['1H', '6H', '1D', '1W', '1M', '5Y'];

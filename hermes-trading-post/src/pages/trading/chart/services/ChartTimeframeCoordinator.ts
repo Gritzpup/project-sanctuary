@@ -220,19 +220,21 @@ export class ChartTimeframeCoordinator {
         }, 500);
       }
 
-      // Step 5: Apply positioning and animation
-      if (this.animationService) {
-        // Position for new period
-        this.animationService.positionChartForPeriod(
-          null, // Chart will be injected
-          period,
-          dataStore.candles
-        );
-
-        // Animate to latest data
+      // Step 5: Fit chart to show all candles after positioning
+      // Don't try to position with null chart - just let fitContent handle it
+      if (chartSeries && typeof (chartSeries as any).getChart === 'function') {
         setTimeout(() => {
-          this.animationService?.animateToLatestData(null, dataStore.candles);
-        }, 150);
+          try {
+            const chart = (chartSeries as any).getChart();
+            if (chart && typeof chart.timeScale === 'function') {
+              // Fit the chart to show all loaded candles
+              chart.timeScale().fitContent();
+              ChartDebug.log(`✅ Chart fitted to show all ${dataStore.candles.length} candles`);
+            }
+          } catch (err) {
+            ChartDebug.log(`⚠️ Failed to fit chart content: ${err}`);
+          }
+        }, 100);
       }
 
       // Step 6: Resubscribe to real-time after positioning completes

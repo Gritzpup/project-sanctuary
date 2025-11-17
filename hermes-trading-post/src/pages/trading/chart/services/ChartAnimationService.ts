@@ -208,7 +208,12 @@ export class ChartAnimationService {
       '4H': 60,
       '1D': 365,
       '1W': 52,
-      '1M': 12
+      '1M': 12,
+      '5D': 60,     // 5 days = ~60 hourly candles
+      '3M': 90,     // 3 months = ~90 daily candles
+      '6M': 180,    // 6 months = ~180 daily candles
+      '1Y': 365,    // 1 year = 365 daily candles
+      '5Y': 1825    // 5 years = 1825 daily candles (ALL of them!)
     };
 
     return periodMap[period] || 60; // Default to 60 candles

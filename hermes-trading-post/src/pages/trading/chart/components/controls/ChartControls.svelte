@@ -1,4 +1,6 @@
 <script lang="ts">
+  console.log('🚀 [ChartControls] Script loaded');
+
   import { onMount } from 'svelte';
   import { chartStore } from '../../stores/chartStore.svelte';
   import PairSelector from './components/PairSelector.svelte';

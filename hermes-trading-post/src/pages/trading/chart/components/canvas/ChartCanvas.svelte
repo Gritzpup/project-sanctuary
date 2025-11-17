@@ -65,6 +65,13 @@
       return;
     }
 
+    // 🚀 CRITICAL FIX: Don't reinitialize if chart already exists
+    // This prevents creating multiple chart instances on Vite hot reload
+    if (chart) {
+      console.log('Chart already exists, skipping reinitialization');
+      return;
+    }
+
     initCalled = true;
     containerExists = !!container;
 

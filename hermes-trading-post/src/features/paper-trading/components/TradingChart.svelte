@@ -94,7 +94,9 @@
   }
   
   function handlePeriodChange(event: CustomEvent) {
+    console.log(`📊 [TradingChart] handlePeriodChange received:`, event.detail);
     selectedPeriod = event.detail.period;
+    console.log(`📊 [TradingChart] Updated selectedPeriod to: ${selectedPeriod}`);
     dispatch('periodChange', event.detail);
   }
   
