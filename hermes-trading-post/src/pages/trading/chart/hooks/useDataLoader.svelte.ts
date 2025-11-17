@@ -206,9 +206,15 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         }
 
         console.log(`[useDataLoader] Loaded ${candlesToRender.length} candles for rendering (${validCandles.length} total loaded)`);
-        // Set chart data initially so chart displays something
-        // ChartDataManager will handle subsequent updates and positioning
-        config.series.setData(candlesToRender);
+        // 🔧 FIX: DO NOT set data on series here - let ChartDataManager handle ALL series updates
+        // If we call setData() here AND ChartDataManager also calls it, we get:
+        // 1. Duplicate calls
+        // 2. Potential data conflicts if they have different data
+        // 3. Race conditions where one overwrites the other
+        //
+        // The flow should be: useDataLoader updates dataStore → ChartDataManager sees update → ChartDataManager calls series.setData()
+        // This ensures a single source of truth (ChartDataManager) for series management
+        console.log(`📊 [useDataLoader] Data loaded and saved to dataStore - ChartDataManager will handle series.setData()`);
 
         // ⚡ SEAMLESS REFRESH FIX: Set visible candles based on timeframe
         // Short-term: Show 60 candles for detail

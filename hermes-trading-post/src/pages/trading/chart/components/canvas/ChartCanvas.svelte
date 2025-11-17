@@ -303,12 +303,16 @@
 
   // 🔧 FIX: Called by ChartCore after loading data to render it
   export function updateChartDisplay() {
+    console.log(`📊 [ChartCanvas] updateChartDisplay called: candleSeries=${!!candleSeries}, dataStore.candles=${dataStore.candles.length}`);
     if (!candleSeries || !dataStore.candles.length) {
+      console.log(`⏭️  [ChartCanvas] Early return from updateChartDisplay: candleSeries=${!!candleSeries}, candleCount=${dataStore.candles.length}`);
       return;
     }
+    console.log(`📊 [ChartCanvas] Calling updateChartData() with ${dataStore.candles.length} candles`);
     dataManager?.updateChartData();
     dataManager?.updateVolumeData();
     prevCandleCount = dataStore.candles.length;
+    console.log(`✅ [ChartCanvas] updateChartDisplay complete`);
   }
 
   /**

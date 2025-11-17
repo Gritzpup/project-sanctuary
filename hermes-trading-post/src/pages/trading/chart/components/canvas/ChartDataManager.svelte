@@ -212,14 +212,21 @@
       // Use cached sorted candles
       const sortedCandles = cachedSortedCandles;
 
+      console.log(`🔍 [ChartDataManager] Processing update: isInitialized=${isInitialized}, sortedCandles=${sortedCandles.length}, lastProcessedIndex=${lastProcessedIndex}`);
+
       // 🚀 PERF: Use incremental updates instead of full replacement
-      if (!isInitialized) {
-        // Initial load: set all data at once
-        console.log(`📈 [ChartDataManager] INITIAL LOAD: Setting ${sortedCandles.length} candles on chart (first time)`);
+      // 🔧 FIX: Track initialization by lastProcessedIndex=-1, not by isInitialized flag
+      // isInitialized can be reset during component lifecycle, but lastProcessedIndex persists
+      // Only call setData() once: when lastProcessedIndex is still -1 (never been set before)
+      const isFirstLoad = lastProcessedIndex === -1 && sortedCandles.length > 0;
+
+      if (isFirstLoad) {
+        // Initial load: set all data at once (ONLY ONCE!)
+        console.log(`📈 [ChartDataManager] FIRST LOAD: Calling candleSeries.setData() with ${sortedCandles.length} candles`);
         candleSeries.setData(sortedCandles);
-        isInitialized = true;
         lastProcessedIndex = sortedCandles.length - 1;
-        console.log(`✅ [ChartDataManager] INITIAL LOAD COMPLETE: isInitialized=true, lastProcessedIndex=${lastProcessedIndex}`);
+        isInitialized = true;
+        console.log(`✅ [ChartDataManager] FIRST LOAD COMPLETE: lastProcessedIndex=${lastProcessedIndex}, isInitialized=true`);
 
         // 🔧 FIX: Force proper zoom level after INITIAL data load ONLY
         // This fixes the issue where chart starts extremely zoomed in showing only 2 candles
@@ -279,12 +286,13 @@
   export function resetForNewTimeframe() {
     console.log('🔄 [ChartDataManager] Resetting for new timeframe...');
     console.log(`   Before reset: lastProcessedIndex=${lastProcessedIndex}, isInitialized=${isInitialized}, cachedCandles=${cachedSortedCandles.length}, lastCandleCount=${lastCandleCount}`);
+    // Reset to initial state so next update is treated as first load
     lastProcessedIndex = -1;
     isInitialized = false;
     cachedSortedCandles = [];
     lastCandleCount = 0;
     isCachedSortedFlag = false;
-    console.log('✅ [ChartDataManager] Reset complete - ready for new data');
+    console.log('✅ [ChartDataManager] Reset complete - lastProcessedIndex=-1, next update will be treated as FIRST LOAD');
   }
   
   export function handleRealtimeUpdate(candle: any) {
