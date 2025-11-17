@@ -957,7 +957,11 @@ class DataStore {
               console.log(`✅ [DataStore] Added NEW candle #${this._candles.length}: time=${normalizedTime}, close=$${candleData.close}`);
 
               // 🔧 FIX: Cap candle array to prevent memory leak
-              const MAX_STORED_CANDLES = 2000;
+              // Use granularity-aware limits:
+              // - 1d: Keep 1825 candles (exactly 5 years)
+              // - Other: Keep 2000 candles
+              const currentGranularity = this.getCurrentConfig().granularity;
+              const MAX_STORED_CANDLES = (currentGranularity === '1d' || currentGranularity === '1D') ? 1825 : 2000;
               if (this._candles.length > MAX_STORED_CANDLES) {
                 const trimCount = this._candles.length - MAX_STORED_CANDLES;
                 this._candles.splice(0, trimCount);
