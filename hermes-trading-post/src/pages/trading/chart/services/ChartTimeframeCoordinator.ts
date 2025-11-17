@@ -200,6 +200,11 @@ export class ChartTimeframeCoordinator {
         });
 
         ChartDebug.log(`Data loaded for ${granularity} ${period}`);
+
+        // Update database count after loading new data for the timeframe
+        // This ensures the "DB" stat in the UI shows the correct total
+        // available candles for the new granularity/timeframe
+        await dataStore.updateDatabaseCount();
       }
 
       // Step 3: Track usage and update prefetch queue
