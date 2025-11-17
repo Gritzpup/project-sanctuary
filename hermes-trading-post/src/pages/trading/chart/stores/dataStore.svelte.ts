@@ -7,7 +7,7 @@ interface CandlestickDataWithVolume extends CandlestickData {
 import type { WebSocketCandle } from '../types/data.types';
 import { chartCacheService } from '../../../../shared/services/chartCacheService';
 import { chartRealtimeService } from '../../../../shared/services/chartRealtimeService';
-import { chartIndexedDBCache } from '../services/ChartIndexedDBCache';
+// ✅ REMOVED: chartIndexedDBCache - no longer needed with Redis + Memory architecture
 import { ChartDebug } from '../utils/debug';
 import { getGranularitySeconds } from '../utils/granularityHelpers';
 import { chartStore } from './chartStore.svelte';
@@ -249,8 +249,6 @@ class DataStore {
     endTime: number,
     maxCandles?: number
   ): Promise<void> {
-    console.log(`🚀🚀🚀 [DataStore] loadData called: pair=${pair}, granularity=${granularity}, maxCandles=${maxCandles || 'default(120)'}`);
-    console.log(`🚀🚀🚀 [DataStore] Time range: ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
     const perfStart = performance.now();
 
     // Update current pair/granularity
@@ -260,253 +258,58 @@ class DataStore {
     try {
       await chartCacheService.initialize();
 
-      // ✅ CRITICAL FIX: Use the warm cache from AppInitializer instead of forcing API calls
-      // AppInitializer pre-loads all common granularities (1d loads full 5 years = 1825 candles)
-      // Using the cache eliminates race conditions between API calls and WebSocket updates
-      // This is fast (IndexedDB reads) and eliminates unnecessary API calls
-      const cachedData = await chartIndexedDBCache.get(pair, granularity);
+      console.log(`📊 [DataStore] Loading ${pair} ${granularity}...`);
 
-      if (cachedData && cachedData.candles.length > 0) {
-        // ✅ Cache hit! Show cached data immediately (0ms perceived load time)
-        // 🚀 PHASE 11: Check if cache needs enhancement BEFORE slicing
-        const cachedCandles = cachedData.candles;
-        const requestedCandles = maxCandles || 1000;
+      // ✅ SIMPLE ARCHITECTURE: Load from Redis via chartCacheService
+      // WebSocket has already populated Redis with all timeframes
+      // No IndexedDB, no complex logic - just get the data and store in memory
+      const candles = await chartCacheService.fetchCandles({
+        pair,
+        granularity,
+        start: startTime,
+        end: endTime,
+        limit: maxCandles || 2000
+      });
 
-        console.log(`[DataStore CACHE HIT] Loading from cache (cached=${cachedCandles.length}, maxCandles=${requestedCandles})`);
-        ChartDebug.log(`⚡ INSTANT LOAD from IndexedDB: ${cachedCandles.length} candles (${performance.now() - perfStart}ms)`);
+      console.log(`✅ [DataStore] Loaded ${candles.length} candles for ${pair} ${granularity}`);
 
-        // 🚀 PHASE 11: Load immediately from cache, then fetch additional data asynchronously
-        // This gives instant display while fetching more data from backend
-        const candlesToLoad = maxCandles ? cachedCandles.slice(-maxCandles) : cachedCandles;
-        console.log(`[DataStore CACHE HIT] Loading ${candlesToLoad.length} candles (cached=${cachedCandles.length})`);
-        this.setCandles(candlesToLoad);
-        this.updateStats();
+      // Convert to CandlestickData format and store in memory
+      const chartCandles: CandlestickDataWithVolume[] = candles.map(c => ({
+        time: c.time as any,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume
+      }));
 
-        // 🚀 PHASE 11: Cache enhancement now happens at app init via AppInitializer
-        // We load sufficient data per granularity during warming, so we don't need additional fetches here
-        // Infinite scroll will handle loading more as user scrolls left
+      this.setCandles(chartCandles);
+      this.updateStats();
 
-        // 🔄 DELTA SYNC: Only fetch new candles since last cache
-        const lastCandleTime = cachedData.lastCandleTime;
-        const now = Math.floor(Date.now() / 1000);
-        const timeSinceLastCandle = now - lastCandleTime;
-
-        // If cache is fresh (< 5 minutes old), skip network fetch
-        const isFresh = await chartIndexedDBCache.isFresh(pair, granularity);
-
-        if (isFresh && timeSinceLastCandle < 300) {
-          ChartDebug.log(`✅ Cache is fresh, skipping network fetch`);
-
-          // Stats are already updated locally via updateStats(), no need for backend API call
-          // (This was causing 30-second polling timeout errors)
-
-          return;
-        }
-
-        // Cache is stale, fetch only NEW candles (delta sync)
-        ChartDebug.log(`🔄 Fetching delta: from ${new Date(lastCandleTime * 1000).toISOString()} to now`);
-
-        const deltaData = await chartCacheService.fetchCandles({
-          pair,
-          granularity,
-          start: lastCandleTime + 60, // Start from next candle after last cached
-          end: endTime,
-          limit: 1000 // Should be small (only recent candles)
-        });
-
-        if (deltaData.length > 0) {
-          ChartDebug.log(`📊 Delta sync: fetched ${deltaData.length} new candles`);
-
-          // Convert Candle[] to CandlestickData[] for cache
-          const deltaAsChartData: CandlestickDataWithVolume[] = deltaData.map(c => ({
-            time: c.time as any,
-            open: c.open,
-            high: c.high,
-            low: c.low,
-            close: c.close,
-            volume: c.volume
-          }));
-
-          // Merge delta with cached data
-          await chartIndexedDBCache.appendCandles(pair, granularity, deltaAsChartData);
-
-          // 🚀 PHASE 6: Merge delta with already-loaded candles (not full cache)
-          // Only merge with candlesToLoad to maintain maxCandles limit
-          const mergedCandles = [...candlesToLoad, ...deltaAsChartData].sort(
-            (a, b) => (a.time as number) - (b.time as number)
-          );
-
-          this.setCandles(mergedCandles as CandlestickDataWithVolume[]);
-          this.updateStats();
-        }
-
-        ChartDebug.log(`⚡ Total load time with delta sync: ${performance.now() - perfStart}ms`);
-
-      } else if (cachedData === null || cachedData.candles.length === 0) {
-        // ❌ Cache miss - fetch full data from backend
-        ChartDebug.log(`❌ Cache miss - fetching full data from backend`);
-
-        const data = await chartCacheService.fetchCandles({
-          pair,
-          granularity,
-          start: startTime,
-          end: endTime,
-          limit: maxCandles || 10000
-        });
-
-        console.log(`[DataStore CACHE MISS - BACKEND] Loading ${data.length} candles from backend`);
-
-        // 🎯 ALWAYS FETCH FRESH 60 CANDLES: If we have less than 60 candles, fetch fresh from Coinbase
-        // This ensures we always display a complete chart on every refresh
-        const MIN_CANDLES = 60;
-        const requestedCandles = Math.max(maxCandles || 120, MIN_CANDLES);
-
-        console.log(`🎯 [DataStore 60-CANDLE CHECK] Redis returned ${data.length} candles, MIN_CANDLES=${MIN_CANDLES}, maxCandles=${maxCandles}, requestedCandles=${requestedCandles}`);
-
-        if (data.length < MIN_CANDLES) {
-          console.log(`🚀 [DataStore] Only ${data.length} candles in Redis - fetching fresh ${MIN_CANDLES} from Coinbase API...`);
-
-          // Fetch fresh 120 candles directly from Coinbase (ask for 2x to ensure we get at least 60)
-          // Coinbase might have gaps or rate limits, so asking for more ensures we hit MIN_CANDLES
-          const FETCH_CANDLE_COUNT = 120;
-          const granularityMap: Record<string, number> = {
-            '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '1d': 86400
-          };
-          const granularitySeconds = granularityMap[granularity] || 60;
-          const timeRange = FETCH_CANDLE_COUNT * granularitySeconds; // Fetch 120 candles worth of time
-          const fetchStart = endTime - timeRange;
-
-          const freshCandles = await this.fetchGapData(fetchStart, endTime);
-          console.log(`✅ [DataStore] Fetched ${freshCandles.length} fresh candles from Coinbase`);
-
-          if (freshCandles.length > 0) {
-            this.setCandles(freshCandles as CandlestickDataWithVolume[]);
-            this.updateStats();
-            console.log(`🎯🎯🎯 [DataStore 60-CANDLE RESULT] Loaded ${this._candles.length} fresh candles from Coinbase API (requested ${MIN_CANDLES})`);
-
-            // Cache for next time
-            await chartIndexedDBCache.set(pair, granularity, freshCandles);
-            ChartDebug.log(`⏱️ Full load time (fresh from Coinbase): ${performance.now() - perfStart}ms`);
-            return;
-          }
-        }
-
-        // If we have enough candles or Coinbase fetch failed, use Redis data
-        this.setCandles(data);
-        this.updateStats();
-        console.log(`🎯🎯🎯 [DataStore 60-CANDLE RESULT] After setCandles: ${this._candles.length} candles in memory (Redis had ${data.length})`);
-
-        // 🔧 AUTO-FILL: If we got fewer candles than requested, try to backfill older ones
-        if (data.length < requestedCandles && data.length > 0) {
-          console.log(`⚠️ [DataStore] Have ${data.length}/${requestedCandles} candles, backfilling older ones...`);
-
-          // Calculate how far back we need to go to get the requested number of candles
-          const granularityMap: Record<string, number> = {
-            '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '1d': 86400
-          };
-          const granularitySeconds = granularityMap[granularity] || 60;
-          const candlesNeeded = requestedCandles - data.length;
-          const timeRangeNeeded = candlesNeeded * granularitySeconds;
-
-          // If we have no data, fetch from endTime backwards; otherwise fetch before oldest candle
-          let fetchStartTime: number;
-          let fetchEndTime: number;
-
-          if (data.length === 0) {
-            // No data at all - fetch the requested amount backwards from endTime
-            fetchEndTime = endTime;
-            fetchStartTime = endTime - timeRangeNeeded;
-            console.log(`📥 [DataStore] No Redis data - fetching ${candlesNeeded} candles from scratch`);
-          } else {
-            // Have some data - fetch older candles
-            const oldestCandleTime = data[0].time as number;
-            fetchStartTime = oldestCandleTime - timeRangeNeeded;
-            fetchEndTime = oldestCandleTime - granularitySeconds; // Don't overlap with existing data
-            console.log(`📥 [DataStore] Have ${data.length} candles - backfilling ${candlesNeeded} older ones`);
-          }
-
-          // Fetch additional historical data from Coinbase API
-          try {
-            const additionalCandles = await this.fetchGapData(fetchStartTime, fetchEndTime);
-            if (additionalCandles.length > 0) {
-              console.log(`✅ [DataStore] Fetched ${additionalCandles.length} additional candles from Coinbase API`);
-
-              // Merge with existing candles and update
-              const allCandles = [...additionalCandles, ...data].sort((a, b) => (a.time as number) - (b.time as number));
-              this.setCandles(allCandles as CandlestickDataWithVolume[]);
-              this.updateStats();
-              console.log(`🎯🎯🎯 [DataStore] FINAL COUNT after API backfill: ${this._candles.length} candles (${data.length} from Redis + ${additionalCandles.length} from API)`);
-
-              // Cache the enhanced dataset
-              await chartIndexedDBCache.set(pair, granularity, allCandles);
-              console.log(`💾 [DataStore] Cached ${allCandles.length} candles (original ${data.length} + ${additionalCandles.length} from API)`);
-            } else {
-              console.warn(`⚠️ [DataStore] Could not fetch additional candles from Coinbase API`);
-            }
-          } catch (error) {
-            console.error(`❌ [DataStore] Error fetching additional candles:`, error);
-          }
-        } else {
-          // Cache the data for next time (normal case - got enough candles)
-          if (data.length > 0) {
-            await chartIndexedDBCache.set(pair, granularity, data);
-            ChartDebug.log(`💾 Cached ${data.length} candles to IndexedDB`);
-          }
-        }
-
-        ChartDebug.log(`⏱️ Full load time (cache miss): ${performance.now() - perfStart}ms`);
-      }
-
-      // Stats are updated locally via updateStats(), no need for backend API call
-      // This prevents polling errors and keeps stats responsive
+      console.log(`⏱️ [DataStore] Load complete in ${(performance.now() - perfStart).toFixed(0)}ms`);
 
     } catch (error) {
-      // ⚡ PHASE 8A: If error occurs, try to use cached data as fallback
-      ChartDebug.log(`⚠️ Error during chart data load: ${error}. Attempting to use cached data...`);
-      const cachedData = await chartIndexedDBCache.get(pair, granularity);
-      if (cachedData && cachedData.candles.length > 0) {
-        ChartDebug.log(`📊 Using cached data as fallback: ${cachedData.candles.length} candles`);
-        this.setCandles(cachedData.candles);
-        this.updateStats();
-        return;
-      }
-      // PERF: Disabled - console.error(`❌ [DataStore] Error loading data for ${pair}/${granularity}:`, error);
+      console.error(`❌ [DataStore] Failed to load data:`, error);
       throw error;
     }
   }
 
   async reloadData(startTime: number, endTime: number): Promise<void> {
     const config = this.getCurrentConfig();
-    // 🚀 PERF: Remove hard-coded candle limits during refresh
-    // Use 50000 limit to accommodate large historical ranges without truncation
+
+    console.log(`🔄 [DataStore] Reloading ${config.pair} ${config.granularity}...`);
+
     const data = await chartCacheService.fetchCandles({
       pair: config.pair,
       granularity: config.granularity,
       start: startTime,
       end: endTime,
-      limit: 50000  // Increased from 5000 to prevent missing candles on refresh
+      limit: 50000  // Accommodate large historical ranges
     });
 
-    // ⚡ PHASE 8A: Fallback to cached data if backend returns empty on reload
-    if (data.length === 0) {
-      ChartDebug.log(`⚠️ Reload fetch returned empty - checking cached data as fallback`);
-      const cachedData = await chartIndexedDBCache.get(config.pair, config.granularity);
-      if (cachedData && cachedData.candles.length > 0) {
-        ChartDebug.log(`📊 Using cached data as fallback for reload: ${cachedData.candles.length} candles`);
-        this.setCandles(cachedData.candles);
-        this.updateStats();
-        return;
-      }
-    }
-
-    console.log(`[DataStore RELOAD] Loading ${data.length} candles via reloadData`);
+    console.log(`[DataStore RELOAD] Loaded ${data.length} candles via reloadData`);
     this.setCandles(data);
     this.updateStats();
-
-    // Update IndexedDB cache
-    if (data.length > 0) {
-      await chartIndexedDBCache.set(config.pair, config.granularity, data);
-    }
   }
 
   async fetchGapData(fromTime: number, toTime: number): Promise<CandlestickData[]> {

@@ -10,7 +10,7 @@ import { animationManager, initializeAnimationManager } from '../../utils/Animat
 import { metricsCollector, startMetricsCollection } from '../../services/monitoring/MetricsCollector';
 import { chartCacheService } from '../../shared/services/chartCacheService';
 import { chartDataProcessingService } from '../../services/ChartDataProcessingService';
-import { chartIndexedDBCache } from '../../pages/trading/chart/services/ChartIndexedDBCache';
+// ✅ REMOVED: chartIndexedDBCache - not needed with Redis-only architecture
 
 /**
  * Application initialization sequence
@@ -122,87 +122,11 @@ export class AppInitializer {
       }
     };
 
-    scheduleTask(async () => {
-      try {
-        console.log('[AppInitializer] 🔥 Starting background cache warming...');
-
-        // Initialize IndexedDB if not already done
-        await chartIndexedDBCache.initialize();
-
-        // Prefetch most common chart data (BTC-USD with 1m granularity)
-        const commonPair = 'BTC-USD';
-        const commonGranularities = ['1m', '5m'];
-
-        for (const granularity of commonGranularities) {
-          try {
-            // 🚀 PHASE 11 FIX: Always fetch fresh 1m data since it changes frequently
-            // For 5m and coarser, use cache if fresh (< 5 minutes old)
-            const cached = await chartIndexedDBCache.get(commonPair, granularity);
-            const now = Date.now();
-            const cacheAgeMs = cached ? (now - cached.timestamp) : Infinity;
-
-            // 1m data changes every minute, so always fetch fresh
-            // Other granularities can use cache if < 5 minutes old
-            const shouldSkipFetch = granularity !== '1m' && cached && cacheAgeMs < 5 * 60 * 1000;
-
-            if (shouldSkipFetch) {
-              // Cache is fresh and not 1m, skip fetch
-              console.log(`[AppInitializer] ✅ Chart cache warm (${commonPair}:${granularity})`);
-              continue;
-            }
-
-            // Fetch fresh data and cache it
-            console.log(`[AppInitializer] 📡 Warming chart cache: ${commonPair}:${granularity}...`);
-
-            // 🚀 PHASE 11: Load appropriate amount per granularity for instant cache
-            // Balance between memory (small) and UX (show meaningful data immediately)
-            // Keep amounts reasonable to avoid memory issues
-            // For 1d: Load FULL 1825 candles (5 years) for 5Y chart - all data pre-loaded!
-            const granularityCacheAmounts: Record<string, number> = {
-              '1m': 200,     // ~3 hours of 1m data - enough for initial view
-              '5m': 150,     // ~12 hours of 5m data
-              '15m': 100,    // ~25 hours of 15m data
-              '30m': 75,     // ~37 hours of 30m data
-              '1h': 50,      // ~2 days of hourly data
-              '4h': 30,      // ~5 days of 4h data
-              '1d': 1825     // FULL 5 YEARS (1825 candles) - no API calls when viewing 5Y chart!
-            };
-
-            const now_sec = Math.floor(Date.now() / 1000);
-            const granularitySecondsMap: Record<string, number> = {
-              '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400
-            };
-            const granularitySeconds = granularitySecondsMap[granularity] || 60;
-            const candleCount = granularityCacheAmounts[granularity] || 100;
-            const startTime = now_sec - (candleCount * granularitySeconds);
-            const endTime = now_sec;
-
-            // Fetch from backend cache service with granularity-specific amounts
-            const candles = await chartCacheService.fetchCandles({
-              pair: commonPair,
-              granularity,
-              start: startTime,
-              end: endTime,
-              limit: candleCount
-            });
-
-            if (candles.length > 0) {
-              // Store in IndexedDB
-              await chartIndexedDBCache.set(commonPair, granularity, candles);
-              console.log(`[AppInitializer] ✅ Cached ${candles.length} ${granularity} candles for ${commonPair}`);
-            }
-          } catch (error) {
-            console.warn(`[AppInitializer] ⚠️ Failed to warm cache for ${commonPair}:${granularity}:`, error);
-            // Continue with next granularity - cache warming is best-effort
-          }
-        }
-
-        console.log('[AppInitializer] ✅ Background cache warming complete');
-      } catch (error) {
-        console.warn('[AppInitializer] ⚠️ Cache warming failed:', error);
-        // Non-critical - app continues normally without cached data
-      }
-    });
+    // ✅ SIMPLIFIED: No cache warming needed
+    // Redis/backend already has all data pre-loaded by WebSocket feed
+    // ChartCacheService has built-in LRU memory cache with 5s TTL
+    // Frontend just loads from Redis when needed
+    console.log('[AppInitializer] ✅ Skipping cache warming - Redis is pre-populated by WebSocket');
   }
 
   /**
