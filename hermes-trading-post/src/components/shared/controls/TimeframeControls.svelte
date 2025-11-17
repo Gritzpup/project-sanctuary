@@ -29,7 +29,8 @@
   let debounceTimer: number | null = null;
 
   function handleTimeframeChange(timeframe: string) {
-    console.log(`🎯 [TimeframeControls] Button clicked: ${timeframe}`);
+    console.log(`🎯 🎯 🎯 [TimeframeControls] ===== BUTTON CLICKED: ${timeframe} =====`);
+    console.log(`currentTimeframe: ${currentTimeframe}, isDebouncing: ${isDebouncing}`);
 
     // Prevent multiple rapid clicks - debounce
     if (isDebouncing) {
