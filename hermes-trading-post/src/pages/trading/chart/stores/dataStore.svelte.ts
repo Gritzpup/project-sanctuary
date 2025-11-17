@@ -260,11 +260,13 @@ class DataStore {
     try {
       await chartCacheService.initialize();
 
-      // 🔥 DISABLED IndexedDB cache - always fetch fresh data from Redis
-      // IndexedDB causes stale data issues - Redis is fast enough
-      const cachedData = null; // Force cache miss to always fetch from Redis
+      // ✅ CRITICAL FIX: Use the warm cache from AppInitializer instead of forcing API calls
+      // AppInitializer pre-loads all common granularities (1d loads full 5 years = 1825 candles)
+      // Using the cache eliminates race conditions between API calls and WebSocket updates
+      // This is fast (IndexedDB reads) and eliminates unnecessary API calls
+      const cachedData = await chartIndexedDBCache.get(pair, granularity);
 
-      if (false && cachedData && cachedData.candles.length > 0) {
+      if (cachedData && cachedData.candles.length > 0) {
         // ✅ Cache hit! Show cached data immediately (0ms perceived load time)
         // 🚀 PHASE 11: Check if cache needs enhancement BEFORE slicing
         const cachedCandles = cachedData.candles;
