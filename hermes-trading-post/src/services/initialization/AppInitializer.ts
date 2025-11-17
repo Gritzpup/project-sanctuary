@@ -157,6 +157,7 @@ export class AppInitializer {
             // 🚀 PHASE 11: Load appropriate amount per granularity for instant cache
             // Balance between memory (small) and UX (show meaningful data immediately)
             // Keep amounts reasonable to avoid memory issues
+            // For 1d: Load FULL 1825 candles (5 years) for 5Y chart - all data pre-loaded!
             const granularityCacheAmounts: Record<string, number> = {
               '1m': 200,     // ~3 hours of 1m data - enough for initial view
               '5m': 150,     // ~12 hours of 5m data
@@ -164,7 +165,7 @@ export class AppInitializer {
               '30m': 75,     // ~37 hours of 30m data
               '1h': 50,      // ~2 days of hourly data
               '4h': 30,      // ~5 days of 4h data
-              '1d': 15       // ~2 weeks of daily data
+              '1d': 1825     // FULL 5 YEARS (1825 candles) - no API calls when viewing 5Y chart!
             };
 
             const now_sec = Math.floor(Date.now() / 1000);
