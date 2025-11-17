@@ -110,7 +110,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
               expectedCandleCount = getCandleCount(chartStore.config.granularity, chartStore.config.timeframe) || 12;
             }
           } catch (configError) {
-            console.warn('Could not access chart config, using default candle count:', configError);
           }
           
           if (candles.length >= expectedCandleCount) {
@@ -148,7 +147,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
             
           }
         } catch (smallDatasetError) {
-          console.error('Error in small dataset zoom maintenance:', smallDatasetError);
           // Fall back to not maintaining zoom to prevent freezing
           ChartDebug.log(`Skipping zoom maintenance due to error: ${smallDatasetError.message}`);
         }
@@ -165,11 +163,9 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
           const calculatedCandles = getCandleCount(chartStore.config.granularity, chartStore.config.timeframe);
           if (calculatedCandles > 0) {
             maxCandles = calculatedCandles;
-            console.log(`🎯 [Realtime] Using calculated candle count: ${maxCandles} for ${chartStore.config.granularity}/${chartStore.config.timeframe}`);
           }
         }
       } catch (error) {
-        console.warn('Could not calculate candle count, using default 60:', error);
       }
 
       const startIndex = Math.max(0, candles.length - maxCandles);
@@ -194,7 +190,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
 
     const candles = dataStore.candles;
     if (candles.length === 0) {
-      console.warn('⚠️ [Realtime] No historical candles available, skipping real-time update');
       return;
     }
 
@@ -208,7 +203,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
 
     // 🔍 DEBUG: Ticker detection is now silent (excessive logging removed - 50-100 logs/minute)
     // Enable by uncommenting the line below if debugging ticker behavior
-    // if (Date.now() % 60000 < 100 && isTicker) console.log(`[Ticker] price=${price}, time=${fullCandleData?.time}`);
 
     if (isTicker) {
       // Ticker update: ALWAYS update the last candle, never create new ones
@@ -243,13 +237,11 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
           currentCandle.high == null ||
           currentCandle.low == null ||
           currentCandle.close == null) {
-        console.warn('[Realtime] Skipping ticker update - currentCandle has null values:', currentCandle);
         return;
       }
 
       // Additional validation: ensure high >= low to prevent flickering
       if (currentCandle.high < currentCandle.low) {
-        console.warn('[Realtime] Fixing invalid candle - high < low:', currentCandle);
         // Fix the candle by setting high = low = close
         currentCandle.high = currentCandle.close;
         currentCandle.low = currentCandle.close;
@@ -279,7 +271,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         // Silently handle "Cannot update oldest data" errors - they're expected
         // when candles roll over during ticker updates
         if (!(error as Error).message?.includes('Cannot update oldest data')) {
-          console.error('[Realtime] Error updating ticker:', error);
         }
       }
 
@@ -305,7 +296,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       // New candle needed
       // Ensure price is valid before creating candle
       if (!price || price <= 0 || isNaN(price)) {
-        console.warn('[Realtime] Skipping new candle creation - invalid price:', price);
         return;
       }
 
@@ -353,7 +343,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       //     chart.timeScale().scrollToPosition(2, false);
       //   }
       // } catch (error) {
-      //   console.error('Error auto-scrolling chart:', error);
       // }
 
       // Call new candle callback
@@ -370,13 +359,11 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
           currentCandle.high == null ||
           currentCandle.low == null ||
           currentCandle.close == null) {
-        console.warn('[Realtime] Skipping update - currentCandle has null values:', currentCandle);
         return;
       }
 
       // Validate price before updating
       if (!price || price <= 0 || isNaN(price)) {
-        console.warn('[Realtime] Skipping update - invalid price:', price);
         return;
       }
 
@@ -391,20 +378,30 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
 
       // DO NOT call dataStore.setCandles() - it causes the entire database to be replaced!
       // Just update the chart directly
-      chartSeries.update(updatedCandle);
+      // 🔧 FIX: Wrap in try-catch to handle "Cannot update oldest data" errors
+      // This happens when real-time updates try to apply to historical data (5Y+ timeframes)
+      try {
+        chartSeries.update(updatedCandle);
 
-      // Update volume series if available - MUST use exact same time as price candle
-      if (volumeSeries && fullCandleData?.volume !== undefined) {
-        const prevCandle = candles.length > 1 ? candles[candles.length - 2] : currentCandle;
-        const volumeData = {
-          time: updatedCandle.time, // ✅ Use exact same time as price candle to prevent desync
-          value: fullCandleData.volume * 1000, // Scale volume same as VolumePlugin (1000x)
-          color: price >= prevCandle.close ? '#26a69aCC' : '#ef5350CC' // Up/down color (80% opacity)
-        };
-        volumeSeries.update(volumeData);
+        // Update volume series if available - MUST use exact same time as price candle
+        if (volumeSeries && fullCandleData?.volume !== undefined) {
+          const prevCandle = candles.length > 1 ? candles[candles.length - 2] : currentCandle;
+          const volumeData = {
+            time: updatedCandle.time, // ✅ Use exact same time as price candle to prevent desync
+            value: fullCandleData.volume * 1000, // Scale volume same as VolumePlugin (1000x)
+            color: price >= prevCandle.close ? '#26a69aCC' : '#ef5350CC' // Up/down color (80% opacity)
+          };
+          volumeSeries.update(volumeData);
+        }
+
+        statusStore.setPriceUpdate(); // Direct update for instant response
+      } catch (error) {
+        // Silently handle "Cannot update oldest data" errors - they're expected when
+        // real-time updates try to apply current-time candles to historical 5Y+ data
+        if (!(error as Error).message?.includes('Cannot update oldest data')) {
+          console.error('Unexpected error updating candle:', error);
+        }
       }
-
-      statusStore.setPriceUpdate(); // Direct update for instant response
 
       // DISABLED: Auto-scroll was causing chart to snap constantly
       // Let the chart maintain its natural 60-candle view
@@ -416,7 +413,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       //       chart.timeScale().scrollToPosition(2, false);
       //     }
       //   } catch (error) {
-      //     console.error('Error auto-scrolling 5m chart during price update:', error);
       //   }
       // }
       
@@ -440,6 +436,15 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
    */
   function subscribeToRealtime(config: RealtimeSubscriptionConfig, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any) {
     const { pair, granularity } = config;
+
+    // 🔧 FIX: Disable real-time updates for long-term timeframes (5Y, 1Y)
+    // These display historical data spanning years; real-time updates cause
+    // "Cannot update oldest data" conflicts from lightweight-charts library
+    const currentTimeframe = chartStore.config.timeframe;
+    if (['5Y', '1Y'].includes(currentTimeframe)) {
+      ChartDebug.log(`[RealTime] Disabled for long-term ${currentTimeframe} - prevents "Cannot update oldest data" errors`);
+      return; // Skip real-time subscriptions for historical data
+    }
 
     // ⚡ PHASE 9A: Store current series references so callbacks can use them
     currentChartSeries = chartSeries || null;
@@ -478,7 +483,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
           } catch (error) {
             // Silently handle chart update errors - they're expected during candle transitions
             if (!(error as Error).message?.includes('Cannot update')) {
-              console.warn('[L2 Direct] Chart update error:', error);
             }
           }
         }

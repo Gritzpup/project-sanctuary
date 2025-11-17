@@ -97,29 +97,12 @@ export class ReverseRatioStrategy extends Strategy {
     // Check if we should take profit
     const totalPositionSize = this.stateManager.getTotalPositionSize(this.state.positions);
     
-    // Log position status for monitoring
-    this.exitLogic.logPositionStatus(this.state.positions, currentPrice, candles);
-    
     if (this.state.positions.length > 0 && totalPositionSize > 0) {
       const shouldSell = this.exitLogic.shouldTakeProfit(this.state.positions, currentPrice);
-      
-      // Log sell check result every 5 candles for debugging
-      if (candles.length % 5 === 0) {
-        console.log('[ReverseRatio] 💰 Sell check:', {
-          shouldSell,
-          hasPositions: this.state.positions.length > 0,
-          totalBTC: totalPositionSize.toFixed(6),
-          btcBalance: this.state.balance.btcPositions.toFixed(6),
-          currentPrice: currentPrice.toFixed(2),
-          initialEntry: this.internalState.initialEntryPrice.toFixed(2),
-          profitTarget: this.config.profitTarget + '%'
-        });
-      }
-      
+
       if (shouldSell) {
         // Double check we have BTC to sell
         if (this.state.balance.btcPositions <= 0) {
-          console.warn('Strategy has positions but btcPositions is 0 - skipping sell signal');
           return {
             type: 'hold',
             strength: 0,
@@ -130,14 +113,7 @@ export class ReverseRatioStrategy extends Strategy {
         
         // Use the minimum of our tracked positions and actual BTC balance
         const sellSize = Math.min(totalPositionSize, this.state.balance.btcPositions);
-        
-        console.log('[ReverseRatio] 🎉 GENERATING SELL SIGNAL!', {
-          sellSize: sellSize.toFixed(6),
-          currentPrice: currentPrice.toFixed(2),
-          profitTarget: this.config.profitTarget + '%',
-          reason: `Taking profit at ${this.config.profitTarget}% above initial entry`
-        });
-        
+
         // This is a complete exit - we're selling all positions
         return {
           type: 'sell' as const,

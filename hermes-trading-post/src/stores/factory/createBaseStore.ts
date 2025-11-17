@@ -46,7 +46,6 @@ export function createBaseStore<T>(options: BaseStoreOptions<T>): Writable<T> & 
       }
     } catch (error) {
       if (options.debug) {
-        console.warn('[BaseStore] Failed to restore persisted value:', error);
       }
     }
   }
@@ -65,7 +64,6 @@ export function createBaseStore<T>(options: BaseStoreOptions<T>): Writable<T> & 
         persistValue(options.persist, value);
       } catch (error) {
         if (options.debug) {
-          console.warn('[BaseStore] Failed to persist value:', error);
         }
       }
     }
@@ -75,7 +73,6 @@ export function createBaseStore<T>(options: BaseStoreOptions<T>): Writable<T> & 
     ...store,
     initialize: () => {
       if (options.debug) {
-        console.log(`[BaseStore] Initialized: ${options.persist?.key || 'unnamed'}`);
       }
     },
     reset: () => {
@@ -198,14 +195,12 @@ export function createSyncedStore<T>(options: {
     try {
       isRefreshing = true;
       if (options.debug) {
-        console.log('[SyncedStore] Refreshing...');
       }
 
       const value = await options.sync();
       store.set(value);
     } catch (error) {
       if (options.debug) {
-        console.warn('[SyncedStore] Refresh failed:', error);
       }
     } finally {
       isRefreshing = false;

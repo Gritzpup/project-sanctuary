@@ -412,7 +412,6 @@ export class L2PriceProvider {
       try {
         callback(update);
       } catch (error) {
-        console.error('Error in price subscriber:', error);
       }
     });
   }
@@ -425,7 +424,6 @@ export class L2PriceProvider {
       try {
         callback(context);
       } catch (error) {
-        console.error('Error in market context subscriber:', error);
       }
     });
   }

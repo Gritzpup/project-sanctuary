@@ -12,11 +12,9 @@
       try {
         // Only intervene if truly stuck, not to mask real issues
         if (statusStore.status === 'loading' || statusStore.status === 'initializing') {
-          console.warn('Chart status stuck in', statusStore.status, 'state - setting to ready');
           statusStore.setReady();
         }
       } catch (error) {
-        console.error('Error checking status:', error);
       }
     }, 5000); // Increased timeout to allow proper initialization
   });

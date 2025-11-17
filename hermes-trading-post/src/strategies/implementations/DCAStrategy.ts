@@ -159,7 +159,6 @@ export class DCAStrategy extends Strategy {
     // Update lastBuyTime when a regular DCA buy is executed
     if (position.metadata?.scheduledTime && !position.metadata?.isDipBuy) {
       this.lastBuyTime = position.metadata.scheduledTime;
-      console.log(`DCA Strategy: Updated lastBuyTime to ${new Date(this.lastBuyTime * 1000).toISOString()}`);
     }
     
     // Update average cost

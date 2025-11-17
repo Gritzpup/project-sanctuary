@@ -90,7 +90,6 @@ export class BackendConnector {
       }));
       
     } catch (error) {
-      console.error('Failed to setup WebSocket connection:', error);
       this.state.update(current => ({ 
         ...current, 
         connectionStatus: 'error',

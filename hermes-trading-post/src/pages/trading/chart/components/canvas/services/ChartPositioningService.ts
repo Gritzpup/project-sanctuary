@@ -81,7 +81,6 @@ export class ChartPositioningService {
 
       return true;
     } catch (error) {
-      console.error('Error applying chart positioning:', error);
       return false;
     } finally {
       setTimeout(() => {
@@ -129,7 +128,6 @@ export class ChartPositioningService {
     const showCandles = Math.min(candleCount, visibleCount);
     const startIndex = Math.max(0, candleCount - showCandles);
 
-    console.log(`📊 [ChartPositioningService] showNCandles: candleCount=${candleCount}, visibleCount=${visibleCount}, showing ${showCandles} candles from ${startIndex} to ${candleCount}`);
 
     // Always set visible range and bar spacing, regardless of candle count
     this.chart.timeScale().setVisibleLogicalRange({

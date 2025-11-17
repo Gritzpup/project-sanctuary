@@ -30,7 +30,6 @@ export class ChartIntegration {
       
       // Chart markers updated
     } catch (error) {
-      console.error('❌ Failed to update chart markers:', error);
     }
   }
 

@@ -67,7 +67,6 @@ export class PaperTestService {
       this.runSimulation(options);
       
     } catch (error) {
-      console.error('Paper Test Error:', error);
       this.stateManager.stop();
       throw error;
     }

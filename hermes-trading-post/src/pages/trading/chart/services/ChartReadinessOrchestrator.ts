@@ -65,7 +65,6 @@ export class ChartReadinessOrchestrator {
 
       ChartDebug.log('✅ Chart readiness orchestration complete');
     } catch (error) {
-      console.error('Chart readiness orchestration failed:', error);
       throw error;
     }
   }
@@ -89,7 +88,6 @@ export class ChartReadinessOrchestrator {
 
       ChartDebug.log('Plugin manager initialized');
     } catch (error) {
-      console.warn('Failed to initialize plugin manager:', error);
       // Non-critical - plugins can be registered later
     }
   }
@@ -151,7 +149,6 @@ export class ChartReadinessOrchestrator {
       // This method is a placeholder for future enhancements
       ChartDebug.log('Auto-granularity setup prepared');
     } catch (error) {
-      console.warn('Failed to setup auto-granularity:', error);
       // Non-critical - auto-granularity is optional
     }
   }
@@ -179,7 +176,6 @@ export class ChartReadinessOrchestrator {
         }
         ChartDebug.log('All plugins refreshed');
       } catch (error) {
-        console.warn('Failed to refresh plugins:', error);
       }
       this.pluginRefreshTimeout = null;
     }, delayMs);

@@ -54,7 +54,6 @@ export class WebSocketManager {
         this.ws = new WebSocket(this.config.url, this.config.protocols);
 
         this.ws.onopen = () => {
-          console.log(`🟢 WebSocket connected to ${this.config.url}`);
           this.isConnected = true;
           this.isReconnecting = false;
           this.reconnectAttempts = 0;
@@ -74,12 +73,10 @@ export class WebSocketManager {
         };
 
         this.ws.onclose = (event) => {
-          console.log(`🔴 WebSocket disconnected from ${this.config.url}`, event.code, event.reason);
           this.handleDisconnect();
         };
 
         this.ws.onerror = (error) => {
-          console.error(`❌ WebSocket error on ${this.config.url}:`, error);
           this.isReconnecting = false;
           
           if (this.config.onError) {
@@ -91,14 +88,12 @@ export class WebSocketManager {
 
       } catch (error) {
         this.isReconnecting = false;
-        console.error('Error creating WebSocket:', error);
         reject(error);
       }
     });
   }
 
   public disconnect(): void {
-    console.log(`🛑 Disconnecting WebSocket from ${this.config.url}`);
     
     this.clearTimers();
     this.isConnected = false;
@@ -119,7 +114,6 @@ export class WebSocketManager {
         };
         this.ws.send(JSON.stringify(messageWithTimestamp));
       } catch (error) {
-        console.error('Error sending WebSocket message:', error);
         this.queueMessage(message);
       }
     } else {
@@ -198,13 +192,11 @@ export class WebSocketManager {
           try {
             callback(data);
           } catch (error) {
-            console.error(`Error in WebSocket subscription callback for '${data.type}':`, error);
           }
         });
       }
       
     } catch (error) {
-      console.error('Error parsing WebSocket message:', error, event.data);
     }
   }
 
@@ -222,7 +214,6 @@ export class WebSocketManager {
   private startReconnection(): void {
     if (this.isReconnecting || this.reconnectAttempts >= this.config.maxReconnectAttempts!) {
       if (this.reconnectAttempts >= this.config.maxReconnectAttempts!) {
-        console.error(`❌ Max reconnection attempts (${this.config.maxReconnectAttempts}) reached for ${this.config.url}`);
       }
       return;
     }
@@ -230,11 +221,9 @@ export class WebSocketManager {
     this.reconnectAttempts++;
     const delay = this.config.reconnectInterval! * Math.pow(2, Math.min(this.reconnectAttempts - 1, 4));
     
-    console.log(`🔄 Reconnecting to ${this.config.url} in ${delay}ms (attempt ${this.reconnectAttempts})`);
     
     this.reconnectTimer = setTimeout(() => {
       this.connect().catch(error => {
-        console.error('Reconnection failed:', error);
       });
     }, delay);
   }
@@ -250,7 +239,6 @@ export class WebSocketManager {
 
   private flushMessageQueue(): void {
     if (this.messageQueue.length > 0) {
-      console.log(`📤 Flushing ${this.messageQueue.length} queued messages`);
       
       const messages = [...this.messageQueue];
       this.messageQueue = [];
@@ -273,7 +261,6 @@ export class WebSocketManager {
       
       // Start pong timeout
       this.pongTimer = setTimeout(() => {
-        console.warn('Pong timeout - connection may be dead');
         this.ws?.close();
       }, this.config.pongTimeout);
     }

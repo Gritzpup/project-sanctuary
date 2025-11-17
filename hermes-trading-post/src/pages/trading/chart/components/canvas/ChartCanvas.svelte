@@ -61,17 +61,14 @@
   });
 
   function initializeChart() {
-    console.log(`🔍 [ChartCanvas] initializeChart called: initCalled=${initCalled}, chart=${!!chart}, container=${!!container}`);
 
     if (initCalled) {
-      console.log('🛑 [ChartCanvas] Already called, returning early');
       return;
     }
 
     // 🚀 CRITICAL FIX: Don't reinitialize if chart already exists
     // This prevents creating multiple chart instances on Vite hot reload
     if (chart) {
-      console.log('🛑 [ChartCanvas] Chart already exists, skipping reinitialization');
       return;
     }
 
@@ -79,13 +76,11 @@
     containerExists = !!container;
 
     if (!container) {
-      console.error('❌ [ChartCanvas] Container not found');
       statusStore.setError('Chart container not available');
       return;
     }
 
     // Create chart instance
-    console.log('📊 [ChartCanvas] Creating new chart instance...');
     chart = chartInitializer.createChartInstance();
     if (!chart) {
       statusStore.setError('Failed to create chart');
@@ -273,7 +268,6 @@
     try {
       candleSeries.setMarkers(markers);
     } catch (error) {
-      console.error('Error setting markers:', error);
     }
   }
 
@@ -303,16 +297,12 @@
 
   // 🔧 FIX: Called by ChartCore after loading data to render it
   export function updateChartDisplay() {
-    console.log(`📊 [ChartCanvas] updateChartDisplay called: candleSeries=${!!candleSeries}, dataStore.candles=${dataStore.candles.length}`);
     if (!candleSeries || !dataStore.candles.length) {
-      console.log(`⏭️  [ChartCanvas] Early return from updateChartDisplay: candleSeries=${!!candleSeries}, candleCount=${dataStore.candles.length}`);
       return;
     }
-    console.log(`📊 [ChartCanvas] Calling updateChartData() with ${dataStore.candles.length} candles`);
     dataManager?.updateChartData();
     dataManager?.updateVolumeData();
     prevCandleCount = dataStore.candles.length;
-    console.log(`✅ [ChartCanvas] updateChartDisplay complete`);
   }
 
   /**
@@ -320,9 +310,7 @@
    * This is called when granularity changes to force a complete redraw
    */
   export function resetAndUpdateDisplay(pluginManager?: any) {
-    console.log('🔄 [ChartCanvas] resetAndUpdateDisplay called');
     if (!dataManager) {
-      console.warn('⚠️ DataManager not available');
       return;
     }
 
@@ -331,33 +319,25 @@
 
     // 🔧 FIX: Also reset volume plugin state so volume candles regenerate correctly
     if (pluginManager) {
-      console.log(`🔧 [ChartCanvas] pluginManager exists, attempting to reset volume plugin...`);
       try {
         const volumePlugin = pluginManager.get('volume');
-        console.log(`🔧 [ChartCanvas] volumePlugin result:`, volumePlugin, `has resetForNewTimeframe:`, typeof volumePlugin?.resetForNewTimeframe);
         if (volumePlugin && typeof volumePlugin.resetForNewTimeframe === 'function') {
           volumePlugin.resetForNewTimeframe();
-          console.log('✅ [ChartCanvas] Volume plugin reset successfully');
         } else {
-          console.warn('⚠️ [ChartCanvas] Volume plugin does not have resetForNewTimeframe method');
         }
       } catch (error) {
-        console.warn('⚠️ [ChartCanvas] Could not reset volume plugin:', error);
       }
     } else {
-      console.warn('⚠️ [ChartCanvas] pluginManager not provided to resetAndUpdateDisplay');
     }
 
     // Now update with fresh data
     if (!candleSeries || !dataStore.candles.length) {
-      console.warn('⚠️ No candles available for update');
       return;
     }
 
     dataManager.updateChartData();
     dataManager.updateVolumeData();
     prevCandleCount = dataStore.candles.length;
-    console.log('✅ [ChartCanvas] resetAndUpdateDisplay complete');
   }
 </script>
 

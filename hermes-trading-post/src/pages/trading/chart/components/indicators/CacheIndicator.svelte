@@ -23,7 +23,6 @@
       cacheStats = stats;
       isLoading = false;
     } catch (error) {
-      console.error('Failed to load cache stats:', error);
       isLoading = false;
     }
   }

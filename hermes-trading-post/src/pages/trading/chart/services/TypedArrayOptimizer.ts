@@ -25,13 +25,11 @@ export class TypedArrayOptimizer {
    */
   enableOptimization(): void {
     if (this.optimizationEnabled) {
-      console.log('⚠️ TypedArray optimization already enabled');
       return;
     }
 
     dataStore.enableTypedArrayOptimization();
     this.optimizationEnabled = true;
-    console.log('✅ TypedArray memory optimization enabled globally');
   }
 
   /**
@@ -39,13 +37,11 @@ export class TypedArrayOptimizer {
    */
   disableOptimization(): void {
     if (!this.optimizationEnabled) {
-      console.log('⚠️ TypedArray optimization already disabled');
       return;
     }
 
     dataStore.disableTypedArrayOptimization();
     this.optimizationEnabled = false;
-    console.log('❌ TypedArray optimization disabled');
   }
 
   /**
@@ -66,29 +62,19 @@ export class TypedArrayOptimizer {
    * Log memory statistics to console
    */
   logMemoryStats(): void {
-    console.log('\n=== TypedArray Memory Statistics ===');
     const stats = this.getMemoryStats();
 
-    console.log(`Status: ${stats.enabled ? '✅ ENABLED' : '❌ DISABLED'}`);
-    console.log(`Total Entries: ${stats.totalEntries}`);
 
     if (stats.totalMemoryUsage > 0) {
       const memoryMB = (stats.totalMemoryUsage / 1024 / 1024).toFixed(2);
-      console.log(`Memory Usage: ${memoryMB}MB`);
-      console.log(`Utilization: ${stats.utilizationPercent}%`);
-      console.log(`Compression: ${stats.compressionRatio}`);
 
-      console.log('\nCached Datasets:');
       stats.entries.forEach(entry => {
-        console.log(
           `  ${entry.key}: ${entry.candles} candles, ${(entry.memoryUsage / 1024).toFixed(1)}KB, ${entry.hits} hits`
         );
       });
     } else {
-      console.log('No data cached yet');
     }
 
-    console.log('==================================\n');
   }
 
   /**
@@ -115,12 +101,7 @@ export class TypedArrayOptimizer {
   printDetailedReport(): void {
     dataStore.printCacheReport();
 
-    console.log('\n=== Memory Savings Breakdown ===');
     const savings = this.getMemorySavings();
-    console.log(`Object-based (estimated): ${(savings.estimated / 1024 / 1024).toFixed(2)}MB`);
-    console.log(`TypedArray (actual): ${(savings.actual / 1024 / 1024).toFixed(2)}MB`);
-    console.log(`Savings: ${(savings.saved / 1024 / 1024).toFixed(2)}MB (${savings.percent}%)`);
-    console.log('================================\n');
   }
 
   /**
@@ -128,7 +109,6 @@ export class TypedArrayOptimizer {
    * Can be called on app startup
    */
   autoEnableOnFirstLoad(): void {
-    console.log('⚠️ Auto-enable on first load: Not yet implemented');
     // This could be implemented by monitoring dataStore.stats.totalCount
     // and enabling optimization when first candles are loaded
   }

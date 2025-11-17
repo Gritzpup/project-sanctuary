@@ -108,7 +108,6 @@
       dispatch('chartReady', { chart, series });
       
     } catch (error) {
-      console.error('Failed to initialize chart:', error);
     }
   }
   

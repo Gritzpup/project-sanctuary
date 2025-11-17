@@ -19,6 +19,10 @@
   // Sync granularity props - use one-way binding to avoid cycles
   $: granularity = selectedGranularity || '1m';
   $: period = selectedPeriod || '1H';
+
+  // Debug: Log prop changes
+  $: if (period) {
+  }
 </script>
 
 <ChartContainer

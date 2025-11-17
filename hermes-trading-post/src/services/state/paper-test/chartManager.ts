@@ -54,7 +54,6 @@ export class ChartManager {
         options.chart.timeScale().setVisibleRange(visibleRange);
       }
     } catch (e) {
-      console.warn('Time scale update error:', e);
     }
   }
 
@@ -87,7 +86,6 @@ export class ChartManager {
         options.chart.timeScale().setVisibleRange(visibleRange);
       }
     } catch (e) {
-      console.warn('Time scale update error in stepForward:', e);
     }
   }
 
@@ -112,7 +110,6 @@ export class ChartManager {
       try {
         options.chart.timeScale().setVisibleRange(visibleRange);
       } catch (e) {
-        console.warn('Initial time scale set error:', e);
       }
     }
   }
@@ -136,7 +133,6 @@ export class ChartManager {
       try {
         options.chart.timeScale().setVisibleRange(fullRange);
       } catch (e) {
-        console.warn('Final time scale set error:', e);
       }
     }
   }

@@ -38,13 +38,11 @@ export class OneMinuteCache {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 
       request.onerror = () => {
-        console.error('Failed to open IndexedDB:', request.error);
         reject(request.error);
       };
 
       request.onsuccess = () => {
         this.db = request.result;
-        console.log('OneMinuteCache initialized successfully');
         resolve();
       };
 
@@ -124,7 +122,6 @@ export class OneMinuteCache {
       await new Promise((resolve, reject) => {
         tx.oncomplete = () => resolve(undefined);
         tx.onerror = () => {
-          console.error('Transaction error:', tx.error);
           reject(tx.error);
         };
       });
@@ -132,7 +129,6 @@ export class OneMinuteCache {
       // Notify listeners
       this.notifyUpdate(symbol);
     } catch (error) {
-      console.error('Error storing candles:', error);
     }
   }
 
@@ -153,7 +149,6 @@ export class OneMinuteCache {
         request.onsuccess = () => {
           const records = request.result || [];
           if (!Array.isArray(records)) {
-            console.warn('IndexedDB returned non-array:', records);
             resolve([]);
             return;
           }
@@ -162,12 +157,10 @@ export class OneMinuteCache {
         };
         
         request.onerror = () => {
-          console.error('IndexedDB error:', request.error);
           resolve([]); // Return empty array on error
         };
       });
     } catch (error) {
-      console.error('Error in getCandles:', error);
       return [];
     }
   }
@@ -221,14 +214,12 @@ export class OneMinuteCache {
       await new Promise((resolve, reject) => {
         tx.oncomplete = () => resolve(undefined);
         tx.onerror = () => {
-          console.error('Transaction error:', tx.error);
           reject(tx.error);
         };
       });
       
       this.notifyUpdate(symbol);
     } catch (error) {
-      console.error('Error updating candle:', error);
     }
   }
 
@@ -247,12 +238,10 @@ export class OneMinuteCache {
           resolve(request.result || null);
         };
         request.onerror = () => {
-          console.error('Error getting metadata:', request.error);
           resolve(null);
         };
       });
     } catch (error) {
-      console.error('Error in getMetadata:', error);
       return null;
     }
   }
@@ -320,12 +309,10 @@ export class OneMinuteCache {
       await new Promise((resolve, reject) => {
         tx.oncomplete = () => resolve(undefined);
         tx.onerror = () => {
-          console.error('Clear transaction error:', tx.error);
           reject(tx.error);
         };
       });
     } catch (error) {
-      console.error('Error clearing data:', error);
     }
   }
 }

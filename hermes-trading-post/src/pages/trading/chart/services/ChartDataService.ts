@@ -225,14 +225,12 @@ export class ChartDataService {
   private transformToChartData(candles: Candle[]): CandlestickData[] {
     // Debug for 5m data
     if (this.currentGranularity === '5m') {
-      // PERF: Disabled - console.log('🔍 5m transformToChartData:', {
       //   inputCandles: candles.length,
       //   granularity: this.currentGranularity
       // });
 
       const invalidCandles = candles.filter(candle => !this.isValidCandle(candle));
       if (invalidCandles.length > 0) {
-        // PERF: Disabled - console.log('❌ Invalid 5m candles found:', invalidCandles.length, invalidCandles);
       }
     }
 
@@ -250,7 +248,6 @@ export class ChartDataService {
 
     // Debug for 5m data
     if (this.currentGranularity === '5m') {
-      // PERF: Disabled - console.log('🔍 5m transformToChartData result:', {
       //   outputCandles: transformed.length,
       //   droppedCandles: candles.length - transformed.length
       // });

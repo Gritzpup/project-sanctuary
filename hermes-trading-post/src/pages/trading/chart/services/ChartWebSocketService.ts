@@ -80,7 +80,6 @@ export class ChartWebSocketService {
       this.ws.onerror = (error) => this.handleError(error);
       this.ws.onclose = (event) => this.handleClose(event);
     } catch (error) {
-      // PERF: Disabled - console.error('Failed to create WebSocket:', error);
       this.scheduleReconnect();
     }
   }
@@ -149,7 +148,6 @@ export class ChartWebSocketService {
       try {
         this.ws.close();
       } catch (error) {
-        // PERF: Disabled - console.error('Error closing WebSocket:', error);
       }
 
       this.ws = null;
@@ -219,17 +217,14 @@ export class ChartWebSocketService {
           try {
             callback(data);
           } catch (error) {
-            // PERF: Disabled - console.error(`Error in subscription callback for ${key}:`, error);
           }
         }
       }
     } catch (error) {
-      // PERF: Disabled - console.error('Failed to parse WebSocket message:', error);
     }
   }
 
   private handleError(error: Event): void {
-    // PERF: Disabled - console.error('🔴 [WebSocket] ERROR:', {
     //   error,
     //   readyState: this.ws?.readyState,
     //   url: this.wsUrl
@@ -253,7 +248,6 @@ export class ChartWebSocketService {
 
   private scheduleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      // PERF: Disabled - console.error('Max reconnect attempts reached. Giving up.');
       return;
     }
 
@@ -301,7 +295,6 @@ export class ChartWebSocketService {
         ChartDebug.log(`Sent subscription message for ${key}`);
       }
     } catch (error) {
-      // PERF: Disabled - console.error(`Failed to send subscription message for ${key}:`, error);
     }
   }
 

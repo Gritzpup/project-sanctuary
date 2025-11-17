@@ -47,7 +47,6 @@ export class TradingMetricsWorkerService {
       // This maintains the optimized calculator from Phase 6B
       return this.calculator.calculateSharpeRatio(trades, timeframe || 365);
     } catch (error) {
-      console.error('Error calculating Sharpe ratio:', error);
       return 0;
     }
   }
@@ -61,7 +60,6 @@ export class TradingMetricsWorkerService {
       // Use optimized main-thread calculator from Phase 6E
       return this.calculator.calculateMaxDrawdown(trades, initialBalance);
     } catch (error) {
-      console.error('Error calculating max drawdown:', error);
       return 0;
     }
   }
@@ -75,7 +73,6 @@ export class TradingMetricsWorkerService {
       // Use optimized calculator from Phase 6B
       return (this.calculator as any).calculateTradeStats(trades);
     } catch (error) {
-      console.error('Error calculating trade stats:', error);
       return { winRate: 0, totalTrades: 0 };
     }
   }
@@ -89,7 +86,6 @@ export class TradingMetricsWorkerService {
       // Use optimized calculator from Phase 6B
       return (this.calculator as any).calculateDailyReturns(trades);
     } catch (error) {
-      console.error('Error calculating daily returns:', error);
       return [];
     }
   }
@@ -126,7 +122,6 @@ export class TradingMetricsWorkerService {
         dailyReturns
       };
     } catch (error) {
-      console.error('Error calculating batch metrics:', error);
       return {
         sharpeRatio: 0,
         maxDrawdown: 0,

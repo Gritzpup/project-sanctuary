@@ -8,6 +8,7 @@
   import ChartInfo from './components/overlays/ChartInfo.svelte';
   import ChartError from './components/overlays/ChartError.svelte';
   import ChartDebug from './components/overlays/ChartDebug.svelte';
+  import { chartStore } from './stores/chartStore.svelte';
   import {
     PluginManager,
     VolumePlugin,
@@ -68,9 +69,7 @@
     const handleVisibilityChange = () => {
       isPageVisible = !document.hidden;
       if (isPageVisible) {
-        console.log('📊 [Chart] Page visible - resuming updates');
       } else {
-        console.log('📊 [Chart] Page hidden - pausing updates to save memory');
       }
     };
 
@@ -109,10 +108,8 @@
             }, 1000); // Give it time to initialize
           }
         } catch (error) {
-          console.error(`❌ [ChartContainer] Failed to register ${pluginName} plugin:`, error);
         }
       } else {
-        console.warn('⚠️ [ChartContainer] Failed to create plugin:', pluginName);
       }
     }
   }
@@ -161,7 +158,6 @@
         chartPanes?.addPane('rsi', 25);
       }
     } else {
-      console.warn('ChartContainer: PluginManager not available after waiting');
     }
     
     isReady = true;
@@ -197,7 +193,6 @@
   
   export function addPane(id: string, height: number = 30): void {
     if (!multiPane || !chartPanes) {
-      console.warn('Multi-pane mode is not enabled');
       return;
     }
     chartPanes.addPane(id, height);
@@ -205,7 +200,6 @@
   
   export function removePane(id: string): void {
     if (!multiPane || !chartPanes) {
-      console.warn('Multi-pane mode is not enabled');
       return;
     }
     chartPanes.removePane(id);
@@ -217,7 +211,6 @@
   
   export function addMarkers(markers: any[]): void {
     if (!chartCore) {
-      console.error('ChartCore not available for adding markers');
       return;
     }
 
@@ -226,7 +219,6 @@
       try {
         chartCore.addMarkers(markers);
       } catch (error) {
-        console.error('Error calling chartCore.addMarkers:', error);
       }
     } else {
       // Fallback: add markers one by one
@@ -244,42 +236,37 @@
   
   export function clearMarkers(): void {
     if (!chartCore) {
-      console.error('ChartCore not available for clearing markers');
       return;
     }
     
     if (typeof chartCore.clearMarkers === 'function') {
       chartCore.clearMarkers();
     } else {
-      console.error('ChartCore does not have clearMarkers method');
     }
   }
 
   export function show60Candles(): void {
     if (!chartCore) {
-      console.error('ChartCore not available for show60Candles');
       return;
     }
 
     if (typeof chartCore.show60Candles === 'function') {
       chartCore.show60Candles();
     } else {
-      console.error('ChartCore does not have show60Candles method');
     }
   }
 
   export async function reloadForGranularity(newGranularity: string): Promise<void> {
     if (!chartCore) {
-      console.error('ChartCore not available for reloadForGranularity');
       return;
     }
 
     if (typeof chartCore.reloadForGranularity === 'function') {
       await chartCore.reloadForGranularity(newGranularity);
     } else {
-      console.error('ChartCore does not have reloadForGranularity method');
     }
   }
+
 </script>
 
 <div class="chart-container">

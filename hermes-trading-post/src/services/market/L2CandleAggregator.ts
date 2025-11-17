@@ -170,7 +170,6 @@ export class L2CandleAggregator {
       try {
         callback(candle);
       } catch (error) {
-        console.error('Error in candle subscriber:', error);
       }
     });
   }

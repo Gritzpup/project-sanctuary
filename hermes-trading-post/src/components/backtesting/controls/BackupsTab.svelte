@@ -30,7 +30,6 @@
         savedBackups = JSON.parse(saved);
       }
     } catch (error) {
-      console.error('Failed to load saved backups:', error);
       savedBackups = [];
     }
   }
@@ -39,7 +38,6 @@
     try {
       localStorage.setItem('backtesting-backups', JSON.stringify(savedBackups));
     } catch (error) {
-      console.error('Failed to save backups:', error);
     }
   }
 

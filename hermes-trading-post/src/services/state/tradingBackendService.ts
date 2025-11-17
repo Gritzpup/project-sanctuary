@@ -133,7 +133,6 @@ class TradingBackendService {
           const message = JSON.parse(event.data);
           this.handleMessage(message);
         } catch (error) {
-          console.error('Error parsing message:', error);
         }
       };
 
@@ -143,10 +142,8 @@ class TradingBackendService {
       };
 
       this.ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
       };
     } catch (error) {
-      console.error('Failed to connect to backend:', error);
       this.attemptReconnect();
     }
   }
@@ -160,7 +157,6 @@ class TradingBackendService {
         this.connect();
       }, delay);
     } else {
-      console.error('Max reconnection attempts reached. Please refresh the page.');
     }
   }
 
@@ -177,11 +173,6 @@ class TradingBackendService {
         break;
         
       case 'status':
-        // 🔍 DEBUG: Log vault balances from WebSocket message
-        console.log('🔌 [WebSocket] Received status message with vaults:', {
-          vaultBalance: message.data?.vaultBalance,
-          btcVaultBalance: message.data?.btcVaultBalance
-        });
         this.updateStateFromBackend(message.data);
         break;
         
@@ -218,7 +209,6 @@ class TradingBackendService {
         break;
         
       case 'error':
-        console.error('Backend error:', message.message);
         break;
         
       // Bot manager messages
@@ -309,7 +299,6 @@ class TradingBackendService {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data));
     } else {
-      console.error('WebSocket is not connected');
     }
   }
 
@@ -371,7 +360,6 @@ class TradingBackendService {
       this.updateStateFromBackend(status);
       return status;
     } catch (error) {
-      console.error('Failed to fetch status:', error);
       return null;
     }
   }

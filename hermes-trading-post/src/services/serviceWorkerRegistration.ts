@@ -22,13 +22,11 @@ class ServiceWorkerManager {
   async register(): Promise<ServiceWorkerRegistration | null> {
     // Check if service workers are supported
     if (!('serviceWorker' in navigator)) {
-      console.log('[SW Manager] Service workers not supported');
       return null;
     }
 
     // Don't register in development mode with HMR
     if (import.meta.env.DEV && import.meta.hot) {
-      console.log('[SW Manager] Skipping service worker in dev mode with HMR');
       return null;
     }
 
@@ -38,7 +36,6 @@ class ServiceWorkerManager {
       });
 
       this.registration = registration;
-      console.log('[SW Manager] Service worker registered:', registration.scope);
 
       // Set up update detection
       this.setupUpdateListener(registration);
@@ -48,7 +45,6 @@ class ServiceWorkerManager {
 
       return registration;
     } catch (error) {
-      console.error('[SW Manager] Registration failed:', error);
       return null;
     }
   }
@@ -63,11 +59,9 @@ class ServiceWorkerManager {
 
     try {
       const success = await this.registration.unregister();
-      console.log('[SW Manager] Service worker unregistered:', success);
       this.registration = null;
       return success;
     } catch (error) {
-      console.error('[SW Manager] Unregistration failed:', error);
       return false;
     }
   }
@@ -84,7 +78,6 @@ class ServiceWorkerManager {
       await this.registration.update();
       return !!this.registration.waiting;
     } catch (error) {
-      console.error('[SW Manager] Update check failed:', error);
       return false;
     }
   }
@@ -113,7 +106,6 @@ class ServiceWorkerManager {
       newWorker.addEventListener('statechange', () => {
         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
           // New service worker is ready
-          console.log('[SW Manager] New service worker available');
           this.notifyUpdateAvailable(true);
         }
       });
@@ -121,7 +113,6 @@ class ServiceWorkerManager {
 
     // Listen for controller change (new service worker activated)
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      console.log('[SW Manager] Service worker controller changed - reloading page');
       window.location.reload();
     });
   }
@@ -146,7 +137,6 @@ class ServiceWorkerManager {
       try {
         callback(hasUpdate);
       } catch (error) {
-        console.error('[SW Manager] Update callback error:', error);
       }
     });
   }
@@ -157,7 +147,6 @@ class ServiceWorkerManager {
   async clearAllCaches(): Promise<void> {
     const cacheNames = await caches.keys();
     await Promise.all(cacheNames.map(name => caches.delete(name)));
-    console.log('[SW Manager] All caches cleared');
   }
 
   /**
@@ -165,7 +154,6 @@ class ServiceWorkerManager {
    */
   async clearCache(cacheName: string): Promise<void> {
     await caches.delete(cacheName);
-    console.log(`[SW Manager] Cache cleared: ${cacheName}`);
   }
 
   /**
@@ -214,6 +202,5 @@ export async function initializeServiceWorker(): Promise<void> {
   try {
     await serviceWorkerManager.register();
   } catch (error) {
-    console.error('[SW Manager] Initialization failed:', error);
   }
 }

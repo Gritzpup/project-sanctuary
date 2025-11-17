@@ -88,32 +88,23 @@
   }
   
   function updateChart() {
-    console.log('updateChart called:', { candleSeries: !!candleSeries, dataLength: data?.length || 0 });
     
     if (!candleSeries || !data || data.length === 0) {
-      console.log('updateChart: Early return - missing requirements');
       return;
     }
     
     // Log sample data to verify format
     if (data.length > 0) {
-      console.log('updateChart: Sample data item:', data[0]);
-      console.log('updateChart: Data item keys:', Object.keys(data[0]));
-      console.log('updateChart: First candle time:', data[0].time);
-      console.log('updateChart: Last candle time:', data[data.length - 1].time);
     }
     
     try {
       // Set candlestick data
       candleSeries.setData(data);
-      console.log('updateChart: Data set on series successfully');
     } catch (error) {
-      console.error('updateChart: Error setting data:', error);
     }
     
     // Add trade markers if available
     if (trades && trades.length > 0) {
-      console.log('updateChart: Processing trades for markers:', trades);
       
       // Debug: Log candle time range
       const candleTimeRange = {
@@ -122,8 +113,6 @@
         firstDate: data[0] ? new Date(data[0].time * 1000).toISOString() : 'none',
         lastDate: data[data.length - 1] ? new Date(data[data.length - 1].time * 1000).toISOString() : 'none'
       };
-      console.log('Candle time range:', candleTimeRange);
-      console.log('Trade timestamps:', trades.map(t => ({
         timestamp: t.timestamp,
         date: new Date(t.timestamp * 1000).toISOString(),
         type: t.type,
@@ -133,7 +122,6 @@
       // Verify trade timestamps are within candle range
       const tradesOutOfRange = trades.filter(t => t.timestamp < candleTimeRange.first || t.timestamp > candleTimeRange.last);
       if (tradesOutOfRange.length > 0) {
-        console.error('WARNING: Found trades outside of candle time range:', tradesOutOfRange);
       }
       
       // Create markers for candlestick series
@@ -141,11 +129,9 @@
         // Trade timestamp is already in seconds (same as candle.time)
         const time = trade.timestamp;
         
-        console.log(`Trade ${index}: timestamp=${trade.timestamp}, type=${trade.type}, price=${trade.price}`);
         
         // Check if trade time is within candle range
         if (time < candleTimeRange.first || time > candleTimeRange.last) {
-          console.warn(`Trade ${index} time ${time} is outside candle range [${candleTimeRange.first}, ${candleTimeRange.last}]`);
         }
         
         return {
@@ -158,10 +144,8 @@
         };
       });
       
-      console.log('updateChart: Setting markers:', markers);
       candleSeries.setMarkers(markers);
     } else {
-      console.log('updateChart: No trades to display as markers');
       // Clear any existing markers
       if (candleSeries) candleSeries.setMarkers([]);
     }
@@ -170,7 +154,6 @@
     if (chart) {
       setTimeout(() => {
         chart.timeScale().fitContent();
-        console.log('updateChart: Chart fitted to content');
       }, 100);
     }
   }
@@ -189,21 +172,17 @@
   
   // Update chart when data changes
   $: if (chart && candleSeries && data) {
-    console.log('BacktestChart: Data changed, updating chart with', data.length, 'candles');
     updateChart();
   }
   
   // Update chart when trades change
   $: if (chart && candleSeries && trades) {
-    console.log('BacktestChart: Trades changed, updating chart with', trades.length, 'trades');
     updateChart();
   }
   
   // Log when data prop changes
-  $: console.log('BacktestChart: data prop updated:', data?.length || 0, 'candles', 'chart ready:', !!chart);
   
   // Log when trades prop changes
-  $: console.log('BacktestChart: trades prop updated:', trades?.length || 0, 'trades');
 </script>
 
 <div bind:this={chartContainer} class="backtest-chart-container">

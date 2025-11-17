@@ -12,14 +12,12 @@ export class ServiceInitializer {
 
   public static async initialize(): Promise<void> {
     if (ServiceInitializer.initialized) {
-      console.log('Services already initialized');
       return;
     }
 
     const registry = ServiceRegistry.getInstance();
     const eventBus = EventBus.getInstance();
 
-    console.log('🚀 Initializing service registry...');
 
     try {
       // Register core services
@@ -41,7 +39,6 @@ export class ServiceInitializer {
       await ServiceInitializer.initializeCriticalServices(registry);
 
       ServiceInitializer.initialized = true;
-      console.log('✅ Service registry initialization complete');
 
       // Emit initialization complete event
       eventBus.emitSync('services:initialized', {
@@ -50,7 +47,6 @@ export class ServiceInitializer {
       });
 
     } catch (error) {
-      console.error('❌ Service initialization failed:', error);
       eventBus.emitSync('services:initializationFailed', { error });
       throw error;
     }
@@ -98,9 +94,7 @@ export class ServiceInitializer {
           await service.initialize();
         }
         
-        console.log(`✅ Initialized critical service: ${serviceName}`);
       } catch (error) {
-        console.error(`❌ Failed to initialize critical service '${serviceName}':`, error);
         throw error;
       }
     }
@@ -111,7 +105,6 @@ export class ServiceInitializer {
       return;
     }
 
-    console.log('🛑 Shutting down services...');
 
     const registry = ServiceRegistry.getInstance();
     const eventBus = EventBus.getInstance();
@@ -128,10 +121,8 @@ export class ServiceInitializer {
       eventBus.clearHistory();
 
       ServiceInitializer.initialized = false;
-      console.log('✅ Service shutdown complete');
 
     } catch (error) {
-      console.error('❌ Service shutdown failed:', error);
       throw error;
     }
   }

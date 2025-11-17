@@ -35,7 +35,6 @@
     api.getTicker().then(price => {
       currentPrice = price;
     }).catch(error => {
-      console.error('Error fetching initial price:', error);
     });
 
     // Update price periodically
@@ -44,7 +43,6 @@
         try {
           currentPrice = await api.getTicker();
         } catch (error) {
-          console.error('Error updating price:', error);
         }
       }
     }, 1000) as unknown as number;

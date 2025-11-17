@@ -33,7 +33,6 @@ export class ChartDataLoader {
     isCurrentInstance: () => boolean
   ): Promise<CandleData[]> {
     if (!isCurrentInstance()) {
-      console.log(`[ChartDataLoader] Aborting progressive load - instance ${instanceId} is no longer active`);
       return [];
     }
     
@@ -129,7 +128,6 @@ export class ChartDataLoader {
           await this.cache.storeCandles(symbol, granularity, data);
         }
       } catch (error) {
-        console.error(`[ChartDataLoader] Error loading data for gap:`, error);
       }
     }
   }
@@ -157,7 +155,6 @@ export class ChartDataLoader {
       
       return data;
     } catch (error) {
-      console.error(`[ChartDataLoader] Error refreshing data:`, error);
       // Fall back to cached data
       const cached = await this.cache.getCachedCandles(symbol, granularity, startTime, endTime);
       return cached.candles;
@@ -205,7 +202,6 @@ export class ChartDataLoader {
       
       return candles.length > 0 ? candles[candles.length - 1] : null;
     } catch (error) {
-      console.error(`[ChartDataLoader] Error fetching latest candle:`, error);
       return null;
     }
   }
@@ -214,7 +210,6 @@ export class ChartDataLoader {
    * Abort all pending load operations
    */
   abortPendingOperations(): void {
-    console.log(`[ChartDataLoader] Aborting ${this.pendingLoadOperations.size} pending operations`);
     this.pendingLoadOperations.forEach((controller) => {
       controller.abort();
     });

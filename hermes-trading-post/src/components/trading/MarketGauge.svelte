@@ -64,14 +64,12 @@
   $: {
     const buy = actualNextBuyPrice || 0;
     const sell = actualNextSellPrice || 0;
-    console.log(`🔍 [MarketGauge] Setting display: actualBuy=${actualNextBuyPrice} actualSell=${actualNextSellPrice} -> displayBuy=${buy} displaySell=${sell}`);
     displayNextBuyPrice = buy;
     displayNextSellPrice = sell;
   }
 
   // 🔍 DEBUG: Log the prices being received and calculated
   $: {
-    console.log(`📊 [MarketGauge] DISPLAY: NextBuy=$${displayNextBuyPrice.toFixed(0)} NextSell=$${displayNextSellPrice.toFixed(0)} | CalcHigh=${calculatedRecentHigh.toFixed(0)} Positions=${positions.length} Trades=${trades.length}`);
   }
 
   let displayNextBuyPrice = 0;

@@ -43,7 +43,6 @@ export class RateLimiter {
             const currentDelay = baseDelay * Math.pow(2, retryCount); // 1s, 2s, 4s
             const jitteredDelay = currentDelay + Math.random() * 500; // Add jitter
             
-            console.warn(`Rate limited for ${key}, retry ${retryCount + 1}/3 after ${Math.round(jitteredDelay)}ms`);
             
             this.inProgress--;
             
@@ -56,7 +55,6 @@ export class RateLimiter {
           } else {
             // Either not a rate limit error or max retries reached
             if (retryCount >= 3) {
-              console.error(`Max retries reached for ${key}`);
             }
             reject(error);
           }

@@ -44,12 +44,10 @@ export class HistoricalDataLoader {
   // Start progressive loading for a symbol
   async startProgressiveLoad(symbol: string): Promise<void> {
     if (this.isLoading) {
-      console.log('Progressive load already in progress');
       return;
     }
     
     this.isLoading = true;
-    console.log(`Starting progressive historical data load for ${symbol}`);
     
     try {
       // Load initial data for all granularities
@@ -59,14 +57,12 @@ export class HistoricalDataLoader {
       this.startBackgroundLoading(symbol);
       
     } catch (error) {
-      console.error('Error in progressive load:', error);
       this.isLoading = false;
     }
   }
 
   // Load initial recent data for quick chart display
   private async loadInitialData(symbol: string): Promise<void> {
-    console.log('Loading initial data for quick display...');
     
     const tasks: LoadTask[] = [];
     const now = Math.floor(Date.now() / 1000);
@@ -91,12 +87,10 @@ export class HistoricalDataLoader {
       tasks.map(task => this.limit(() => this.loadChunk(task)))
     );
     
-    console.log('Initial data load complete');
   }
 
   // Start background loading of historical data
   private startBackgroundLoading(symbol: string): void {
-    console.log('Starting background historical loading...');
     
     // Load historical data progressively
     this.loadHistoricalDataProgressively(symbol);
@@ -141,7 +135,6 @@ export class HistoricalDataLoader {
         }
         
         // Execute loads with concurrency limit
-        console.log(`Loading ${tasks.length} chunks for ${granularity}`);
         await Promise.all(
           tasks.map(task => this.limit(() => this.loadChunk(task)))
         );
@@ -171,7 +164,6 @@ export class HistoricalDataLoader {
       
       // Only fetch if we have gaps
       if (cached.gaps.length > 0) {
-        console.log(`Loading ${task.granularity} data from ${new Date(task.startTime * 1000).toISOString()} to ${new Date(task.endTime * 1000).toISOString()}`);
         
         // Fetch data for each gap
         for (const gap of cached.gaps) {
@@ -179,7 +171,6 @@ export class HistoricalDataLoader {
         }
       }
     } catch (error) {
-      console.error(`Error loading chunk ${taskKey}:`, error);
     } finally {
       this.currentTasks.delete(taskKey);
     }
@@ -212,7 +203,6 @@ export class HistoricalDataLoader {
         
         if (candles.length > 0) {
           await this.cache.storeChunk(symbol, granularity, candles);
-          console.log(`Stored ${candles.length} ${granularity} candles`);
         }
         
         currentStart = currentEnd;
@@ -221,13 +211,11 @@ export class HistoricalDataLoader {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     } catch (error) {
-      console.error(`Error fetching gap data:`, error);
     }
   }
 
   // Update latest candles for all granularities
   async updateLatestCandles(symbol: string): Promise<void> {
-    console.log('Updating latest candles...');
     
     const updates = Object.keys(this.loadStrategy).map(async (granularity) => {
       try {
@@ -240,7 +228,6 @@ export class HistoricalDataLoader {
           await this.cache.storeChunk(symbol, granularity, candles);
         }
       } catch (error) {
-        console.error(`Error updating ${granularity} candles:`, error);
       }
     });
     

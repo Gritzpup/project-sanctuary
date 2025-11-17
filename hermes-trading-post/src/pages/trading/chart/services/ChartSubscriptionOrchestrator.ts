@@ -71,7 +71,6 @@ export class ChartSubscriptionOrchestrator {
         `✅ Subscribed to real-time: ${config.pair} ${config.granularity}`
       );
     } catch (error) {
-      console.error('Failed to subscribe to real-time:', error);
     }
   }
 
@@ -86,7 +85,6 @@ export class ChartSubscriptionOrchestrator {
       this.currentConfig = null;
       ChartDebug.log('Unsubscribed from real-time updates');
     } catch (error) {
-      console.warn('Failed to unsubscribe from real-time:', error);
     }
   }
 
@@ -131,7 +129,6 @@ export class ChartSubscriptionOrchestrator {
           `📡 Real-time subscription reset scheduled for ${pair} ${granularity}`
         );
       } catch (error) {
-        console.error('Failed to resubscribe after timeframe change:', error);
         resolve();
       }
     });

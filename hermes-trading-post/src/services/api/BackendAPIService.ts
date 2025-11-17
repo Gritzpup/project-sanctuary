@@ -195,7 +195,6 @@ export class BackendAPIService {
       const response = await this.apiClient.get(`${this.baseURL}/health`);
       return response.status === 'healthy';
     } catch (error) {
-      console.error('Backend health check failed:', error);
       return false;
     }
   }

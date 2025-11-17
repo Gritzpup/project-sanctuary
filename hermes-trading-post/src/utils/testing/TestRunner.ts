@@ -67,10 +67,8 @@ export class TestRunner {
   async runAll(): Promise<TestResult[]> {
     this.results = [];
     
-    console.log('🧪 Running tests...\n');
     
     for (const suite of this.suites) {
-      console.log(`📁 ${suite.name}`);
       
       for (const test of suite.tests) {
         const result = await this.runTest(suite, test);
@@ -78,13 +76,10 @@ export class TestRunner {
         
         const status = result.passed ? '✅' : '❌';
         const duration = `(${result.duration}ms)`;
-        console.log(`  ${status} ${result.name} ${duration}`);
         
         if (!result.passed && result.error) {
-          console.log(`     Error: ${result.error.message}`);
         }
       }
-      console.log();
     }
     
     this.printSummary();
@@ -150,18 +145,11 @@ export class TestRunner {
     const failed = this.results.filter(r => !r.passed).length;
     const total = this.results.length;
     
-    console.log('📊 Test Summary:');
-    console.log(`   Total: ${total}`);
-    console.log(`   Passed: ${passed}`);
-    console.log(`   Failed: ${failed}`);
-    console.log(`   Success Rate: ${((passed / total) * 100).toFixed(1)}%`);
     
     if (failed > 0) {
-      console.log('\n❌ Failed Tests:');
       this.results
         .filter(r => !r.passed)
         .forEach(r => {
-          console.log(`   • ${r.name}: ${r.error?.message}`);
         });
     }
   }

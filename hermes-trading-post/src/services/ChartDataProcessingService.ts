@@ -47,7 +47,6 @@ export class ChartDataProcessingService {
 
       // Set up error handler
       this.worker.onerror = (error: ErrorEvent) => {
-        console.error('[ChartDataProcessingService] Worker error:', error);
         // Reject all pending requests
         for (const [requestId, { reject, timeout }] of this.pendingRequests.entries()) {
           clearTimeout(timeout);
@@ -57,9 +56,7 @@ export class ChartDataProcessingService {
       };
 
       this.isInitialized = true;
-      console.log('[ChartDataProcessingService] Worker initialized');
     } catch (error) {
-      console.error('[ChartDataProcessingService] Failed to initialize worker:', error);
       this.isInitialized = false;
       this.worker = null;
     }
@@ -81,7 +78,6 @@ export class ChartDataProcessingService {
     this.pendingRequests.clear();
 
     this.isInitialized = false;
-    console.log('[ChartDataProcessingService] Worker terminated');
   }
 
   /**
@@ -168,7 +164,6 @@ export class ChartDataProcessingService {
 
     const pending = this.pendingRequests.get(requestId);
     if (!pending) {
-      console.warn(`[ChartDataProcessingService] Received message for unknown request: ${requestId}`);
       return;
     }
 

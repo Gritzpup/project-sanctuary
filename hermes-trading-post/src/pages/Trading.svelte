@@ -32,11 +32,9 @@
   let selectedPeriod = '1H';
   let autoGranularityActive = false;
 
-  console.log('🔥 [Trading.svelte] Script loading - BEFORE onMount');
 
   // Load from localStorage on mount
   onMount(() => {
-    console.log('🔥 [Trading.svelte] onMount executing...');
     try {
       const savedGranularity = localStorage.getItem('trading_granularity');
       const savedPeriod = localStorage.getItem('trading_period');
@@ -49,15 +47,12 @@
         selectedGranularity = savedGranularity;
       }
 
-      console.log(`📦 Loaded saved preferences: ${selectedGranularity} / ${selectedPeriod}`);
     } catch (error) {
-      console.error('Failed to load saved preferences:', error);
     }
 
     // 🔧 FIX: Initialize page immediately to allow DepthChart to connect to active WebSocket
     // Startup performance is now good enough due to reduced initial candle load (300 max)
     pageInitialized = true;
-    console.log('✅ Page initialized, DepthChart can now render and connect');
   });
   
   // Live trading state
@@ -82,26 +77,20 @@
   }
   
   function selectGranularity(granularity: string) {
-    console.log(`🎯 selectGranularity called with: ${granularity}, chart exists: ${!!chart}`);
     if (isGranularityValid(granularity, selectedPeriod)) {
       selectedGranularity = granularity;
 
       // Trigger chart data reload
       if (chart && typeof chart.reloadForGranularity === 'function') {
-        console.log(`🔄 Reloading chart for granularity: ${granularity}`);
         chart.reloadForGranularity(granularity).catch((err: any) => {
-          console.error('Failed to reload chart for granularity:', err);
         });
       } else {
-        console.log(`❌ Cannot reload - chart: ${!!chart}, reloadForGranularity: ${typeof chart?.reloadForGranularity}`);
       }
 
       // Save to localStorage
       try {
         localStorage.setItem('trading_granularity', granularity);
-        console.log(`💾 Saved granularity: ${granularity}`);
       } catch (error) {
-        console.error('Failed to save granularity:', error);
       }
     }
   }
@@ -112,9 +101,7 @@
     // Save to localStorage
     try {
       localStorage.setItem('trading_period', period);
-      console.log(`💾 Saved period: ${period}`);
     } catch (error) {
-      console.error('Failed to save period:', error);
     }
 
     if (!isGranularityValid(selectedGranularity, period)) {
@@ -125,25 +112,20 @@
         // Save the auto-adjusted granularity
         try {
           localStorage.setItem('trading_granularity', selectedGranularity);
-          console.log(`💾 Auto-saved granularity: ${selectedGranularity}`);
         } catch (error) {
-          console.error('Failed to save granularity:', error);
         }
       }
     }
   }
   
   function handleChartGranularityChange(newGranularity: string) {
-    console.log(`📈 handleChartGranularityChange: ${newGranularity}, chart exists: ${!!chart}`);
     if (selectedGranularity !== newGranularity) {
       selectedGranularity = newGranularity;
       autoGranularityActive = true;
 
       // Trigger chart reload for the new granularity
       if (chart && typeof chart.reloadForGranularity === 'function') {
-        console.log(`🔄 [handleChartGranularityChange] Reloading for: ${newGranularity}`);
         chart.reloadForGranularity(newGranularity).catch((err: any) => {
-          console.error('Failed to reload chart for granularity:', err);
         });
       }
 

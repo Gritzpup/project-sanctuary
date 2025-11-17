@@ -22,7 +22,6 @@
 
   // Log granularity changes for debugging
   $: if (currentGranularity) {
-    console.log(`[GranularityControls] Current granularity updated to: ${currentGranularity}`);
   }
 
   // Show all valid granularities for the current timeframe
@@ -31,11 +30,9 @@
     [];
 
   function handleGranularityChange(granularity: string) {
-    console.log(`🎯 [GranularityControls] Button clicked: ${granularity}`);
 
     // Prevent multiple rapid clicks - debounce with 200ms window
     if (isDebouncing) {
-      console.log(`🔒 [GranularityControls] Click blocked - debouncing`);
       return;
     }
 
@@ -46,7 +43,6 @@
       clearTimeout(debounceTimer);
     }
 
-    console.log(`📤 [GranularityControls] Dispatching granularityChange event: ${granularity}`);
 
     // Call parent callback directly for immediate prop updates
     if (onGranularityChange) {

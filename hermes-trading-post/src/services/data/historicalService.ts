@@ -29,7 +29,6 @@ export class HistoricalDataService {
     // Calculate how many requests we need
     const requestsNeeded = Math.ceil(totalCandles / maxCandlesPerRequest);
     
-    console.log(`Fetching ${totalCandles} candles in ${requestsNeeded} requests...`);
     
     for (let i = 0; i < requestsNeeded; i++) {
       const requestStartTime = new Date(startTime.getTime() + (i * maxCandlesPerRequest * candleIntervalMs));
@@ -53,7 +52,6 @@ export class HistoricalDataService {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       } catch (error) {
-        console.error(`Error fetching batch ${i + 1}/${requestsNeeded}:`, error);
         throw error;
       }
     }

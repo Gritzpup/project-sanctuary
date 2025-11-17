@@ -22,7 +22,6 @@ export class PaperTradingPersistence {
       const key = `paperTradingState_${this.instanceId}`;
       localStorage.setItem(key, JSON.stringify(stateToSave));
     } catch (error) {
-      console.error('Failed to save paper trading state:', error);
     }
   }
 
@@ -40,13 +39,11 @@ export class PaperTradingPersistence {
       
       // Validate the restored data
       if (!this.isValidSavedState(parsed)) {
-        console.warn('Invalid saved state found, ignoring');
         return null;
       }
       
       return parsed;
     } catch (error) {
-      console.error('Failed to restore paper trading state:', error);
       return null;
     }
   }
@@ -59,7 +56,6 @@ export class PaperTradingPersistence {
       const key = `paperTradingState_${this.instanceId}`;
       localStorage.removeItem(key);
     } catch (error) {
-      console.error('Failed to clear saved state:', error);
     }
   }
 

@@ -64,7 +64,6 @@
         monthlyGrowth = vaultData.monthlyGrowth;
       }
     } catch (error) {
-      console.error('Failed to load vault data:', error);
     } finally {
       isLoading = false;
     }

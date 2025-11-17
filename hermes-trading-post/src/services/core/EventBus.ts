@@ -82,7 +82,6 @@ export class EventBus {
             promises.push(result);
           }
         } catch (error) {
-          console.error(`Error in event listener for '${eventName}':`, error);
         }
       });
 
@@ -91,7 +90,6 @@ export class EventBus {
         try {
           await Promise.allSettled(promises);
         } catch (error) {
-          console.error(`Error in async event listeners for '${eventName}':`, error);
         }
       }
     }
@@ -109,7 +107,6 @@ export class EventBus {
             promises.push(result);
           }
         } catch (error) {
-          console.error(`Error in once event listener for '${eventName}':`, error);
         }
       });
 
@@ -121,7 +118,6 @@ export class EventBus {
         try {
           await Promise.allSettled(promises);
         } catch (error) {
-          console.error(`Error in async once event listeners for '${eventName}':`, error);
         }
       }
     }
@@ -138,7 +134,6 @@ export class EventBus {
         try {
           listener(data);
         } catch (error) {
-          console.error(`Error in sync event listener for '${eventName}':`, error);
         }
       });
     }
@@ -152,7 +147,6 @@ export class EventBus {
         try {
           listener(data);
         } catch (error) {
-          console.error(`Error in sync once event listener for '${eventName}':`, error);
         }
       });
 

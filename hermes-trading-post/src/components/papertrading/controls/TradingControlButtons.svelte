@@ -7,10 +7,7 @@
   const dispatch = createEventDispatcher();
 
   function startTrading() {
-    console.log('StrategyControls startTrading clicked!');
-    console.log('Dispatching start event...');
     dispatch('start');
-    console.log('Start event dispatched');
   }
 
   function pauseTrading() {

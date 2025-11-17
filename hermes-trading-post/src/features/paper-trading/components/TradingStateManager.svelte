@@ -22,7 +22,6 @@
     
     // Check if chart should be cleared (on reset)
     if (backendState.shouldClearChart) {
-      console.log('📊 Clearing chart markers due to reset');
       dispatch('clearChart');
       // Clear the flag after dispatching
       tradingBackendService.getState().update(s => ({ ...s, shouldClearChart: false }));
@@ -48,7 +47,6 @@
   
   export async function startTrading(strategy: Strategy) {
     try {
-      console.log('Starting paper trading with strategy:', selectedStrategyType);
       
       // Initialize chart data feed if not already done
       if (!chartDataFeed) {
@@ -84,7 +82,6 @@
         dispatch('tradingStarted', { botId: bot.id });
       }
     } catch (error) {
-      console.error('Failed to start trading:', error);
       dispatch('error', { message: 'Failed to start trading' });
     }
   }

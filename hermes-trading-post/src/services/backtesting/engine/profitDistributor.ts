@@ -44,55 +44,15 @@ export class ProfitDistributor {
         
         // Track total USD growth for metrics
         this.stateManager.updateInitialBalanceGrowth(compoundState.usdGrowth);
-        
-        console.log(`[ProfitDistributor] Compound transaction executed:`, {
-          profit: profit.toFixed(2),
-          btcAllocation: transaction.btcAllocation.toFixed(2),
-          usdAllocation: transaction.usdAllocation.toFixed(2),
-          usdcAllocation: transaction.usdcAllocation.toFixed(2),
-          btcReceived: (transaction.btcAllocation / candle.close).toFixed(6),
-          compoundCount: compoundState.compoundCount,
-          totalCompounded: compoundState.totalCompounded.toFixed(2)
-        });
-        
+
         const metrics = this.compoundEngine.getMetrics(candle.close);
-        console.log(`[ProfitDistributor] Vault balances after compound:`, {
-          btcVault: metrics.btcVault.toFixed(6),
-          btcVaultValue: metrics.btcVaultValue.toFixed(2),
-          usdGrowth: metrics.usdGrowth.toFixed(2),
-          usdcVault: metrics.usdcVault.toFixed(2),
-          totalValue: metrics.totalValue.toFixed(2),
-          allocations: {
-            btc: metrics.allocations.btc.toFixed(2) + '%',
-            usd: metrics.allocations.usd.toFixed(2) + '%',
-            usdc: metrics.allocations.usdc.toFixed(2) + '%'
-          }
-        });
       } else {
         // If not compounding yet, just add profit to USD
         state.balance.usd += profit;
-        console.log(`[ProfitDistributor] Profit added to USD (compound threshold not met):`, {
-          profit: profit.toFixed(2),
-          minCompoundAmount: this.compoundEngine.getState().totalCompounded
-        });
       }
-      
-      console.log(`[ProfitDistributor] Profit distribution:`, {
-        profit: profit.toFixed(2),
-        principal: totalCost.toFixed(2),
-        newUsdBalance: state.balance.usd.toFixed(2),
-        newBtcVault: state.balance.btcVault.toFixed(6),
-        newVaultBalance: state.balance.vault.toFixed(2),
-        totalInitialBalanceGrowth: this.stateManager.getState().initialBalanceGrowth.toFixed(2)
-      });
     } else {
       // Loss - return all proceeds to USD
       state.balance.usd += profitData.netProceeds;
-      console.log(`[ProfitDistributor] Loss - returning proceeds to USD:`, {
-        loss: profit,
-        netProceeds: profitData.netProceeds,
-        newUsdBalance: state.balance.usd
-      });
     }
   }
 }

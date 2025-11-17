@@ -99,7 +99,6 @@ export class GranularityManager {
       return;
     }
     
-    console.log(`[GranularityManager] Transitioning from ${this.currentGranularity} to ${newGranularity}`);
     this.isTransitioning = true;
     this.targetGranularity = newGranularity;
     

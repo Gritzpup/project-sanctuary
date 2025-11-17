@@ -63,7 +63,6 @@ export class AnimationManager {
 
     this.isRunning = true;
     if (this.debug) {
-      console.log('[AnimationManager] Started');
     }
 
     this.scheduleFrame();
@@ -82,7 +81,6 @@ export class AnimationManager {
     }
 
     if (this.debug) {
-      console.log('[AnimationManager] Stopped');
     }
   }
 
@@ -129,7 +127,6 @@ export class AnimationManager {
     this.frameTimeBudget = 1000 / this.targetFrameRate;
 
     if (this.debug) {
-      console.log(`[AnimationManager] Target FPS: ${this.targetFrameRate}`);
     }
   }
 
@@ -157,7 +154,6 @@ export class AnimationManager {
     }
 
     if (this.debug) {
-      console.log(`[AnimationManager] Reduced motion: ${enabled}`);
     }
   }
 
@@ -183,7 +179,6 @@ export class AnimationManager {
     if (deviceMemory && deviceMemory <= 2) {
       this.setTargetFrameRate(30);
       if (this.debug) {
-        console.log(`[AnimationManager] Low-end device detected (${deviceMemory}GB RAM)`);
       }
     }
 
@@ -191,11 +186,6 @@ export class AnimationManager {
     const hardwareConcurrency = navigator.hardwareConcurrency || 1;
     if (hardwareConcurrency <= 2) {
       this.setTargetFrameRate(30);
-      if (this.debug) {
-        console.log(
-          `[AnimationManager] Low core count device (${hardwareConcurrency} cores)`
-        );
-      }
     }
   }
 
@@ -242,14 +232,12 @@ export class AnimationManager {
         try {
           task.callback();
         } catch (error) {
-          console.error('[AnimationManager] Task execution error:', error);
         }
       }
     }
 
     // Debug logging
     if (this.debug && this.metrics.frameRate < 30) {
-      console.warn(`[AnimationManager] Low FPS detected: ${this.metrics.frameRate}`);
     }
   }
 }

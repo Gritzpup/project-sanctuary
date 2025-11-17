@@ -14,7 +14,6 @@ export class PerformanceTest {
     if (start && end) {
       const duration = end - start;
       this.measurements.push({ name, duration });
-      console.log(`[PERF] ${name}: ${duration.toFixed(2)}ms`);
       return duration;
     }
     return 0;
@@ -22,12 +21,8 @@ export class PerformanceTest {
 
   getReport() {
     const total = this.measurements.reduce((sum, m) => sum + m.duration, 0);
-    console.log('\n=== Performance Report ===');
     this.measurements.forEach(m => {
-      console.log(`${m.name}: ${m.duration.toFixed(2)}ms (${((m.duration / total) * 100).toFixed(1)}%)`);
     });
-    console.log(`Total: ${total.toFixed(2)}ms`);
-    console.log('========================\n');
     return { measurements: this.measurements, total };
   }
 

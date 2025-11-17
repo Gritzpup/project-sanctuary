@@ -1,6 +1,5 @@
 /**
  * Centralized logging service for the Hermes Trading Post
- * Replaces console.log/warn/error with proper structured logging
  */
 
 export enum LogLevel {
@@ -75,17 +74,13 @@ export class LoggingService {
     
     switch (entry.level) {
       case LogLevel.DEBUG:
-        console.debug(logMessage, entry.data);
         break;
       case LogLevel.INFO:
-        console.info(logMessage, entry.data);
         break;
       case LogLevel.WARN:
-        console.warn(logMessage, entry.data);
         break;
       case LogLevel.ERROR:
       case LogLevel.CRITICAL:
-        console.error(logMessage, entry.error || entry.data);
         break;
     }
   }

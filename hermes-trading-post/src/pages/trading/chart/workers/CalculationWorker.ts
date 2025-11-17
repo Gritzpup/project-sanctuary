@@ -79,7 +79,6 @@ export class WebWorkerManager {
       };
 
       this.worker.onerror = (error: ErrorEvent) => {
-        console.error('🔴 Web Worker error:', error.message, error.filename, error.lineno);
         // Reject all pending tasks
         this.pendingTasks.forEach(({ reject }) => {
           reject(new Error(`Worker error: ${error.message}`));
@@ -87,7 +86,6 @@ export class WebWorkerManager {
         this.pendingTasks.clear();
       };
     } catch (error) {
-      console.error('❌ Failed to initialize Web Worker:', error);
       this.worker = null;
     }
   }
@@ -337,7 +335,6 @@ export class WebWorkerManager {
     const task = this.pendingTasks.get(response.taskId);
 
     if (!task) {
-      console.warn('🟡 Received response for unknown task:', response.taskId);
       return;
     }
 
@@ -354,7 +351,6 @@ export class WebWorkerManager {
 
     // Log performance metrics
     if (response.duration && response.duration > 50) {
-      console.log(`⚡ ${response.type} took ${response.duration.toFixed(2)}ms in worker`);
     }
   }
 

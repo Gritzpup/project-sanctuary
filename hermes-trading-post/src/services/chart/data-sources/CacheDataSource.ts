@@ -15,9 +15,7 @@ export class CacheDataSource {
     try {
       await this.cache.initialize();
       this.initialized = true;
-      console.log('✅ CacheDataSource initialized');
     } catch (error) {
-      console.error('Error initializing CacheDataSource:', error);
       throw error;
     }
   }
@@ -33,20 +31,16 @@ export class CacheDataSource {
     }
 
     try {
-      console.log(`💾 Checking cache for: ${symbol} ${granularity} from ${new Date(startTime * 1000).toISOString()}`);
       
       const cachedData = await this.cache.getCandles(symbol, granularity, startTime, endTime);
       
       if (cachedData && cachedData.length > 0) {
-        console.log(`✅ Found ${cachedData.length} cached candles for ${symbol} ${granularity}`);
         return cachedData;
       }
       
-      console.log(`ℹ️ No cached data found for ${symbol} ${granularity}`);
       return null;
       
     } catch (error) {
-      console.error('Error getting cached data:', error);
       return null;
     }
   }
@@ -63,10 +57,8 @@ export class CacheDataSource {
     try {
       if (data && data.length > 0) {
         await this.cache.storeCandles(symbol, granularity, data);
-        console.log(`💾 Cached ${data.length} candles for ${symbol} ${granularity}`);
       }
     } catch (error) {
-      console.error('Error storing data to cache:', error);
       // Don't throw - caching failures shouldn't break the app
     }
   }
@@ -82,7 +74,6 @@ export class CacheDataSource {
     try {
       return await this.cache.getDataRange(symbol, granularity);
     } catch (error) {
-      console.error('Error getting data range from cache:', error);
       return null;
     }
   }
@@ -141,7 +132,6 @@ export class CacheDataSource {
       };
       
     } catch (error) {
-      console.error('Error checking data coverage:', error);
       return {
         covered: false,
         gaps: [{ start: startTime, end: endTime }],
@@ -165,19 +155,15 @@ export class CacheDataSource {
         if (startTime !== undefined && endTime !== undefined) {
           // Invalidate specific range
           await this.cache.deleteCandles(symbol, granularity, startTime, endTime);
-          console.log(`🗑️ Invalidated cache for ${symbol} ${granularity} range`);
         } else {
           // Invalidate all data for symbol/granularity
           await this.cache.clearSymbolGranularity(symbol, granularity);
-          console.log(`🗑️ Invalidated all cache for ${symbol} ${granularity}`);
         }
       } else {
         // Clear all cache
         await this.cache.clear();
-        console.log('🗑️ Cleared all cached data');
       }
     } catch (error) {
-      console.error('Error invalidating cache:', error);
     }
   }
 
@@ -194,7 +180,6 @@ export class CacheDataSource {
     try {
       return await this.cache.getStats();
     } catch (error) {
-      console.error('Error getting cache stats:', error);
       return {
         totalSize: 0,
         symbolCount: 0,
@@ -211,9 +196,7 @@ export class CacheDataSource {
 
     try {
       await this.cache.optimize();
-      console.log('✅ Cache optimization complete');
     } catch (error) {
-      console.error('Error optimizing cache:', error);
     }
   }
 

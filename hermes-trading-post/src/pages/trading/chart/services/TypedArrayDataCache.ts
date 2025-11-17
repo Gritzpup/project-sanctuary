@@ -40,7 +40,6 @@ export class TypedArrayDataCache {
    */
   enable(): void {
     this.enabled = true;
-    console.log('⚡ TypedArray caching layer ENABLED - memory usage will be optimized');
   }
 
   /**
@@ -97,7 +96,6 @@ export class TypedArrayDataCache {
       this.evictLRU();
     }
 
-    console.log(`💾 Cached ${candles.length} candles for ${key} (${buffer.getMemoryUsage()}B)`);
   }
 
   /**
@@ -201,7 +199,6 @@ export class TypedArrayDataCache {
   clear(): void {
     this.cache.clear();
     this.currentSize = 0;
-    console.log('🗑️ TypedArray cache cleared');
   }
 
   /**
@@ -222,7 +219,6 @@ export class TypedArrayDataCache {
       const [key, entry] = entries[i];
       this.currentSize -= entry.buffer.getMemoryUsage();
       this.cache.delete(key);
-      console.log(`🗑️ Evicted cache entry: ${key}`);
     }
   }
 
@@ -293,21 +289,11 @@ export class TypedArrayDataCache {
   printReport(): void {
     const stats = this.getStats();
 
-    console.log('\n=== TypedArray Cache Report ===');
-    console.log(`Status: ${stats.enabled ? '✅ ENABLED' : '❌ DISABLED'}`);
-    console.log(`Total Entries: ${stats.totalEntries}`);
-    console.log(`Memory Usage: ${(stats.totalMemoryUsage / 1024 / 1024).toFixed(2)}MB / ${(stats.maxCacheSize / 1024 / 1024).toFixed(0)}MB`);
-    console.log(`Utilization: ${stats.utilizationPercent}%`);
-    console.log(`Total Cache Hits: ${stats.totalHits}`);
-    console.log(`Compression: ${stats.compressionRatio}`);
 
     if (stats.entries.length > 0) {
-      console.log('\nCached Datasets:');
       stats.entries.forEach(entry => {
-        console.log(`  ${entry.key}: ${entry.candles} candles, ${entry.memoryUsage}B, ${entry.hits} hits`);
       });
     }
-    console.log('================================\n');
   }
 }
 

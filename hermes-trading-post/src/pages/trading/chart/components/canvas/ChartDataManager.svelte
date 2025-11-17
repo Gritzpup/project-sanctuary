@@ -100,7 +100,6 @@
 
   export function setupSeries() {
     if (!chart) {
-      console.error('Chart not available for series setup');
       return false;
     }
 
@@ -120,7 +119,6 @@
 
       return true;
     } catch (error) {
-      console.error('❌ Error creating series:', error);
       return false;
     }
   }
@@ -132,22 +130,13 @@
    * 🚀 PHASE 14: Incremental sorting optimization - avoids O(n log n) sort on every update
    */
   export function updateChartData() {
-    // 🔍 DEBUG: Log every call to understand flow
-    if (dataStore.candles.length !== lastCandleCount || !isInitialized) {
-      console.log(`📊 [ChartDataManager] updateChartData called: candleCount=${dataStore.candles.length}, lastCount=${lastCandleCount}, isInitialized=${isInitialized}, candleSeries=${!!candleSeries}`);
-    }
-
     if (!candleSeries || !dataStore.candles.length) {
-      console.log(`⏭️  [ChartDataManager] Early return: candleSeries=${!!candleSeries}, candleCount=${dataStore.candles.length}`);
       return;
     }
 
     try {
       // 🚀 PERF: Only recalculate sorted candles if candle count changed
       if (dataStore.candles.length !== lastCandleCount) {
-        if (dataStore.candles.length > 100) {
-          console.log(`[ChartDataManager] updateChartData: candle count changed from ${lastCandleCount} to ${dataStore.candles.length}`);
-        }
         // Recalculate only when data changed
         const formattedCandles = chartDataMemoizer.formatCandles(dataStore.candles);
 
@@ -210,13 +199,10 @@
         const trimAmount = cachedSortedCandles.length - MAX_CACHED_CANDLES;
         cachedSortedCandles = cachedSortedCandles.slice(trimAmount); // Keep newest candles
         lastProcessedIndex = Math.max(-1, lastProcessedIndex - trimAmount);
-        console.log(`🧹 [ChartDataManager] Trimmed cache (removed ${trimAmount} candles, kept ${cachedSortedCandles.length})`);
       }
 
       // Use cached sorted candles
       const sortedCandles = cachedSortedCandles;
-
-      console.log(`🔍 [ChartDataManager] Processing update: hasEverCalledSetData=${hasEverCalledSetData}, sortedCandles=${sortedCandles.length}, lastProcessedIndex=${lastProcessedIndex}`);
 
       // 🚀 PERF: Use incremental updates instead of full replacement
       // 🔧 FIX: Only call setData() once EVER using hasEverCalledSetData flag
@@ -225,24 +211,22 @@
 
       if (isFirstLoad) {
         // Initial load: set all data at once (ONLY ONCE!)
-        const firstTime = sortedCandles[0]?.time;
-        const lastTime = sortedCandles[sortedCandles.length - 1]?.time;
-        console.log(`📈 [ChartDataManager] FIRST LOAD: Calling candleSeries.setData() with ${sortedCandles.length} candles`);
-        console.log(`   Data range: ${firstTime} to ${lastTime} (${new Date((firstTime as number) * 1000).toISOString()} to ${new Date((lastTime as number) * 1000).toISOString()})`);
         candleSeries.setData(sortedCandles);
         lastProcessedIndex = sortedCandles.length - 1;
         hasEverCalledSetData = true;  // 🔧 Mark that we've called setData() - never call again!
         isInitialized = true;
-        console.log(`✅ [ChartDataManager] FIRST LOAD COMPLETE: lastProcessedIndex=${lastProcessedIndex}, hasEverCalledSetData=true`);
 
         // 🔧 FIX: Force proper zoom level after INITIAL data load ONLY
         // This fixes the issue where chart starts extremely zoomed in showing only 2 candles
         // Only run on initial load, not on incremental updates, to avoid interfering with auto-scroll
+        // ⚠️ CRITICAL FIX: For long-term timeframes (5Y), show ALL candles, not just 60
         setTimeout(() => {
           const chart = (candleSeries as any)?._chart || (candleSeries as any)?.chart;
           if (chart && sortedCandles.length > 1) {
             const candleCount = sortedCandles.length;
-            const showCandles = Math.min(candleCount, 60);
+            // For 5Y with 1816+ candles, show ALL of them
+            // For normal timeframes, show last 60 candles for detail
+            const showCandles = candleCount > 500 ? candleCount : Math.min(candleCount, 60);
             const startIndex = Math.max(0, candleCount - showCandles);
 
             // Set visible logical range to show exact number of candles
@@ -250,17 +234,12 @@
               from: startIndex,
               to: candleCount
             });
-
-            console.log(`✅ [ChartDataManager] Initial load: Set visible range to show ${showCandles} of ${candleCount} candles (from index ${startIndex} to ${candleCount})`);
           }
         }, 100);
       } else if (hasEverCalledSetData && sortedCandles.length > lastProcessedIndex + 1) {
         // Incremental update: add only new candles since last update
         // ⚡ SEAMLESS REFRESH FIX: Don't reset visible range on incremental updates
         // This allows the chart to naturally auto-scroll as new candles arrive
-        const newCandleCount = sortedCandles.length - lastProcessedIndex - 1;
-        console.log(`📈 [ChartDataManager] INCREMENTAL UPDATE: Adding ${newCandleCount} new candles (from index ${lastProcessedIndex + 1} to ${sortedCandles.length - 1})`);
-        let updateFailureCount = 0;
         for (let i = lastProcessedIndex + 1; i < sortedCandles.length; i++) {
           try {
             candleSeries.update(sortedCandles[i]);
@@ -268,21 +247,11 @@
             // ⚠️ CRITICAL FIX: Don't fall back to setData() during incremental updates!
             // This was causing the "broken candles" issue - if an update fails, skip it rather than
             // calling setData() which would replace all data with potentially incomplete dataset
-            updateFailureCount++;
-            console.warn(`⚠️  [ChartDataManager] Update failed at index ${i}: ${updateError instanceof Error ? updateError.message : String(updateError)} (skipping this update, not falling back to setData)`);
           }
         }
-        if (updateFailureCount > 0) {
-          console.warn(`⚠️  [ChartDataManager] ${updateFailureCount} update(s) failed - continuing with next updates`);
-        }
         lastProcessedIndex = sortedCandles.length - 1;
-      } else if (!hasEverCalledSetData) {
-        console.log(`⏳ [ChartDataManager] Waiting for data: hasEverCalledSetData=${hasEverCalledSetData}, sortedCandles=${sortedCandles.length}`);
-      } else {
-        console.log(`⏭️  [ChartDataManager] NO UPDATE NEEDED: lastProcessedIndex=${lastProcessedIndex}, sortedCandles.length=${sortedCandles.length}`);
       }
     } catch (error) {
-      console.error('❌ [ChartDataManager] Error updating chart data:', error);
     }
   }
   
@@ -297,8 +266,6 @@
    * This ensures the chart properly displays the new timeframe data
    */
   export function resetForNewTimeframe() {
-    console.log('🔄 [ChartDataManager] Resetting for new timeframe...');
-    console.log(`   Before reset: lastProcessedIndex=${lastProcessedIndex}, isInitialized=${isInitialized}, cachedCandles=${cachedSortedCandles.length}, lastCandleCount=${lastCandleCount}, hasEverCalledSetData=${hasEverCalledSetData}`);
     // Reset to initial state so next update is treated as first load
     lastProcessedIndex = -1;
     isInitialized = false;
@@ -306,7 +273,6 @@
     lastCandleCount = 0;
     isCachedSortedFlag = false;
     hasEverCalledSetData = false;  // 🔧 FIX: Reset the setData flag so it can be called again for new timeframe data
-    console.log('✅ [ChartDataManager] Reset complete - lastProcessedIndex=-1, hasEverCalledSetData=false, next update will be treated as FIRST LOAD');
   }
   
   export function handleRealtimeUpdate(candle: any) {

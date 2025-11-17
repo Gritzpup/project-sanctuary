@@ -87,13 +87,11 @@ class PaperTradingService {
           strategy: current.strategy // Keep current strategy instance
         }));
         
-        console.log('📁 Paper trading state restored from localStorage');
         return true;
       }
       
       return false;
     } catch (error) {
-      console.error('Failed to restore paper trading state:', error);
       return false;
     }
   }
@@ -116,7 +114,6 @@ class PaperTradingService {
       lastUpdate: Date.now()
     }));
 
-    console.log('🚀 Paper trading started with strategy:', strategy.constructor.name);
   }
 
   stop(): void {
@@ -128,7 +125,6 @@ class PaperTradingService {
       currentSignal: null
     }));
 
-    console.log('⏹️ Paper trading stopped');
   }
 
   pause(): void {
@@ -168,7 +164,6 @@ class PaperTradingService {
         const result = this.execution.processSignal(currentState, signal, currentPrice);
         
         if (result.executed && result.trade) {
-          console.log('📈 Trade executed:', result.trade);
         }
       }
 
@@ -183,7 +178,6 @@ class PaperTradingService {
       }));
 
     } catch (error) {
-      console.error('Error processing candles:', error);
     }
   }
 
@@ -195,7 +189,6 @@ class PaperTradingService {
     this.state.set(createInitialState(this.config));
     await this.persistence.clearSavedState();
     this.candles = [];
-    console.log('🔄 Paper trading service reset');
   }
 
   getStrategyState(): StrategyState | null {
@@ -237,9 +230,7 @@ class PaperTradingService {
           }
         }));
         
-        console.log(`💰 Transferred $${amount} to vault`);
       } catch (error) {
-        console.error('Failed to transfer to vault:', error);
       }
     }
   }

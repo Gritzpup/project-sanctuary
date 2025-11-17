@@ -14,10 +14,8 @@ function createSidebarStore() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved !== null) {
       initialState = JSON.parse(saved);
-      // console.log('Sidebar state loaded from localStorage:', initialState);
     }
   } catch (error) {
-    // PERF: Disabled - console.error('Failed to load sidebar state from localStorage:', error);
   }
   
   const { subscribe, set, update } = writable(initialState);
@@ -29,13 +27,11 @@ function createSidebarStore() {
     toggle: () => {
       update(collapsed => {
         const newState = !collapsed;
-        // console.log('Sidebar toggled, new state:', newState);
         
         // Save to localStorage
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
         } catch (error) {
-          // PERF: Disabled - console.error('Failed to save sidebar state to localStorage:', error);
         }
         
         return newState;
@@ -48,7 +44,6 @@ function createSidebarStore() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
       } catch (error) {
-        // PERF: Disabled - console.error('Failed to save sidebar state to localStorage:', error);
       }
     }
   };

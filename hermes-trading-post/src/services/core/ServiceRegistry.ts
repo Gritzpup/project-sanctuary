@@ -33,7 +33,6 @@ export class ServiceRegistry {
     singleton: boolean = true
   ): void {
     if (this.services.has(name)) {
-      console.warn(`Service '${name}' is already registered. Overwriting.`);
     }
 
     this.services.set(name, {
@@ -43,7 +42,6 @@ export class ServiceRegistry {
       singleton
     });
 
-    console.log(`📦 Registered service: ${name} (dependencies: [${dependencies.join(', ')}])`);
   }
 
   public get<T>(name: string): T {
@@ -83,7 +81,6 @@ export class ServiceRegistry {
         });
       }
 
-      console.log(`✅ Created service: ${name}`);
       return instance;
 
     } finally {
@@ -123,9 +120,7 @@ export class ServiceRegistry {
       if (instance.instance && typeof instance.instance.dispose === 'function') {
         try {
           instance.instance.dispose();
-          console.log(`🧹 Disposed service: ${name}`);
         } catch (error) {
-          console.error(`Error disposing service '${name}':`, error);
         }
       }
 
@@ -134,7 +129,6 @@ export class ServiceRegistry {
   }
 
   public disposeAll(): void {
-    console.log('🧹 Disposing all service instances...');
     
     // Dispose in reverse dependency order to avoid issues
     const sortedNames = this.topologicalSort();
@@ -144,14 +138,12 @@ export class ServiceRegistry {
     }
 
     this.instances.clear();
-    console.log('✅ All services disposed');
   }
 
   public reset(): void {
     this.disposeAll();
     this.services.clear();
     this.creating.clear();
-    console.log('🔄 Service registry reset');
   }
 
   private topologicalSort(): string[] {

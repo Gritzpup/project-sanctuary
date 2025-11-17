@@ -163,7 +163,6 @@ export class PaperTradingExecution {
     try {
       strategy.update(candles);
     } catch (error) {
-      console.error('Error updating strategy:', error);
     }
   }
 
@@ -176,7 +175,6 @@ export class PaperTradingExecution {
     try {
       return strategy.getState();
     } catch (error) {
-      console.error('Error getting strategy state:', error);
       return null;
     }
   }

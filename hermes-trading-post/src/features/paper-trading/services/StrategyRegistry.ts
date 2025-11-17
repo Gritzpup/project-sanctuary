@@ -101,12 +101,10 @@ export async function loadStrategy(strategyName: string): Promise<Strategy | nul
   // Load from registry
   const loader = STRATEGY_REGISTRY[strategyName];
   if (!loader) {
-    console.error(`Strategy "${strategyName}" not found in registry`);
     return null;
   }
 
   try {
-    console.log(`[StrategyRegistry] Lazy loading strategy: ${strategyName}`);
     const module = await loader.load();
     const StrategyClass = module.default;
 
@@ -116,7 +114,6 @@ export async function loadStrategy(strategyName: string): Promise<Strategy | nul
     // Create and return instance
     return new StrategyClass();
   } catch (error) {
-    console.error(`Failed to load strategy "${strategyName}":`, error);
     return null;
   }
 }
@@ -140,7 +137,6 @@ export async function preloadStrategy(strategyName: string): Promise<boolean> {
     loadedStrategies.set(strategyName, module.default);
     return true;
   } catch (error) {
-    console.error(`Failed to preload strategy "${strategyName}":`, error);
     return false;
   }
 }

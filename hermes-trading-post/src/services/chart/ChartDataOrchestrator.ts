@@ -99,7 +99,6 @@ export class ChartDataOrchestrator {
   }
 
   public async initialize(instanceId?: string): Promise<void> {
-    console.log('🚀 Initializing ChartDataOrchestrator', { instanceId });
     
     this.activeInstanceId = instanceId || 'default';
     this.instanceLoadCounts.set(this.activeInstanceId, 0);
@@ -108,7 +107,6 @@ export class ChartDataOrchestrator {
     await this.cacheManager.initialize();
     await this.subscriptionManager.initialize();
     
-    console.log('✅ ChartDataOrchestrator initialized');
   }
 
   public async loadData(request: DataRequest): Promise<CandleData[]> {
@@ -135,7 +133,6 @@ export class ChartDataOrchestrator {
   private async executeDataLoad(request: DataRequest): Promise<void> {
     const { symbol, granularity, startTime, endTime } = request;
     
-    console.log(`📊 Loading data: ${symbol} ${granularity} from ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
     
     try {
       // Try cache first
@@ -160,13 +157,10 @@ export class ChartDataOrchestrator {
         // Notify subscribers
         this.notifySubscribers(data);
         
-        console.log(`✅ Loaded ${data.length} candles for ${symbol} ${granularity}`);
       } else {
-        console.warn(`⚠️ No data found for ${symbol} ${granularity}`);
       }
       
     } catch (error) {
-      console.error('Error loading chart data:', error);
       throw error;
     }
   }
@@ -315,10 +309,8 @@ export class ChartDataOrchestrator {
         await this.subscribeRealtime(this.symbol, granularity);
       }
       
-      console.log(`✅ Granularity changed to ${granularity}`);
       
     } catch (error) {
-      console.error('Error changing granularity:', error);
       throw error;
     } finally {
       this.isTransitioning = false;
@@ -326,7 +318,6 @@ export class ChartDataOrchestrator {
   }
 
   public async cleanup(): Promise<void> {
-    console.log('🧹 Cleaning up ChartDataOrchestrator');
     
     // Clear timers
     if (this.granularityDebounceTimer) {
@@ -346,7 +337,6 @@ export class ChartDataOrchestrator {
     this.loadingPromises.clear();
     this.instanceLoadCounts.clear();
     
-    console.log('✅ ChartDataOrchestrator cleanup complete');
   }
 
   public static resetInstance(): void {

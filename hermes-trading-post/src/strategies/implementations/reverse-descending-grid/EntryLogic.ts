@@ -22,13 +22,6 @@ export class EntryLogic {
       return null;
     }
 
-    console.log('[EntryLogic] INITIAL ENTRY SIGNAL TRIGGERED', {
-      dropFromHigh: marketAnalysis.dropFromHigh.toFixed(2) + '%',
-      requiredDrop: this.config.initialDropPercent + '%',
-      currentPrice,
-      recentHigh: marketAnalysis.recentHigh
-    });
-    
     // Update state for initial entry
     this.state.initialEntryPrice = currentPrice;
     this.state.currentLevel = 1;
@@ -55,28 +48,9 @@ export class EntryLogic {
       return null;
     }
 
-    // Log level entry check details for debugging
-    console.log('[EntryLogic] 🎯 Level entry check:', {
-      currentLevel: this.state.currentLevel,
-      maxLevels: this.config.maxLevels,
-      lastLevelPrice: marketAnalysis.lastLevelPrice.toFixed(2),
-      currentPrice: currentPrice.toFixed(2),
-      dropFromLastLevel: marketAnalysis.dropFromLastLevel.toFixed(4) + '%',
-      requiredDrop: this.config.levelDropPercent + '%',
-      needsMoreDrop: Math.max(0, this.config.levelDropPercent - marketAnalysis.dropFromLastLevel).toFixed(4) + '%',
-      levelPrices: this.state.levelPrices.map(p => p.toFixed(2)),
-      wouldTrigger: marketAnalysis.dropFromLastLevel >= this.config.levelDropPercent ? '✅ YES!' : '❌ Not yet'
-    });
-
     // Update state for level entry
     this.state.currentLevel++;
     this.state.levelPrices.push(currentPrice);
-    
-    console.log('[EntryLogic] LEVEL ENTRY TRIGGERED!', {
-      level: this.state.currentLevel,
-      dropFromLastLevel: marketAnalysis.dropFromLastLevel.toFixed(4) + '%',
-      price: currentPrice
-    });
     
     return {
       type: 'buy',

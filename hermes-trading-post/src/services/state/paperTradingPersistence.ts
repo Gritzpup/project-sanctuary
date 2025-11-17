@@ -40,7 +40,6 @@ class PaperTradingPersistence {
   saveState(state: PersistentTradingState, instanceId: string = 'default'): void {
     try {
       const storageKey = this.getStorageKey(instanceId);
-      console.log('PaperTradingPersistence: Saving state:', {
         instanceId,
         isRunning: state.isRunning,
         strategyType: state.strategyType,
@@ -50,7 +49,6 @@ class PaperTradingPersistence {
       });
       localStorage.setItem(storageKey, JSON.stringify(state));
     } catch (error) {
-      console.error('Failed to save paper trading state:', error);
     }
   }
   
@@ -61,7 +59,6 @@ class PaperTradingPersistence {
       if (!saved) return null;
       
       const state = JSON.parse(saved);
-      console.log('PaperTradingPersistence: Loaded state:', {
         instanceId,
         isRunning: state.isRunning,
         strategyType: state.strategyType,
@@ -76,7 +73,6 @@ class PaperTradingPersistence {
       }
       return null;
     } catch (error) {
-      console.error('Failed to load paper trading state:', error);
       return null;
     }
   }
@@ -86,7 +82,6 @@ class PaperTradingPersistence {
       const storageKey = this.getStorageKey(instanceId);
       localStorage.removeItem(storageKey);
     } catch (error) {
-      console.error('Failed to clear paper trading state:', error);
     }
   }
   

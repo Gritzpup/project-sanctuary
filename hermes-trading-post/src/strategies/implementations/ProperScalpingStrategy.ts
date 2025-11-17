@@ -148,13 +148,11 @@ export class ProperScalpingStrategy extends Strategy<ProperScalpingConfig> {
     
     // Stop loss
     if (priceChange <= -this.config.stopLoss) {
-      console.log(`Stop loss hit at ${priceChange.toFixed(2)}%`);
       return true;
     }
     
     // Profit target
     if (priceChange >= this.config.profitTarget) {
-      console.log(`Profit target hit at ${priceChange.toFixed(2)}%`);
       return true;
     }
     
@@ -162,7 +160,6 @@ export class ProperScalpingStrategy extends Strategy<ProperScalpingConfig> {
     if (this.config.trailingStop && position.highestPrice) {
       const fromPeak = ((currentPrice - position.highestPrice) / position.highestPrice) * 100;
       if (fromPeak <= -this.config.trailingStopPercent) {
-        console.log(`Trailing stop hit at ${fromPeak.toFixed(2)}% from peak`);
         return true;
       }
     }
@@ -175,7 +172,6 @@ export class ProperScalpingStrategy extends Strategy<ProperScalpingConfig> {
     // RSI exit signals
     const currentRSI = this.rsiValues[this.rsiValues.length - 1];
     if (position.type === 'long' && currentRSI > this.config.rsiOverbought) {
-      console.log(`RSI exit signal at ${currentRSI.toFixed(0)}`);
       return true;
     }
     

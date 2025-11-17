@@ -31,7 +31,6 @@ export class PluginManager {
       try {
         await plugin.initialize(this.context);
       } catch (error) {
-        console.error(`❌ [PluginManager] Failed to initialize ${plugin.id}:`, error);
         this.plugins.delete(plugin.id);
         this.initializationOrder = this.initializationOrder.filter(id => id !== plugin.id);
         throw error;
@@ -103,7 +102,6 @@ export class PluginManager {
         try {
           await plugin.initialize(context);
         } catch (error) {
-          console.error(`❌ [PluginManager] Failed to initialize ${pluginId}:`, error);
           errors.push({ pluginId, error: error as Error });
           this.emitEvent({
             type: 'error',

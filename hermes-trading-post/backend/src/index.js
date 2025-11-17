@@ -177,25 +177,34 @@ const restAPIService = new RESTAPIService({
 // Use async IIFE to handle async initialization
 (async () => {
   
-  // Initialize Historical Data Service (fetch historical candles)
-  console.log('🚀 Initializing Historical Data Service...');
+  // Initialize Historical Data Service (fetch historical candles for all granularities)
+  // 🚀 FIX: Load all granularities needed for timeframe compatibility
+  console.log('🚀 Initializing Historical Data Service for all granularities...');
   try {
-    const histResult = await historicalDataService.initialize('BTC-USD', '1m');
-    if (histResult) {
-      console.log('✅ Historical Data Service initialized successfully');
-      const status = historicalDataService.getStatus();
-      console.log(`📊 Historical Data Status: ${status.stats.totalCandles} candles, ${status.stats.totalRequests} requests, ${status.stats.errors} errors`);
-    } else {
-      console.warn('⚠️ Historical Data Service returned false - may need manual fetch');
+    const granularities = ['1m', '5m', '15m', '1h', '6h', '1d'];
+
+    for (const granularity of granularities) {
+      console.log(`📥 Initializing ${granularity} granularity...`);
+      const histResult = await historicalDataService.initialize('BTC-USD', granularity);
+      if (histResult) {
+        console.log(`✅ ${granularity} initialized`);
+      } else {
+        console.warn(`⚠️ ${granularity} returned false`);
+      }
+      // Small delay between initializations to avoid overwhelming the API
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
+
+    const status = historicalDataService.getStatus();
+    console.log(`📊 Historical Data Status: ${status.stats.totalCandles} candles total, ${status.stats.totalRequests} requests, ${status.stats.errors} errors`);
   } catch (error) {
     console.error('❌ Failed to initialize Historical Data Service:', error.message);
   }
 
   // Initialize Continuous Candle Updater for constant API updates
-  // 🔧 DISABLED: Gets 401 errors from Coinbase REST API - CDP auth not working
-  // console.log('🔄 Starting Continuous Candle Updater Service...');
-  // continuousCandleUpdater.startAllGranularities('BTC-USD');
+  // 🚀 FIX: Now using public Exchange API instead of authenticated Advanced Trade API
+  console.log('🔄 Starting Continuous Candle Updater Service...');
+  continuousCandleUpdater.startAllGranularities('BTC-USD');
 
   // 🔧 FIX: Broadcast candles from ContinuousCandleUpdater (REST API fallback)
   // This ensures chart keeps updating even if WebSocket market_trades stops

@@ -34,16 +34,13 @@ export class TestRunner {
     const suitesToRun = suiteNames || Array.from(this.testSuites.keys());
     this.results = [];
 
-    console.log('🧪 Starting test run...');
 
     for (const suiteName of suitesToRun) {
       const suite = this.testSuites.get(suiteName);
       if (!suite) {
-        console.warn(`Test suite '${suiteName}' not found`);
         continue;
       }
 
-      console.log(`📋 Running test suite: ${suiteName}`);
       await this.runSuite(suite);
     }
 
@@ -72,7 +69,6 @@ export class TestRunner {
       }
 
     } catch (error) {
-      console.error(`Error in test suite '${suite.name}':`, error);
     }
   }
 
@@ -89,7 +85,6 @@ export class TestRunner {
       };
       
       this.results.push(result);
-      console.log(`✅ ${name} (${result.duration}ms)`);
       
     } catch (error) {
       const result: TestResult = {
@@ -100,7 +95,6 @@ export class TestRunner {
       };
       
       this.results.push(result);
-      console.log(`❌ ${name} (${result.duration}ms): ${error.message}`);
     }
   }
 
@@ -109,16 +103,10 @@ export class TestRunner {
     const failed = this.results.length - passed;
     const totalDuration = this.results.reduce((sum, r) => sum + r.duration, 0);
 
-    console.log('\n📊 Test Results:');
-    console.log(`✅ Passed: ${passed}`);
-    console.log(`❌ Failed: ${failed}`);
-    console.log(`⏱️  Total Duration: ${totalDuration}ms`);
 
     if (failed > 0) {
-      console.log('\n❌ Failed Tests:');
       this.results
         .filter(r => !r.passed)
-        .forEach(r => console.log(`  - ${r.name}: ${r.error}`));
     }
   }
 }

@@ -104,9 +104,6 @@
         </div>
         
         <div class="debug-actions">
-          <button on:click={() => console.log('Chart Debug:', debugData)}>
-            Log to Console
-          </button>
           <button on:click={() => navigator.clipboard.writeText(formatJSON(debugData))}>
             Copy Debug Data
           </button>

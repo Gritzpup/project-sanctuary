@@ -49,7 +49,6 @@ export class PositionMarkerPlugin extends PrimitivePlugin {
   }
 
   protected async setupPrimitives(): Promise<void> {
-    console.log(`${this.id}: Ready to display position markers`);
   }
 
   protected subscribeToUpdates(): void {

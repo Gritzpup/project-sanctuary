@@ -17,13 +17,24 @@
   import { ChartSubscriptionOrchestrator } from '../services/ChartSubscriptionOrchestrator';
   import { ChartTimeframeCoordinator } from '../services/ChartTimeframeCoordinator';
 
-  export let pair: string = 'BTC-USD';
-  export let granularity: string = '1m';
-  export let period: string = '1H';
-  export let enablePlugins: boolean = true;
-  export let enableAutoGranularity: boolean = true;
-  export let chartRefreshKey: number = Date.now(); // ⚡ SEAMLESS REFRESH: Trigger canvas reinit
-  export let onReady: ((chart: IChartApi) => void) | undefined = undefined;
+  // 🚀 Svelte 5 runes mode: Use $props() instead of export let
+  const {
+    pair = 'BTC-USD',
+    granularity = '1m',
+    period = '1H',
+    enablePlugins = true,
+    enableAutoGranularity = true,
+    chartRefreshKey = Date.now(),
+    onReady
+  } = $props<{
+    pair?: string;
+    granularity?: string;
+    period?: string;
+    enablePlugins?: boolean;
+    enableAutoGranularity?: boolean;
+    chartRefreshKey?: number;
+    onReady?: (chart: IChartApi) => void;
+  }>();
 
   let chartCanvas: ChartCanvas;
   let pluginManager: PluginManager | null = null;
@@ -79,6 +90,7 @@
   let autoGranularity: any = null;
   let previousTrackedGranularity = granularity;
   let previousTrackedPeriod = period;
+  let trackedStoreTimeframe = chartStore.config.timeframe;
 
   // Set up chart context for child components
   const chartContext = {
@@ -96,16 +108,16 @@
   setContext('chart', chartContext);
 
   // Update chart configuration when props change
-  $: {
+  $effect(() => {
     chartStore.updateConfig({
       granularity,
       timeframe: period
     });
-  }
+  });
 
   // Handle granularity/period changes after initial load
   // Check for actual prop changes and trigger coordinator
-  $: {
+  $effect(() => {
     // Always log to debug why reactive block might not trigger
     if (isInitialDataLoaded) {
       // This reactive dependency should trigger whenever any of these change
@@ -125,7 +137,11 @@
         }
       }
     }
-  }
+  });
+
+  // 🔧 FIX: Subscribe to chartStore events to detect timeframe changes
+  // The reactive block approach doesn't work with class getters, so we use event subscriptions
+  let storeUnsubscribe: (() => void) | null = null;
 
   // Initialize subscriptions orchestrator with hook
   subscriptionOrchestrator.setRealtimeSubscription(realtimeSubscription);
@@ -207,7 +223,6 @@
       }
 
       if (!series) {
-        console.warn('Series not created after 5 seconds, proceeding anyway');
       }
 
       // Use initialization service
@@ -307,20 +322,39 @@
       // Check for data gaps
       // setTimeout(() => {
       //   dataLoader.checkAndFillDataGaps(chartCanvas?.getChart(), chartCanvas?.getSeries())
-      //     .catch(error => console.warn('Gap fill failed (non-critical):', error));
       // }, 1000);
 
+      // 🔧 FIX: Subscribe to chartStore events to detect timeframe changes
+      // Now that data is loaded, set up store listener for future timeframe changes
+      // The store emits 'period-change' events when timeframe is updated
+      storeUnsubscribe = chartStore.subscribeToEvents((event: any) => {
+        if (event?.type === 'period-change') {
+          const newTimeframe = event?.data?.newValue;
+
+          // Only execute if chart is fully initialized and data is loaded
+          if (isInitialDataLoaded && isInitialized && newTimeframe && newTimeframe !== trackedStoreTimeframe) {
+            trackedStoreTimeframe = newTimeframe;
+            timeframeCoordinator.onPeriodChange(newTimeframe, chartCanvas?.getSeries() || null, pluginManager);
+          }
+        }
+      });
+
     } catch (error) {
-      console.error('Chart initialization failed:', error);
       statusStore.setError('Failed to initialize chart: ' + (error instanceof Error ? error.message : String(error)));
     }
   });
+
 
   onDestroy(async () => {
     // ✅ PHASE 2: Clear all pending timeouts to prevent memory leaks
     timeoutRegistry.forEach(timeoutId => clearTimeout(timeoutId));
     timeoutRegistry.clear();
     ChartDebug.log(`🧹 Cleared ${timeoutRegistry.size} pending timeouts on destroy`);
+
+    // Clean up store subscription
+    if (storeUnsubscribe) {
+      storeUnsubscribe();
+    }
 
     performanceStore.stopMonitoring();
     subscriptionOrchestrator.unsubscribeFromRealtime();
@@ -366,7 +400,6 @@
   
   export function addMarkers(markers: any[]) {
     if (!chartCanvas) {
-      console.error('ChartCore: ChartCanvas not available for adding markers');
       return;
     }
     chartCanvas.addMarkers(markers);
@@ -378,7 +411,6 @@
   
   export function clearMarkers() {
     if (!chartCanvas) {
-      console.error('ChartCore: ChartCanvas not available for clearing markers');
       return;
     }
     chartCanvas.clearMarkers();
@@ -386,7 +418,6 @@
 
   export function show60Candles() {
     if (!chartCanvas) {
-      console.error('ChartCore: ChartCanvas not available for show60Candles');
       return;
     }
 
@@ -399,7 +430,6 @@
    */
   export async function reloadForGranularity(newGranularity: string) {
     ChartDebug.log(`📊 ChartCore.reloadForGranularity() called: ${newGranularity}`);
-    console.log(`🔧 ChartCore DEBUG: chartCanvas exists = ${!!chartCanvas}, has resetAndUpdateDisplay = ${typeof chartCanvas?.resetAndUpdateDisplay}`);
 
     await timeframeCoordinator.onGranularityChange(
       newGranularity,
@@ -412,17 +442,13 @@
     // resetAndUpdateDisplay clears all cached chart state and forces a fresh render
     // Also resets volume plugin state so volume candles display correctly
     createTimeout(() => {
-      console.log(`🔧 setTimeout callback: chartCanvas exists = ${!!chartCanvas}, has resetAndUpdateDisplay = ${typeof chartCanvas?.resetAndUpdateDisplay}`);
       if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
         ChartDebug.log(`📊 Resetting and updating chart display after granularity reload...`);
         chartCanvas.resetAndUpdateDisplay(pluginManager);
-        console.log(`✅ resetAndUpdateDisplay() called successfully with pluginManager`);
       } else {
-        console.warn(`⚠️ WARNING: resetAndUpdateDisplay not available, falling back to updateChartDisplay`);
         if (chartCanvas && typeof chartCanvas.updateChartDisplay === 'function') {
           chartCanvas.updateChartDisplay();
         } else {
-          console.error(`❌ ERROR: chartCanvas is null/undefined or methods not available!`);
         }
       }
     }, 700); // Wait for data load and positioning to complete (1500ms max + buffer)

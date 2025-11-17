@@ -166,7 +166,6 @@ export class CoinbaseAPI {
         // Return default values on timeout instead of throwing
         // This prevents blocking the UI on slow Coinbase API responses
         if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-          console.warn(`[Stats] Coinbase stats API timeout for ${productId}, using default values`);
           return {
             open: 0,
             high: 0,

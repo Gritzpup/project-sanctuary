@@ -7,6 +7,17 @@ export default function tradingRoutes(botManager) {
   const router = express.Router();
 
   router.get('/status', (req, res) => {
+    if (!botManager) {
+      return res.json({
+        isRunning: false,
+        isPaused: false,
+        strategy: null,
+        trades: [],
+        positions: [],
+        currentPrice: 0,
+        balance: { usd: 10000, btc: 0 }
+      });
+    }
     res.json(botManager.getStatus());
   });
 

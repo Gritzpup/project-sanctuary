@@ -25,7 +25,6 @@ export class TradeExecutor {
     const cost = size * executionPrice;
     
     if (cost > state.balance.usd) {
-      console.error(`Insufficient USD balance: ${state.balance.usd} < ${cost}`);
       return;
     }
 
@@ -41,7 +40,6 @@ export class TradeExecutor {
     // Add fee rebate back to USD balance
     if (feeRebate > 0) {
       state.balance.usd += feeRebate;
-      console.log(`[TradeExecutor] Fee rebate added to balance: $${feeRebate.toFixed(4)}`);
     }
     
     this.stateManager.updateFees(grossFee, feeRebate);
@@ -80,7 +78,6 @@ export class TradeExecutor {
     };
 
     this.stateManager.addTrade(trade);
-    console.log(`Trade recorded: ${trade.type} at timestamp ${trade.timestamp} (${new Date(trade.timestamp * 1000).toISOString()})`);
     
     // Update strategy state after trade
     strategy.setState(state);
@@ -92,7 +89,6 @@ export class TradeExecutor {
     
     // Double-check we have enough BTC to sell
     if (size > state.balance.btcPositions) {
-      console.error(`Critical: Attempted to sell ${size.toFixed(6)} BTC but only have ${state.balance.btcPositions.toFixed(6)} BTC`);
       return;
     }
 
@@ -111,7 +107,6 @@ export class TradeExecutor {
     // Add fee rebate back to USD balance BEFORE profit distribution
     if (feeRebate > 0) {
       state.balance.usd += feeRebate;
-      console.log(`[TradeExecutor] Fee rebate added to balance: $${feeRebate.toFixed(4)}`);
     }
 
     this.stateManager.updateFees(grossFee, feeRebate);
@@ -119,23 +114,9 @@ export class TradeExecutor {
     // Calculate profit using FIFO accounting
     const profitData = this.calculateProfit(size, netProceeds, strategy);
 
-    console.log(`[TradeExecutor] Sell profit calculation:`, {
-      sellPrice: executionPrice,
-      size: size,
-      grossProceeds: proceeds,
-      grossFees: grossFee,
-      feeRebate: feeRebate,
-      netProceeds: netProceeds,
-      totalCostWithBuyFees: profitData.totalCost,
-      profit: profitData.profit,
-      profitPercent: profitData.profitPercent,
-      timestamp: new Date(candle.time * 1000).toISOString()
-    });
-
     // Update BTC positions
     state.balance.btcPositions -= size;
     
-    console.log(`Sell executed: ${size.toFixed(6)} BTC @ $${executionPrice.toFixed(2)}, btcPositions: ${state.balance.btcPositions.toFixed(6)}, profit: $${profitData.profit.toFixed(2)}`);
 
     // Handle position cleanup
     this.handlePositionCleanup(signal, state, strategy);
@@ -209,7 +190,6 @@ export class TradeExecutor {
   private handlePositionCleanup(signal: any, state: StrategyState, strategy: Strategy): void {
     // If this was a complete exit, ensure all positions are cleared
     if (signal.metadata?.isCompleteExit && state.balance.btcPositions <= 0.0000001) {
-      console.log('[TradeExecutor] Complete exit detected - clearing all strategy positions');
       // Clear all remaining positions from strategy
       const remainingPositions = strategy.getPositions();
       remainingPositions.forEach(p => strategy.removePosition(p));

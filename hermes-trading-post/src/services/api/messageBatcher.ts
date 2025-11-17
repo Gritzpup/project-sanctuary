@@ -59,7 +59,6 @@ export class MessageBatcher {
       try {
         this.onBatchReady(batch);
       } catch (error) {
-        console.error('Error processing batch:', error);
       }
     }
   }

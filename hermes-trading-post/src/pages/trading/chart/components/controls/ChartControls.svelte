@@ -1,5 +1,4 @@
 <script lang="ts">
-  console.log('🚀 [ChartControls] Script loaded');
 
   import { onMount } from 'svelte';
   import { chartStore } from '../../stores/chartStore.svelte';
@@ -66,13 +65,12 @@
 
   function handleTimeframeChange(event: CustomEvent) {
     const { timeframe } = event.detail;
-    console.log(`🔵 [ChartControls.svelte] handleTimeframeChange received event:`, timeframe);
+    // Update chartStore - ChartContainer watches this via $effect
     controlsService.handleTimeframeChange(timeframe);
   }
 
   function handleGranularityChange(event: CustomEvent) {
     const { granularity } = event.detail;
-    console.log(`🔵 [ChartControls.svelte] handleGranularityChange received event:`, granularity);
     // Call parent callback first so props update
     if (onGranularityChange) {
       onGranularityChange(granularity);

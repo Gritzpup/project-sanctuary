@@ -13,9 +13,6 @@
   import { createEventDispatcher, onMount } from 'svelte';
 
   onMount(() => {
-    console.log('🎯 🎯 🎯 [TimeframeControls] COMPONENT MOUNTED');
-    console.log(`Available timeframes: ${availableTimeframes.join(', ')}`);
-    console.log(`Current timeframe: ${currentTimeframe}`);
   });
 
   export let currentTimeframe: string = '1H';
@@ -35,12 +32,9 @@
   let debounceTimer: number | null = null;
 
   function handleTimeframeChange(timeframe: string) {
-    console.log(`🎯 🎯 🎯 [TimeframeControls] ===== BUTTON CLICKED: ${timeframe} =====`);
-    console.log(`currentTimeframe: ${currentTimeframe}, isDebouncing: ${isDebouncing}`);
 
     // Prevent multiple rapid clicks - debounce
     if (isDebouncing) {
-      console.log(`🔒 [TimeframeControls] Click blocked - debouncing`);
       return;
     }
 
@@ -51,7 +45,6 @@
       clearTimeout(debounceTimer);
     }
 
-    console.log(`📤 [TimeframeControls] Dispatching timeframeChange event: ${timeframe}`);
     dispatch('timeframeChange', { timeframe });
 
     // If granularity checker provided, check compatibility

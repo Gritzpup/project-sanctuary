@@ -95,7 +95,6 @@
   
   export function createChartInstance(): IChartApi | null {
     if (!container) {
-      console.error('Container not available for chart creation');
       return null;
     }
     
@@ -112,7 +111,6 @@
       
       return chartInstance;
     } catch (error) {
-      console.error('❌ Error creating chart:', error);
       return null;
     }
   }

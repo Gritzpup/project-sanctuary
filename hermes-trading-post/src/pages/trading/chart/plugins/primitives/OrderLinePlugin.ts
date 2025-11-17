@@ -44,7 +44,6 @@ export class OrderLinePlugin extends PrimitivePlugin {
 
   protected async setupPrimitives(): Promise<void> {
     // Initial setup - orders will be added via addOrder method
-    console.log(`${this.id}: Ready to display order lines`);
   }
 
   protected subscribeToUpdates(): void {

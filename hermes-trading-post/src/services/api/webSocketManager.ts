@@ -52,7 +52,6 @@ export class WebSocketManager {
             try {
               consumer.onReconnect();
             } catch (error) {
-              console.error(`Error in consumer ${consumer.id} onReconnect:`, error);
             }
           }
         }
@@ -86,7 +85,6 @@ export class WebSocketManager {
       try {
         consumer.onTicker(data);
       } catch (error) {
-        console.error(`Error in consumer ${consumer.id}:`, error);
       }
     }
   }
@@ -119,7 +117,6 @@ export class WebSocketManager {
       // Resubscribe to all symbols
       await this.resubscribeAll();
     } else {
-      console.error('WebSocketManager: Failed to establish connection after 5 seconds');
     }
   }
 

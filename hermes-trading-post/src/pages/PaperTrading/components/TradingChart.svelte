@@ -75,13 +75,11 @@
         
       }
     } catch (error) {
-      console.error('Failed to fetch 24h Bitcoin data:', error);
       // Try backup API
       try {
         const backupResponse = await fetch('https://api.coinbase.com/v2/exchange-rates?currency=BTC');
         const backupData = await backupResponse.json();
       } catch (backupError) {
-        console.error('Backup API also failed:', backupError);
       }
     }
   }

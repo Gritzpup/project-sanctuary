@@ -15,7 +15,6 @@
     const cached = chartDataCache.get(cacheKey);
     
     if (!forceReload && cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
-      console.log('Using cached chart data for', cacheKey);
       return { data: cached.data, connectionStatus: 'connected' };
     }
     
@@ -61,7 +60,6 @@
       
       const granularitySeconds = granularityMap[selectedGranularity] || 3600;
       
-      console.log('Fetching data with params:', { startTime, endTime, granularitySeconds });
       
       const data = await historicalDataService.fetchHistoricalData({
         symbol: 'BTC-USD',
@@ -72,13 +70,10 @@
       
       chartDataCache.set(cacheKey, { data, timestamp: Date.now() });
       
-      console.log(`Loaded ${data.length} candles for ${selectedPeriod}/${selectedGranularity}`);
       return { data, connectionStatus: 'connected' };
     } catch (error) {
-      console.error('Failed to load chart data:', error);
       
       // Generate fake data for testing if API fails
-      console.log('Generating test data due to API failure...');
       const testCandles: CandleData[] = [];
       const now = Date.now() / 1000;
       const granularitySeconds = { '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '6h': 21600, '1D': 86400 }[selectedGranularity] || 60;
@@ -96,7 +91,6 @@
         });
       }
       
-      console.log('Using test data:', testCandles.length, 'candles');
       return { data: testCandles, connectionStatus: 'error' };
     }
   }

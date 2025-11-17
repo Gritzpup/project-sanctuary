@@ -76,20 +76,17 @@ class OrderbookStore {
       const response = await fetch(`/api/orderbook/${productId}`);
 
       if (!response.ok) {
-        // PERF: Disabled - console.log(`⏭️ [Orderbook] No cached orderbook available (HTTP ${response.status})`);
         return;
       }
 
       const result = await response.json();
 
       if (!result.success || !result.data || result.data.bids.length === 0) {
-        // PERF: Disabled - console.log(`⏭️ [Orderbook] Cached orderbook is empty or not ready yet`);
         return;
       }
 
       const cachedOrderbook = result.data;
 
-      // PERF: Disabled - console.log(`💾 [Orderbook] Hydrating from cache: ${cachedOrderbook.bids.length} bids, ${cachedOrderbook.asks.length} asks`);
 
       // Process cached data as if it were a snapshot
       // Backend returns bids/asks as array of {price, size} objects
@@ -106,9 +103,7 @@ class OrderbookStore {
         asks: formattedAsks
       });
 
-      // PERF: Disabled - console.log(`✅ [Orderbook] Cache hydration complete - chart should now display instantly!`);
     } catch (error) {
-      // PERF: Disabled - console.error(`⚠️ [Orderbook] Failed to hydrate from cache:`, error);
       // Fail silently - app will still wait for WebSocket data
     }
   }
@@ -117,12 +112,10 @@ class OrderbookStore {
    * Process orderbook snapshot - optimized to detect actual changes
    */
   processSnapshot(data: { product_id: string; bids: OrderbookLevel[]; asks: OrderbookLevel[] }) {
-    console.log(`📊 [OrderbookStore] Processing snapshot: ${data.bids?.length || 0} bids, ${data.asks?.length || 0} asks`);
 
     // ✅ PHASE 6 FIX: Early return if already processing snapshot
     // Prevents concurrent processSnapshot() calls from corrupting state
     if (this.isProcessingSnapshot) {
-      // PERF: Disabled - console.warn('[Orderbook] Snapshot processing already in progress, ignoring concurrent call');
       return;
     }
 
@@ -173,9 +166,7 @@ class OrderbookStore {
 
     // Log only on first snapshot
     if (!this.isReady) {
-      // PERF: Disabled - console.log(`📊 [Orderbook] Received snapshot: ${data.bids.length} bids, ${data.asks.length} asks`);
       if (midPrice > 0) {
-        // PERF: Disabled - console.log(`📊 [Orderbook] Filtering to ±$${depthRange.toLocaleString()} of mid-price $${midPrice.toFixed(2)} (range: $${minPrice.toFixed(2)}-$${maxPrice.toFixed(2)})`);
       }
     }
 
@@ -250,8 +241,6 @@ class OrderbookStore {
 
     // Log filtering stats on first snapshot or significant changes
     if (!this.isReady && (filteredBidCount > 0 || filteredAskCount > 0)) {
-      // PERF: Disabled - console.log(`📊 [Orderbook] Filtered out ${filteredBidCount} bids and ${filteredAskCount} asks beyond ±$${depthRange.toLocaleString()} depth`);
-      // PERF: Disabled - console.log(`📊 [Orderbook] Keeping ${newBidsArray.length} bids and ${newAsksArray.length} asks in memory`);
     }
 
     // ⚡ PERF: Update SortedOrderbookLevels (maintains sorted order automatically)
@@ -298,9 +287,7 @@ class OrderbookStore {
    * Process incremental orderbook update
    */
   processUpdate(data: { product_id: string; changes: Array<{ side: string; price: number; size: number }> }) {
-    console.log(`🔄 [OrderbookStore] Processing update: ${data.changes?.length || 0} changes, isReady=${this.isReady}`);
     if (!this.isReady) {
-      console.log(`⚠️ [OrderbookStore] Not ready, skipping update`);
       return;
     }
 
@@ -508,7 +495,6 @@ class OrderbookStore {
     const sortedAsks = this._sortedAsks.slice(0, maxLevels);
 
     if (sortedBids.length === 0 || sortedAsks.length === 0) {
-      // PERF: Disabled - console.warn(`📊 [OrderbookStore] getDepthData sliced empty: sortedBids=${sortedBids.length} (total=${this._sortedBids.length}), sortedAsks=${sortedAsks.length} (total=${this._sortedAsks.length}), maxLevels=${maxLevels}`);
     }
 
     // Calculate cumulative depth for BIDS starting from best bid (highest price)
@@ -531,7 +517,6 @@ class OrderbookStore {
     });
 
     if (bidsWithDepth.length === 0 || asksWithDepth.length === 0) {
-      // PERF: Disabled - console.warn(`📊 [OrderbookStore] returning empty depth: bids=${bidsWithDepth.length}, asks=${asksWithDepth.length}`);
     }
     return { bids: bidsWithDepth, asks: asksWithDepth };
   }
@@ -700,7 +685,6 @@ class OrderbookStore {
         try {
           callback(midPrice);
         } catch (error) {
-          // PERF: Disabled - console.error('Error in price subscriber callback:', error);
         }
       });
     }

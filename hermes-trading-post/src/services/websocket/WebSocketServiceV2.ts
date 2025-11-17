@@ -57,7 +57,6 @@ export class WebSocketServiceV2 {
     // Monitor circuit breaker state
     this.circuitBreaker.onStateChanged((newState, oldState) => {
       if (this.debug) {
-        console.log(`[WebSocketServiceV2] Circuit breaker: ${oldState} → ${newState}`);
       }
 
       // Auto-reconnect if transitioning to half-open
@@ -67,7 +66,6 @@ export class WebSocketServiceV2 {
     });
 
     if (this.debug) {
-      console.log(`[WebSocketServiceV2] Initialized (url: ${url})`);
     }
   }
 
@@ -77,7 +75,6 @@ export class WebSocketServiceV2 {
   async connect(): Promise<void> {
     if (this.state === WebSocketState.CONNECTED || this.state === WebSocketState.CONNECTING) {
       if (this.debug) {
-        console.log(`[WebSocketServiceV2] Already connecting/connected`);
       }
       return;
     }
@@ -92,7 +89,6 @@ export class WebSocketServiceV2 {
 
             this.ws.onopen = () => {
               if (this.debug) {
-                console.log('[WebSocketServiceV2] ✅ Connected');
               }
               this.setState(WebSocketState.CONNECTED);
               this.reconnectAttempts = 0;
@@ -108,7 +104,6 @@ export class WebSocketServiceV2 {
 
             this.ws.onerror = (error) => {
               if (this.debug) {
-                console.error('[WebSocketServiceV2] ❌ Error:', error);
               }
               this.setState(WebSocketState.ERROR);
               reject(new Error('WebSocket error'));
@@ -116,7 +111,6 @@ export class WebSocketServiceV2 {
 
             this.ws.onclose = () => {
               if (this.debug) {
-                console.log('[WebSocketServiceV2] Closed');
               }
               this.setState(WebSocketState.DISCONNECTED);
               this.stopHeartbeat();
@@ -129,7 +123,6 @@ export class WebSocketServiceV2 {
       });
     } catch (error) {
       if (this.debug) {
-        console.error('[WebSocketServiceV2] Connection failed:', error);
       }
       this.setState(WebSocketState.ERROR);
       this.scheduleReconnect();
@@ -159,7 +152,6 @@ export class WebSocketServiceV2 {
 
     this.setState(WebSocketState.DISCONNECTED);
     if (this.debug) {
-      console.log('[WebSocketServiceV2] Disconnected');
     }
   }
 
@@ -184,7 +176,6 @@ export class WebSocketServiceV2 {
     this.subscriptions.set(subscriptionId, subscription);
 
     if (this.debug) {
-      console.log(`[WebSocketServiceV2] Subscribed: ${subscriptionId} (${channel})`);
     }
 
     // Send subscription if connected
@@ -215,7 +206,6 @@ export class WebSocketServiceV2 {
     this.subscriptions.delete(subscriptionId);
 
     if (this.debug) {
-      console.log(`[WebSocketServiceV2] Unsubscribed: ${subscriptionId}`);
     }
 
     // Send unsubscribe message if connected
@@ -242,7 +232,6 @@ export class WebSocketServiceV2 {
         this.ws.send(JSON.stringify(message));
       } catch (error) {
         if (this.debug) {
-          console.error('[WebSocketServiceV2] Send error:', error);
         }
         this.messageQueue.push(message);
       }
@@ -315,7 +304,6 @@ export class WebSocketServiceV2 {
             subscription.callback(message);
           } catch (error) {
             if (this.debug) {
-              console.error('[WebSocketServiceV2] Subscription callback error:', error);
             }
             metricsCollector.recordEvent('websocket_callback_error', {
               channel: subscription.channel
@@ -325,7 +313,6 @@ export class WebSocketServiceV2 {
       }
     } catch (error) {
       if (this.debug) {
-        console.error('[WebSocketServiceV2] Message parsing error:', error);
       }
     }
   }
@@ -336,7 +323,6 @@ export class WebSocketServiceV2 {
   private reconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       if (this.debug) {
-        console.warn('[WebSocketServiceV2] Max reconnect attempts reached, giving up');
       }
       metricsCollector.recordEvent('websocket_max_reconnects_reached');
       return;
@@ -346,12 +332,10 @@ export class WebSocketServiceV2 {
     const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), this.maxReconnectDelay);
 
     if (this.debug) {
-      console.log(`[WebSocketServiceV2] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
     }
 
     this.connect().catch((error) => {
       if (this.debug) {
-        console.error('[WebSocketServiceV2] Reconnect failed:', error);
       }
     });
   }
@@ -383,7 +367,6 @@ export class WebSocketServiceV2 {
           this.ws.send(JSON.stringify({ type: 'heartbeat' }));
         } catch (error) {
           if (this.debug) {
-            console.error('[WebSocketServiceV2] Heartbeat error:', error);
           }
         }
       }
@@ -422,7 +405,6 @@ export class WebSocketServiceV2 {
     this.state = newState;
 
     if (this.debug) {
-      console.log(`[WebSocketServiceV2] State: ${oldState} → ${newState}`);
     }
 
     for (const callback of this.stateChangeCallbacks) {
@@ -430,7 +412,6 @@ export class WebSocketServiceV2 {
         callback(newState);
       } catch (error) {
         if (this.debug) {
-          console.error('[WebSocketServiceV2] State callback error:', error);
         }
       }
     }

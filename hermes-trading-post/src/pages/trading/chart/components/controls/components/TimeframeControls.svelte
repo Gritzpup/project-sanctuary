@@ -10,10 +10,15 @@
 
   import { PERIOD_DISPLAY_NAMES } from '../../../utils/constants';
   import SharedTimeframeControls from '../../../../../../components/shared/controls/TimeframeControls.svelte';
+  import { onMount } from 'svelte';
 
   export let currentTimeframe: string;
   export let availableTimeframes: string[] = ['1H', '6H', '1D', '1W', '1M', '5Y'];
   export let showTimeframes: boolean = true;
+
+  onMount(() => {
+    // Component mounted
+  });
 </script>
 
 {#if showTimeframes}

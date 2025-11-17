@@ -40,9 +40,7 @@
   };
   
   async function loadData() {
-    console.log('ChartDataManager: Loading data for', granularity, period);
     if (!dataFeed) {
-      console.log('ChartDataManager: No data feed available');
       return;
     }
     
@@ -66,7 +64,6 @@
           endTime: endDate.getTime() / 1000
         });
         
-        console.log('ChartDataManager: Loaded', data.length, 'paper test candles');
         candles = data;
       } else {
         // Load regular data
@@ -79,13 +76,11 @@
           startTime: startDate.getTime() / 1000,
           endTime: endDate.getTime() / 1000
         });
-        console.log('ChartDataManager: Loaded', data.length, 'candles');
         candles = data;
       }
       
       status = 'connected';
     } catch (error) {
-      console.error('Failed to load chart data:', error);
       status = 'error';
       
       // Generate test data as fallback

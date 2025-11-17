@@ -45,9 +45,7 @@ export class WorkerCalculationService {
    */
   private logWorkerStatus(): void {
     if (webWorkerManager.isAvailable()) {
-      console.log('✅ Web Worker available - calculations will be offloaded');
     } else {
-      console.warn('⚠️ Web Worker not available - calculations will run on main thread');
     }
   }
 
@@ -65,12 +63,10 @@ export class WorkerCalculationService {
         this.workerStats.totalTime += duration;
 
         if (this.enableWorkerLogging) {
-          console.log(`⚡ RSI (worker) completed in ${duration.toFixed(2)}ms`);
         }
 
         return result;
       } catch (error) {
-        console.warn('Worker calculation failed, falling back to main thread:', error);
         return this.calculateRSIMainThread(candles, period);
       }
     } else {
@@ -143,7 +139,6 @@ export class WorkerCalculationService {
     this.mainThreadStats.totalTime += duration;
 
     if (this.enableWorkerLogging) {
-      console.log(`⚠️ RSI (main thread) took ${duration.toFixed(2)}ms`);
     }
 
     return rsiValues;
@@ -163,12 +158,10 @@ export class WorkerCalculationService {
         this.workerStats.totalTime += duration;
 
         if (this.enableWorkerLogging) {
-          console.log(`⚡ SMA (worker) completed in ${duration.toFixed(2)}ms`);
         }
 
         return result;
       } catch (error) {
-        console.warn('Worker calculation failed, falling back to main thread:', error);
         return this.calculateSMAMainThread(candles, period);
       }
     } else {
@@ -200,7 +193,6 @@ export class WorkerCalculationService {
     this.mainThreadStats.totalTime += duration;
 
     if (this.enableWorkerLogging) {
-      console.log(`⚠️ SMA (main thread) took ${duration.toFixed(2)}ms`);
     }
 
     return smaValues;
@@ -224,12 +216,10 @@ export class WorkerCalculationService {
         this.workerStats.totalTime += duration;
 
         if (this.enableWorkerLogging) {
-          console.log(`⚡ EMA (worker) completed in ${duration.toFixed(2)}ms`);
         }
 
         return result;
       } catch (error) {
-        console.warn('Worker calculation failed, falling back to main thread:', error);
         return this.calculateEMAMainThread(candles, period, source);
       }
     } else {
@@ -286,7 +276,6 @@ export class WorkerCalculationService {
     this.mainThreadStats.totalTime += duration;
 
     if (this.enableWorkerLogging) {
-      console.log(`⚠️ EMA (main thread) took ${duration.toFixed(2)}ms`);
     }
 
     return emaValues;
@@ -307,7 +296,6 @@ export class WorkerCalculationService {
 
         return result;
       } catch (error) {
-        console.warn('Worker calculation failed, falling back to main thread:', error);
         return this.calculateCumulativeBidsMainThread(bids);
       }
     } else {
@@ -353,7 +341,6 @@ export class WorkerCalculationService {
 
         return result;
       } catch (error) {
-        console.warn('Worker calculation failed, falling back to main thread:', error);
         return this.calculateCumulativeAsksMainThread(asks);
       }
     } else {
@@ -424,12 +411,6 @@ export class WorkerCalculationService {
    */
   public printStats(): void {
     const stats = this.getStats();
-    console.log('📊 Worker Calculation Statistics:');
-    console.log(`  Worker Calculations: ${stats.workerCalculations}`);
-    console.log(`  Main Thread Calculations: ${stats.mainThreadCalculations}`);
-    console.log(`  Average Worker Time: ${stats.avgWorkerTime.toFixed(2)}ms`);
-    console.log(`  Average Main Thread Time: ${stats.avgMainThreadTime.toFixed(2)}ms`);
-    console.log(`  Total Time: ${stats.totalTime.toFixed(2)}ms`);
   }
 
   /**

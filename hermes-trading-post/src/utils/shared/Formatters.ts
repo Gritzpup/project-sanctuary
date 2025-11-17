@@ -112,7 +112,6 @@ export class CurrencyFormatter {
 
       return formatter.format(price);
     } catch (error) {
-      // PERF: Disabled - console.warn('Error formatting price:', error);
       return `$${price.toFixed(2)}`;
     }
   }
@@ -155,7 +154,6 @@ export class CurrencyFormatter {
 
       return `${formatter.format(amount)} ${symbol}`;
     } catch (error) {
-      // PERF: Disabled - console.warn('Error formatting crypto amount:', error);
       return `${amount.toFixed(6)} ${symbol}`;
     }
   }
@@ -192,7 +190,6 @@ export class PercentageFormatter {
 
       return formatter.format(value / 100);
     } catch (error) {
-      // PERF: Disabled - console.warn('Error formatting percentage:', error);
       const sign = showSign && value > 0 ? '+' : '';
       return `${sign}${value.toFixed(2)}%`;
     }
@@ -249,7 +246,6 @@ export class NumberFormatter {
 
       return formatter.format(value);
     } catch (error) {
-      // PERF: Disabled - console.warn('Error formatting number:', error);
       return value.toFixed(maximumFractionDigits);
     }
   }
@@ -361,7 +357,6 @@ export class TimeFormatter {
       const formatter = new Intl.DateTimeFormat(locale, formatOptions);
       return formatter.format(date);
     } catch (error) {
-      // PERF: Disabled - console.warn('Error formatting timestamp:', error);
       return date.toISOString();
     }
   }
@@ -387,7 +382,6 @@ export class TimeFormatter {
         return rtf.format(-diffSeconds, 'second');
       }
     } catch (error) {
-      // PERF: Disabled - console.warn('Error formatting relative time:', error);
       return 'Just now';
     }
   }

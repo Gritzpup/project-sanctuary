@@ -24,18 +24,7 @@ export class PositionSizer {
     
     // Paper trading service now correctly passes total available balance (USD + vault)
     const totalAvailable = balance;
-    
-    console.log('[PositionSizer] Calculating position size:', {
-      balancePassedIn: balance,
-      actualUSD: strategyBalance.usd,
-      actualVault: strategyBalance.vault,
-      totalAvailable,
-      level,
-      sizeMode: this.config.positionSizeMode,
-      basePercent: this.config.basePositionPercent,
-      maxPercent: this.config.maxPositionPercent
-    });
-    
+
     if (this.config.positionSizeMode === 'percentage') {
       return this.calculatePercentageBasedSize(totalAvailable, level, currentPrice);
     } else {
@@ -69,29 +58,11 @@ export class PositionSizer {
       // Scale down all levels proportionally
       const scaleFactor = this.config.maxPositionPercent / totalPotentialPercent;
       const adjustedLevelPercent = levelPercent * scaleFactor;
-      
-      console.log('[PositionSizer] Scaling down position size to stay within max allocation:', {
-        originalLevelPercent: levelPercent.toFixed(2) + '%',
-        adjustedLevelPercent: adjustedLevelPercent.toFixed(2) + '%',
-        scaleFactor: scaleFactor.toFixed(3),
-        totalPotentialPercent: totalPotentialPercent.toFixed(2) + '%',
-        maxAllowed: this.config.maxPositionPercent + '%'
-      });
-      
+
       const adjustedDollarAmount = totalAvailable * (adjustedLevelPercent / 100);
       return adjustedDollarAmount / currentPrice;
     } else {
       const dollarAmount = totalAvailable * (levelPercent / 100);
-      
-      console.log('[PositionSizer] Position size calculation:', {
-        level,
-        levelMultiplier,
-        basePercent: basePercent + '%',
-        levelPercent: levelPercent.toFixed(2) + '%',
-        dollarAmount: dollarAmount.toFixed(2),
-        btcAmount: (dollarAmount / currentPrice).toFixed(6),
-        remainingPercent: (this.config.maxPositionPercent - this.getTotalUsedPercent()).toFixed(2) + '%'
-      });
       
       return dollarAmount / currentPrice;
     }
@@ -111,15 +82,7 @@ export class PositionSizer {
     }
     
     const dollarAmount = baseAmount * levelMultiplier;
-    
-    console.log('[PositionSizer] Fixed position size calculation:', {
-      level,
-      levelMultiplier,
-      baseAmount,
-      dollarAmount,
-      btcAmount: (dollarAmount / currentPrice).toFixed(6)
-    });
-    
+
     return dollarAmount / currentPrice;
   }
 

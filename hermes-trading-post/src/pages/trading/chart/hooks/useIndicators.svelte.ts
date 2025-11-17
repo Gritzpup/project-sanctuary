@@ -43,7 +43,6 @@ export function useIndicators(): IndicatorHookResult {
   // Actions
   const addIndicator = async (config: IndicatorConfig): Promise<string | null> => {
     if (!pluginManager) {
-      console.error('Plugin manager not available');
       return null;
     }
     
@@ -61,7 +60,6 @@ export function useIndicators(): IndicatorHookResult {
         break;
       // Add more indicator types as needed
       default:
-        console.error(`Unknown indicator type: ${config.type}`);
         return null;
     }
     
@@ -71,7 +69,6 @@ export function useIndicators(): IndicatorHookResult {
         indicators.set(plugin.id, plugin);
         return plugin.id;
       } catch (error) {
-        console.error('Failed to add indicator:', error);
         return null;
       }
     }
@@ -86,7 +83,6 @@ export function useIndicators(): IndicatorHookResult {
       await pluginManager.unregister(indicatorId);
       indicators.delete(indicatorId);
     } catch (error) {
-      console.error('Failed to remove indicator:', error);
     }
   };
   
@@ -96,7 +92,6 @@ export function useIndicators(): IndicatorHookResult {
     try {
       pluginManager.updatePluginSettings(indicatorId, settings);
     } catch (error) {
-      console.error('Failed to update indicator:', error);
     }
   };
   

@@ -43,8 +43,6 @@
   let chartRefreshKey = $state(Date.now());
 
   onMount(() => {
-    console.log('⚡ [TradingPanels] Component mounted - Chart canvases will seamlessly refresh on F5 while all UI persists');
-    console.log('🔧 [TradingPanels] Selected pair:', selectedPair, 'granularity:', selectedGranularity);
   });
 
   function forwardEvent(event: CustomEvent) {

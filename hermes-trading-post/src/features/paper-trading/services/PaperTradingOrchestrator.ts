@@ -94,7 +94,6 @@ export class PaperTradingOrchestrator {
       this.backendWs = new WebSocket(getBackendWsUrl());
       
       this.backendWs.onopen = () => {
-        console.log('🟢 Connected to backend WebSocket - REALTIME MODE');
         this.backendConnected = true;
         this.backendWs?.send(JSON.stringify({ type: 'selectBot', botId: 'reverse-descending-grid-bot-1' }));
         // Request initial status once, then rely on realtime updates
@@ -106,12 +105,10 @@ export class PaperTradingOrchestrator {
           const data = JSON.parse(event.data);
           this.handleBackendMessage(data);
         } catch (error) {
-          console.error('Backend WebSocket message error:', error);
         }
       };
       
       this.backendWs.onclose = () => {
-        console.log('🔴 Backend WebSocket disconnected');
         this.backendConnected = false;
 
         // Reconnect after 2 seconds
@@ -119,7 +116,6 @@ export class PaperTradingOrchestrator {
       };
       
     } catch (error) {
-      console.error('Backend WebSocket connection error:', error);
       setTimeout(() => this.connectToBackend(), 2000);
     }
   }
@@ -147,7 +143,6 @@ export class PaperTradingOrchestrator {
     }
     
     if (data.type === 'tradingStopped') {
-      console.log('📊 Backend bot stopped');
       this.updateState({
         isRunning: false,
         isPaused: false
@@ -155,7 +150,6 @@ export class PaperTradingOrchestrator {
     }
     
     if (data.type === 'resetComplete') {
-      console.log('📊 Backend reset confirmed');
       // Don't call resetState() again - just sync with the backend status
       if (data.status) {
         this.updateState({
@@ -193,15 +187,7 @@ export class PaperTradingOrchestrator {
   }
 
   async startTrading(strategyType: string, currentPrice: number) {
-    console.log('🚀 START TRADING - Orchestrator', {
-      strategyType,
-      currentPrice,
-      backendConnected: this.backendConnected,
-      currentState: get(this.state)
-    });
-
     if (this.backendWs && this.backendConnected) {
-      console.log('Sending START command to backend...');
       this.backendWs.send(JSON.stringify({
         type: 'start',
         config: {
@@ -232,7 +218,6 @@ export class PaperTradingOrchestrator {
         const strategy = await this.createStrategy(strategyType); // Now async with lazy loading
 
         if (strategy) {
-          console.log('Starting bot with strategy:', strategy.getName());
           activeBot.service.start(strategy, 'BTC-USD', get(this.state).balance);
 
           const botState = activeBot.service.getState();
@@ -246,7 +231,6 @@ export class PaperTradingOrchestrator {
         }
       }
     } catch (error) {
-      console.error('Error in startTrading:', error);
       throw error;
     }
   }
@@ -358,12 +342,10 @@ export class PaperTradingOrchestrator {
         const signal = currentBotState.strategy.onCandle(candleData, currentBotState.strategy.getState());
         
         if (signal && (signal.action === 'buy' || signal.action === 'sell')) {
-          console.log('Strategy generated signal:', signal);
           this.executeTradeFromSignal(activeBot, signal, price);
         }
       }
     } catch (error) {
-      console.error('Error processing price through strategy:', error);
     }
   }
 
@@ -376,7 +358,6 @@ export class PaperTradingOrchestrator {
         const buyAmount = Math.min(signal.amount || 100, currentState.balance.usd);
         if (buyAmount > 0) {
           const btcAmount = buyAmount / price;
-          console.log(`Executing BUY: $${buyAmount.toFixed(2)} at $${price.toFixed(2)} = ${btcAmount.toFixed(6)} BTC`);
           
           botService.getState().update((state: any) => ({
             ...state,
@@ -400,7 +381,6 @@ export class PaperTradingOrchestrator {
         const sellAmount = Math.min(signal.amount || currentState.balance.btcPositions, currentState.balance.btcPositions);
         if (sellAmount > 0) {
           const usdAmount = sellAmount * price;
-          console.log(`Executing SELL: ${sellAmount.toFixed(6)} BTC at $${price.toFixed(2)} = $${usdAmount.toFixed(2)}`);
           
           botService.getState().update((state: any) => ({
             ...state,
@@ -432,7 +412,6 @@ export class PaperTradingOrchestrator {
       });
       
     } catch (error) {
-      console.error('Error executing trade from signal:', error);
     }
   }
 

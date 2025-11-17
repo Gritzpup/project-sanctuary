@@ -108,7 +108,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       // Subscribe to dataStore updates for real-time volume sync
       this.subscribeToDataStoreUpdates();
     } else {
-      console.error('VolumePlugin: No series available in setupSeries');
     }
   }
 
@@ -127,7 +126,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         this.refreshData();
       });
     } catch (error) {
-      // PERF: Disabled - console.warn('VolumePlugin: Could not subscribe to dataStore updates:', error);
     }
   }
 
@@ -148,14 +146,12 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
    * This prevents old volume data from being shown with new timeframe candles
    */
   public resetForNewTimeframe(): void {
-    console.log('🔄 [VolumePlugin] Resetting for new timeframe...');
     this.volumeData = [];
     this.lastCandleCount = 0;
     this.lastCandleTime = 0;
     this.lastProcessedIndex = -1;
     this.colorCache.clear();
     this.lastCacheClearTime = Date.now();
-    console.log('✅ [VolumePlugin] Reset complete');
   }
 
   protected getData(): HistogramData[] {
@@ -164,7 +160,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       const candles = dataStore.candles;
 
       if (candles.length === 0) {
-        // PERF: Disabled - console.log('VolumePlugin: No candles available');
         return [];
       }
 
@@ -173,11 +168,9 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       const newestTime = candles.length > 0 ? (candles[candles.length - 1]?.time as number || 0) : 0;
       if (candles.length === this.lastCandleCount && newestTime === this.lastCandleTime) {
         // Data hasn't changed - return cached result
-        // PERF: Disabled - console.log(`VolumePlugin: Returning cached data (${this.volumeData.length} bars)`);
         return this.volumeData;
       }
 
-      // PERF: Disabled - console.log(`VolumePlugin: Processing new data (${candles.length} candles, was ${this.lastCandleCount})`);
 
       const settings = this.settings as VolumePluginSettings;
       const upColor = settings.upColor || '#26a69aCC';
@@ -191,7 +184,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
 
       if (isFullRecalc) {
         // Full recalculation: Initialize or reload entire dataset
-        // PERF: Disabled - console.log(`VolumePlugin: Full recalculation (${candles.length} candles)`);
         this.volumeData = new Array(candles.length);
 
         for (let i = 0; i < candles.length; i++) {
@@ -246,7 +238,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
 
       return this.volumeData;
     } catch (error) {
-      // PERF: Disabled - console.error('VolumePlugin: Error getting dataStore:', error);
       return [];
     }
   }
@@ -304,7 +295,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
     if (this.series) {
       this.series.applyOptions({ visible: true });
     } else {
-      console.error('VolumePlugin: No series available to show');
     }
 
     // Refresh the data
@@ -327,7 +317,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       const updateCount = newCandles.length - this.lastProcessedIndex - 1;
       if (updateCount <= 0) return;
 
-      // PERF: Disabled - console.log(`VolumePlugin: Incremental update for ${updateCount} new candles`);
 
       for (let i = this.lastProcessedIndex + 1; i < newCandles.length; i++) {
         const candle = newCandles[i];
@@ -352,7 +341,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         try {
           this.series.update(histogramData);
         } catch (error) {
-          // PERF: Disabled - console.error('VolumePlugin: Error updating histogram:', error);
           // Fallback: Store in array for batch update
           if (!this.volumeData[i]) {
             this.volumeData[i] = histogramData;
@@ -362,7 +350,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
 
       this.lastProcessedIndex = newCandles.length - 1;
     } catch (error) {
-      // PERF: Disabled - console.error('VolumePlugin: Error in updateVolumeDirect:', error);
     }
   }
 

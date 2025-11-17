@@ -206,7 +206,6 @@ export abstract class APIService extends ServiceBase {
       this.emit('api:healthy', {});
     } catch (error) {
       this.emit('api:unhealthy', { error });
-      console.warn(`API service ${this.constructor.name} failed health check:`, error);
     }
   }
 

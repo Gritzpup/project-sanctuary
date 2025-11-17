@@ -64,7 +64,6 @@
 
   // PERF: Disabled debug logging
   // $: {
-  //   console.log('[FixedOrderbookList] Bids/Asks updated:', {
   //     bidCount: allBids.length,
   //     askCount: allAsks.length,
   //     bidVersion,

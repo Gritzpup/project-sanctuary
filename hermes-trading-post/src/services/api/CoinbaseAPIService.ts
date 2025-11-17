@@ -161,7 +161,6 @@ export class CoinbaseAPIService {
       await this.apiClient.get('/time');
       return true;
     } catch (error) {
-      console.error('Coinbase API health check failed:', error);
       return false;
     }
   }

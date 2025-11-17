@@ -272,7 +272,6 @@ export abstract class WebSocketService extends ServiceBase {
             const message: WebSocketMessage = JSON.parse(event.data);
             this.handleMessage(message);
           } catch (error) {
-            console.error('Failed to parse WebSocket message:', error);
             this.emit('message:parseError', { rawData: event.data, error });
           }
         };
@@ -341,7 +340,6 @@ export abstract class WebSocketService extends ServiceBase {
 
     this.reconnectTimer = setTimeout(() => {
       this.connect().catch(error => {
-        console.error('Reconnection failed:', error);
       });
     }, delay);
   }
@@ -355,7 +353,6 @@ export abstract class WebSocketService extends ServiceBase {
       try {
         await this.send(message);
       } catch (error) {
-        console.error('Failed to send queued message:', error);
         // Re-queue the message
         this.messageQueue.unshift(message);
         break;
@@ -371,7 +368,6 @@ export abstract class WebSocketService extends ServiceBase {
       this.heartbeatTimer = setInterval(() => {
         if (this.isConnected()) {
           this.send(this.createHeartbeatMessage()).catch(error => {
-            console.error('Heartbeat failed:', error);
           });
         }
       }, this.config.heartbeatInterval);

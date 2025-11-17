@@ -54,7 +54,9 @@ export class CoinbaseAPIService {
   }
 
   /**
-   * Fetch historical candles from Coinbase Advanced Trade API
+   * Fetch historical candles from Coinbase Public Exchange API
+   * 🚀 FIX: Use public Exchange API instead of authenticated Advanced Trade API
+   * This avoids authentication errors and works for all granularities
    * @param {string} productId - e.g., 'BTC-USD'
    * @param {number} granularity - granularity in seconds (60, 300, 900, 1800, 3600, 7200, 14400, 21600, 86400)
    * @param {string} start - ISO timestamp
@@ -65,16 +67,10 @@ export class CoinbaseAPIService {
     await this.rateLimit();
 
     try {
-      const granularityEnum = this.secondsToGranularityEnum(granularity);
-
-      const params = new URLSearchParams({
-        start,
-        end,
-        granularity: granularityEnum
-      });
-
-      // Advanced Trade API endpoint
-      const url = `${this.baseURL}/products/${productId}/candles?${params}`;
+      // 🔧 FIX: Use public Exchange API endpoint instead of authenticated Advanced Trade API
+      // This endpoint is public and doesn't require authentication
+      // Format: [time, low, high, open, close, volume]
+      const url = `https://api.exchange.coinbase.com/products/${productId}/candles?start=${start}&end=${end}&granularity=${granularity}`;
 
       const response = await axios.get(url, {
         timeout: 10000,
@@ -83,13 +79,12 @@ export class CoinbaseAPIService {
         }
       });
 
-      // Advanced Trade returns array format: [timestamp, open, high, low, close, volume]
-      // Note: Order differs from Exchange API - high/low positions swapped
+      // Exchange API returns array format: [timestamp, low, high, open, close, volume]
       const candles = response.data.map(candle => ({
         time: candle[0],
-        open: candle[1],
+        open: candle[3],
         high: candle[2],
-        low: candle[3],
+        low: candle[1],
         close: candle[4],
         volume: candle[5]
       }));

@@ -19,78 +19,65 @@ export const DEBUG_FLAGS = {
 export const ChartDebug = {
   log: (...args: any[]) => {
     if (DEBUG_FLAGS.ALL) {
-      console.log('[Chart]', ...args);
     }
   },
 
   error: (...args: any[]) => {
     // Always log errors
-    console.error('[Chart Error]', ...args);
   },
 
   warn: (...args: any[]) => {
     if (DEBUG_FLAGS.ALL) {
-      console.warn('[Chart Warning]', ...args);
     }
   },
 
   info: (...args: any[]) => {
     if (DEBUG_FLAGS.ALL) {
-      console.info('[Chart Info]', ...args);
     }
   },
 
   // Critical logs that should always show
   critical: (...args: any[]) => {
-    console.log('[Chart Critical]', ...args);
   },
 
   // Feature-specific loggers
   realtime: (...args: any[]) => {
     if (DEBUG_FLAGS.REALTIME || DEBUG_FLAGS.ALL) {
-      console.log('[Realtime]', ...args);
     }
   },
 
   dataLoading: (...args: any[]) => {
     if (DEBUG_FLAGS.DATA_LOADING || DEBUG_FLAGS.ALL) {
-      console.log('[DataLoading]', ...args);
     }
   },
 
   plugins: (...args: any[]) => {
     if (DEBUG_FLAGS.PLUGINS || DEBUG_FLAGS.ALL) {
-      console.log('[Plugins]', ...args);
     }
   },
 
   volume: (...args: any[]) => {
     if (DEBUG_FLAGS.VOLUME || DEBUG_FLAGS.ALL) {
-      console.log('[Volume]', ...args);
     }
   },
 
   positioning: (...args: any[]) => {
     if (DEBUG_FLAGS.POSITIONING || DEBUG_FLAGS.ALL) {
-      console.log('[Positioning]', ...args);
     }
   },
 
   userInteraction: (...args: any[]) => {
     if (DEBUG_FLAGS.USER_INTERACTION || DEBUG_FLAGS.ALL) {
-      console.log('[UserInteraction]', ...args);
     }
   },
 
   granularity: (...args: any[]) => {
     if (DEBUG_FLAGS.GRANULARITY || DEBUG_FLAGS.ALL) {
-      console.log('[Granularity]', ...args);
     }
   },
 
   memory: (...args: any[]) => {
     if (DEBUG_FLAGS.MEMORY || DEBUG_FLAGS.ALL) {
-      console.log('[Memory]', ...args);
     }
   }
 };

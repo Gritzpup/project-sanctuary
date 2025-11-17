@@ -74,21 +74,16 @@ export class CoinbaseWebSocket {
               break;
               
             case 'subscriptions':
-              // console.log('Subscription confirmed for channels:', data);
               this.onStatusCallback?.('connected');
               break;
               
             case 'error':
-              console.error('WebSocket error message:', data);
               this.onStatusCallback?.('error');
               break;
               
             default:
-              console.log('Unhandled message type:', data.type);
           }
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-          console.error('Raw message:', event.data);
         }
       };
 
@@ -102,11 +97,9 @@ export class CoinbaseWebSocket {
       };
 
       this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
         this.onStatusCallback?.('error');
       };
     } catch (error) {
-      console.error('Error connecting to WebSocket:', error);
       this.scheduleReconnect();
     }
   }
@@ -122,7 +115,6 @@ export class CoinbaseWebSocket {
         this.ws.send(JSON.stringify(subscribeMessage));
         this.isSubscribed = true;
       } catch (error) {
-        console.error('Error sending subscribe message:', error);
         // Trigger reconnection on send failure
         this.ws?.close();
       }
@@ -149,7 +141,6 @@ export class CoinbaseWebSocket {
           };
           this.ws.send(JSON.stringify(keepAliveMessage));
         } catch (error) {
-          console.error('Heartbeat failed:', error);
           this.ws?.close();
         }
       } else {
@@ -201,7 +192,6 @@ export class CoinbaseWebSocket {
     this.connectionTimeout = setTimeout(() => {
       const now = Date.now();
       const timeSinceLastMessage = now - this.lastMessageTime;
-      console.log(`Connection timeout at ${new Date().toISOString()} - no messages received for ${timeSinceLastMessage}ms (last message: ${new Date(this.lastMessageTime).toISOString()})`);
       
       // Force close and reconnect
       if (this.ws) {
@@ -227,7 +217,6 @@ export class CoinbaseWebSocket {
       clearTimeout(this.reconnectTimeout);
     }
     this.reconnectTimeout = setTimeout(() => {
-      // console.log('Attempting to reconnect to Coinbase...');
       this.connect();
     }, 5000); // Reconnect after 5 seconds
   }
@@ -276,7 +265,6 @@ export class CoinbaseWebSocket {
         this.ws.send(JSON.stringify(subscribeMessage));
         this.isSubscribed = true;
       } catch (error) {
-        console.error('Error subscribing to ticker:', error);
         // Ensure we reconnect if send fails
         this.ws?.close();
       }
@@ -340,7 +328,6 @@ export class CoinbaseWebSocket {
           // Errors are rare, so silent failure is acceptable for ticker processing
           // Only log if it's a critical error affecting WebSocket connection
           if (error instanceof Error && error.message?.includes('critical')) {
-            console.error('Critical error in message listener:', error.message);
           }
         }
       });

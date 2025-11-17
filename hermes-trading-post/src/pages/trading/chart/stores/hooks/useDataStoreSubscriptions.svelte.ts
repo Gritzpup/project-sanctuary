@@ -16,7 +16,6 @@ import { dataStoreSubscriptions } from '../services/DataStoreSubscriptions';
  *   import { useDataStoreSubscriptions } from './hooks/useDataStoreSubscriptions.svelte';
  *
  *   useDataStoreSubscriptions('BTC-USD', '1m', (candle) => {
- *     console.log('New candle:', candle);
  *   });
  * </script>
  * ```

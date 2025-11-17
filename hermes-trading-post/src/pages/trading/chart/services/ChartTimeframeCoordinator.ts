@@ -112,14 +112,21 @@ export class ChartTimeframeCoordinator {
       return; // Skip reload
     }
 
+    // 🔧 FIX: Get the CORRECT granularity for the new period from the store
+    // Don't use previousGranularity - use whatever is currently in chartStore.config
+    // This handles race conditions where granularity updates race with period-change events
+    const { chartStore: store } = await import('../stores/chartStore.svelte');
+    const correctGranularity = store.config.granularity;
+
     await this.reloadDataForNewTimeframe(
-      this.previousGranularity,
+      correctGranularity,
       newPeriod,
       chartSeries,
       pluginManager
     );
 
     this.previousPeriod = newPeriod;
+    this.previousGranularity = correctGranularity; // Update our tracked granularity
   }
 
   /**
@@ -156,14 +163,37 @@ export class ChartTimeframeCoordinator {
     chartSeries: ISeriesApi<'Candlestick'> | null,
     pluginManager: PluginManager | null
   ): Promise<void> {
+    ChartDebug.log(`[RELOAD-START] ${granularity}/${period} - initiating timeframe change`);
+    const reloadStart = performance.now();
+
+    // 🔧 CRITICAL FIX: Yield control to browser FIRST
+    // This allows the UI thread to update status and prevents perceived "freeze"
+    // Without this, the entire reload happens synchronously, blocking UI updates
+    await new Promise(resolve => setTimeout(resolve, 0));
+    ChartDebug.log(`[RELOAD-YIELDED] Browser yielded, now starting reload operations`);
+
+    // 🔧 FIX: Don't block if a DIFFERENT timeframe is requested
+    // Allow newer requests to override older ones
     if (this.isReloading) {
-      return; // Prevent concurrent reloads
+      // Check if this is a DIFFERENT reload request
+      if (granularity === this.previousGranularity && period === this.previousPeriod) {
+        return; // Same reload already in progress
+      }
+
+      // Wait for the previous reload to complete before starting this one
+      // This prevents overlapping reloads which can corrupt state
+      let waitCount = 0;
+      while (this.isReloading && waitCount < 100) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        waitCount++;
+      }
     }
 
     this.isReloading = true;
 
     try {
       statusStore.setLoading('Updating timeframe...');
+      ChartDebug.log(`[RELOAD-STEP] Setting loading status`);
 
       // Clear any pending reload
       if (this.reloadTimeout) {
@@ -171,15 +201,21 @@ export class ChartTimeframeCoordinator {
         this.reloadTimeout = null;
       }
 
-      // Step 1: Unsubscribe from current real-time updates
+      // Unsubscribe from current real-time updates
+      // This prevents real-time updates from interfering with historical data loading
+      ChartDebug.log(`[RELOAD-STEP] Unsubscribing from realtime`);
       if (this.subscriptionOrchestrator) {
         this.subscriptionOrchestrator.unsubscribeFromRealtime();
       }
+      ChartDebug.log(`[RELOAD-STEP] Unsubscribe complete`);
 
-      // Step 1.5: ✅ PHASE 2 - Clear old candles to prevent memory leaks
-      // When granularity changes, we need fresh data, not merged with old candles
+      // Clear old candles to prevent memory leaks and resolve conflicts
+      // When granularity/timeframe changes, we need fresh data, not merged with old candles
+      // For long-term timeframes, this also clears real-time candles to prevent
+      // "Cannot update oldest data" errors when loading historical 5Y+ data
+      ChartDebug.log(`[RELOAD-STEP] Resetting dataStore`);
       dataStore.reset();
-      ChartDebug.log(`🧹 DataStore reset for granularity change (old data cleared)`);
+      ChartDebug.log(`[RELOAD-STEP] Reset complete`);
 
       // Step 1.75: ✅ Update chartStore config BEFORE loading data
       // This ensures the chart's internal granularity setting matches the data being loaded
@@ -189,17 +225,25 @@ export class ChartTimeframeCoordinator {
       chartStore.setTimeframe(period);
       ChartDebug.log(`📝 chartStore updated: granularity=${granularity}, period=${period}`);
 
-      // Step 2: Load data with new timeframe
+      // Load data with new timeframe
       if (this.dataLoader) {
+        // Extract chart from series so we can use it for positioning
+        let chart = null;
+        if (chartSeries && typeof (chartSeries as any).getChart === 'function') {
+          try {
+            chart = (chartSeries as any).getChart();
+          } catch (err) {
+            ChartDebug.log(`⚠️ Failed to get chart from series: ${err}`);
+          }
+        }
+
         await this.dataLoader.loadData({
           pair: dataStore.pair || 'BTC-USD',
           granularity,
           timeframe: period,
-          chart: null, // Will be set if needed
+          chart, // Pass the actual chart so positioning can work
           series: chartSeries
         });
-
-        ChartDebug.log(`Data loaded for ${granularity} ${period}`);
 
         // Update database count after loading new data for the timeframe
         // This ensures the "DB" stat in the UI shows the correct total
@@ -221,15 +265,19 @@ export class ChartTimeframeCoordinator {
       }
 
       // Step 5: Fit chart to show all candles after positioning
-      // Don't try to position with null chart - just let fitContent handle it
-      if (chartSeries && typeof (chartSeries as any).getChart === 'function') {
+      // For long-term timeframes (5Y, 1Y), useDataLoader handles fitContent at 500ms
+      // For short-term, we still need to fit but after a short delay for positioning
+      const longTermPeriods = ['1M', '3M', '6M', '1Y', '5Y'];
+      const isLongTerm = longTermPeriods.includes(period);
+
+      if (chartSeries && typeof (chartSeries as any).getChart === 'function' && !isLongTerm) {
         setTimeout(() => {
           try {
             const chart = (chartSeries as any).getChart();
             if (chart && typeof chart.timeScale === 'function') {
-              // Fit the chart to show all loaded candles
+              // Fit the chart to show loaded candles
               chart.timeScale().fitContent();
-              ChartDebug.log(`✅ Chart fitted to show all ${dataStore.candles.length} candles`);
+              ChartDebug.log(`✅ Chart fitted to show ${dataStore.candles.length} candles`);
             }
           } catch (err) {
             ChartDebug.log(`⚠️ Failed to fit chart content: ${err}`);
@@ -252,9 +300,8 @@ export class ChartTimeframeCoordinator {
       }
 
       statusStore.setReady();
-      ChartDebug.log(`✅ Timeframe reload complete: ${granularity} ${period}`);
     } catch (error) {
-      console.error('Failed to reload data for new timeframe:', error);
+      console.error(`[ChartTimeframeCoordinator] Error during timeframe reload: ${granularity}/${period}`, error);
       statusStore.setError('Failed to update timeframe');
     } finally {
       this.isReloading = false;

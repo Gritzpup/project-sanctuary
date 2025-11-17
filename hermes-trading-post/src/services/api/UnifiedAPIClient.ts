@@ -171,7 +171,6 @@ export class UnifiedAPIClient {
         );
 
         // Log retry attempt with exponential backoff (useful for debugging rate limits and timeouts)
-        console.warn(`[API] Request retry - Attempt ${attempt + 1}/${config.maxRetries + 1}, waiting ${delay}ms:`, error);
         await this.sleep(delay);
       }
     }
@@ -223,7 +222,6 @@ export class UnifiedAPIClient {
       await this.get(url);
       return true;
     } catch (error) {
-      console.error('Health check failed:', error);
       return false;
     }
   }

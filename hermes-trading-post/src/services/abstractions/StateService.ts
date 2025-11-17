@@ -221,7 +221,6 @@ export abstract class StateService<TState = any> extends ServiceBase {
       try {
         callback(currentState, this.previousState);
       } catch (error) {
-        console.error('Error in state subscriber:', error);
         this.emit('subscriber:error', { error, state: currentState });
       }
     }

@@ -172,7 +172,6 @@ export function createCacheKey(...params: any[]): string {
  * const candleCache = new LRUCache<string, CandleData[]>({
  *   maxSize: 500,
  *   onEvict: (key, value) => {
- *     console.log(`Evicting cache for ${key} (${value.length} candles)`);
  *   }
  * });
  *

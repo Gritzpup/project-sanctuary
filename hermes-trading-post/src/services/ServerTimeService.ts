@@ -47,13 +47,11 @@ export async function initServerTime(): Promise<void> {
       lastSyncTime = Date.now();
       isInitialized = true;
 
-      console.log(`🕐 [ServerTimeService] Initialized with time drift: ${timeDrift}ms`);
 
       // Re-sync every 30 seconds to correct for clock drift
       setInterval(syncServerTime, 30000);
     }
   } catch (error) {
-    console.warn('[ServerTimeService] Failed to sync with server, falling back to local time:', error);
     isInitialized = true; // Still mark as initialized to prevent retries
   }
 }
@@ -85,14 +83,12 @@ async function syncServerTime(): Promise<void> {
 
       // Only update if drift changed significantly (>100ms)
       if (Math.abs(newDrift - timeDrift) > 100) {
-        console.log(`🔄 [ServerTimeService] Time drift corrected: ${timeDrift}ms → ${newDrift}ms`);
         timeDrift = newDrift;
       }
 
       lastSyncTime = Date.now();
     }
   } catch (error) {
-    console.warn('[ServerTimeService] Re-sync failed, continuing with current drift:', error);
   }
 }
 

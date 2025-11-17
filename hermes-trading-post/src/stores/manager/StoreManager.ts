@@ -54,14 +54,10 @@ export class StoreManager {
     }
   ): void {
     if (this.stores.has(name)) {
-      console.warn(`[StoreManager] Store already registered: ${name}`);
       return;
     }
 
     if (this.isInitialized) {
-      console.warn(
-        `[StoreManager] Cannot register store after initialization: ${name}`
-      );
       return;
     }
 
@@ -75,7 +71,6 @@ export class StoreManager {
     });
 
     if (this.debug) {
-      console.log(`[StoreManager] Registered store: ${name}`);
     }
   }
 
@@ -100,7 +95,6 @@ export class StoreManager {
 
         try {
           if (registered.debug || this.debug) {
-            console.log(`[StoreManager] Initializing store: ${storeName}`);
           }
 
           if (registered.initializer) {
@@ -112,18 +106,11 @@ export class StoreManager {
 
           registered.initialized = true;
         } catch (error) {
-          console.error(`[StoreManager] Failed to initialize store ${storeName}:`, error);
           throw error;
         }
       }
 
       this.isInitialized = true;
-
-      if (this.debug) {
-        console.log(
-          `[StoreManager] All stores initialized (${this.stores.size} total)`
-        );
-      }
     } finally {
       this.isInitializing = false;
     }
@@ -162,7 +149,6 @@ export class StoreManager {
     }
 
     if (this.debug) {
-      console.log('[StoreManager] All stores reset');
     }
   }
 
@@ -257,7 +243,6 @@ export const storeManager = StoreManager.getInstance();
 export function useStore<T>(name: string): Writable<T> | null {
   const store = storeManager.getStore<T>(name);
   if (!store) {
-    console.warn(`[useStore] Store not found: ${name}`);
   }
   return store;
 }
@@ -284,7 +269,6 @@ export async function resetStores(): Promise<void> {
  * Get store manager statistics
  * @example
  * const stats = getStoreStats();
- * console.log(`${stats.initializedStores}/${stats.totalStores} stores ready`);
  */
 export function getStoreStats(): {
   totalStores: number;

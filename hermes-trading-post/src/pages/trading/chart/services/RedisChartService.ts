@@ -47,7 +47,6 @@ export class RedisChartService {
     try {
       const response = await fetch(`${this.backendUrl}/health`);
     } catch (error) {
-      // PERF: Disabled - console.error('❌ [RedisChartService] Backend connectivity test failed:', error);
     }
   }
 
@@ -117,7 +116,6 @@ export class RedisChartService {
       return candles;
 
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ [RedisChartService] Redis fetch failed:`, error);
 
       // Return empty array instead of throwing to allow graceful degradation
       return [];
@@ -163,7 +161,6 @@ export class RedisChartService {
       return { candles, metadata };
       
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ [RedisChartService] Error fetching candles with metadata:`, error);
       throw error;
     }
   }
@@ -291,7 +288,6 @@ export class RedisChartService {
       this.ws.send(JSON.stringify(message));
       ChartDebug.log(`📡 Subscribed to ${pair}:${granularity}`);
     } else {
-      // PERF: Disabled - console.error('❌ [RedisChartService] Cannot subscribe - WebSocket not open. State:', this.ws?.readyState);
     }
   }
 
@@ -299,7 +295,6 @@ export class RedisChartService {
    * Handle incoming WebSocket messages
    */
   private handleWebSocketMessage(message: any) {
-    console.log(`📨 [RedisChart] Received WebSocket message, type: ${message.type}`);
     switch (message.type) {
       case 'ticker':
         // 🚀 RADICAL OPTIMIZATION: Handle instant ticker updates (no throttle)
@@ -323,7 +318,6 @@ export class RedisChartService {
         break;
 
       case 'candle':
-        console.log(`📊 [RedisChart] Received candle: ${message.pair}:${message.granularity} at $${message.close} (${message.candleType})`);
         const subscriptionKey = `${message.pair}:${message.granularity}`;
         const callback = this.wsSubscriptions.get(subscriptionKey);
 
@@ -367,13 +361,11 @@ export class RedisChartService {
             try {
               dataStore.updateDatabaseCount();
             } catch (err) {
-              // PERF: Disabled - console.error('Failed to update database count:', err);
             }
           } else if (activity.type === 'error' || activity.type === 'API_ERROR') {
             statusStore.setDatabaseActivity('error', 3000);
           }
         } catch (error) {
-          // PERF: Disabled - console.error('Failed to update database activity:', error);
         }
         break;
 

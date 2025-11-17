@@ -127,7 +127,6 @@ class NewsService {
     this.aiTrainingData.push(...trainingData);
     
     // In production, this would store to a database
-    console.log(`Stored ${trainingData.length} articles for AI training. Total: ${this.aiTrainingData.length}`);
   }
 
   getAITrainingData(): AITrainingData[] {

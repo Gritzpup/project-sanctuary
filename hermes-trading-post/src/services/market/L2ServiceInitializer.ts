@@ -37,12 +37,10 @@ export class L2ServiceInitializer {
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
-      console.warn('[L2] Services already initialized');
       return;
     }
 
     try {
-      console.log('[L2] Initializing services...');
 
       // Initialize candle aggregators for all standard granularities
       this.initializeCandleAggregators();
@@ -54,9 +52,7 @@ export class L2ServiceInitializer {
       this.setupMarketMonitoring();
 
       this.initialized = true;
-      console.log('[L2] ✅ All services initialized successfully');
     } catch (error) {
-      console.error('[L2] ❌ Initialization failed:', error);
       throw error;
     }
   }
@@ -75,14 +71,12 @@ export class L2ServiceInitializer {
       aggregator.subscribeToCandles((candle) => {
         const metrics = aggregator.getMetrics();
         if (metrics.candlesGenerated % 10 === 0) {
-          console.log(
             `[L2] Candles generated: ${metrics.candlesGenerated} (${granularity}s)`
           );
         }
       });
     }
 
-    console.log(`[L2] Initialized ${granularities.length} candle aggregators`);
   }
 
   /**
@@ -94,7 +88,6 @@ export class L2ServiceInitializer {
     this.priceSubscriptionUnsubscribe = l2PriceProvider.subscribeToPrice((update) => {
       if (this.destroyed) return;
       if (!update || !update.midPrice) {
-        console.warn('[L2] Invalid price update:', update);
       }
     });
 
@@ -103,7 +96,6 @@ export class L2ServiceInitializer {
       (context) => {
         if (this.destroyed) return;
         if (!context) {
-          console.warn('[L2] No market context available');
         }
       }
     );
@@ -111,7 +103,6 @@ export class L2ServiceInitializer {
     // Liquidity alerts
     liquidityAnalyzer.subscribeToAlerts((alert) => {
       if (this.destroyed) return;
-      console.warn(`[L2] Alert: ${alert.message}`);
     });
   }
 
@@ -132,7 +123,6 @@ export class L2ServiceInitializer {
       const quality = liquidityAnalyzer.getMarketQuality();
 
       if (condition) {
-        console.log(`[L2] Market Health: ${quality}/100 | ${condition.isHealthy ? '✓' : '⚠'}`);
       }
     }, 10000);
   }
@@ -204,7 +194,6 @@ export class L2ServiceInitializer {
     l2ExecutionSimulator.clearHistory();
 
     this.initialized = false;
-    console.log('[L2] Services cleaned up (all intervals and subscriptions cleared)');
   }
 }
 

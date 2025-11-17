@@ -49,24 +49,20 @@
 
   function handleGranularityChange(granularity: string) {
     selectedGranularity = granularity;
-    console.log('Selected granularity:', granularity);
   }
 
   function handlePeriodChange(period: string) {
     selectedPeriod = period;
-    console.log('Selected period:', period);
     
     // If current granularity is not valid for new period, select the best default
     selectedGranularity = autoSelectGranularity(period, selectedGranularity);
     if (selectedGranularity !== savedPrefs.granularity) {
-      console.log('Auto-selected granularity:', selectedGranularity);
     }
   }
 
   function handleChartGranularityChange(newGranularity: string) {
     // Update button states smoothly
     if (selectedGranularity !== newGranularity) {
-      console.log(`Auto-granularity changed to: ${newGranularity}`);
       selectedGranularity = newGranularity;
       autoGranularityActive = true;
       
@@ -78,7 +74,6 @@
   }
 
   onMount(() => {
-    console.log('Dashboard mounted successfully');
   });
 </script>
 

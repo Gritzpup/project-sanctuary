@@ -35,29 +35,6 @@
   $: totalCapitalDeployed = balance + positionCostBasis + vaultBalance + (btcVaultBalance * currentPrice);
   $: totalPL = totalCapitalDeployed - startingBalance;
 
-  // 🔍 DEBUG: Log all values for Total P/L calculation
-  $: {
-    console.log('💰 [TradingStats] P/L Calculation:', {
-      balance,
-      positionCostBasis,
-      vaultBalance,
-      btcVaultBalance,
-      btcVaultValue: btcVaultBalance * currentPrice,
-      totalCapitalDeployed,
-      startingBalance,
-      totalPL
-    });
-  }
-
-  // 🔍 DEBUG: Log next buy/sell prices
-  $: {
-    console.log('🎯 [TradingStats] Next Buy/Sell:', {
-      nextBuyDistance,
-      nextSellDistance,
-      nextBuyPrice,
-      nextSellPrice
-    });
-  }
 
   // Total value includes current market value of positions
   $: totalValue = balance + (btcBalance * currentPrice) + vaultBalance + (btcVaultBalance * currentPrice);

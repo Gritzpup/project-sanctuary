@@ -73,7 +73,6 @@ export function useAutoGranularity(config: UseAutoGranularityConfig) {
     const visibleCandleCount = toIndex - fromIndex;
     const currentGranularity = chartStore.config.granularity;
 
-    console.log(`📊 [AutoGranularity] Zoom detected: ${visibleCandleCount} candles visible (${currentGranularity})`);
 
     // Determine if we need to switch granularity
     // Switch UP (to larger granularity) if showing > 150 candles
@@ -91,19 +90,16 @@ export function useAutoGranularity(config: UseAutoGranularityConfig) {
       // Update timeframe to match
       const timeframeMap = { '1m': '1H', '5m': '6H', '15m': '1D', '1h': '1W', '6h': '1M', '1d': '1Y' };
       newTimeframe = timeframeMap[newGranularity];
-      console.log(`🔼 [AutoGranularity] Too many candles (${visibleCandleCount}), switching UP to ${newGranularity}`);
     } else if (visibleCandleCount < 5 && currentIndex > 0) {
       // Very few candles visible (user zoomed in very far), switch to smaller granularity
       // Changed from 50 to 5 to avoid interfering with small datasets like 5m/1H (12 candles)
       newGranularity = granularityOrder[currentIndex - 1];
       const timeframeMap = { '1m': '1H', '5m': '6H', '15m': '1D', '1h': '1W', '6h': '1M', '1d': '1Y' };
       newTimeframe = timeframeMap[newGranularity];
-      console.log(`🔽 [AutoGranularity] Very few candles visible (${visibleCandleCount}), switching DOWN to ${newGranularity}`);
     }
 
     // Only switch if granularity actually changed
     if (newGranularity !== currentGranularity && newGranularity !== lastSwitchedGranularity) {
-      console.log(`🔄 [AutoGranularity] Switching from ${currentGranularity} to ${newGranularity} (${visibleCandleCount} candles visible)`);
 
       lastSwitchedGranularity = newGranularity;
 
@@ -123,13 +119,11 @@ export function useAutoGranularity(config: UseAutoGranularityConfig) {
         granularity: newGranularity,
         maxCandles: candlesToLoad
       }).then(() => {
-        console.log(`✅ [AutoGranularity] Switched to ${newGranularity} successfully`);
         // Reset last switched to allow switching back if user zooms again
         setTimeout(() => {
           lastSwitchedGranularity = '';
         }, 1000);
       }).catch(err => {
-        console.error(`❌ [AutoGranularity] Failed to load data for ${newGranularity}:`, err);
         lastSwitchedGranularity = '';
       });
     }

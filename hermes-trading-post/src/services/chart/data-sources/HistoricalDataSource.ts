@@ -55,7 +55,6 @@ export class HistoricalDataSource {
     endTime: number
   ): Promise<CandleData[]> {
     try {
-      console.log(`📊 Fetching historical data: ${symbol} ${granularity} from ${new Date(startTime * 1000).toISOString()}`);
       
       // Convert timestamps to appropriate format
       const start = new Date(startTime * 1000);
@@ -83,11 +82,9 @@ export class HistoricalDataSource {
       // Sort by time (oldest first)
       candleData.sort((a, b) => a.time - b.time);
       
-      console.log(`✅ Fetched ${candleData.length} historical candles for ${symbol} ${granularity}`);
       return candleData;
       
     } catch (error) {
-      console.error(`Error fetching historical data for ${symbol} ${granularity}:`, error);
       
       // Return empty array on error to prevent cascading failures
       return [];
@@ -138,7 +135,6 @@ export class HistoricalDataSource {
       return { available: true, gaps: [] };
       
     } catch (error) {
-      console.error('Error checking data availability:', error);
       return { available: false, gaps: [{ start: startTime, end: endTime }] };
     }
   }
@@ -149,7 +145,6 @@ export class HistoricalDataSource {
       const ticker = await coinbaseAPI.getTicker(symbol);
       return new Date(ticker.time).getTime() / 1000;
     } catch (error) {
-      console.error('Error getting latest data timestamp:', error);
       return Math.floor(Date.now() / 1000);
     }
   }

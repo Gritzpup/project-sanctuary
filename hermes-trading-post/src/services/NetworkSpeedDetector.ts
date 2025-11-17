@@ -75,7 +75,6 @@ export class NetworkSpeedDetector {
       return speed;
     } catch (error) {
       // On error, assume slow connection
-      console.warn('[NetworkSpeedDetector] Speed measurement failed, assuming slow:', error);
       this.stats = {
         speed: 'slow',
         avgLatency: this.SLOW_THRESHOLD_MS,
@@ -229,9 +228,7 @@ export const networkSpeedDetector = new NetworkSpeedDetector({
  * Helper to initialize network detection on app load
  */
 export async function initializeNetworkDetection(): Promise<NetworkSpeed> {
-  console.log('[NetworkSpeedDetector] Starting network speed detection...');
   const speed = await networkSpeedDetector.measureSpeed();
-  console.log(
     `[NetworkSpeedDetector] Detected network speed: ${speed} (avg: ${
       networkSpeedDetector.getStats()?.avgLatency.toFixed(0)
     }ms)`
@@ -247,7 +244,6 @@ export async function initializeNetworkDetection(): Promise<NetworkSpeed> {
  *
  * // Get loading config
  * const config = networkSpeedDetector.getLoadingConfig(speed);
- * console.log(`Using batch size: ${config.batchSize}`);
  *
  * // Adapt data loading
  * async function fetchChartData(pair: string, granularity: string) {

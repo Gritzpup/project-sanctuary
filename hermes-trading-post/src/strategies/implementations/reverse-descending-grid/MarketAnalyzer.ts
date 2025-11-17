@@ -24,7 +24,6 @@ export class MarketAnalyzer {
       if (this.state.recentHigh === 0 && candles.length > 0) {
         // Initialize to the first candle's high so we can start trading immediately
         this.state.recentHigh = candles[0].high;
-        console.log(`[MarketAnalyzer] ULTRA MODE: Initialized to first candle high ${this.state.recentHigh.toFixed(2)} - ready to trade immediately!`);
       }
       
       // Now update based on all available candles (not just lookback period)
@@ -41,24 +40,20 @@ export class MarketAnalyzer {
         // Use the lookback high for more responsive trading
         if (lookbackHigh > this.state.recentHigh || this.state.recentHigh === 0) {
           this.state.recentHigh = lookbackHigh;
-          console.log(`[MarketAnalyzer] Updated to ${lookback}-candle high: ${this.state.recentHigh.toFixed(2)}`);
         }
       } else {
         // Not enough candles for lookback - use absolute high
         this.state.recentHigh = absoluteHigh;
-        console.log(`[MarketAnalyzer] Using absolute high (only ${candles.length} candles): ${this.state.recentHigh.toFixed(2)}`);
       }
       
       // Always update if current price is a new high
       if (currentPrice > this.state.recentHigh) {
         this.state.recentHigh = currentPrice;
-        console.log(`[MarketAnalyzer] New absolute high: ${this.state.recentHigh.toFixed(2)}`);
       }
     } else {
       // When in a position, only update if we see a new high
       if (currentPrice > this.state.recentHigh) {
         this.state.recentHigh = currentPrice;
-        console.log(`[MarketAnalyzer] New high while in position: ${this.state.recentHigh.toFixed(2)}`);
       }
     }
   }
@@ -97,23 +92,6 @@ export class MarketAnalyzer {
    * Log market status for debugging
    */
   logMarketStatus(candles: CandleData[], currentPrice: number, availableBalance: number): void {
-    const dropFromHigh = ((this.state.recentHigh - currentPrice) / this.state.recentHigh) * 100;
-    
-    // Debug logging for significant drops or periodic updates
-    if (candles.length <= 50 || dropFromHigh >= 3 || candles.length % 250 === 0) {
-      console.log('[MarketAnalyzer] Market status:', {
-        candleCount: candles.length,
-        date: new Date(candles[candles.length - 1].time * 1000).toISOString(),
-        currentPrice,
-        recentHigh: this.state.recentHigh,
-        dropFromHigh: dropFromHigh.toFixed(2) + '%',
-        hasPositions: this.state.currentLevel > 0,
-        initialDropThreshold: this.config.initialDropPercent + '%',
-        availableBalance: availableBalance.toFixed(2),
-        needsDrop: (this.config.initialDropPercent - dropFromHigh).toFixed(2) + '% more',
-        currentLevel: this.state.currentLevel,
-        initialEntry: this.state.initialEntryPrice
-      });
-    }
+    // Market status monitoring removed
   }
 }

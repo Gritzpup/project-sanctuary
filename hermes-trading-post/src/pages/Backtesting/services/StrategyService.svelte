@@ -82,7 +82,6 @@
   export function createStrategy(type: string, params: Record<string, any> = {}, customStrategies: any[] = []): Strategy {
     try {
       const strategyParams = { ...defaultStrategyParams[type], ...params };
-      console.log('Creating strategy:', type, 'with params:', strategyParams);
       
       const customStrategy = customStrategies.find(s => s.value === type);
       if (customStrategy) {
@@ -104,13 +103,11 @@
           return new MicroScalpingStrategy(strategyParams);
         case 'proper-scalping':
           // For now, use micro-scalping as a placeholder for proper-scalping
-          console.log('Using MicroScalpingStrategy for proper-scalping');
           return new MicroScalpingStrategy(strategyParams);
         default:
           throw new Error(`Unknown strategy type: ${type}`);
       }
     } catch (error) {
-      console.error('Failed to create strategy:', error);
       throw error;
     }
   }

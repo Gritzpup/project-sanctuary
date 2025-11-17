@@ -29,7 +29,6 @@ export class ChartWebSocketHandler {
       return;
     }
 
-    console.log('[ChartWS] Connecting to WebSocket...');
     
     // Subscribe to price updates
     coinbaseWebSocket.subscribeTicker(this.symbol);
@@ -45,7 +44,6 @@ export class ChartWebSocketHandler {
     });
     
     this.wsConnected = true;
-    console.log('[ChartWS] WebSocket connected');
   }
 
   /**
@@ -60,7 +58,6 @@ export class ChartWebSocketHandler {
     if (this.wsConnected) {
       coinbaseWebSocket.unsubscribeTicker(this.symbol);
       this.wsConnected = false;
-      console.log('[ChartWS] WebSocket disconnected');
     }
   }
 
@@ -116,7 +113,6 @@ export class ChartWebSocketHandler {
       try {
         callback(candle, isNew, metadata);
       } catch (error) {
-        console.error('[ChartWS] Error in subscriber callback:', error);
       }
     });
   }

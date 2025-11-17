@@ -87,7 +87,6 @@ export class BackendCacheService {
       };
       
     } catch (error) {
-      console.warn('Backend cache request failed:', error);
       
       // Return empty result rather than complex fallback
       return {

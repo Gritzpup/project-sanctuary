@@ -59,60 +59,17 @@ class DataStore {
   private lastMemoryReport: number = Date.now();
 
   constructor() {
-    // 🔍 MEMORY DEBUG: Periodic memory diagnostics
-    this.memoryMonitorInterval = setInterval(() => {
-      this.logMemoryDiagnostics();
-    }, 30000); // Every 30 seconds
-
-    console.log('🔍 [DataStore] Memory monitoring enabled - diagnostics every 30s');
+    // 🔍 MEMORY DEBUG: Periodic memory diagnostics (DISABLED for cleaner logs)
+    // this.memoryMonitorInterval = setInterval(() => {
+    //   this.logMemoryDiagnostics();
+    // }, 30000); // Every 30 seconds
   }
 
   /**
    * 🔍 MEMORY DEBUG: Log memory diagnostics to identify leak sources
    */
   private logMemoryDiagnostics(): void {
-    const now = Date.now();
-    const timeSinceLastReport = (now - this.lastMemoryReport) / 1000;
-
-    const diagnostics = {
-      timestamp: new Date().toISOString(),
-      arrays: {
-        candles: this._candles.length,
-        visibleCandles: this._visibleCandles.length,
-        maxAllowed: this.MAX_CANDLES
-      },
-      callbacks: {
-        dataUpdate: this.dataUpdateCallbacks.size,
-        historicalDataLoaded: this.historicalDataLoadedCallbacks.size,
-        maxAllowed: this.maxCallbacksSize
-      },
-      updateFrequency: {
-        notifyCallsInPeriod: this.notifyUpdateCount,
-        periodSeconds: timeSinceLastReport,
-        callsPerSecond: (this.notifyUpdateCount / timeSinceLastReport).toFixed(2)
-      },
-      browserMemory: (performance as any).memory ? {
-        usedJSHeapSize: ((performance as any).memory.usedJSHeapSize / 1024 / 1024).toFixed(2) + ' MB',
-        totalJSHeapSize: ((performance as any).memory.totalJSHeapSize / 1024 / 1024).toFixed(2) + ' MB',
-        jsHeapSizeLimit: ((performance as any).memory.jsHeapSizeLimit / 1024 / 1024).toFixed(2) + ' MB'
-      } : 'Not available (non-Chromium browser)'
-    };
-
-    // Use JSON.stringify to ensure CDP shows full details (not just "Object")
-    console.log('🔍 [Memory Diagnostics]', JSON.stringify(diagnostics, null, 2));
-
-    // Reset counters
-    this.notifyUpdateCount = 0;
-    this.lastMemoryReport = now;
-
-    // ⚠️ WARNING: Check for potential memory issues
-    if (this._candles.length > this.MAX_CANDLES * 0.9) {
-      console.warn(`⚠️ [Memory Warning] Candle array approaching limit: ${this._candles.length}/${this.MAX_CANDLES}`);
-    }
-
-    if (this.dataUpdateCallbacks.size > this.maxCallbacksSize * 0.8) {
-      console.warn(`⚠️ [Memory Warning] Data update callbacks growing: ${this.dataUpdateCallbacks.size}/${this.maxCallbacksSize}`);
-    }
+    // Disabled to reduce logging noise during debugging
   }
 
   // Helper method to get current chart config
@@ -156,12 +113,10 @@ class DataStore {
   async hydrateFromCache(pair: string = 'BTC-USD', granularity: string = '1m', hours: number = 24) {
     try {
       this._dataStats.loadingStatus = 'fetching';
-      // PERF: Disabled - console.log(`💾 [DataStore] Hydrating from Redis cache for ${pair}:${granularity} (${hours}h)`);
 
       const response = await fetch(`/api/candles/${pair}/${granularity}?hours=${hours}`);
 
       if (!response.ok) {
-        // PERF: Disabled - console.log(`⏭️ [DataStore] No cached candles available (HTTP ${response.status})`);
         this._dataStats.loadingStatus = 'idle';
         return;
       }
@@ -169,7 +124,6 @@ class DataStore {
       const result = await response.json();
 
       if (!result.success || !result.data || result.data.length === 0) {
-        // PERF: Disabled - console.log(`⏭️ [DataStore] Cached candles are empty`);
         this._dataStats.loadingStatus = 'idle';
         return;
       }
@@ -178,7 +132,6 @@ class DataStore {
       const sortedCandles = dataTransformations.transformCandles(result.data);
 
       if (sortedCandles.length < result.data.length) {
-        // PERF: Disabled - console.warn(`⚠️ [DataStore] Filtered out ${result.data.length - sortedCandles.length} invalid candles from cache`);
       }
 
       this._candles = sortedCandles;
@@ -198,12 +151,10 @@ class DataStore {
       this._dataStats.lastUpdate = Date.now();
       this._dataStats.loadingStatus = 'idle';
 
-      // PERF: Disabled - console.log(`✅ [DataStore] Cache hydration complete: ${result.data.length} candles loaded from Redis`);
 
       // Notify subscribers
       this.notifyDataUpdate();
     } catch (error) {
-      // PERF: Disabled - console.error(`❌ [DataStore] Failed to hydrate from cache:`, error);
       this._dataStats.loadingStatus = 'error';
     }
   }
@@ -237,7 +188,6 @@ class DataStore {
         }
       }
     } catch (error) {
-      // PERF: Disabled - console.error('❌ Error filling recent data gaps:', error);
     }
   }
 
@@ -258,8 +208,6 @@ class DataStore {
     try {
       await chartCacheService.initialize();
 
-      console.log(`📊 [DataStore] Loading ${pair} ${granularity}...`);
-
       // ✅ SIMPLE ARCHITECTURE: Load from Redis via chartCacheService
       // WebSocket has already populated Redis with all timeframes
       // No IndexedDB, no complex logic - just get the data and store in memory
@@ -271,7 +219,10 @@ class DataStore {
         limit: maxCandles || 2000
       });
 
-      console.log(`✅ [DataStore] Loaded ${candles.length} candles for ${pair} ${granularity}`);
+      if (granularity === '1d' && (endTime - startTime) > 157680000) {
+        console.log(`[5Y DEBUG] dataStore.loadData: Fetched ${candles.length} candles (requested max: ${maxCandles})`);
+        console.log(`[5Y DEBUG] First candle: ${candles[0]?.time}, Last candle: ${candles[candles.length-1]?.time}`);
+      }
 
       // Convert to CandlestickData format and store in memory
       const chartCandles: CandlestickDataWithVolume[] = candles.map(c => ({
@@ -286,10 +237,12 @@ class DataStore {
       this.setCandles(chartCandles);
       this.updateStats();
 
-      console.log(`⏱️ [DataStore] Load complete in ${(performance.now() - perfStart).toFixed(0)}ms`);
+      if (granularity === '1d' && (endTime - startTime) > 157680000) {
+        console.log(`[5Y DEBUG] dataStore.setCandles: Stored ${chartCandles.length} candles in state`);
+      }
 
     } catch (error) {
-      console.error(`❌ [DataStore] Failed to load data:`, error);
+      console.error(`[5Y DEBUG] dataStore.loadData error:`, error);
       throw error;
     }
   }
@@ -297,7 +250,6 @@ class DataStore {
   async reloadData(startTime: number, endTime: number): Promise<void> {
     const config = this.getCurrentConfig();
 
-    console.log(`🔄 [DataStore] Reloading ${config.pair} ${config.granularity}...`);
 
     const data = await chartCacheService.fetchCandles({
       pair: config.pair,
@@ -307,17 +259,14 @@ class DataStore {
       limit: 50000  // Accommodate large historical ranges
     });
 
-    console.log(`[DataStore RELOAD] Loaded ${data.length} candles via reloadData`);
     this.setCandles(data);
     this.updateStats();
   }
 
   async fetchGapData(fromTime: number, toTime: number): Promise<CandlestickData[]> {
-    console.log(`🔍 [fetchGapData] Fetching gap data from ${new Date(fromTime * 1000).toISOString()} to ${new Date(toTime * 1000).toISOString()}`);
 
     try {
       const config = this.getCurrentConfig();
-      console.log(`🔍 [fetchGapData] Config: pair=${config.pair}, granularity=${config.granularity}`);
 
       // First try to fetch from Redis/backend cache
       let gapData = await chartCacheService.fetchCandles({
@@ -328,11 +277,9 @@ class DataStore {
         limit: 5000
       });
 
-      console.log(`📥 [fetchGapData] chartCacheService.fetchCandles returned ${gapData.length} candles from Redis`);
 
       // If Redis doesn't have the data, fetch from Coinbase API
       if (gapData.length === 0) {
-        console.log(`🌐 [fetchGapData] No data in Redis, fetching from Coinbase API...`);
 
         // Convert granularity to seconds for Coinbase API
         const granularityMap: Record<string, number> = {
@@ -342,16 +289,13 @@ class DataStore {
 
         // Direct fetch to Coinbase API to avoid Axios import issues
         const url = `https://api.exchange.coinbase.com/products/${config.pair}/candles?start=${fromTime}&end=${toTime}&granularity=${granularitySeconds}`;
-        console.log(`🔗 [fetchGapData] Fetching: ${url}`);
 
         try {
           const response = await fetch(url);
           if (!response.ok) {
-            console.error(`❌ [fetchGapData] Coinbase API error: ${response.status} ${response.statusText}`);
             gapData = [];
           } else {
             const apiData = await response.json();
-            console.log(`📥 [fetchGapData] Coinbase API returned ${apiData.length} raw candles`);
 
             // Convert Coinbase API format [time, low, high, open, close, volume] to our format
             gapData = apiData.map((candle: any[]) => ({
@@ -363,10 +307,8 @@ class DataStore {
               volume: candle[5] || 0
             }));
 
-            console.log(`📥 [fetchGapData] Converted ${gapData.length} candles to chart format`);
           }
         } catch (fetchError) {
-          console.error(`❌ [fetchGapData] Fetch error:`, fetchError);
           gapData = [];
         }
       }
@@ -375,11 +317,9 @@ class DataStore {
       const existingTimes = new Set(this._candles.map(c => c.time));
       const newCandles = gapData.filter(candle => !existingTimes.has(candle.time));
 
-      console.log(`✅ [fetchGapData] Gap fetch returned ${gapData.length} candles, ${newCandles.length} are new (${existingTimes.size} existing)`);
 
       return newCandles;
     } catch (error) {
-      console.error('❌ [fetchGapData] Error fetching gap data:', error);
       return [];
     }
   }
@@ -389,18 +329,6 @@ class DataStore {
     const sortedCandles = dataTransformations.transformCandles(candles);
 
     if (sortedCandles.length < candles.length) {
-      // PERF: Disabled - console.warn(`⚠️ [DataStore] Filtered out ${candles.length - sortedCandles.length} invalid candles`);
-    }
-
-    // 🔍 DEBUG: Log candle time range
-    if (sortedCandles.length > 0) {
-      const firstTime = sortedCandles[0].time as number;
-      const lastTime = sortedCandles[sortedCandles.length - 1].time as number;
-      console.log(`📊 [DataStore] setCandles: ${sortedCandles.length} candles from ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
-    }
-
-    if (sortedCandles.length > 100) {
-      console.log(`[DataStore] setCandles called with ${sortedCandles.length} candles - Stack:`, new Error().stack?.split('\n').slice(1,5).join('\n'));
     }
 
     // ✅ PHASE 2: Cap maximum candles to prevent OOM crashes
@@ -415,7 +343,6 @@ class DataStore {
     if (sortedCandles.length > MAX_STORED_CANDLES) {
       const excessCandles = sortedCandles.length - MAX_STORED_CANDLES;
       cappedCandles = sortedCandles.slice(excessCandles);
-      console.log(`[DataStore] ⚠️ Capped candles from ${sortedCandles.length} to ${MAX_STORED_CANDLES} (removed oldest ${excessCandles})`);
     }
 
     this._candles = cappedCandles;
@@ -472,51 +399,8 @@ class DataStore {
     }
 
     if (gaps.length > 0) {
-      console.log(`⚠️ [DataStore] Found ${gaps.length} gap(s) in loaded data, auto-filling...`);
-      console.log(`🔍 [DataStore] Gap details:`, gaps.map(g => ({
-        start: new Date(g.start * 1000).toISOString(),
-        end: new Date(g.end * 1000).toISOString(),
-        count: g.count
-      })));
-
-      // Fill each gap asynchronously
-      let totalFilled = 0;
-      for (const gap of gaps) {
-        try {
-          console.log(`🔄 [DataStore] Fetching gap data: ${gap.count} candles from ${new Date(gap.start * 1000).toISOString()} to ${new Date(gap.end * 1000).toISOString()}`);
-          const gapCandles = await this.fetchGapData(gap.start, gap.end);
-          console.log(`📥 [DataStore] fetchGapData returned ${gapCandles.length} candles`);
-
-          if (gapCandles.length > 0) {
-            console.log(`✅ [DataStore] Auto-filled gap: ${gapCandles.length} candles from ${new Date(gap.start * 1000).toISOString()}`);
-
-            // Insert gap candles into the correct position
-            const insertIndex = this._candles.findIndex(c => (c.time as number) >= (gapCandles[0].time as number));
-            console.log(`📍 [DataStore] Insert index: ${insertIndex}, total candles before: ${this._candles.length}`);
-            if (insertIndex !== -1) {
-              this._candles.splice(insertIndex, 0, ...gapCandles);
-              this._visibleCandles.splice(insertIndex, 0, ...gapCandles);
-              totalFilled += gapCandles.length;
-              console.log(`✅ [DataStore] Inserted ${gapCandles.length} candles at index ${insertIndex}, total candles now: ${this._candles.length}`);
-            } else {
-              console.warn(`⚠️ [DataStore] Could not find insert index for gap candles`);
-            }
-          } else {
-            console.warn(`⚠️ [DataStore] No candles returned for gap from ${new Date(gap.start * 1000).toISOString()}`);
-          }
-        } catch (err) {
-          console.error(`❌ [DataStore] Failed to fill gap:`, err);
-        }
-      }
-
-      // Notify after all gaps are filled
-      if (totalFilled > 0) {
-        console.log(`🎉 [DataStore] Gap filling complete! Added ${totalFilled} total candles`);
-        this.updateStats();
-        this.notifyDataUpdate();
-      } else {
-        console.warn(`⚠️ [DataStore] Gap filling completed but no candles were added`);
-      }
+      // Gap filling is disabled to reduce logging noise during debugging
+      // Gaps will be filled on demand during infinite scroll
     }
   }
 
@@ -555,15 +439,12 @@ class DataStore {
       // Used by TradingView, Binance, Coinbase, and other professional platforms
       if (gapSize >= granularitySeconds) {
         const missedCandles = Math.floor(gapSize / granularitySeconds);
-        console.log(`⚠️ [DataStore] Gap detected: ${missedCandles} missing candles between ${new Date(expectedNextTime * 1000).toISOString()} and ${new Date(actualTime * 1000).toISOString()}`);
-        console.log(`🔄 [DataStore] BLOCKING to backfill gap before adding new candle (industry best practice)`);
 
         try {
           // ✅ BLOCKING: Wait for gap data before proceeding
           const gapCandles = await this.fetchGapData(expectedNextTime, actualTime - granularitySeconds);
 
           if (gapCandles.length > 0) {
-            console.log(`✅ [DataStore] Successfully backfilled ${gapCandles.length} missing candles`);
             // Insert gap candles in correct position
             const insertIndex = this._candles.findIndex(c => (c.time as number) >= (gapCandles[0].time as number));
             if (insertIndex !== -1) {
@@ -575,11 +456,8 @@ class DataStore {
               this._visibleCandles.push(...gapCandles);
             }
             this.notifyDataUpdate();
-          } else {
-            console.warn(`⚠️ [DataStore] Gap backfill returned 0 candles - no data available for gap period`);
           }
         } catch (err) {
-          console.error('❌ [DataStore] Gap backfill failed:', err);
           // Continue anyway - add the new candle even if gap fill fails
         }
       }
@@ -588,10 +466,6 @@ class DataStore {
     // Add to candles array
     this._candles.push(validCandle);
     this._visibleCandles.push(validCandle);
-
-    // 🔍 DEBUG: Log new candle addition
-    const candleTime = new Date((validCandle.time as number) * 1000).toISOString();
-    console.log(`➕ [DataStore] addCandle: New candle at ${candleTime}, price: $${validCandle.close}, total: ${this._candles.length}`);
 
     // 🔧 FIX: Cap candle array to prevent memory leak
     // Granularity-aware limits to support various timeframes:
@@ -628,7 +502,6 @@ class DataStore {
   }
 
   async fetchAndPrependHistoricalData(additionalCandleCount: number = 300): Promise<number> {
-    console.log(`[DataStore] fetchAndPrependHistoricalData called with ${additionalCandleCount} candles`);
     try {
       if (this._candles.length === 0) return 0;
 
@@ -644,7 +517,6 @@ class DataStore {
       const granularitySeconds = granularityMap[config.granularity] || 60;
       const fetchStartTime = firstCandleTime - (additionalCandleCount * granularitySeconds);
 
-      console.log(`[DataStore] 📜 Infinite scroll: Loading ${additionalCandleCount} more ${config.granularity} candles...`);
 
       // Fetch additional historical data for the CURRENT granularity
       const historicalData = await chartCacheService.fetchCandles({
@@ -656,7 +528,6 @@ class DataStore {
       });
 
       if (historicalData.length > 0) {
-        console.log(`[DataStore] ✅ Infinite scroll: Loaded ${historicalData.length} more ${config.granularity} candles`);
 
         // Merge historical data with existing data (prepend historical data)
         const mergedCandles = [...historicalData, ...this._candles];
@@ -672,11 +543,9 @@ class DataStore {
 
         return historicalData.length;
       } else {
-        console.log(`[DataStore] No additional data available for ${config.granularity}`);
         return 0;
       }
     } catch (error) {
-      // PERF: Disabled - console.error('❌ Error fetching historical data:', error);
       return 0;
     }
   }
@@ -697,7 +566,6 @@ class DataStore {
     onUpdate?: (candle: CandlestickData) => void,
     onReconnect?: () => void
   ) {
-    // PERF: Disabled - console.log('[DataStore] subscribeToRealtime called for', pair, granularity);
 
     // Only unsubscribe if we have an active subscription
     // ChartDataService.subscribeToRealtime() will handle its own cleanup
@@ -729,7 +597,6 @@ class DataStore {
 
           // Reject candles with invalid timestamps
           if (normalizedTime < 1577836800 || normalizedTime > 1893456000) {
-            // PERF: Disabled - console.warn('⚠️ [DataStore] Rejecting candle with invalid time:', normalizedTime);
             return;
           }
 
@@ -752,14 +619,12 @@ class DataStore {
             if (existingIndex === lastIndex) {
               // Update the last candle directly - this won't trigger historical candle re-renders
               this._candles[lastIndex] = candleData;
-              console.log(`🔄 [DataStore] Updated EXISTING candle #${this._candles.length}: time=${normalizedTime}, close=$${candleData.close}`);
             }
           } else {
             // New candle - append without replacing the entire array
             // 🚫 CRITICAL: Only append if time > 0 (never append ticker updates)
             if (normalizedTime > 0) {
               this._candles.push(candleData);
-              console.log(`✅ [DataStore] Added NEW candle #${this._candles.length}: time=${normalizedTime}, close=$${candleData.close}`);
 
               // 🔧 FIX: Cap candle array to prevent memory leak
               // Use granularity-aware limits:
@@ -827,7 +692,6 @@ class DataStore {
 
     // ✅ RE-ENABLED: L2 orderbook for instant price updates
     // Using orderbook mid-price for fastest possible header price updates
-    console.log('[DataStore] 🚀 L2 orderbook subscription ENABLED for instant price updates');
 
     // 🚀 PHASE 6 FIX: Subscribe immediately if ready, otherwise defer with timeout
     // CRITICAL: Prevent L2 race condition where subscription starts before candles load
@@ -854,10 +718,7 @@ class DataStore {
           this.l2SubscriptionCheckRetries++;
           this.l2SubscriptionCheckInterval = setTimeout(checkAndSubscribe, 1000) as any;
         } else {
-          // Max retries exceeded - give up and log failure
-          console.warn(
-            `[DataStore] L2 subscription check reached max retries (${this.l2SubscriptionCheckMaxRetries}s), giving up`
-          );
+          // Max retries exceeded - give up
           this.l2SubscriptionCheckRetries = 0;
           this.l2SubscriptionCheckInterval = null;
         }
@@ -967,7 +828,6 @@ class DataStore {
         }
       }
     } catch (error) {
-      // PERF: Disabled - console.error('Error getting database count:', error);
     }
   }
 
@@ -988,7 +848,6 @@ class DataStore {
     if (this.memoryMonitorInterval) {
       clearInterval(this.memoryMonitorInterval);
       this.memoryMonitorInterval = null;
-      console.log('🔍 [DataStore] Memory monitoring stopped');
     }
 
     // 🔧 FIX: Clear callback Sets to prevent memory leaks
@@ -1064,7 +923,6 @@ class DataStore {
         try {
           callback();
         } catch (error) {
-          // PERF: Disabled - console.error(`❌ [DataStore] Error in data update callback:`, error);
         }
       });
     };
@@ -1088,7 +946,6 @@ class DataStore {
         try {
           callback();
         } catch (error) {
-          // PERF: Disabled - console.error(`❌ [DataStore] Error in historical data callback:`, error);
         }
       });
     });

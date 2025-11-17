@@ -184,7 +184,6 @@ export class PaperTestStateManager {
   // Helper for conditional logging
   log(...args: any[]): void {
     if (this.debug) {
-      console.log(...args);
     }
   }
 

@@ -4,23 +4,16 @@
   import { isCompatible, getBestGranularityForPeriod } from '../../../../lib/chart/TimeframeCompatibility';
 
   onMount(() => {
-    console.log('🎯 [PaperTrading:TimeframeControls] COMPONENT MOUNTED');
-    console.log(`Available periods: ${EXTENDED_PERIODS.join(', ')}`);
-    console.log(`Current period: ${selectedPeriod}`);
 
     // Add a click listener to the period-buttons container to catch all clicks
     const container = document.querySelector('.period-buttons');
     if (container) {
-      console.log(`✅ [PaperTrading:TimeframeControls] Found .period-buttons container, adding global click listener`);
       const buttons = container.querySelectorAll('button');
-      console.log(`📍 [PaperTrading:TimeframeControls] Found ${buttons.length} buttons`);
       buttons.forEach((btn, idx) => {
         btn.addEventListener('click', () => {
-          console.log(`🖱️ [Global Listener] GLOBAL CLICK on button ${idx}: ${btn.textContent}`);
         });
       });
     } else {
-      console.warn(`❌ [PaperTrading:TimeframeControls] Could not find .period-buttons container`);
     }
   });
 
@@ -32,11 +25,8 @@
   let debounceTimer: number | null = null;
 
   function handlePeriodChange(period: ExtendedPeriod) {
-    console.log(`🎯 [PaperTrading:TimeframeControls] Button clicked: ${period}`);
-    console.log(`📢 [PaperTrading:TimeframeControls] dispatch object:`, dispatch);
     // Prevent multiple rapid clicks - debounce with 200ms window
     if (isDebouncing) {
-      console.log(`🔒 [PaperTrading:TimeframeControls] Click blocked - debouncing`);
       return;
     }
 
@@ -50,12 +40,9 @@
     // Find the best compatible granularity for this period
     const bestGranularity = getBestGranularityForPeriod(period);
 
-    console.log(`📤 [PaperTrading:TimeframeControls] About to dispatch 'periodChange' with:`, { period });
     try {
       const result = dispatch('periodChange', { period });
-      console.log(`✅ [PaperTrading:TimeframeControls] Dispatch returned:`, result);
     } catch (err) {
-      console.error(`❌ [PaperTrading:TimeframeControls] Dispatch error:`, err);
     }
 
     // If current granularity is not compatible, switch to the best one
@@ -77,7 +64,6 @@
       class="btn-base btn-sm btn-timeframe"
       class:active={selectedPeriod === period}
       on:click={() => {
-        console.log(`🖱️ [PaperTrading:TimeframeControls] RAW CLICK EVENT on button: ${period}`);
         handlePeriodChange(period);
       }}
     >

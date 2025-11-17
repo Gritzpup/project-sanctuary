@@ -66,7 +66,6 @@
   // ⚡ SEAMLESS REFRESH: Re-initialize chart when key changes
   $effect(() => {
     const _key = chartRefreshKey;
-    console.log('[DepthChart] Refreshing depth chart canvas (key changed)');
 
     // Destroy existing chart if any
     if (chart) {
@@ -78,7 +77,6 @@
   });
 
   onMount(async () => {
-    console.log('[DepthChart] Component mounted v4');
 
     // Initialize chart first
     initializeChart();
@@ -89,25 +87,19 @@
     // Hydrate orderbook from backend API for fresh data
     try {
       await orderbookStore.hydrateFromCache('BTC-USD');
-      console.log('[DepthChart] Orderbook hydrated from backend');
     } catch (error) {
-      console.error('Orderbook cache hydration failed, will use WebSocket data:', error);
     }
 
     setupWebSocket();
   });
 
   function initializeChart() {
-    console.log('[DepthChart] initializeChart() called, chartContainer exists:', !!chartContainer, 'chart exists:', !!chart);
     if (!chartContainer) {
-      console.log('[DepthChart] Chart container not ready');
       return;
     }
     if (chart) {
-      console.log('[DepthChart] Chart already exists, skipping initialization');
       return;
     }
-    console.log('[DepthChart] Initializing NEW chart with width:', chartContainer.clientWidth, 'height: 200');
 
     chart = createChart(chartContainer, {
       width: chartContainer.clientWidth,
@@ -187,13 +179,7 @@
 
   function setupWebSocket() {
     const ws = dataStore.getWebSocket();
-    console.log('[DepthChart] WebSocket check:', {
-      wsExists: !!ws,
-      readyState: ws?.readyState,
-      isOpen: ws?.readyState === WebSocket.OPEN
-    });
     if (ws && ws.readyState === WebSocket.OPEN) {
-      console.log('[DepthChart] Using existing dataStore WebSocket');
       attachWebSocketListener(ws);
       depthChartState.setConnected(true);
 
@@ -203,7 +189,6 @@
         productId: 'BTC-USD'
       }));
     } else {
-      console.log('[DepthChart] No WebSocket available from dataStore, will wait for it');
       depthChartState.setConnected(false);
       // Start watching for WebSocket availability
       watchWebSocketAvailability();
@@ -214,7 +199,6 @@
     wsCheckInterval = setInterval(() => {
       const ws = dataStore.getWebSocket();
       if (ws && ws.readyState === WebSocket.OPEN) {
-        console.log('[DepthChart] WebSocket became available, attaching listener');
         if (wsCheckInterval) {
           clearInterval(wsCheckInterval);
           wsCheckInterval = null;
@@ -239,7 +223,6 @@
 
         // Handle level2 messages (from backend WebSocket)
         if (message.type === 'level2') {
-          console.log('[DepthChart] Received level2 message with', message.data?.changes?.length || 0, 'changes');
           handleLevel2Message(message.data);
         } else if (message.type === 'orderbook-delta') {
           // Handle orderbook deltas from Redis Pub/Sub
@@ -248,7 +231,6 @@
           handleOrderbookUpdate(message);
         }
       } catch (err) {
-        console.error('[DepthChart] WebSocket message error:', err);
       }
     };
 
@@ -373,19 +355,6 @@
         volume: maxVolumeIncrease
       };
 
-      // Debug log for valley indicator positioning
-      if (depthData.bids.length > 0 && depthData.asks.length > 0) {
-        console.log('🎯 Valley Indicator:', {
-          price: hotspotPrice.toFixed(2),
-          volume: maxVolumeIncrease.toFixed(3),
-          side: hotspotSide,
-          offset: offset.toFixed(1) + '%',
-          volumeRatio: (volumeRatio * 100).toFixed(1) + '% bid',
-          visibleRange: `$${visibleMin.toFixed(0)} - $${visibleMax.toFixed(0)}`,
-          bestBid: summary.bestBid,
-          bestAsk: summary.bestAsk
-        });
-      }
     });
   }
 
@@ -397,23 +366,12 @@
   function handleLevel2Message(data: any) {
     if (!data) return;
 
-    console.log('[DepthChart] Processing level2 message:', {
-      dataType: data.type,
-      hasChanges: !!data.changes,
-      changeCount: data.changes?.length,
-      hasBids: !!data.bids,
-      hasAsks: !!data.asks,
-      bidsLength: data.bids?.length,
-      asksLength: data.asks?.length
-    });
-
     // The backend sends level2 updates with changes array
     if (data.changes && data.changes.length > 0) {
       // Process incremental updates
       const updates: any[] = [];
 
       // Log the first change to see its format
-      console.log('[DepthChart] Sample change format:', JSON.stringify(data.changes[0]));
 
       for (const change of data.changes) {
         // Check if change is an array or object
@@ -436,12 +394,10 @@
       }
 
       // Process as delta update
-      console.log(`[DepthChart] Processing ${updates.length} updates to orderbookStore`);
       orderbookStore.processUpdate({
         product_id: data.product_id || 'BTC-USD',
         changes: updates
       });
-      console.log('[DepthChart] OrderbookStore updated with level2 changes');
     } else if (data.bids && data.asks) {
       // Process as full snapshot
       // Convert to array format if needed
@@ -492,7 +448,6 @@
 
   function updateChart() {
     if (!bidSeries || !askSeries) {
-      console.log('[DepthChart] Series not initialized yet');
       return;
     }
 
@@ -537,17 +492,6 @@
     const actualMaxPrice = Math.max(highestBid, highestAsk);
     const actualRange = actualMaxPrice - actualMinPrice;
 
-    console.log('[DepthChart] Got depth data:', {
-      bidsCount: filteredBids.length,
-      asksCount: filteredAsks.length,
-      totalBids: bids.length,
-      totalAsks: asks.length,
-      requestedRange: `±$${baseRange.toLocaleString()}`,
-      actualRange: `$${actualRange.toFixed(0)} ($${actualMinPrice.toFixed(2)} to $${actualMaxPrice.toFixed(2)})`,
-      currentPrice: `$${currentPrice.toFixed(2)}`,
-      bidExtent: `$${lowestBid.toFixed(2)} to $${highestBid.toFixed(2)}`,
-      askExtent: `$${lowestAsk.toFixed(2)} to $${highestAsk.toFixed(2)}`
-    });
     if (filteredBids.length === 0 || filteredAsks.length === 0) return;
 
     // 🔧 FIX: Add zero-depth anchor points at spread boundaries to prevent overlap
@@ -608,7 +552,6 @@
         const rangeFrom = minPrice;
         const rangeTo = maxPrice;
 
-        console.log(`[DepthChart] Setting range to ±$25k: $${rangeFrom.toFixed(2)} to $${rangeTo.toFixed(2)} (center: $${currentPrice.toFixed(2)}, real data: $${actualMinPrice.toFixed(2)} to $${actualMaxPrice.toFixed(2)})`);
 
         try {
           chart.timeScale().setVisibleRange({
@@ -616,12 +559,10 @@
             to: rangeTo as any
           });
         } catch (error) {
-          console.log('[DepthChart] Range update failed:', error);
           // Fallback to fitContent if setting explicit range fails
           try {
             chart.timeScale().fitContent();
           } catch (e) {
-            console.log('[DepthChart] fitContent also failed');
           }
         }
       }

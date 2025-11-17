@@ -31,7 +31,6 @@ export class RealtimeDataSource {
       this.sendSubscription(symbol, granularity);
     }
     
-    console.log(`📡 Subscribed to realtime data: ${subscriptionKey}`);
   }
 
   public async unsubscribe(symbol: string, granularity: string): Promise<void> {
@@ -42,7 +41,6 @@ export class RealtimeDataSource {
       this.sendUnsubscription(symbol, granularity);
     }
     
-    console.log(`📡 Unsubscribed from realtime data: ${subscriptionKey}`);
   }
 
   public onCandleUpdate(callback: (candle: CandleData, metadata: any) => void): void {
@@ -58,7 +56,6 @@ export class RealtimeDataSource {
       this.websocket = new WebSocket(getBackendWsUrl());
       
       this.websocket.onopen = () => {
-        console.log('🟢 Realtime data WebSocket connected');
         this.isConnected = true;
         this.reconnectAttempts = 0;
         this.notifyConnectionChange(true);
@@ -72,18 +69,15 @@ export class RealtimeDataSource {
       };
       
       this.websocket.onclose = () => {
-        console.log('🔴 Realtime data WebSocket disconnected');
         this.isConnected = false;
         this.notifyConnectionChange(false);
         this.handleReconnect();
       };
       
       this.websocket.onerror = (error) => {
-        console.error('Realtime data WebSocket error:', error);
       };
       
     } catch (error) {
-      console.error('Error connecting to realtime data WebSocket:', error);
       this.handleReconnect();
     }
   }
@@ -112,7 +106,6 @@ export class RealtimeDataSource {
       }
       
     } catch (error) {
-      console.error('Error parsing realtime data message:', error);
     }
   }
 
@@ -145,14 +138,12 @@ export class RealtimeDataSource {
 
   private handleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached for realtime data');
       return;
     }
     
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
     
-    console.log(`🔄 Reconnecting to realtime data in ${delay}ms (attempt ${this.reconnectAttempts})`);
     
     this.reconnectTimer = setTimeout(() => {
       this.connect();
@@ -164,7 +155,6 @@ export class RealtimeDataSource {
       try {
         callback(candle, metadata);
       } catch (error) {
-        console.error('Error in candle update callback:', error);
       }
     });
   }
@@ -174,7 +164,6 @@ export class RealtimeDataSource {
       try {
         callback(connected);
       } catch (error) {
-        console.error('Error in connection change callback:', error);
       }
     });
   }
@@ -184,7 +173,6 @@ export class RealtimeDataSource {
   }
 
   public async cleanup(): Promise<void> {
-    console.log('🧹 Cleaning up RealtimeDataSource');
     
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -200,6 +188,5 @@ export class RealtimeDataSource {
     this.connectionChangeCallbacks = [];
     this.isConnected = false;
     
-    console.log('✅ RealtimeDataSource cleanup complete');
   }
 }

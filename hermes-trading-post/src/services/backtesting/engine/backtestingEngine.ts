@@ -82,7 +82,6 @@ export class BacktestingEngine {
         candle.time >= this.config.startTime && candle.time <= this.config.endTime
       );
       
-      // PERF: Disabled - console.log(`[BacktestingEngine] Running backtest with ${filteredCandles.length} candles from ${new Date(this.config.startTime * 1000)} to ${new Date(this.config.endTime * 1000)}`);
       
       // Main backtest loop
       for (let i = 0; i < filteredCandles.length; i++) {
@@ -117,17 +116,14 @@ export class BacktestingEngine {
         // Log progress periodically
         if (i % 1000 === 0) {
           const progress = ((i / filteredCandles.length) * 100).toFixed(1);
-          // PERF: Disabled - console.log(`[BacktestingEngine] Progress: ${progress}% (${i}/${filteredCandles.length})`);
         }
       }
       
-      // PERF: Disabled - console.log(`[BacktestingEngine] Backtest completed with ${this.stateManager.getState().trades.length} trades`);
       
       // Generate final results
       return this.generateResults(state, filteredCandles[filteredCandles.length - 1]?.close || 0);
       
     } catch (error) {
-      // PERF: Disabled - console.error('[BacktestingEngine] Error during backtest:', error);
       throw error;
     }
   }

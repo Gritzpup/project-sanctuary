@@ -229,4 +229,3 @@ self.onmessage = (event: MessageEvent<WorkerMessage & { requestId: string }>) =>
 /**
  * Log worker ready (for debugging)
  */
-console.log('[ChartDataWorker] Initialized and ready for messages');

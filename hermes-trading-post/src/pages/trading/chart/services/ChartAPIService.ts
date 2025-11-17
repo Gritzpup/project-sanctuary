@@ -103,7 +103,6 @@ export class ChartAPIService {
       
       return transformedCandles;
     } catch (error) {
-      // PERF: Disabled - console.error('[ChartAPIService] Error fetching candles:', error);
       ChartDebug.error('Error fetching candles:', error);
       throw error;
     }
@@ -137,13 +136,11 @@ export class ChartAPIService {
     try {
       statusStore.setWebSocketConnected(true);
     } catch (error) {
-      // PERF: Disabled - console.error('Failed to update status store:', error);
     }
     
     // Return unsubscribe function
     return {
       unsubscribe: () => {
-        // PERF: Disabled - console.log(`🔌 Unsubscribed from chart WebSocket for ${pair}:${granularity}`);
         this.wsSubscriptions.delete(subscriptionKey);
         
         // Send unsubscription to backend
@@ -162,7 +159,6 @@ export class ChartAPIService {
               try {
                 statusStore.setWebSocketConnected(false);
               } catch (error) {
-                // PERF: Disabled - console.error('Failed to update status store:', error);
               }
             }
           }, 100); // 100ms delay to allow for granularity switches
@@ -194,7 +190,6 @@ export class ChartAPIService {
         try {
           statusStore.setWebSocketConnected(true);
         } catch (error) {
-          // PERF: Disabled - console.error('Failed to update status store:', error);
         }
         
         // Resubscribe to all active subscriptions
@@ -212,17 +207,13 @@ export class ChartAPIService {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log(`📨 [ChartAPI] Received WebSocket message, type: ${data.type}`);
           if (data.type === 'candle') {
-            console.log(`📊 [ChartAPI] Received candle: ${data.data?.pair}:${data.data?.granularity} at $${data.data?.close} (${data.data?.type})`);
             const key = `${data.data?.pair}:${data.data?.granularity}`;
             const callback = this.wsSubscriptions.get(key);
             if (callback) {
               const transformedData = this.transformWebSocketCandle(data.data);
               callback(transformedData);
-              console.log(`✅ [ChartAPI] Candle processed and sent to chart`);
             } else {
-              console.warn(`⚠️ [ChartAPI] No callback for ${key}, have subscriptions for:`, Array.from(this.wsSubscriptions.keys()));
             }
           }
         } catch (error) {
@@ -238,7 +229,6 @@ export class ChartAPIService {
         try {
           statusStore.setWebSocketConnected(false);
         } catch (error) {
-          // PERF: Disabled - console.error('Failed to update status store:', error);
         }
         
         if (onError) {
@@ -254,7 +244,6 @@ export class ChartAPIService {
         try {
           statusStore.setWebSocketConnected(false);
         } catch (error) {
-          // PERF: Disabled - console.error('Failed to update status store:', error);
         }
         
         this.scheduleReconnect(onError);

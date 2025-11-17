@@ -16,7 +16,6 @@ export class SimpleDataFeed {
   
   async getCandles(symbol: string, granularity: string, startTime: number, endTime: number): Promise<CandleData[]> {
     try {
-      console.log('SimpleDataFeed fetching candles:', {
         symbol,
         granularity,
         startTime: new Date(startTime * 1000).toISOString(),
@@ -29,18 +28,15 @@ export class SimpleDataFeed {
       
       // If entire range is in future, return empty
       if (startTime > now) {
-        console.log('Entire range is in future, returning empty');
         return [];
       }
       
       // Fetch from API
       const candles = await this.api.getCandles(symbol, granularity, startTime, endTime);
-      console.log(`API returned ${candles.length} candles`);
       
       return candles;
       
     } catch (error) {
-      console.error('SimpleDataFeed error:', error);
       throw error;
     }
   }

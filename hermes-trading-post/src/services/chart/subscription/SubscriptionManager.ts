@@ -2,7 +2,6 @@ export class SubscriptionManager {
   private subscriptions: Map<string, { count: number; lastAccess: number }> = new Map();
 
   public async initialize(): Promise<void> {
-    console.log('✅ SubscriptionManager initialized');
   }
 
   public async subscribe(symbol: string, granularity: string): Promise<void> {
@@ -16,7 +15,6 @@ export class SubscriptionManager {
       this.subscriptions.set(key, { count: 1, lastAccess: Date.now() });
     }
     
-    console.log(`📡 Subscription manager: ${key} (count: ${this.subscriptions.get(key)?.count})`);
   }
 
   public async unsubscribe(symbol: string, granularity: string): Promise<void> {
@@ -30,7 +28,6 @@ export class SubscriptionManager {
       }
     }
     
-    console.log(`📡 Unsubscribed: ${key}`);
   }
 
   public getActiveSubscriptions(): string[] {
@@ -39,6 +36,5 @@ export class SubscriptionManager {
 
   public async cleanup(): Promise<void> {
     this.subscriptions.clear();
-    console.log('✅ SubscriptionManager cleanup complete');
   }
 }

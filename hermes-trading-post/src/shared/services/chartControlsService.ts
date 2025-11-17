@@ -76,7 +76,6 @@ export class ChartControlsService {
       }
       statusStore.setReady();
     } catch (error) {
-      console.error('ChartControls: Error refreshing data:', error);
       statusStore.setError('Failed to refresh data');
     } finally {
       this.isRefreshing = false;
@@ -92,7 +91,6 @@ export class ChartControlsService {
       await dataStore.clearCache();
       await this.handleRefresh();
     } catch (error) {
-      console.error('ChartControls: Error clearing cache:', error);
       statusStore.setError('Failed to clear cache');
     } finally {
       this.isClearingCache = false;

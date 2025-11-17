@@ -118,7 +118,6 @@ export class CompoundEngine {
     
     if (deviation > this.config.rebalanceThreshold) {
       // TODO: Implement rebalancing logic
-      console.log(`Rebalance needed: BTC at ${btcPercent.toFixed(2)}%, target ${targetBtcPercent}%`);
     }
   }
   

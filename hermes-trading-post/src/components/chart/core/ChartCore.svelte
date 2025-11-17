@@ -34,9 +34,7 @@
   let resizeObserver: ResizeObserver | null = null;
   
   function initChart() {
-    console.log('ChartCore: Initializing chart, container:', chartContainer);
     if (!chartContainer) {
-      console.log('ChartCore: No container, cannot initialize');
       return;
     }
     
@@ -114,9 +112,7 @@
   }
   
   export function updateData(newData: any[]) {
-    console.log('ChartCore updateData called with', newData?.length || 0, 'candles');
     if (!candleSeriesInstance || !newData || newData.length === 0) {
-      console.log('ChartCore: No data or series not ready');
       return;
     }
     
@@ -129,7 +125,6 @@
       close: candle.close
     }));
     
-    console.log('ChartCore: Setting data on chart, first candle:', formattedData[0]);
     candleSeriesInstance.setData(formattedData);
     
     // Auto-scroll to latest candle if enabled
@@ -145,34 +140,25 @@
   
   export function addMarkers(markers: any[]) {
     if (!candleSeriesInstance) {
-      console.log('ChartCore: Cannot add markers - series not ready');
       return;
     }
     
     if (!markers || markers.length === 0) {
-      console.log('ChartCore: Clearing all markers from chart');
       candleSeriesInstance.setMarkers([]);
-      console.log('✅ ChartCore: All markers cleared from chart');
       return;
     }
     
-    console.log('ChartCore: Adding', markers.length, 'markers to candlestick series');
     try {
       candleSeriesInstance.setMarkers(markers);
-      console.log('✅ ChartCore: Successfully added markers to chart');
     } catch (error) {
-      console.error('❌ ChartCore: Error setting markers:', error);
     }
   }
   
   export function clearMarkers() {
     if (!candleSeriesInstance) {
-      console.log('ChartCore: Cannot clear markers - series not ready');
       return;
     }
-    console.log('ChartCore: Clearing all markers from chart');
     candleSeriesInstance.setMarkers([]);
-    console.log('✅ ChartCore: All markers cleared from chart');
   }
   
   export function fitContent() {

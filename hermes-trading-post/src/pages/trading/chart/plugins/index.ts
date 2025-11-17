@@ -33,7 +33,6 @@ export function createPlugin(type: string, settings?: Record<string, any>): Plug
     case 'positionMarkers':
       return new PositionMarkerPlugin(settings);
     default:
-      console.error(`Unknown plugin type: ${type}`);
       return null;
   }
 }

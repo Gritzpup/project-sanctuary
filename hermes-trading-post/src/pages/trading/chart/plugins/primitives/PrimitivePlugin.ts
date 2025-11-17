@@ -42,7 +42,6 @@ export abstract class PrimitivePlugin extends Plugin {
     const series = this.getChartStore().chartInstance?.series;
     
     if (!series) {
-      console.error(`${this.id}: Cannot create price line - no series available`);
       return null;
     }
 
@@ -66,7 +65,6 @@ export abstract class PrimitivePlugin extends Plugin {
     const series = this.getChartStore().chartInstance?.series;
     
     if (!series) {
-      console.error(`${this.id}: Cannot create marker - no series available`);
       return;
     }
 

@@ -238,7 +238,6 @@ export class LiquidityAnalyzer {
       try {
         callback(alert);
       } catch (error) {
-        console.error('Error in alert subscriber:', error);
       }
     });
   }

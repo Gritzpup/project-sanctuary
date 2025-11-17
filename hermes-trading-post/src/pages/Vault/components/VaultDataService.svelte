@@ -94,7 +94,6 @@
         transactions
       };
     } catch (error) {
-      console.error('Failed to load vault data:', error);
       throw error;
     }
   }

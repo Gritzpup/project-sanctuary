@@ -52,7 +52,6 @@ export class ChartCacheService {
     maxSize: 500,
     onEvict: (key, value) => {
       // Log when old cache entries are evicted (optional debugging)
-      // console.log(`[LRUCache] Evicting ${key} (${value.candles.length} candles)`);
     }
   });
 
@@ -89,7 +88,6 @@ export class ChartCacheService {
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (error.name === 'AbortError') {
-        console.warn(`⏱️ Network request timeout after ${timeoutMs}ms: ${url}`);
         return null;
       }
       throw error;
@@ -104,10 +102,8 @@ export class ChartCacheService {
     try {
       const response = await this.fetchWithTimeout(`${this.backendUrl}/health`, this.HEALTH_CHECK_TIMEOUT_MS);
       if (!response?.ok) {
-        console.warn('⚠️ Chart cache service: Backend connectivity test failed');
       }
     } catch (error) {
-      console.warn('⚠️ Chart cache service initialization failed:', error);
     }
   }
 
@@ -119,43 +115,40 @@ export class ChartCacheService {
   async fetchCandles(request: DataRequest): Promise<CandleData[]> {
     const { pair, granularity, start, end, limit = 1000 } = request;
 
+    // 🚀 PHASE 17b: Create cache key that includes time range
+    // ⚠️ CRITICAL FIX: Include start/end times in cache key to prevent
+    // different time ranges (e.g., 1D vs 5Y) from getting mixed up
+    // This affects both LRU cache AND request coalescing
+    const simpleKey = createCacheKey(pair, granularity);
+    const cacheKey = (start && end)
+      ? `${simpleKey}_${start}_${end}`  // Time-aware key for historical requests
+      : simpleKey;                       // Simple key for current data requests
+
     // 🚀 PHASE 17b: Check LRU memory cache with TTL validation
-    // Cache key includes pair and granularity (most common request pattern)
-    const cacheKey = createCacheKey(pair, granularity);
-    const cachedEntry = this.memoryCache.get(cacheKey);
+    // Only use cache for requests that don't have time ranges (simple current data requests)
+    if (!start && !end) {
+      const cachedEntry = this.memoryCache.get(cacheKey);
 
-    // 🚀 PHASE 17b: Validate cache freshness with TTL
-    // If cache is fresh (< 5 seconds old), use it; otherwise fetch fresh data
-    if (cachedEntry) {
-      const now = Date.now();
-      const cacheAge = now - cachedEntry.timestamp;
+      if (cachedEntry) {
+        const now = Date.now();
+        const cacheAge = now - cachedEntry.timestamp;
 
-      // Only use cache if it's fresh (within TTL window)
-      if (cacheAge < this.CACHE_TTL_MS) {
-        const cachedCandles = cachedEntry.candles;
-
-        // Filter to requested time range if needed
-        if (start && end) {
-          return cachedCandles.filter(c => {
-            const time = typeof c.time === 'number' ? c.time : parseInt(c.time as any);
-            return time >= start && time <= end;
-          });
+        if (cacheAge < this.CACHE_TTL_MS) {
+          const cachedCandles = cachedEntry.candles;
+          // Return up to limit candles
+          return cachedCandles.slice(-limit);
         }
-
-        // Return up to limit candles
-        return cachedCandles.slice(-limit);
+        // Cache is stale, delete it
+        this.memoryCache.delete(cacheKey);
       }
-      // Cache is stale, delete it and fetch fresh data
-      this.memoryCache.delete(cacheKey);
     }
 
     // 🚀 PHASE 5F: Request coalescing - check for in-flight requests
-    // If another component is already fetching this same data, return that Promise
-    // This prevents duplicate API calls when multiple components request same candles
+    // If another component is already fetching this EXACT same data, return that Promise
+    // ⚠️ CRITICAL: cacheKey now includes time range, so different timeframes won't coalesce
     if (this.inFlightRequests.has(cacheKey)) {
       const inFlightPromise = this.inFlightRequests.get(cacheKey);
       if (inFlightPromise) {
-        console.log(`[ChartCacheService] ✅ Coalescing request for ${cacheKey} (reusing in-flight request)`);
         return inFlightPromise;
       }
     }
@@ -206,27 +199,27 @@ export class ChartCacheService {
 
       if (!response) {
         // Timeout occurred - return empty and let caller handle fallback
-        console.warn(`⏱️ Chart data fetch timed out for ${pair}:${granularity}`);
         return [];
       }
 
       if (!response.ok) {
-        console.warn(`Failed to fetch candles: HTTP ${response.status}`);
         return [];
       }
 
       const result: RedisChartDataResponse = await response.json();
 
       if (!result.success) {
-        console.warn(`Failed to fetch candles: ${result.error}`);
         return [];
       }
 
       const candles = result.data.candles || [];
 
       // 🚀 PHASE 17: Store in LRU cache for future requests
-      // 🚀 PHASE 17b: Wrap with timestamp for TTL validation
-      if (candles.length > 0) {
+      // ⚠️ CRITICAL FIX: Only cache responses without start/end times
+      // Time-range responses are only valid for that specific range, so caching them
+      // causes wrong results when a different time range is requested for the same granularity
+      if (candles.length > 0 && !start && !end) {
+        // 🚀 PHASE 17b: Wrap with timestamp for TTL validation
         this.memoryCache.set(cacheKey, {
           candles,
           timestamp: Date.now()
@@ -235,7 +228,6 @@ export class ChartCacheService {
 
       return candles;
     } catch (error) {
-      console.warn('Failed to fetch candles:', error);
       return [];
     }
   }
@@ -274,7 +266,6 @@ export class ChartCacheService {
       const { candles, metadata } = result.data;
       return { candles, metadata };
     } catch (error) {
-      console.warn('Failed to fetch candles with metadata:', error);
       throw error;
     }
   }
@@ -298,7 +289,6 @@ export class ChartCacheService {
 
       return result.data;
     } catch (error) {
-      console.warn('Failed to get storage stats:', error);
       return null;
     }
   }
@@ -329,7 +319,6 @@ export class ChartCacheService {
         })
       });
     } catch (error) {
-      console.warn('Failed to store candles in cache:', error);
     }
   }
 
@@ -353,7 +342,6 @@ export class ChartCacheService {
       }
       return null;
     } catch (error) {
-      console.warn('Cache retrieval failed:', error);
       return null;
     }
   }
@@ -369,7 +357,6 @@ export class ChartCacheService {
 
       await fetch(url, { method: 'DELETE' });
     } catch (error) {
-      console.warn('Cache clear failed:', error);
     }
   }
 
@@ -388,7 +375,6 @@ export class ChartCacheService {
       }
       return null;
     } catch (error) {
-      console.warn('Failed to get cache stats:', error);
       return null;
     }
   }

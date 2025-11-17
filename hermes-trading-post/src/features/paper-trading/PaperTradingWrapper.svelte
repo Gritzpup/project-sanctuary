@@ -13,7 +13,6 @@
   import { dataStore } from '../../pages/trading/chart/stores/dataStore.svelte';
 
   // 🔧 DEBUG: Log at very top of script
-  console.log('🚀 [PaperTradingWrapper] Script executing');
 
   // Props using Svelte 5 runes syntax
   let {
@@ -24,7 +23,6 @@
     connectionStatus?: 'connected' | 'disconnected' | 'error' | 'loading';
   } = $props();
 
-  console.log('🔧 [PaperTradingWrapper] Props received:', { sidebarCollapsed, connectionStatus });
 
   // 🔧 FIX: Use same ticker price as chart from dataStore
   // Both header and chart show the SAME live ticker price (matches/trades)
@@ -92,7 +90,6 @@
 
   function handleChartEvents(event: CustomEvent) {
     // Handle various chart events (granularity, period changes, etc.)
-    console.log('Chart event:', event.type, event.detail);
 
     if (event.type === 'pairChange') {
       selectedPair = event.detail.pair;
@@ -102,9 +99,7 @@
 
       // Trigger chart reload for new granularity
       if (chartComponent && typeof chartComponent.reloadForGranularity === 'function') {
-        console.log(`🔄 [PaperTrading] Reloading for granularity: ${newGranularity}`);
         chartComponent.reloadForGranularity(newGranularity).catch((err: any) => {
-          console.error('Failed to reload chart for granularity:', err);
         });
       }
     } else if (event.type === 'periodChange') {
@@ -146,10 +141,8 @@
   }
 
   onMount(() => {
-    console.log('🎯 [PaperTradingWrapper] onMount called');
     // Initialize state manager
     stateManager = new PaperTradingStateManager();
-    console.log('✅ [PaperTradingWrapper] StateManager initialized');
 
     // Subscribe to the reactive stores
     const unsubscribeTradingState = stateManager.tradingState.subscribe(state => {

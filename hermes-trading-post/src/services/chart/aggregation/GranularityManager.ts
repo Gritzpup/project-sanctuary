@@ -22,7 +22,6 @@ export class GranularityManager {
       try {
         callback(granularity);
       } catch (error) {
-        console.error('Error in granularity change callback:', error);
       }
     });
   }

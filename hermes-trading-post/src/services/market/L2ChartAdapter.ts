@@ -189,7 +189,6 @@ export class L2ChartAdapter {
         try {
           callback(data);
         } catch (error) {
-          console.error('Error in chart adapter subscriber:', error);
         }
       });
     }

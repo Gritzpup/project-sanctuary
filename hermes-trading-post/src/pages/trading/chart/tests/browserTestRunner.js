@@ -8,8 +8,6 @@
  */
 
 async function runChartTests() {
-  console.log('🧪 Chart Test Suite - Browser Version');
-  console.log('='.repeat(50));
 
   const results = {
     total: 0,
@@ -19,7 +17,6 @@ async function runChartTests() {
   };
 
   // Test Suite 1: Architecture Analysis
-  console.log('\n📁 Testing File Architecture...');
   
   const architectureTests = {
     name: 'Architecture Analysis',
@@ -42,11 +39,9 @@ async function runChartTests() {
     };
     
     architectureTests.tests.push(test);
-    console.log(`${test.passed ? '✅' : '❌'} ${test.name} - ${test.details}`);
   }
 
   // Test Suite 2: Code Duplication Detection
-  console.log('\n🔍 Testing for Code Duplication...');
   
   const duplicationTests = {
     name: 'Code Duplication',
@@ -68,11 +63,9 @@ async function runChartTests() {
     };
     
     duplicationTests.tests.push(test);
-    console.log(`${test.passed ? '✅' : '❌'} ${test.name} - ${test.details}`);
   }
 
   // Test Suite 3: Component Functionality
-  console.log('\n⚡ Testing Component Functionality...');
   
   const functionalityTests = {
     name: 'Component Functionality',
@@ -104,7 +97,6 @@ async function runChartTests() {
         details: `Expected ${expected}, got ${result}`
       });
       
-      console.log(`${passed ? '✅' : '❌'} Traffic light: ${direction} + waiting=${waiting} -> ${result}`);
     }
   };
 
@@ -138,7 +130,6 @@ async function runChartTests() {
         details: `Expected ${expected}, got ${result}`
       });
       
-      console.log(`${passed ? '✅' : '❌'} Price format: ${input} -> ${result}`);
     }
   };
 
@@ -163,14 +154,12 @@ async function runChartTests() {
         details: `Expected ${expectedSeconds}s, got ${result}s`
       });
       
-      console.log(`${passed ? '✅' : '❌'} Granularity: ${granularity} -> ${result}s`);
     }
   };
 
   testGranularityHelpers();
 
   // Test Suite 4: Data Validation
-  console.log('\n🔍 Testing Data Validation...');
   
   const validationTests = {
     name: 'Data Validation',
@@ -221,11 +210,9 @@ async function runChartTests() {
       details: `Expected ${valid}, got ${result}`
     });
     
-    console.log(`${passed ? '✅' : '❌'} ${description} - ${result ? 'valid' : 'invalid'}`);
   }
 
   // Test Suite 5: Performance Checks
-  console.log('\n⚡ Testing Performance Characteristics...');
   
   const performanceTests = {
     name: 'Performance',
@@ -270,8 +257,6 @@ async function runChartTests() {
       details: `${(memoryIncrease / 1024 / 1024).toFixed(2)} MB increase`
     });
 
-    console.log(`✅ Processing speed: ${processingSpeed.toFixed(2)} candles/ms`);
-    console.log(`✅ Memory usage: ${(memoryIncrease / 1024 / 1024).toFixed(2)} MB`);
   };
 
   simulateMemoryUsage();
@@ -295,54 +280,32 @@ async function runChartTests() {
   }
 
   // Print summary
-  console.log('\n' + '='.repeat(50));
-  console.log('📊 Test Summary:');
-  console.log(`   Total Tests: ${results.total}`);
-  console.log(`   ✅ Passed: ${results.passed} (${((results.passed / results.total) * 100).toFixed(1)}%)`);
-  console.log(`   ❌ Failed: ${results.failed} (${((results.failed / results.total) * 100).toFixed(1)}%)`);
 
-  console.log('\n📋 Suite Breakdown:');
   for (const suite of results.suites) {
     const percentage = ((suite.passed / suite.total) * 100).toFixed(1);
-    console.log(`   ${suite.name}: ${suite.passed}/${suite.total} (${percentage}%)`);
   }
 
   // Recommendations
-  console.log('\n💡 Recommendations:');
   
   if (results.failed > 0) {
-    console.log('   ⚠️  Issues found that need attention:');
     
     // Architecture issues
     if (componentSizes['ChartInfo.svelte'] > 400) {
-      console.log('   • ChartInfo.svelte is too large (684 lines) - consider breaking into smaller components');
     }
     if (componentSizes['ChartCore.svelte'] > 400) {
-      console.log('   • ChartCore.svelte is too large (512 lines) - extract business logic into hooks');
     }
     
     // Duplication issues
-    console.log('   • Code duplication detected - create shared utility functions');
-    console.log('   • WebSocket logic scattered - centralize into dedicated service');
     
-    console.log('\n   📖 See REFACTORING_PLAN.md for detailed improvement strategy');
   } else {
-    console.log('   🎉 All tests passed! Codebase is in good shape.');
-    console.log('   📈 Consider running the full test suite for comprehensive validation');
   }
 
-  console.log('\n🚀 Next Steps:');
-  console.log('   1. Run comprehensive test suite: npm run test:chart');
-  console.log('   2. Review refactoring plan: src/pages/trading/chart/REFACTORING_PLAN.md');
-  console.log('   3. Start with Phase 1: Extract utility functions');
-  console.log('   4. Set up automated testing pipeline');
 
   return results;
 }
 
 // Auto-run if in browser environment
 if (typeof window !== 'undefined') {
-  console.log('📋 Chart Test Suite loaded. Run: await runChartTests()');
 }
 
 // Export for use

@@ -12,7 +12,6 @@
   const dispatch = createEventDispatcher();
 
   async function selectGranularity(granularity: string) {
-    console.log('selectGranularity called:', granularity, 'valid:', isGranularityValid(granularity, selectedPeriod));
     if (isGranularityValid(granularity, selectedPeriod)) {
       selectedGranularity = granularity;
       await loadData(true);
@@ -21,12 +20,10 @@
   }
 
   async function selectPeriod(period: string) {
-    console.log('selectPeriod called:', period);
     selectedPeriod = period;
     
     // Auto-select valid granularity if current one is invalid
     selectedGranularity = autoSelectGranularity(period, selectedGranularity);
-    console.log('Auto-selected granularity:', selectedGranularity);
     
     await loadData(true);
     dispatch('dataUpdated', { historicalCandles, connectionStatus });
@@ -41,7 +38,6 @@
       historicalCandles = result.data;
       connectionStatus = result.connectionStatus;
     } catch (error) {
-      console.error('Failed to load chart data:', error);
       connectionStatus = 'error';
     } finally {
       isLoadingChart = false;

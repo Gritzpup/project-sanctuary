@@ -56,11 +56,9 @@ export class PaperTradingStateManager {
   public customStrategies: any[] = [];
   
   constructor() {
-    console.log('🏗️ PaperTradingStateManager constructor called');
     this.orchestrator = new PaperTradingOrchestrator();
     this.backendConnector = new BackendConnector();
 
-    this.logBackendServiceStatus();
     this.initializeSubscriptions();
 
     // 🚀 PHASE 5F: Fetch backend status in background (non-blocking)
@@ -68,22 +66,14 @@ export class PaperTradingStateManager {
     this.fetchBackendStatus();
   }
 
-  private logBackendServiceStatus() {
-    console.log('🔍 Testing tradingBackendService connection:', {
-      isConnected: tradingBackendService.isConnected(),
-      service: !!tradingBackendService
-    });
-  }
-
   private async fetchBackendStatus() {
     try {
-      console.log('🔄 Fetching current backend status...');
       const status = await tradingBackendService.fetchStatus();
       if (status) {
-        console.log('✅ Backend status fetched:', status);
+        // Status fetched successfully
       }
     } catch (error) {
-      console.error('❌ Failed to fetch backend status:', error);
+      // Error fetching status
     }
   }
 
@@ -112,7 +102,6 @@ export class PaperTradingStateManager {
   }
 
   private setupTradingBackendSubscription() {
-    console.log('📡 Setting up tradingBackendService subscription...');
     // ⚡ PHASE 5F: Track subscription for cleanup
     // ⚡ PHASE 7D: Batch updates to reduce cascading re-renders (30-45% improvement)
     const unsubscribe = tradingBackendService.getState().subscribe(backendState => {
@@ -149,12 +138,6 @@ export class PaperTradingStateManager {
    * ⚡ PHASE 7D: Apply all batched updates in single transaction
    */
   private applyBatchedUpdates(backendState: any) {
-    // 🔍 DEBUG: Log what backend is sending
-    console.log('📥 [applyBatchedUpdates] Vault values from backend:', {
-      vaultBalance: backendState.vaultBalance,
-      btcVaultBalance: backendState.btcVaultBalance
-    });
-
     // Update all state in single transaction instead of separate calls
     this.tradingState.update(current => ({
       ...current,
@@ -200,12 +183,6 @@ export class PaperTradingStateManager {
   }
 
   private updateTradingState(backendState: any) {
-    // 🔍 DEBUG: Log what backend is sending for vaults
-    console.log('📥 [StateManager] Received backendState vault values:', {
-      vaultBalance: backendState.vaultBalance,
-      btcVaultBalance: backendState.btcVaultBalance
-    });
-
     this.tradingState.update(current => {
       const selectedStrategyType = this.determineSelectedStrategyType(current, backendState);
 
@@ -226,12 +203,6 @@ export class PaperTradingStateManager {
         totalRebates: backendState.totalRebates || 0,
         totalRebalance: backendState.totalRebalance || 0
       };
-
-      // 🔍 DEBUG: Log what's being set in tradingState
-      console.log('📤 [StateManager] Setting tradingState vault values:', {
-        vaultBalance: newState.vaultBalance,
-        btcVaultBalance: newState.btcVaultBalance
-      });
 
       return newState;
     });
@@ -327,7 +298,6 @@ export class PaperTradingStateManager {
   // Public API methods
   public setChartComponent(component: any) {
     this.chartComponent = component;
-    console.log('📊 Chart component set for state manager');
   }
 
   public async handleStrategyChange(strategyType: string) {
@@ -363,17 +333,14 @@ export class PaperTradingStateManager {
   }
 
   public handleBotTabSelect(botId: string) {
-    console.log('🤖 Bot tab selected:', botId);
     
     const selectedBot = this.botTabs.find(tab => tab.id === botId);
     if (selectedBot) {
       this.activeBotInstance = selectedBot;
-      console.log('✅ Active bot instance updated:', selectedBot.name);
     }
   }
 
   public destroy() {
-    console.log('🗑️ Destroying PaperTradingStateManager');
 
     // ⚡ PHASE 5F: Unsubscribe from all subscriptions to prevent memory leaks
     this.subscriptions.forEach(unsubscribe => unsubscribe());

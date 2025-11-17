@@ -19,7 +19,6 @@
 
   function handleSeparatorClick() {
     // Could add functionality here if needed for header separator
-    console.log('Header separator clicked');
   }
 
   function handleSeparatorKeydown(event: KeyboardEvent) {

@@ -39,7 +39,6 @@
       throw new Error('Backtest returned no results');
     }
     
-    console.log('Backtest completed:', results);
     return results;
   }
 </script>

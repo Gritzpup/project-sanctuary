@@ -35,11 +35,9 @@ class PriceForwarder {
             });
             
             this.ws.addEventListener('error', (error) => {
-                console.error('PriceForwarder WebSocket error:', error);
                 this.isForwarding = false;
             });
         } catch (error) {
-            console.error('Failed to connect PriceForwarder:', error);
             setTimeout(() => this.connect(), 5000);
         }
     }
@@ -61,7 +59,6 @@ class PriceForwarder {
                 data: priceUpdate
             }));
         } catch (error) {
-            console.error('Failed to forward price:', error);
         }
     }
 }

@@ -206,7 +206,6 @@ class PaperTradingManager {
           });
         }
       } catch (error) {
-        console.error('Failed to load saved bot configuration:', error);
       }
     }
   }

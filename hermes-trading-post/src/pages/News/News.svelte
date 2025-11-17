@@ -49,7 +49,6 @@
       articles = await loadNews();
       handleFilterChange();
     } catch (error) {
-      console.error('Failed to load news:', error);
     } finally {
       isLoading = false;
     }

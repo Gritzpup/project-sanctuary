@@ -11,14 +11,11 @@
   let error: Error | null = null;
 
   onMount(async () => {
-    console.log('⚡ [LazyRoute] Loading component dynamically...');
     try {
       const module = await component();
       Component = module.default;
       loading = false;
-      console.log('✅ [LazyRoute] Component loaded successfully');
     } catch (err) {
-      console.error('❌ [LazyRoute] Failed to load component:', err);
       error = err as Error;
       loading = false;
     }

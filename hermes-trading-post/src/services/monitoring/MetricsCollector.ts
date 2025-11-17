@@ -51,7 +51,6 @@ export class MetricsCollector {
     this.startMemoryMonitoring();
 
     if (this.debug) {
-      console.log(`[MetricsCollector] Initialized (session: ${this.sessionId})`);
     }
   }
 
@@ -72,7 +71,6 @@ export class MetricsCollector {
     this.isEnabled = enabled;
 
     if (this.debug) {
-      console.log(`[MetricsCollector] Enabled: ${enabled}`);
     }
   }
 
@@ -187,14 +185,12 @@ export class MetricsCollector {
     this.buffer = [];
 
     if (this.debug) {
-      console.log(`[MetricsCollector] Flushing ${snapshot.metrics.length} metrics`);
     }
 
     return Promise.resolve()
       .then(() => this.listeners.onFlush?.(snapshot))
       .catch((error) => {
         if (this.debug) {
-          console.error('[MetricsCollector] Flush error:', error);
         }
       });
   }
@@ -221,7 +217,6 @@ export class MetricsCollector {
     }, this.flushInterval);
 
     if (this.debug) {
-      console.log(`[MetricsCollector] Auto-flush started (every ${this.flushInterval}ms)`);
     }
   }
 
@@ -235,7 +230,6 @@ export class MetricsCollector {
     }
 
     if (this.debug) {
-      console.log('[MetricsCollector] Auto-flush stopped');
     }
   }
 
@@ -291,7 +285,6 @@ export class MetricsCollector {
   private startMemoryMonitoring(): void {
     if (!('memory' in performance)) {
       if (this.debug) {
-        console.warn('[MetricsCollector] Memory API not available');
       }
       return;
     }
@@ -333,7 +326,6 @@ export class MetricsCollector {
     this.sessionId = this.generateSessionId();
 
     if (this.debug) {
-      console.log('[MetricsCollector] Reset');
     }
   }
 }

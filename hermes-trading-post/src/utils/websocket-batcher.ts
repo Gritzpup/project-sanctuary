@@ -46,7 +46,6 @@ export class WebSocketBatcher {
    */
   addMessage(message: any, immediate: boolean = false): void {
     if (!this.socket) {
-      console.warn('WebSocketBatcher: No socket connected');
       return;
     }
 
@@ -92,7 +91,6 @@ export class WebSocketBatcher {
         this.batchTimeout = null;
       }
     } catch (error) {
-      console.error('WebSocketBatcher: Error flushing batch:', error);
     }
   }
 
@@ -163,7 +161,6 @@ export class WebSocketBatchDecoder {
       // Single message, return as array
       return [message];
     } catch (error) {
-      console.error('WebSocketBatchDecoder: Error decoding message:', error);
       return [];
     }
   }
@@ -243,7 +240,6 @@ export class WebSocketBatchSender {
         this.timeouts.delete(socket);
       }
     } catch (error) {
-      console.error('WebSocketBatchSender: Error sending batch:', error);
     }
   }
 

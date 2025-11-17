@@ -46,16 +46,16 @@ export class ChartStateService {
   updateConfig(updates: Partial<ChartConfig>): void {
     const oldConfig = { ...this.state.config };
     this.state.config = { ...this.state.config, ...updates };
-    
+
     this.notifyStateChange();
-    
+
     // Emit specific events for important changes
     if (oldConfig.timeframe !== this.state.config.timeframe) {
       this.emitEvent({
         type: 'period-change',
-        data: { 
-          oldValue: oldConfig.timeframe, 
-          newValue: this.state.config.timeframe 
+        data: {
+          oldValue: oldConfig.timeframe,
+          newValue: this.state.config.timeframe
         },
         timestamp: Date.now()
       });

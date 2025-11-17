@@ -82,7 +82,6 @@ export class ChartRealtimeService {
           })
         );
       }
-      console.log(`Unsubscribed from ${subscriptionKey}`);
     };
   }
 
@@ -94,11 +93,9 @@ export class ChartRealtimeService {
       this.ws.close();
     }
 
-    console.log('🔗 Connecting to backend WebSocket...');
     this.ws = new WebSocket(this.backendUrl);
 
     this.ws.onopen = () => {
-      console.log('✅ Connected to backend WebSocket');
 
       // Subscribe to all active subscriptions
       this.wsSubscriptions.forEach((callback, subscriptionKey) => {
@@ -116,17 +113,14 @@ export class ChartRealtimeService {
         const message = JSON.parse(event.data);
         this.handleWebSocketMessage(message);
       } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
       }
     };
 
     this.ws.onclose = (event) => {
-      console.log('❌ Backend WebSocket disconnected');
       this.scheduleReconnect();
     };
 
     this.ws.onerror = (error) => {
-      console.error('Backend WebSocket error:', error);
     };
   }
 
@@ -141,7 +135,6 @@ export class ChartRealtimeService {
         granularity
       };
       this.ws.send(JSON.stringify(message));
-      console.log(`📡 Subscribed to ${pair}:${granularity}`);
     }
   }
 
@@ -154,7 +147,6 @@ export class ChartRealtimeService {
   private handleWebSocketMessage(message: any) {
     // 🔧 DEBUG: Log ALL incoming WebSocket messages to diagnose candle flow
     if (message.type === 'candle') {
-      console.log(`📨 [ChartRealtime] Received candle: ${message.pair}:${message.granularity} at $${message.close} (${message.candleType})`);
       const subscriptionKey = `${message.pair}:${message.granularity}`;
 
       // Add to batch for this subscription
@@ -208,13 +200,11 @@ export class ChartRealtimeService {
     const callback = this.wsSubscriptions.get(subscriptionKey);
     if (!callback) {
       // Subscription was removed, discard batch
-      console.log(`⚠️ [ChartRealtime] No callback for ${subscriptionKey}, discarding ${batch.messages.length} messages`);
       batch.messages = [];
       return;
     }
 
     // 🔧 DEBUG: Log batch processing
-    console.log(`📦 [ChartRealtime] Processing batch of ${batch.messages.length} candles for ${subscriptionKey}`);
 
     // Process each message in batch through callback
     // This preserves message order while benefiting from batching overhead reduction
@@ -235,7 +225,6 @@ export class ChartRealtimeService {
     }
 
     this.wsReconnectTimeout = setTimeout(() => {
-      console.log('🔄 Attempting to reconnect to WebSocket...');
       this.connectWebSocket();
     }, 3000);
   }
@@ -264,7 +253,6 @@ export class ChartRealtimeService {
 
     this.wsSubscriptions.clear();
     this.onReconnectCallback = null;
-    console.log('🛑 Disconnected from WebSocket');
   }
 
   /**

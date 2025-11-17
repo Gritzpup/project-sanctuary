@@ -54,7 +54,6 @@ export class CacheManager {
       // Fall back to IndexedDB if Redis miss
       return await this.getCachedFromIndexedDB(pair, granularity, hours);
     } catch (error) {
-      console.error('Cache retrieval error:', error);
       // Try IndexedDB as fallback
       return await this.getCachedFromIndexedDB(pair, granularity, hours);
     }
@@ -80,7 +79,6 @@ export class CacheManager {
       );
       return candles && candles.length > 0 ? candles : null;
     } catch (error) {
-      console.error('IndexedDB cache retrieval error:', error);
       return null;
     }
   }
@@ -115,7 +113,6 @@ export class CacheManager {
       // Store in IndexedDB as backup
       await chartIndexedDBCache.storeCandles(pair, granularity, candles);
     } catch (error) {
-      console.error('Cache storage error:', error);
       // Continue even if caching fails - don't block data operations
     }
   }
@@ -135,7 +132,6 @@ export class CacheManager {
       // Invalidate IndexedDB cache
       await chartIndexedDBCache.invalidateCandles(pair, granularity);
     } catch (error) {
-      console.error('Cache invalidation error:', error);
       // Continue even if invalidation fails
     }
   }
@@ -147,9 +143,7 @@ export class CacheManager {
     try {
       // Note: These would need to be implemented in the respective services
       // For now, we just log the intent
-      console.log('Clearing all chart caches');
     } catch (error) {
-      console.error('Clear cache error:', error);
     }
   }
 

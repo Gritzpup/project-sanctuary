@@ -112,7 +112,6 @@
   
   async function handleRunBacktest() {
     if (!currentStrategy) {
-      console.error('Strategy not initialized');
       alert('Strategy not initialized. Please select a strategy.');
       return;
     }
@@ -128,7 +127,6 @@
         feeRebatePercent
       });
     } catch (error) {
-      console.error('Backtest failed:', error);
       alert(`Backtest failed: ${error.message}`);
     } finally {
       isRunning = false;
@@ -137,19 +135,15 @@
   
   function updateStrategy() {
     try {
-      console.log('Updating strategy to:', selectedStrategyType);
       currentStrategy = createStrategy(selectedStrategyType, strategyParams[selectedStrategyType], customStrategies);
-      console.log('Strategy created successfully:', currentStrategy.getName());
       strategySourceCode = loadStrategySourceCode(selectedStrategyType, customStrategies);
     } catch (error) {
-      console.error('Failed to update strategy:', error);
       currentStrategy = null;
       alert(`Failed to create strategy: ${error.message}`);
     }
   }
   
   function handleStrategyAction(event: CustomEvent) {
-    console.log('Strategy action:', event.type, event.detail);
   }
   
   function handleDataUpdated(event: CustomEvent) {
@@ -158,26 +152,20 @@
   }
   
   onMount(async () => {
-    console.log('Backtesting component mounted');
-    console.log('Initial state:', { selectedStrategyType, selectedPeriod, selectedGranularity });
     
     // Initialize strategy first
     try {
       currentStrategy = createStrategy(selectedStrategyType, strategyParams[selectedStrategyType], customStrategies);
-      console.log('Strategy initialized:', currentStrategy.getName());
       strategySourceCode = loadStrategySourceCode(selectedStrategyType, customStrategies);
     } catch (error) {
-      console.error('Failed to initialize strategy:', error);
     }
     
     // Load chart data
-    console.log('Loading initial chart data...');
     await chartControls?.loadData(true);
     
     // Set up auto-refresh for short periods
     if (['1H', '4H', '5D'].includes(selectedPeriod)) {
       refreshInterval = setInterval(async () => {
-        console.log('Auto-refreshing chart data...');
         await chartControls?.loadData(false);
       }, 30000) as unknown as number;
     }

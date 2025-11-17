@@ -23,7 +23,6 @@
 
   // Forward all events from child components
   function forwardEvent(event: CustomEvent) {
-    console.log(`📢 [ChartControlsContainer] Forwarding ${event.type} event:`, event.detail);
     dispatch(event.type, event.detail);
   }
 

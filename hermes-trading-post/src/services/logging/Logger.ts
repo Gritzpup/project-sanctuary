@@ -160,20 +160,15 @@ class Logger {
     const style = this.getStyle(level);
 
     if (this.enableColors && style) {
-      console.log(`%c${message}`, style, context || '');
     } else {
       switch (level) {
         case LogLevel.DEBUG:
-          console.debug(message, context || '');
           break;
         case LogLevel.INFO:
-          console.info(message, context || '');
           break;
         case LogLevel.WARN:
-          console.warn(message, context || '');
           break;
         case LogLevel.ERROR:
-          console.error(message, context || '');
           break;
       }
     }

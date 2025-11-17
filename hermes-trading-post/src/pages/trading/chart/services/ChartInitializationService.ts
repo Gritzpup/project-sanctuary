@@ -73,7 +73,6 @@ export class ChartInitializationService {
     try {
       await chartPrefetcher.initialize();
     } catch (error) {
-      console.warn('Prefetcher initialization failed (non-critical):', error);
       // Don't throw - prefetcher is optional
     }
   }
@@ -111,7 +110,6 @@ export class ChartInitializationService {
     try {
       chartPrefetcher.trackUsage(pair, granularity);
     } catch (error) {
-      console.warn('Failed to track prefetcher usage:', error);
       // Non-critical - continue operation
     }
   }
@@ -123,7 +121,6 @@ export class ChartInitializationService {
     try {
       await chartPrefetcher.destroy();
     } catch (error) {
-      console.warn('Error destroying prefetcher:', error);
     }
   }
 }

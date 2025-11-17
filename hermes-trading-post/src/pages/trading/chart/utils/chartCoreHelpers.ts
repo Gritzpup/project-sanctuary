@@ -26,7 +26,6 @@ export function refreshAllPlugins(pluginManager: PluginManager | null, delayMs: 
           (plugin as any).refreshData();
         }
       } catch (error) {
-        console.error(`Failed to refresh plugin ${plugin.id}:`, error);
       }
     }
   }, delayMs);

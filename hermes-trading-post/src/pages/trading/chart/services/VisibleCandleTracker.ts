@@ -53,33 +53,26 @@ export class VisibleCandleTracker {
         });
 
         // Update dataStore with visible candle count
-        console.log(`[VisibleCandleTracker] Updating visibleCount to ${visibleCount} (rounded from ${logicalVisibleCount.toFixed(2)}, loaded: ${actualLoadedCandles})`);
         dataStore.updateVisibleCandleCount(visibleCount);
       } else {
-        console.log(`[VisibleCandleTracker] Invalid or null logicalRange:`, logicalRange);
       }
     };
 
     // Subscribe to visible range changes
-    console.log(`[VisibleCandleTracker] Subscribing to visible range changes...`);
     try {
       this.unsubscribe = this.chart.timeScale().subscribeVisibleLogicalRangeChange(
         this.visibleRangeChangeHandler as any
       );
-      console.log(`[VisibleCandleTracker] Subscription successful`);
 
       // Get and log initial range immediately
       const initialRange = this.chart.timeScale().getVisibleLogicalRange();
-      console.log(`[VisibleCandleTracker] Initial visible range:`, initialRange);
       if (initialRange) {
         this.visibleRangeChangeHandler(initialRange);
       }
     } catch (error) {
-      console.error(`[VisibleCandleTracker] Failed to subscribe:`, error);
     }
 
     ChartDebug.log('✅ Visible candle tracker started');
-    console.log(`[VisibleCandleTracker] Tracker fully initialized`);
   }
 
   /**

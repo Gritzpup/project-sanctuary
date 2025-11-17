@@ -104,7 +104,6 @@ export abstract class DataService<TData = any, TParams = any> extends ServiceBas
       await this.getData(params, options);
     } catch (error) {
       // Preload failures are not critical
-      console.warn(`Preload failed for ${this.constructor.name}:`, error);
     }
   }
 

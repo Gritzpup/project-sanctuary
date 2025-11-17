@@ -14,7 +14,6 @@ export class CandleAggregator {
   public processCandle(rawCandle: CandleData, targetGranularity: string): CandleData | null {
     const granularityTime = this.granularitySeconds[targetGranularity];
     if (!granularityTime) {
-      console.warn(`Unknown granularity: ${targetGranularity}`);
       return null;
     }
 

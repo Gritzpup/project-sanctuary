@@ -50,9 +50,7 @@ export class TradeExecutor {
         
         newState.trades.push(trade);
         
-        console.log(`[PaperTrading] BUY executed: ${signal.amount} ${this.asset} at $${currentPrice.toFixed(2)}`);
       } else {
-        console.log(`[PaperTrading] Insufficient balance for BUY`);
       }
     } else if (signal.action === 'SELL') {
       if (newState.balance.btcPositions >= signal.amount) {
@@ -75,9 +73,7 @@ export class TradeExecutor {
         
         newState.trades.push(trade);
         
-        console.log(`[PaperTrading] SELL executed: ${signal.amount} ${this.asset} at $${currentPrice.toFixed(2)}`);
       } else {
-        console.log(`[PaperTrading] Insufficient ${this.asset} for SELL`);
       }
     }
     
@@ -115,7 +111,6 @@ export class TradeExecutor {
       newState.performance = this.calculatePerformance(newState, currentPrice);
       newState.lastUpdate = Date.now();
       
-      console.log(`[PaperTrading] Manual BUY: ${amount} ${this.asset} at $${currentPrice.toFixed(2)}`);
     }
     
     return newState;
@@ -149,7 +144,6 @@ export class TradeExecutor {
       newState.performance = this.calculatePerformance(newState, currentPrice);
       newState.lastUpdate = Date.now();
       
-      console.log(`[PaperTrading] Manual SELL: ${amount} ${this.asset} at $${currentPrice.toFixed(2)}`);
     }
     
     return newState;

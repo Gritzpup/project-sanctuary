@@ -41,7 +41,6 @@ export class IndexedDBService {
       await this.strategies.applyCacheLimits(symbol, granularity);
 
     } catch (error) {
-      console.error('Error storing candles:', error);
       throw error;
     }
   }
@@ -70,7 +69,6 @@ export class IndexedDBService {
       return candles;
 
     } catch (error) {
-      console.error('Error retrieving candles:', error);
       return [];
     }
   }
@@ -93,7 +91,6 @@ export class IndexedDBService {
       return true;
 
     } catch (error) {
-      console.error('Error checking data existence:', error);
       return false;
     }
   }
@@ -115,7 +112,6 @@ export class IndexedDBService {
       };
 
     } catch (error) {
-      console.error('Error getting data range:', error);
       return null;
     }
   }
@@ -127,7 +123,6 @@ export class IndexedDBService {
     try {
       await this.operations.clearAll();
     } catch (error) {
-      console.error('Error clearing cache:', error);
       throw error;
     }
   }
@@ -157,7 +152,6 @@ export class IndexedDBService {
       }
 
     } catch (error) {
-      console.error('Error clearing symbol data:', error);
       throw error;
     }
   }
@@ -169,7 +163,6 @@ export class IndexedDBService {
     try {
       await this.strategies.cleanupExpiredData();
     } catch (error) {
-      console.error('Error during cleanup:', error);
     }
   }
 
@@ -187,7 +180,6 @@ export class IndexedDBService {
     try {
       return await this.strategies.getCacheStats();
     } catch (error) {
-      console.error('Error getting cache stats:', error);
       return {
         totalChunks: 0,
         totalSize: 0,

@@ -30,7 +30,6 @@ export class ChartDataService {
 
       return apiData;
     } catch (error) {
-      console.error('Failed to load chart data:', error);
       throw error;
     }
   }
@@ -47,7 +46,6 @@ export class ChartDataService {
       }
       return null;
     } catch (error) {
-      console.warn('Cache load failed:', error);
       return null;
     }
   }
@@ -95,7 +93,6 @@ export class ChartDataService {
         body: JSON.stringify({ pair, granularity, startTime, endTime, data })
       });
     } catch (error) {
-      console.warn('Cache store failed:', error);
       // Continue even if caching fails
     }
   }
@@ -111,7 +108,6 @@ export class ChartDataService {
 
       await fetch(url, { method: 'DELETE' });
     } catch (error) {
-      console.warn('Cache invalidation failed:', error);
     }
   }
 }

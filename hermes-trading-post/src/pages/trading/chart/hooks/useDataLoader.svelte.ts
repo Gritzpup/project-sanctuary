@@ -55,7 +55,6 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
 
     const result = periodMap[period];
     if (!result) {
-      console.error(`⚠️ [getPeriodSeconds] Unknown period: "${period}" - defaulting to 1H. Available: ${Object.keys(periodMap).join(', ')}`);
       return 3600;
     }
     return result;
@@ -109,6 +108,7 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       ChartDebug.critical(`[PERF] Step 1: Starting loadData()`);
     }
 
+
     statusStore.setLoading('Loading chart data...');
     chartStore.setLoading(true);
 
@@ -116,15 +116,12 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       const loadId = Math.random().toString(36).substring(7);
       const now = Math.floor(Date.now() / 1000);
 
-      console.log(`🔍🔍🔍 [useDataLoader ${loadId}] ===== START =====`);
-      console.log(`🔍 [useDataLoader ${loadId}] config.timeframe="${config.timeframe}", config.granularity="${config.granularity}", config.pair="${config.pair}"`);
-
       // ✅ Calculate exact number of candles needed based on granularity + period
       const candleCount = getCandleCount(config.granularity, config.timeframe);
       const granularitySeconds = getGranularitySeconds(config.granularity);
       const periodSeconds = getPeriodSeconds(config.timeframe);
 
-      console.log(`🔍 [useDataLoader ${loadId}] Calculated: candleCount=${candleCount}, granularitySeconds=${granularitySeconds}, periodSeconds=${periodSeconds}`);
+      // 🎯 DEBUG 5Y: Log detailed 5Y data
 
       // Align to granularity boundaries to ensure we get complete candles
       const alignedNow = alignTimeToGranularity(now, config.granularity);
@@ -139,6 +136,7 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       const candlesToLoad = isLongTerm
         ? Math.max(candleCount, 120) // No buffer for long-term
         : Math.max(candleCount + 60, 120); // +60 buffer for short-term
+
 
       ChartDebug.log(`📊 Loading ${config.timeframe} data: ${candleCount} candles needed${isLongTerm ? '' : ' + 60 buffer'} = ${candlesToLoad} total for ${config.granularity}`);
 
@@ -155,8 +153,9 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         candleLoadLimit
       );
       perfTest.measure('DataStore loadData', 'dataStore-loadData-start');
-      
+
       const candles = dataStore.candles;
+
 
       // Update chart with loaded data if series is provided
       if (config.series && candles.length > 0) {
@@ -185,13 +184,11 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
           .sort((a, b) => (a.time as number) - (b.time as number)); // Ensure sorted
 
         if (validCandles.length === 0) {
-          console.warn('⚠️ [DataLoader] No valid candles to display after filtering');
           statusStore.setError('No valid chart data available');
           return;
         }
 
         if (validCandles.length < candles.length) {
-          console.warn(`⚠️ [DataLoader] Filtered out ${candles.length - validCandles.length} invalid candles before chart display`);
         }
 
         // 🚀 PHASE 6 FIX: Cap chart render to prevent crashes with too many candles
@@ -202,10 +199,9 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         if (validCandles.length > MAX_CANDLES_TO_RENDER) {
           // Keep the most recent candles for display
           candlesToRender = validCandles.slice(-MAX_CANDLES_TO_RENDER);
-          console.warn(`⚠️ [useDataLoader] Limiting chart display to ${MAX_CANDLES_TO_RENDER} candles (have ${validCandles.length} valid total)`);
         }
 
-        console.log(`[useDataLoader] Loaded ${candlesToRender.length} candles for rendering (${validCandles.length} total loaded)`);
+
         // 🔧 FIX: DO NOT set data on series here - let ChartDataManager handle ALL series updates
         // If we call setData() here AND ChartDataManager also calls it, we get:
         // 1. Duplicate calls
@@ -214,29 +210,42 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         //
         // The flow should be: useDataLoader updates dataStore → ChartDataManager sees update → ChartDataManager calls series.setData()
         // This ensures a single source of truth (ChartDataManager) for series management
-        console.log(`📊 [useDataLoader] Data loaded and saved to dataStore - ChartDataManager will handle series.setData()`);
 
         // ⚡ SEAMLESS REFRESH FIX: Set visible candles based on timeframe
         // Short-term: Show 60 candles for detail
-        // Long-term (1M+): Show ALL candles for full historical view
+        // Long-term (1M+): Zoom all the way out to show full historical view
         if (config.chart && validCandles.length > 0) {
-          setTimeout(() => {
-            const totalCandles = candlesToRender.length;
+          const longTermPeriods = ['1M', '3M', '6M', '1Y', '5Y'];
+          const isLongTerm = longTermPeriods.includes(config.timeframe);
 
-            // For long-term periods (1M, 3M, 6M, 1Y, 5Y), show ALL candles
-            // For short-term periods, show 60 candles for detail
-            const longTermPeriods = ['1M', '3M', '6M', '1Y', '5Y'];
-            const isLongTerm = longTermPeriods.includes(config.timeframe);
-
-            const visibleCandleCount = isLongTerm ? totalCandles : 60;
-            const visibleRange = {
-              from: Math.max(0, totalCandles - visibleCandleCount),
-              to: totalCandles
-            };
-
-            config.chart!.timeScale().setVisibleLogicalRange(visibleRange);
-            console.log(`✅ [useDataLoader] Set visible range to show ${visibleCandleCount} of ${totalCandles} candles (${config.timeframe})`);
-          }, 200);
+          if (isLongTerm) {
+            // Zoom all the way out for long-term timeframes
+            // Set visible range to show ALL candles, not just the recent ones
+            setTimeout(() => {
+              try {
+                const totalCandles = candlesToRender.length;
+                const visibleRange = {
+                  from: 0,
+                  to: totalCandles
+                };
+                ChartDebug.log(`[FIT-LONG-TERM] Setting range 0→${totalCandles} for ${config.timeframe}`);
+                config.chart!.timeScale().setVisibleLogicalRange(visibleRange);
+                ChartDebug.log(`[FIT-LONG-TERM-DONE] Set visible range for ${config.timeframe}`);
+              } catch (err) {
+                ChartDebug.log(`[FIT-LONG-TERM-ERROR] Failed to set range: ${err}`);
+              }
+            }, 800);
+          } else {
+            // For short-term, show last 60 candles with shorter delay
+            setTimeout(() => {
+              const totalCandles = candlesToRender.length;
+              const visibleRange = {
+                from: Math.max(0, totalCandles - 60),
+                to: totalCandles
+              };
+              config.chart!.timeScale().setVisibleLogicalRange(visibleRange);
+            }, 200);
+          }
         }
       }
       
