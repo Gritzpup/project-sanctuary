@@ -25,6 +25,10 @@
   // 🚀 PHASE 14: Incremental sorting optimization
   let isCachedSortedFlag: boolean = false;
 
+  // 🔧 FIX: Track if setData() has ever been called to prevent multiple initial loads
+  // This is more reliable than isInitialized which can reset on component lifecycle events
+  let hasEverCalledSetData: boolean = false;
+
   // 🔧 FIX: Limit cache size to prevent unbounded memory growth
   // Increased to 2000 to support 5Y timeframe (1825 daily candles)
   const MAX_CACHED_CANDLES: number = 2000;
@@ -212,21 +216,24 @@
       // Use cached sorted candles
       const sortedCandles = cachedSortedCandles;
 
-      console.log(`🔍 [ChartDataManager] Processing update: isInitialized=${isInitialized}, sortedCandles=${sortedCandles.length}, lastProcessedIndex=${lastProcessedIndex}`);
+      console.log(`🔍 [ChartDataManager] Processing update: hasEverCalledSetData=${hasEverCalledSetData}, sortedCandles=${sortedCandles.length}, lastProcessedIndex=${lastProcessedIndex}`);
 
       // 🚀 PERF: Use incremental updates instead of full replacement
-      // 🔧 FIX: Track initialization by lastProcessedIndex=-1, not by isInitialized flag
-      // isInitialized can be reset during component lifecycle, but lastProcessedIndex persists
-      // Only call setData() once: when lastProcessedIndex is still -1 (never been set before)
-      const isFirstLoad = lastProcessedIndex === -1 && sortedCandles.length > 0;
+      // 🔧 FIX: Only call setData() once EVER using hasEverCalledSetData flag
+      // This prevents multiple conflicting calls even if component remounts or hot-reloads
+      const isFirstLoad = !hasEverCalledSetData && sortedCandles.length > 0;
 
       if (isFirstLoad) {
         // Initial load: set all data at once (ONLY ONCE!)
+        const firstTime = sortedCandles[0]?.time;
+        const lastTime = sortedCandles[sortedCandles.length - 1]?.time;
         console.log(`📈 [ChartDataManager] FIRST LOAD: Calling candleSeries.setData() with ${sortedCandles.length} candles`);
+        console.log(`   Data range: ${firstTime} to ${lastTime} (${new Date((firstTime as number) * 1000).toISOString()} to ${new Date((lastTime as number) * 1000).toISOString()})`);
         candleSeries.setData(sortedCandles);
         lastProcessedIndex = sortedCandles.length - 1;
+        hasEverCalledSetData = true;  // 🔧 Mark that we've called setData() - never call again!
         isInitialized = true;
-        console.log(`✅ [ChartDataManager] FIRST LOAD COMPLETE: lastProcessedIndex=${lastProcessedIndex}, isInitialized=true`);
+        console.log(`✅ [ChartDataManager] FIRST LOAD COMPLETE: lastProcessedIndex=${lastProcessedIndex}, hasEverCalledSetData=true`);
 
         // 🔧 FIX: Force proper zoom level after INITIAL data load ONLY
         // This fixes the issue where chart starts extremely zoomed in showing only 2 candles
@@ -247,24 +254,30 @@
             console.log(`✅ [ChartDataManager] Initial load: Set visible range to show ${showCandles} of ${candleCount} candles (from index ${startIndex} to ${candleCount})`);
           }
         }, 100);
-      } else if (sortedCandles.length > lastProcessedIndex + 1) {
+      } else if (hasEverCalledSetData && sortedCandles.length > lastProcessedIndex + 1) {
         // Incremental update: add only new candles since last update
         // ⚡ SEAMLESS REFRESH FIX: Don't reset visible range on incremental updates
         // This allows the chart to naturally auto-scroll as new candles arrive
         const newCandleCount = sortedCandles.length - lastProcessedIndex - 1;
         console.log(`📈 [ChartDataManager] INCREMENTAL UPDATE: Adding ${newCandleCount} new candles (from index ${lastProcessedIndex + 1} to ${sortedCandles.length - 1})`);
+        let updateFailureCount = 0;
         for (let i = lastProcessedIndex + 1; i < sortedCandles.length; i++) {
           try {
             candleSeries.update(sortedCandles[i]);
           } catch (updateError) {
-            // If update fails (e.g., trying to update older candle), fall back to full reload
-            console.warn(`⚠️  [ChartDataManager] Update failed at index ${i}, falling back to full reload of ${sortedCandles.length} candles`);
-            candleSeries.setData(sortedCandles);
-            lastProcessedIndex = sortedCandles.length - 1;
-            break;
+            // ⚠️ CRITICAL FIX: Don't fall back to setData() during incremental updates!
+            // This was causing the "broken candles" issue - if an update fails, skip it rather than
+            // calling setData() which would replace all data with potentially incomplete dataset
+            updateFailureCount++;
+            console.warn(`⚠️  [ChartDataManager] Update failed at index ${i}: ${updateError instanceof Error ? updateError.message : String(updateError)} (skipping this update, not falling back to setData)`);
           }
         }
+        if (updateFailureCount > 0) {
+          console.warn(`⚠️  [ChartDataManager] ${updateFailureCount} update(s) failed - continuing with next updates`);
+        }
         lastProcessedIndex = sortedCandles.length - 1;
+      } else if (!hasEverCalledSetData) {
+        console.log(`⏳ [ChartDataManager] Waiting for data: hasEverCalledSetData=${hasEverCalledSetData}, sortedCandles=${sortedCandles.length}`);
       } else {
         console.log(`⏭️  [ChartDataManager] NO UPDATE NEEDED: lastProcessedIndex=${lastProcessedIndex}, sortedCandles.length=${sortedCandles.length}`);
       }
@@ -285,14 +298,15 @@
    */
   export function resetForNewTimeframe() {
     console.log('🔄 [ChartDataManager] Resetting for new timeframe...');
-    console.log(`   Before reset: lastProcessedIndex=${lastProcessedIndex}, isInitialized=${isInitialized}, cachedCandles=${cachedSortedCandles.length}, lastCandleCount=${lastCandleCount}`);
+    console.log(`   Before reset: lastProcessedIndex=${lastProcessedIndex}, isInitialized=${isInitialized}, cachedCandles=${cachedSortedCandles.length}, lastCandleCount=${lastCandleCount}, hasEverCalledSetData=${hasEverCalledSetData}`);
     // Reset to initial state so next update is treated as first load
     lastProcessedIndex = -1;
     isInitialized = false;
     cachedSortedCandles = [];
     lastCandleCount = 0;
     isCachedSortedFlag = false;
-    console.log('✅ [ChartDataManager] Reset complete - lastProcessedIndex=-1, next update will be treated as FIRST LOAD');
+    hasEverCalledSetData = false;  // 🔧 FIX: Reset the setData flag so it can be called again for new timeframe data
+    console.log('✅ [ChartDataManager] Reset complete - lastProcessedIndex=-1, hasEverCalledSetData=false, next update will be treated as FIRST LOAD');
   }
   
   export function handleRealtimeUpdate(candle: any) {

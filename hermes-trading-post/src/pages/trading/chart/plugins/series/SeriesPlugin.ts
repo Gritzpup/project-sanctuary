@@ -163,10 +163,15 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
 
       // ✅ OPTIMIZATION: Single setData() call instead of clear+set
       // This is more efficient and prevents flickering during updates
+      console.log(`🔄 [SeriesPlugin] Calling setData with ${sortedData.length} candles (plugin: ${this.id})`);
       this.series.setData(sortedData);
     } else {
-      // Clear series if no data
-      this.series.setData([]);
+      // ⚠️ CRITICAL: Only clear series if it's NOT the main candlestick series
+      // Clearing the candlestick series when data is empty will remove all visible candles!
+      // This happens if getData() returns empty before data is loaded
+      console.warn(`⚠️ [SeriesPlugin] getData() returned empty data for plugin: ${this.id} - NOT clearing series to prevent data loss`);
+      // Don't call setData([]) - this would clear the chart!
+      // this.series.setData([]);
     }
   }
 
