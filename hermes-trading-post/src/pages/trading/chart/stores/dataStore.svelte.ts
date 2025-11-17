@@ -599,12 +599,18 @@ class DataStore {
     }
 
     // ✅ PHASE 2: Cap maximum candles to prevent OOM crashes
-    // Keep the most recent MAX_CANDLES to maintain viewport + history
+    // Granularity-aware limits to support various timeframes:
+    // - 1m/5m/15m/30m: Keep 2000 candles (handles ~2 weeks to ~30 days)
+    // - 1h/4h/6h: Keep 2000 candles (handles ~3 months to ~6 months)
+    // - 1d: Keep 1825 candles (exactly 5 years)
+    const granularity = this.getCurrentConfig().granularity;
+    const MAX_STORED_CANDLES = (granularity === '1d' || granularity === '1D') ? 1825 : 2000;
+
     let cappedCandles = sortedCandles;
-    if (sortedCandles.length > this.MAX_CANDLES) {
-      const excessCandles = sortedCandles.length - this.MAX_CANDLES;
+    if (sortedCandles.length > MAX_STORED_CANDLES) {
+      const excessCandles = sortedCandles.length - MAX_STORED_CANDLES;
       cappedCandles = sortedCandles.slice(excessCandles);
-      console.log(`[DataStore] ⚠️ Capped candles from ${sortedCandles.length} to ${this.MAX_CANDLES} (removed oldest ${excessCandles})`);
+      console.log(`[DataStore] ⚠️ Capped candles from ${sortedCandles.length} to ${MAX_STORED_CANDLES} (removed oldest ${excessCandles})`);
     }
 
     this._candles = cappedCandles;
