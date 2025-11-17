@@ -204,7 +204,7 @@ export class ChartAnimationService {
       '1m': 120,
       '5m': 100,
       '15m': 96,
-      '1H': 72,
+      '1H': 60, // ✅ FIX: Show 60 candles for 1H period, not 72
       '4H': 60,
       '1D': 365,
       '1W': 52,

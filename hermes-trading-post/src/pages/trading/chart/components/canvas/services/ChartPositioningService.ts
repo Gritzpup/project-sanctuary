@@ -127,30 +127,25 @@ export class ChartPositioningService {
     if (!this.chart || candleCount === 0) return;
 
     const showCandles = Math.min(candleCount, visibleCount);
+    const startIndex = Math.max(0, candleCount - showCandles);
 
-    if (showCandles < candleCount) {
-      // Show only the most recent N candles
-      const startIndex = candleCount - showCandles;
+    console.log(`📊 [ChartPositioningService] showNCandles: candleCount=${candleCount}, visibleCount=${visibleCount}, showing ${showCandles} candles from ${startIndex} to ${candleCount}`);
 
-      this.chart.timeScale().setVisibleLogicalRange({
-        from: startIndex,
-        to: candleCount // rightOffset property handles right padding
-      });
+    // Always set visible range and bar spacing, regardless of candle count
+    this.chart.timeScale().setVisibleLogicalRange({
+      from: startIndex,
+      to: candleCount // rightOffset property handles right padding
+    });
 
-      // Calculate and apply bar spacing
-      const barSpacing = this.calculateBarSpacing(showCandles);
-      this.chart.timeScale().applyOptions({
-        barSpacing: Math.max(MINIMUM_BAR_SPACING, barSpacing),
-        rightOffset: RIGHT_OFFSET
-      });
+    // Calculate and apply bar spacing
+    const barSpacing = this.calculateBarSpacing(showCandles);
+    this.chart.timeScale().applyOptions({
+      barSpacing: Math.max(MINIMUM_BAR_SPACING, barSpacing),
+      rightOffset: RIGHT_OFFSET
+    });
 
-      // Scroll to real-time for short-term views
-      this.chart.timeScale().scrollToRealTime();
-    } else {
-      // If fewer candles than requested, show all
-      // FIT CONTENT: Don't scroll to real-time - keep all historical data visible
-      this.chart.timeScale().fitContent();
-    }
+    // Scroll to real-time to show latest data
+    this.chart.timeScale().scrollToRealTime();
   }
 
   /**

@@ -223,6 +223,10 @@ export class RESTAPIService {
 
       console.log(`📊 [API] Returning ${candles.length} candles for ${pair}:${granularity}`);
 
+      // Get total available candles in database for this granularity
+      const dbMetadata = await this.redisCandleStorage.getMetadata(pair, granularity).catch(() => null);
+      const totalDatabaseCandles = dbMetadata?.totalCandles || candles.length;
+
       res.json({
         success: true,
         pair,
@@ -232,6 +236,12 @@ export class RESTAPIService {
           startTime,
           endTime,
           hours
+        },
+        metadata: {
+          totalDatabaseCandles,
+          storageMetadata: {
+            totalCandles: totalDatabaseCandles
+          }
         },
         data: candles
       });
