@@ -61,14 +61,17 @@
   });
 
   function initializeChart() {
+    console.log(`🔍 [ChartCanvas] initializeChart called: initCalled=${initCalled}, chart=${!!chart}, container=${!!container}`);
+
     if (initCalled) {
+      console.log('🛑 [ChartCanvas] Already called, returning early');
       return;
     }
 
     // 🚀 CRITICAL FIX: Don't reinitialize if chart already exists
     // This prevents creating multiple chart instances on Vite hot reload
     if (chart) {
-      console.log('Chart already exists, skipping reinitialization');
+      console.log('🛑 [ChartCanvas] Chart already exists, skipping reinitialization');
       return;
     }
 
@@ -76,12 +79,13 @@
     containerExists = !!container;
 
     if (!container) {
-      console.error('Container not found');
+      console.error('❌ [ChartCanvas] Container not found');
       statusStore.setError('Chart container not available');
       return;
     }
 
     // Create chart instance
+    console.log('📊 [ChartCanvas] Creating new chart instance...');
     chart = chartInitializer.createChartInstance();
     if (!chart) {
       statusStore.setError('Failed to create chart');
@@ -353,14 +357,6 @@
   }
 </script>
 
-<ChartInitializer bind:this={chartInitializer} {container} {width} {height} />
-<ChartDataManager
-  bind:this={dataManager}
-  {chart}
-  bind:candleSeries
-  bind:volumeSeries
-/>
-
 <div
   bind:this={container}
   class="chart-container"
@@ -373,6 +369,14 @@
     </div>
   {/if}
 </div>
+
+<ChartInitializer bind:this={chartInitializer} {container} {width} {height} />
+<ChartDataManager
+  bind:this={dataManager}
+  {chart}
+  bind:candleSeries
+  bind:volumeSeries
+/>
 
 <!-- Debug info -->
 {#if chartStore.config.showDebug}
