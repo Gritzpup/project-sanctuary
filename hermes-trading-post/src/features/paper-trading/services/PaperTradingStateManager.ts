@@ -209,26 +209,48 @@ export class PaperTradingStateManager {
   }
 
   private determineSelectedStrategyType(current: TradingState, backendState: any): string {
-    // Try to get selectedStrategyType from various sources with priority
-    let selectedStrategyType = current.selectedStrategyType || 'reverse-descending-grid';
-    
-    // First priority: direct from backend state
-    if (backendState.selectedStrategyType) {
-      selectedStrategyType = backendState.selectedStrategyType;
-    }
-    // Second priority: from strategy type
-    else if (backendState.strategy?.strategyType) {
-      selectedStrategyType = backendState.strategy?.strategyType;
-    }
-    // Third priority: from manager state active bot
-    else if (backendState.managerState?.bots && backendState.activeBotId) {
-      const activeBot = backendState.managerState.bots[backendState.activeBotId];
-      if (activeBot?.status?.selectedStrategyType) {
-        selectedStrategyType = activeBot.status.selectedStrategyType;
+    // PRIORITY 1: Keep current local state if it's been explicitly set
+    // This prevents backend status updates from overwriting user's dropdown selection
+    if (current.selectedStrategyType && current.selectedStrategyType !== 'reverse-descending-grid') {
+      // User has selected a non-default strategy, keep it unless backend confirms a different active bot
+      if (backendState.activeBotId) {
+        // Extract strategy type from active bot ID (e.g., "test-bot-1" -> "test")
+        const match = backendState.activeBotId.match(/^(.+)-bot-\d+$/);
+        if (match && match[1] === current.selectedStrategyType) {
+          // Backend confirms the bot matches user's selection
+          return current.selectedStrategyType;
+        }
       }
     }
-    
-    return selectedStrategyType;
+
+    // PRIORITY 2: Extract from activeBotId (most reliable source)
+    if (backendState.activeBotId) {
+      const match = backendState.activeBotId.match(/^(.+)-bot-\d+$/);
+      if (match) {
+        return match[1];
+      }
+    }
+
+    // PRIORITY 3: Direct from backend state
+    if (backendState.selectedStrategyType) {
+      return backendState.selectedStrategyType;
+    }
+
+    // PRIORITY 4: From strategy type
+    if (backendState.strategy?.strategyType) {
+      return backendState.strategy?.strategyType;
+    }
+
+    // PRIORITY 5: From manager state active bot
+    if (backendState.managerState?.bots && backendState.activeBotId) {
+      const activeBot = backendState.managerState.bots[backendState.activeBotId];
+      if (activeBot?.status?.selectedStrategyType) {
+        return activeBot.status.selectedStrategyType;
+      }
+    }
+
+    // Default fallback
+    return current.selectedStrategyType || 'reverse-descending-grid';
   }
 
   private updateChartMarkers(trades: any[]) {

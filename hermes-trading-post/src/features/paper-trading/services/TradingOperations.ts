@@ -9,19 +9,21 @@ import { ChartIntegration } from '../utils/ChartIntegration';
 
 export class TradingOperations {
   public static async handleStrategyChange(strategyType: string, tradingStateUpdater: (updater: (current: TradingState) => TradingState) => void) {
-    
+
     tradingStateUpdater(current => ({
       ...current,
       selectedStrategyType: strategyType
     }));
-    
+
     try {
-      // Update strategy parameters for current session
-      await tradingBackendService.updateStrategy(strategyType);
-      
-      // Persist strategy selection in backend database for this bot
-      await tradingBackendService.updateSelectedStrategy(strategyType);
-      
+      // Switch to first bot of new strategy (doesn't stop other running bots)
+      // This allows multiple strategies to run simultaneously
+      const botId = `${strategyType}-bot-1`;
+      tradingBackendService.selectBot(botId);
+
+      // Update selected strategy for the new bot
+      await tradingBackendService.updateSelectedStrategy(strategyType, botId);
+
     } catch (error) {
     }
   }
