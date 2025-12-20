@@ -75,10 +75,8 @@ export class TradeExecutor {
     // Play sound for profitable trades via system audio
     if (profit > 0) {
       try {
-        console.log('🔊 Playing profit sound for sell - Profit: $' + profit.toFixed(2));
         await SoundPlayer.playCoinSound();
       } catch (err) {
-        console.warn('Failed to play profit sound:', err.message);
       }
     }
 

@@ -61,15 +61,6 @@ export class CandleDataFetcher {
     const sorted = sortCandlesByTime(allCandles);
     const filtered = filterCandlesByTimeRange(sorted, startTime, endTime);
 
-    logger.debug('Retrieved candles from Redis', {
-      pair,
-      granularity,
-      requestedRange: {
-        from: new Date(startTime * 1000).toISOString(),
-        to: new Date(endTime * 1000).toISOString()
-      },
-      count: filtered.length
-    });
 
     return filtered;
   }
@@ -85,7 +76,6 @@ export class CandleDataFetcher {
     const metadata = await this.metadataManager.getMetadata(pair, granularity);
 
     if (!metadata) {
-      logger.debug('No metadata found for latest candles', { pair, granularity });
       return [];
     }
 
@@ -137,31 +127,13 @@ export class CandleDataFetcher {
           if (candle.time === timestamp) {
             dayCandles.push(candle);
           } else {
-            logger.warn('Timestamp mismatch in candle data', {
-              embedded: candle.time,
-              score: timestamp,
-              pair,
-              granularity
-            });
           }
         } catch (error) {
-          logger.error('Error parsing candle from Redis', {
-            error: error instanceof Error ? error.message : String(error),
-            dataStr,
-            pair,
-            granularity
-          });
         }
       }
 
       return dayCandles;
     } catch (error) {
-      logger.error('Error fetching candles for day', {
-        error: error instanceof Error ? error.message : String(error),
-        pair,
-        granularity,
-        dayTimestamp
-      });
       return [];
     }
   }

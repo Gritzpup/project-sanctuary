@@ -17,7 +17,6 @@ export class BaseStrategy {
   // Common position management methods
   addPosition(position) {
     this.positions.push(position);
-    console.log(`Strategy: Added position #${this.positions.length} at price $${position.entryPrice.toFixed(2)}`);
   }
 
   removePosition(position) {
@@ -27,12 +26,10 @@ export class BaseStrategy {
   clearAllPositions() {
     const count = this.positions.length;
     this.positions = [];
-    console.log(`Strategy: Cleared all ${count} positions`);
   }
   
   restorePositions(positions) {
     this.positions = positions;
-    console.log(`Strategy: Restored ${this.positions.length} positions`);
   }
 
   getPositions() {
@@ -46,16 +43,13 @@ export class BaseStrategy {
       const prevHigh = this.recentHigh;
       this.recentHigh = Math.max(...recentCandles.map(c => c.high), this.recentHigh);
       if (this.recentHigh > prevHigh && (this.recentHigh - prevHigh) / prevHigh > 0.01) {
-        console.log('New recent high:', this.recentHigh);
       }
     } else if (this.recentHigh === 0) {
       this.recentHigh = currentPrice;
-      console.log('Initialized recent high with current price:', this.recentHigh);
     }
     
     if (this.recentHigh === 0 || !this.recentHigh) {
       this.recentHigh = currentPrice;
-      console.log('Strategy: No recent high found, using current price:', currentPrice);
     }
   }
 

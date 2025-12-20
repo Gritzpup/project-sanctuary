@@ -92,7 +92,6 @@ export class TradingStateRepository {
 
       // Validate JSON is not empty/incomplete before parsing
       if (!stateData || stateData.trim().length === 0) {
-        console.warn(`⚠️ [State] Empty state file for ${this.botId}, starting fresh`);
         return null;
       }
 
@@ -105,7 +104,6 @@ export class TradingStateRepository {
       }
       // Corrupted JSON - log this as it indicates a real problem
       if (error instanceof SyntaxError) {
-        console.warn(`⚠️ [State] Corrupted state file for ${this.botId}: ${error.message}, starting fresh`);
         // Attempt to delete the corrupted file
         try {
           await fs.unlink(this.getStateFilePath());

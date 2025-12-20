@@ -1,0 +1,197 @@
+<script lang="ts">
+  import CollapsibleSidebar from '../../components/layout/CollapsibleSidebar.svelte';
+  import DashboardHeader from './components/DashboardHeader.svelte';
+  import ChartPanel from './components/ChartPanel.svelte';
+  import PortfolioPanel from './components/PortfolioPanel.svelte';
+  import MarketStatsPanel from './components/MarketStatsPanel.svelte';
+  import {
+    loadDashboardPreferences,
+    saveDashboardPreferences,
+    validGranularities,
+    autoSelectGranularity
+  } from '../../shared/services/dashboardPreferences';
+  import { sidebarStore } from '../../stores/sidebarStore';
+  import { onMount, createEventDispatcher } from 'svelte';
+
+  export let currentPrice: number = 0;
+  export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
+  export let sidebarCollapsed = false;
+
+  // Subscribe to sidebar store to get real-time updates
+  let sidebarCollapsedFromStore = false;
+  const unsubscribeSidebar = sidebarStore.subscribe(value => {
+    sidebarCollapsedFromStore = value;
+  });
+
+  // Use store value if available, otherwise use prop
+  $: sidebarCollapsed = sidebarCollapsedFromStore;
+
+  const dispatch = createEventDispatcher();
+
+  function toggleSidebar() {
+    dispatch('toggle');
+  }
+
+  function handleNavigation(event: CustomEvent) {
+    dispatch('navigate', event.detail);
+  }
+
+  // Load saved chart preferences
+  const savedPrefs = loadDashboardPreferences();
+  let selectedGranularity = savedPrefs.granularity;
+  let selectedPeriod = savedPrefs.period;
+  let autoGranularityActive = false;
+
+  // Portfolio data (would typically come from stores/API)
+  let btcBalance = 0.00000000;
+  let usdBalance = 0.00;
+  let totalValue = 0.00;
+
+  // Market data (would typically come from API)
+  let volume24h = '$2.4B';
+  let high24h = '$118,234';
+  let low24h = '$116,892';
+
+  // Save preferences when they change
+  $: if (selectedGranularity && selectedPeriod) {
+    saveDashboardPreferences(selectedGranularity, selectedPeriod);
+  }
+
+  function handleGranularityChange(granularity: string) {
+    selectedGranularity = granularity;
+    console.log('Selected granularity:', granularity);
+  }
+
+  function handlePeriodChange(period: string) {
+    selectedPeriod = period;
+    console.log('Selected period:', period);
+    
+    // If current granularity is not valid for new period, select the best default
+    selectedGranularity = autoSelectGranularity(period, selectedGranularity);
+    if (selectedGranularity !== savedPrefs.granularity) {
+      console.log('Auto-selected granularity:', selectedGranularity);
+    }
+  }
+
+  function handleChartGranularityChange(newGranularity: string) {
+    // Update button states smoothly
+    if (selectedGranularity !== newGranularity) {
+      console.log(`Auto-granularity changed to: ${newGranularity}`);
+      selectedGranularity = newGranularity;
+      autoGranularityActive = true;
+      
+      // Show auto indicator for 2 seconds
+      setTimeout(() => {
+        autoGranularityActive = false;
+      }, 2000);
+    }
+  }
+
+  onMount(() => {
+    console.log('Dashboard mounted successfully');
+
+    return () => {
+      unsubscribeSidebar();
+    };
+  });
+</script>
+
+<div class="dashboard-layout">
+  <CollapsibleSidebar 
+    {currentPrice}
+    {sidebarCollapsed} 
+    activeSection="dashboard"
+    on:toggle={toggleSidebar} 
+    on:navigate={handleNavigation} 
+  />
+  
+  <main class="dashboard-content" class:expanded={sidebarCollapsed}>
+    <DashboardHeader {currentPrice} {connectionStatus} />
+    
+    <!-- Dashboard Grid -->
+    <div class="dashboard-grid">
+      <ChartPanel 
+        bind:connectionStatus
+        {selectedGranularity}
+        {selectedPeriod}
+        {autoGranularityActive}
+        {validGranularities}
+        onGranularityChange={handleGranularityChange}
+        onPeriodChange={handlePeriodChange}
+        onChartGranularityChange={handleChartGranularityChange}
+      />
+      
+      <!-- Bottom Panels Row -->
+      <div class="bottom-panels">
+        <PortfolioPanel {btcBalance} {usdBalance} {totalValue} />
+        <MarketStatsPanel {volume24h} {high24h} {low24h} />
+      </div>
+    </div>
+  </main>
+</div>
+
+<style>
+  .dashboard-layout {
+    display: flex;
+    height: 100vh;
+    min-height: 600px;
+    background: var(--bg-main);
+    color: var(--text-primary);
+  }
+  
+  .dashboard-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin-left: 200px;
+    width: calc(100% - 200px);
+    transition: all var(--transition-slow);
+    overflow: hidden;
+  }
+
+  .dashboard-content.expanded {
+    margin-left: 60px;
+    width: calc(100% - 60px);
+  }
+  
+  .dashboard-grid {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xl);
+    padding: var(--space-xl);
+    overflow: auto;
+    min-height: 0;
+  }
+  
+  .bottom-panels {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-xl);
+    flex: 0 0 auto;
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .dashboard-content {
+      margin-left: 0;
+      width: 100%;
+      padding-top: 60px; /* Account for mobile header */
+    }
+    
+    .dashboard-content.expanded {
+      margin-left: 0;
+      width: 100%;
+    }
+    
+    .dashboard-grid {
+      gap: var(--space-lg);
+      padding: var(--space-lg);
+    }
+    
+    .bottom-panels {
+      grid-template-columns: 1fr;
+      gap: var(--space-lg);
+    }
+  }
+</style>

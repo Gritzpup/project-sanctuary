@@ -73,12 +73,6 @@ export class CandleAggregator {
     // Sort by timestamp
     aggregatedCandles.sort((a, b) => a.time - b.time);
 
-    logger.debug('Aggregated candles', {
-      sourceCount: sourceCandles.length,
-      targetGranularity,
-      aggregatedCount: aggregatedCandles.length,
-      groups: candleGroups.size
-    });
 
     return aggregatedCandles;
   }
@@ -233,12 +227,6 @@ export class CandleAggregator {
       const targetGran = path[i];
       currentCandles = this.aggregateCandles(currentCandles, targetGran);
       
-      logger.debug('Aggregation step completed', {
-        from: path[i - 1],
-        to: targetGran,
-        inputCount: currentCandles.length,
-        outputCount: currentCandles.length
-      });
     }
 
     return currentCandles;

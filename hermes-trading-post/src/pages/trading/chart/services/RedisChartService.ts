@@ -187,7 +187,6 @@ export class RedisChartService {
     } catch (error: unknown) {
       ChartDebug.error('Failed to get storage stats:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error( 'Failed to get storage stats', { error: errorMessage });
       return null;
     }
   }

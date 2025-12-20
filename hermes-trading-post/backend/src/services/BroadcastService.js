@@ -44,7 +44,6 @@ export class BroadcastService {
     this.setupCandleBroadcast();
     this.setupTickerBroadcast();
 
-    console.log('🔊 BroadcastService initialized - 5 broadcast types active');
   }
 
   /**
@@ -98,7 +97,6 @@ export class BroadcastService {
           });
           this.broadcastStats.orderbookDelta++;
         } catch (error) {
-          console.error('Error parsing orderbook delta:', error);
         }
       });
     }
@@ -163,7 +161,6 @@ export class BroadcastService {
                     }));
                     this.broadcastStats.candle++;
                   } catch (error) {
-                    console.error('Error sending candle to client:', error);
                   }
                 }
               }
@@ -207,7 +204,6 @@ export class BroadcastService {
                 }));
                 this.broadcastStats.ticker++;
               } catch (error) {
-                console.error('Error sending ticker to client:', error);
               }
             }
           }
@@ -227,7 +223,6 @@ export class BroadcastService {
           client.send(JSON.stringify(message));
           this.broadcastStats.totalMessages++;
         } catch (error) {
-          console.error('Error broadcasting message:', error);
         }
       }
     });

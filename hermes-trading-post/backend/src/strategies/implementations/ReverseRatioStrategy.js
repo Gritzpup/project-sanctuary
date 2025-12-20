@@ -29,7 +29,6 @@ export class ReverseRatioStrategy extends BaseStrategy {
     const currentLevel = this.positions.length + 1;
 
     // 🔍 DEBUG: Log drop analysis
-    console.log(`📊 [ReverseRatio] Analysis: price=$${currentPrice.toFixed(2)}, recentHigh=$${this.recentHigh.toFixed(2)}, drop=${dropFromHigh.toFixed(3)}%, level=${currentLevel}, positions=${this.positions.length}`);
 
     // Special handling for initial position - be VERY aggressive
     if (this.positions.length === 0) {
@@ -53,7 +52,6 @@ export class ReverseRatioStrategy extends BaseStrategy {
       const requiredDrop = this.config.initialDropPercent +
                           (currentLevel - 1) * this.config.levelDropPercent;
 
-      console.log(`🎯 [ReverseRatio] Level ${currentLevel}: requiredDrop=${requiredDrop.toFixed(3)}%, actualDrop=${dropFromHigh.toFixed(3)}%, needMore=${(requiredDrop - dropFromHigh).toFixed(3)}%`);
 
       if (dropFromHigh >= requiredDrop) {
         return {
@@ -88,7 +86,6 @@ export class ReverseRatioStrategy extends BaseStrategy {
     // Reserve 50% of capital unless we're in a deep dip
     const availableBalance = isDeepDip ? totalBalance : totalBalance * 0.5;
 
-    console.log(`💰 [ReverseRatio] Position sizing: balance=$${totalBalance.toFixed(2)}, avgEntry=$${avgEntryPrice.toFixed(2)}, dip=$${dipFromAvgEntry.toFixed(2)}, deepDip=${isDeepDip}, available=$${availableBalance.toFixed(2)}`);
 
     const baseAmount = availableBalance * (this.config.basePositionPercent / 100);
     const multiplier = Math.pow(1.5, level - 1); // Increase size with each level

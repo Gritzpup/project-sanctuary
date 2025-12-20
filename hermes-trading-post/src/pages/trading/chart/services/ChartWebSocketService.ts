@@ -76,7 +76,10 @@ export class ChartWebSocketService {
       this.ws = new WebSocket(this.wsUrl);
 
       this.ws.onopen = () => this.handleOpen();
-      this.ws.onmessage = (event) => this.handleMessage(event);
+      this.ws.onmessage = (event) => {
+        // Use requestAnimationFrame to prevent blocking the main thread
+        requestAnimationFrame(() => this.handleMessage(event));
+      };
       this.ws.onerror = (error) => this.handleError(error);
       this.ws.onclose = (event) => this.handleClose(event);
     } catch (error) {

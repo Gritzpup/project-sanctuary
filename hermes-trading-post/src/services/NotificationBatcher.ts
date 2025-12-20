@@ -5,13 +5,12 @@
  */
 
 export class NotificationBatcher {
-  private batchWindow = 32; // ~30fps frame budget (optimized for performance vs 60fps)
-  private batchTimeout: NodeJS.Timeout | null = null;
+  private rafId: number | null = null;
   private isPending = false;
   private callbacks: Set<() => void> = new Set();
 
   /**
-   * Schedule notification - batches multiple calls into one
+   * Schedule notification - batches multiple calls into one RAF cycle
    */
   scheduleNotification(callback: () => void): void {
     if (!callback) return;
@@ -23,9 +22,9 @@ export class NotificationBatcher {
     if (!this.isPending) {
       this.isPending = true;
 
-      this.batchTimeout = setTimeout(() => {
+      this.rafId = requestAnimationFrame(() => {
         this.flush();
-      }, this.batchWindow);
+      });
     }
   }
 
@@ -33,9 +32,9 @@ export class NotificationBatcher {
    * Immediately flush any pending notifications
    */
   flush(): void {
-    if (this.batchTimeout) {
-      clearTimeout(this.batchTimeout);
-      this.batchTimeout = null;
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
     }
 
     if (this.callbacks.size === 0) {
@@ -61,9 +60,9 @@ export class NotificationBatcher {
    * Reset batcher state
    */
   reset(): void {
-    if (this.batchTimeout) {
-      clearTimeout(this.batchTimeout);
-      this.batchTimeout = null;
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
     }
     this.callbacks.clear();
     this.isPending = false;
@@ -79,9 +78,8 @@ export class NotificationBatcher {
   /**
    * Get statistics for debugging
    */
-  getStats(): { batchWindow: number; pendingCallbacks: number; isPending: boolean } {
+  getStats(): { pendingCallbacks: number; isPending: boolean } {
     return {
-      batchWindow: this.batchWindow,
       pendingCallbacks: this.callbacks.size,
       isPending: this.isPending,
     };

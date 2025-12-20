@@ -35,7 +35,6 @@ export class RESTAPIService {
     app.get('/api/time', (req, res) => this.getServerTime(req, res));
     app.get('/health', (req, res) => this.getHealthStatus(req, res));
 
-    console.log('✅ RESTAPIService registered - 6 endpoints ready');
   }
 
   /**
@@ -45,7 +44,6 @@ export class RESTAPIService {
     const { productId } = req.params;
 
     try {
-      console.log(`📥 [API] Received orderbook request for ${productId}`);
 
       // Get full cached orderbook for immediate frontend hydration with 2-second timeout
       let orderbook = null;
@@ -60,7 +58,6 @@ export class RESTAPIService {
         orderbook = await Promise.race([orderBookPromise, timeoutPromise]);
       } catch (error) {
         if (error.message === 'timeout') {
-          console.warn(`⏱️ [API] Redis query timeout for ${productId}, returning empty orderbook`);
           timedOut = true;
         } else {
           throw error;
@@ -68,7 +65,6 @@ export class RESTAPIService {
       }
 
       if (!orderbook || timedOut) {
-        console.log(`⏭️ [API] No cached orderbook for ${productId} (${timedOut ? 'timed out' : 'empty'})`);
         return res.json({
           success: false,
           message: 'Orderbook data not yet available. Waiting for real-time updates...',
@@ -77,7 +73,6 @@ export class RESTAPIService {
         });
       }
 
-      console.log(`✅ [API] Returning cached orderbook for ${productId}: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);
 
       res.json({
         success: true,
@@ -85,7 +80,6 @@ export class RESTAPIService {
         cached: true
       });
     } catch (error) {
-      console.error(`❌ Failed to get orderbook for ${productId}:`, error.message);
       res.status(500).json({
         success: false,
         error: error.message,
@@ -110,7 +104,6 @@ export class RESTAPIService {
         data: orderbook
       });
     } catch (error) {
-      console.error(`❌ Failed to get orderbook range for ${productId}:`, error.message);
       res.status(500).json({
         success: false,
         error: error.message
@@ -144,7 +137,6 @@ export class RESTAPIService {
         data: orderbook
       });
     } catch (error) {
-      console.error(`❌ Failed to get top orders for ${productId}:`, error.message);
       res.status(500).json({
         success: false,
         error: error.message,
@@ -172,7 +164,6 @@ export class RESTAPIService {
 
       // 🚀 FALLBACK: If Redis cache is empty, fetch from Coinbase API
       if (!candles || candles.length === 0) {
-        console.log(`⚠️ [API] Redis cache empty for ${pair}:${granularity}, fetching from Coinbase...`);
 
         try {
           // Convert granularity string to seconds
@@ -197,14 +188,11 @@ export class RESTAPIService {
               volume: parseFloat(volume)
             })).sort((a, b) => a.time - b.time);
 
-            console.log(`✅ [API] Fetched ${candles.length} candles from Coinbase for ${pair}:${granularity}`);
 
             // Store in Redis for future requests
             await this.redisCandleStorage.storeCandles(pair, granularity, candles).catch(err => {
-              console.warn(`⚠️ Failed to cache candles in Redis: ${err.message}`);
             });
           } else {
-            console.log(`⚠️ [API] Coinbase returned no data for ${pair}:${granularity}`);
             return res.json({
               success: false,
               message: `No candles available for ${pair} at ${granularity}`,
@@ -212,7 +200,6 @@ export class RESTAPIService {
             });
           }
         } catch (coinbaseError) {
-          console.error(`❌ Failed to fetch from Coinbase: ${coinbaseError.message}`);
           return res.json({
             success: false,
             message: `No cached candles and Coinbase fetch failed for ${pair} at ${granularity}`,
@@ -221,7 +208,6 @@ export class RESTAPIService {
         }
       }
 
-      console.log(`📊 [API] Returning ${candles.length} candles for ${pair}:${granularity}`);
 
       // Get total available candles in database for this granularity
       const dbMetadata = await this.redisCandleStorage.getMetadata(pair, granularity).catch(() => null);
@@ -246,7 +232,6 @@ export class RESTAPIService {
         data: candles
       });
     } catch (error) {
-      console.error(`❌ Failed to get candles for ${pair}:${granularity}:`, error.message);
       res.status(500).json({
         success: false,
         error: error.message,
@@ -285,7 +270,7 @@ export class RESTAPIService {
         heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + ' MB',
         external: Math.round(memUsage.external / 1024 / 1024) + ' MB'
       },
-      coinbaseWebSocket: this.coinbaseWebSocket.getStatus(),
+      coinbaseWebSocket: this.coinbaseWebSocket?.getStatus() || { status: 'initializing' },
       subscriptions: {
         chartSubscriptions: this.chartSubscriptions.size,
         activeSubscriptions: this.activeSubscriptions.size,

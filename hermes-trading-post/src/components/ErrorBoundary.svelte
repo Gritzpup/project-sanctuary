@@ -69,12 +69,6 @@
     errorInfo = caughtErrorInfo;
 
     // Log error using structured logger
-    logger.error('Component error caught by error boundary', {
-      error: caughtError.message,
-      errorInfo: caughtErrorInfo,
-      hasError: true,
-      componentStack: caughtErrorInfo?.componentStack
-    }, 'ErrorBoundary');
 
     dispatch('error', { error: caughtError, errorInfo: caughtErrorInfo });
   }
@@ -103,10 +97,6 @@
       userId: null // Would be populated from user context
     };
 
-    logger.error('User reported error via error boundary', {
-      action: 'report_issue',
-      errorReport
-    }, 'ErrorBoundary');
 
     // For now, just copy to clipboard
     navigator.clipboard?.writeText(JSON.stringify(errorReport, null, 2))

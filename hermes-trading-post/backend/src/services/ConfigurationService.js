@@ -53,7 +53,14 @@ export class ConfigurationService {
       // Feature flags
       ENABLE_REDIS_STORAGE: process.env.ENABLE_REDIS_STORAGE !== 'false',
       ENABLE_ORDERBOOK_CACHE: process.env.ENABLE_ORDERBOOK_CACHE !== 'false',
-      ENABLE_BROADCAST_SERVICE: process.env.ENABLE_BROADCAST_SERVICE !== 'false'
+      ENABLE_BROADCAST_SERVICE: process.env.ENABLE_BROADCAST_SERVICE !== 'false',
+
+      // Bots service configuration
+      BOTS_SERVICE_URL: process.env.BOTS_SERVICE_URL || 'ws://localhost:4829',
+
+      // Coinbase CDP API configuration
+      CDP_API_KEY_NAME: process.env.CDP_API_KEY_NAME,
+      CDP_API_KEY_PRIVATE: process.env.CDP_API_KEY_PRIVATE
     };
 
     this.validateConfig();
@@ -82,7 +89,6 @@ export class ConfigurationService {
     }
 
     if (errors.length > 0) {
-      console.warn('⚠️ Configuration warnings:', errors);
     }
 
     return errors;
@@ -101,7 +107,6 @@ export class ConfigurationService {
   set(key, value) {
     const oldValue = this.config[key];
     this.config[key] = value;
-    console.log(`⚙️ Configuration updated: ${key} = ${value} (was ${oldValue})`);
     return value;
   }
 

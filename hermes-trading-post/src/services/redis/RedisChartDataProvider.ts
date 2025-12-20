@@ -61,10 +61,8 @@ export class RedisChartDataProvider {
       await this.ensureRecentData('BTC-USD');
       
       this.isInitialized = true;
-      logger.info( 'Initialized successfully');
       
     } catch (error) {
-      logger.error( 'Initialization failed', { error: error.message });
       throw error;
     }
   }
@@ -84,13 +82,6 @@ export class RedisChartDataProvider {
     const granularitySeconds = GRANULARITY_SECONDS[granularity];
     const calculatedStartTime = startTime || (calculatedEndTime - (maxCandles * granularitySeconds));
 
-    logger.debug( 'Chart data request', {
-      pair,
-      granularity,
-      startTime: calculatedStartTime,
-      endTime: calculatedEndTime,
-      maxCandles
-    });
 
     try {
       // Try to get data from Redis first
@@ -111,10 +102,6 @@ export class RedisChartDataProvider {
       if (cacheHitRatio >= 0.95) {
         // Redis has sufficient data
         finalCandles = redisCandles;
-        logger.debug( 'Served from Redis cache', {
-          candleCount: redisCandles.length,
-          cacheHitRatio
-        });
         
       } else {
         // Need to fill gaps with API data
@@ -127,12 +114,6 @@ export class RedisChartDataProvider {
           redisCandles
         );
         
-        logger.info( 'Filled data gaps', {
-          source,
-          redisCandleCount: redisCandles.length,
-          finalCandleCount: finalCandles.length,
-          cacheHitRatio
-        });
       }
 
       // Convert to chart format
@@ -157,7 +138,6 @@ export class RedisChartDataProvider {
       };
 
     } catch (error) {
-      logger.error( 'Error getting chart data', { error: error.message });
       
       // Fallback to API only
       return this.getChartDataFromAPI(request);
@@ -191,20 +171,9 @@ export class RedisChartDataProvider {
           // Store the fetched data in Redis for future use
           await redisCandleStorage.storeCandles(pair, granularity, gapCandles);
           
-          logger.debug( 'Filled data gap', {
-            pair,
-            granularity,
-            gapStart: new Date(gap.start * 1000).toISOString(),
-            gapEnd: new Date(gap.end * 1000).toISOString(),
-            fetchedCandles: gapCandles.length
-          });
         }
         
       } catch (error) {
-        logger.warn( 'Failed to fill data gap', { 
-          error: error.message,
-          gap
-        });
       }
     }
 
@@ -318,7 +287,6 @@ export class RedisChartDataProvider {
       // Store in Redis for future use
       if (candles.length > 0) {
         redisCandleStorage.storeCandles(pair, granularity, candles).catch(error => {
-          logger.warn( 'Failed to cache API data', { error: error.message });
         });
       }
 
@@ -343,7 +311,6 @@ export class RedisChartDataProvider {
       };
 
     } catch (error) {
-      logger.error( 'API fallback failed', { error: error.message });
       throw error;
     }
   }
@@ -357,7 +324,6 @@ export class RedisChartDataProvider {
     
     if (!metadata || (now - metadata.lastTimestamp) > 3600) {
       // Missing or stale data, fetch recent candles
-      logger.info( 'Populating recent data', { pair });
       
       const endTime = now;
       const startTime = endTime - (1000 * 60); // Last 1000 minutes
@@ -371,16 +337,9 @@ export class RedisChartDataProvider {
           // Generate aggregated candles for other granularities
           await this.generateAggregatedCandles(pair, recentCandles);
           
-          logger.info( 'Populated recent data', {
-            pair,
-            candleCount: recentCandles.length
-          });
         }
         
       } catch (error) {
-        logger.warn( 'Failed to populate recent data', { 
-          error: error.message 
-        });
       }
     }
   }
@@ -400,10 +359,6 @@ export class RedisChartDataProvider {
         }
         
       } catch (error) {
-        logger.warn( 'Failed to generate aggregated candles', {
-          error: error.message,
-          granularity
-        });
       }
     }
   }
@@ -419,16 +374,8 @@ export class RedisChartDataProvider {
       // Update aggregated candles
       await this.updateAggregatedCandles(pair, newCandle);
       
-      logger.debug( 'Updated with new candle', {
-        pair,
-        timestamp: new Date(newCandle.time * 1000).toISOString(),
-        price: newCandle.close
-      });
       
     } catch (error) {
-      logger.error( 'Failed to update with new candle', {
-        error: error.message
-      });
     }
   }
 
@@ -458,10 +405,6 @@ export class RedisChartDataProvider {
         }
         
       } catch (error) {
-        logger.warn( 'Failed to update aggregated candle', {
-          error: error.message,
-          granularity
-        });
       }
     }
   }

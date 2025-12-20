@@ -64,15 +64,6 @@ export class CandleMetadataManager {
 
     await this.redis.expire(metadataKey, CANDLE_STORAGE_CONFIG.ttl.metadata);
 
-    logger.debug('Updated metadata', {
-      pair,
-      granularity,
-      totalCandles: metadata.totalCandles,
-      coverage: {
-        from: new Date(metadata.firstTimestamp * 1000).toISOString(),
-        to: new Date(metadata.lastTimestamp * 1000).toISOString()
-      }
-    });
   }
 
   /**
@@ -131,12 +122,6 @@ export class CandleMetadataManager {
 
     await this.redis.expire(checkpointKey, CANDLE_STORAGE_CONFIG.ttl.checkpoints);
 
-    logger.debug('Created checkpoint', {
-      pair,
-      granularity,
-      timestamp: new Date(latestCandle.time * 1000).toISOString(),
-      price: latestCandle.close
-    });
   }
 
   /**
@@ -153,7 +138,6 @@ export class CandleMetadataManager {
     const data = await this.redis.hgetall(checkpointKey);
 
     if (!data.checksum) {
-      logger.warn('Checkpoint not found for validation', { pair, granularity, timestamp });
       return false;
     }
 
@@ -164,13 +148,6 @@ export class CandleMetadataManager {
     const valid = calculatedChecksum === storedChecksum;
 
     if (!valid) {
-      logger.warn('Checkpoint validation failed', {
-        pair,
-        granularity,
-        timestamp,
-        expected: storedChecksum,
-        calculated: calculatedChecksum
-      });
     }
 
     return valid;
@@ -184,7 +161,6 @@ export class CandleMetadataManager {
     const metadataKey = generateMetadataKey(pair, granularity);
     await this.redis.del(metadataKey);
 
-    logger.debug('Deleted metadata', { pair, granularity });
   }
 
   /**

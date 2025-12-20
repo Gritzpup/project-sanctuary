@@ -92,9 +92,16 @@ export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Pl
 
   protected removeSeries(): void {
     if (this.series) {
-      const chart = this.getChart();
-      chart.removeSeries(this.series);
-      this.series = null;
+      try {
+        const chart = this.getChart();
+        if (chart) {
+          chart.removeSeries(this.series);
+        }
+      } catch (error) {
+        // Silently ignore errors when removing series
+      } finally {
+        this.series = null;
+      }
     }
   }
 

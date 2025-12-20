@@ -8,16 +8,12 @@ import { redisChartDataProvider } from './src/services/redis/RedisChartDataProvi
 import { redisCandleStorage } from './src/services/redis/RedisCandleStorage.js';
 
 async function testRedisStorage() {
-  console.log('🧪 Testing Redis Candle Storage System...\n');
   
   try {
     // Test 1: Connection
-    console.log('1️⃣ Testing Redis connection...');
     await redisCandleStorage.connect();
-    console.log('✅ Redis connection successful\n');
     
     // Test 2: Store sample candles
-    console.log('2️⃣ Testing candle storage...');
     const sampleCandles = [
       {
         time: Math.floor(Date.now() / 1000) - 300,
@@ -46,10 +42,8 @@ async function testRedisStorage() {
     ];
     
     await redisCandleStorage.storeCandles('BTC-USD', '1m', sampleCandles);
-    console.log('✅ Sample candles stored successfully\n');
     
     // Test 3: Retrieve candles
-    console.log('3️⃣ Testing candle retrieval...');
     const startTime = Math.floor(Date.now() / 1000) - 400;
     const endTime = Math.floor(Date.now() / 1000);
     
@@ -60,39 +54,23 @@ async function testRedisStorage() {
       endTime
     );
     
-    console.log(`✅ Retrieved ${retrievedCandles.length} candles`);
-    console.log('Sample candle:', retrievedCandles[0]);
-    console.log('');
     
     // Test 4: Test chart data provider
-    console.log('4️⃣ Testing chart data provider...');
     const chartResponse = await redisChartDataProvider.getChartData({
       pair: 'BTC-USD',
       granularity: '1m',
       maxCandles: 100
     });
     
-    console.log(`✅ Chart data provider returned ${chartResponse.candles.length} candles`);
-    console.log(`Source: ${chartResponse.metadata.source}`);
-    console.log(`Cache hit ratio: ${chartResponse.metadata.cacheHitRatio.toFixed(2)}`);
-    console.log('');
     
     // Test 5: Storage stats
-    console.log('5️⃣ Testing storage statistics...');
     const stats = await redisCandleStorage.getStorageStats();
-    console.log('✅ Storage stats:', stats);
-    console.log('');
     
-    console.log('🎉 All Redis storage tests passed!');
     
   } catch (error) {
-    console.error('❌ Test failed:', error.message);
-    console.error('Stack:', error.stack);
   } finally {
     await redisCandleStorage.disconnect();
-    console.log('🔌 Redis connection closed');
   }
 }
 
 // Run the test
-testRedisStorage().catch(console.error);

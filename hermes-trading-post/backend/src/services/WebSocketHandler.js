@@ -74,7 +74,6 @@ export class WebSocketHandler {
       // Only uncomment for debugging specific issues
       // if (data.type !== 'getStatus' && data.type !== 'getManagerState' && data.type !== 'realtimePrice') {
       //   if (data.type === 'createBot' || data.type === 'deleteBot' || data.type === 'startBot' || data.type === 'stopBot') {
-      //     console.log('📥 [Backend]', data.type, '- botId:', data.botId);
       //   }
       // }
 
@@ -98,13 +97,11 @@ export class WebSocketHandler {
           const botsWs = this.getBotsWebSocket();
           if (botsWs && botsWs.readyState === 1) { // WebSocket.OPEN
             botsWs.send(message.toString());
-            console.log(`🤖 Forwarded ${data.type} command to bots service`);
           } else {
             ws.send(JSON.stringify({
               type: 'error',
               message: 'Bots service is not connected'
             }));
-            console.error('❌ Cannot forward command - bots service not connected');
           }
           break;
         case 'forceSell':
@@ -121,10 +118,8 @@ export class WebSocketHandler {
           break;
         default:
           // Reduced logging - uncomment for debugging
-          // console.log('Unknown message type:', data.type);
       }
     } catch (error) {
-      console.error('Error processing message:', error);
       ws.send(JSON.stringify({
         type: 'error',
         message: error.message
@@ -148,7 +143,6 @@ export class WebSocketHandler {
    */
   handleStartTrading(ws, data) {
     // Reduced logging - commented out for cleaner output
-    // console.log('Start trading request received:', {
     //   config: data.config,
     //   activeBotId: this.botManager.activeBotId,
     //   hasActiveBot: !!this.botManager.getActiveBot()
@@ -226,13 +220,11 @@ export class WebSocketHandler {
    * Handle reset command
    */
   async handleReset(ws, data) {
-    console.log('Reset request received for bot:', data.botId);
     const botToReset = data.botId ? this.botManager.getBot(data.botId) : this.botManager.getActiveBot();
     if (botToReset) {
       botToReset.resetState();
       // Save the cleared state to file
       botToReset.saveState().catch(error => {
-        console.error('Failed to save reset state:', error);
       });
       ws.send(JSON.stringify({
         type: 'resetComplete',
@@ -256,22 +248,18 @@ export class WebSocketHandler {
    * Handle force sell command (for testing vault allocation)
    */
   async handleForceSell(ws, data) {
-    console.log('🧪 FORCE SELL request received for testing vault allocation');
     const botToSell = this.botManager.getActiveBot();
     if (botToSell) {
       // Force trigger a sell signal to test vault allocation
       const currentPrice = botToSell.currentPrice || 112000; // Use current price or fallback
-      console.log(`🧪 Forcing sell at price: $${currentPrice}`);
 
       // Call the orchestrator's executeSellSignal directly for testing
       if (botToSell.orchestrator) {
         // Check current BTC balance before forcing sell
         const currentBtc = botToSell.orchestrator.positionManager.getTotalBtc();
-        console.log(`🧪 Current BTC balance: ${currentBtc} BTC`);
 
         if (currentBtc === 0) {
           // No BTC to sell - simulate a profitable trade for testing
-          console.log('🧪 No BTC to sell, simulating a profitable trade for testing...');
           const simulatedBtc = 0.1; // Simulate 0.1 BTC
           const simulatedCostBasis = currentPrice * 0.95 * simulatedBtc; // 5% profit
 
@@ -283,19 +271,16 @@ export class WebSocketHandler {
             timestamp: Date.now()
           });
 
-          console.log(`🧪 Simulated position: ${simulatedBtc} BTC at cost basis $${simulatedCostBasis.toFixed(2)}`);
         }
 
         const mockSignal = { reason: data.reason || 'Force sell for vault allocation test' };
         try {
           await botToSell.orchestrator.executeSellSignal(mockSignal, currentPrice);
-          console.log('🧪 Force sell completed, vault allocation should be applied');
           ws.send(JSON.stringify({
             type: 'forceSellComplete',
             status: botToSell.getStatus()
           }));
         } catch (error) {
-          console.error('🧪 Force sell failed:', error);
           ws.send(JSON.stringify({
             type: 'error',
             message: 'Force sell failed: ' + error.message
@@ -320,7 +305,6 @@ export class WebSocketHandler {
    */
   handleSubscribe(ws, data) {
     // Chart subscription - subscribe to Coinbase real-time data
-    console.log('📊 Chart subscription received:', data.pair, data.granularity);
 
     const subscriptionKey = `${data.pair}:${data.granularity}`;
     const clientSubs = this.chartSubscriptions.get(ws._clientId);
@@ -359,7 +343,6 @@ export class WebSocketHandler {
    */
   handleUnsubscribe(ws, data) {
     // Chart unsubscription
-    console.log('Chart unsubscription received:', data.pair, data.granularity);
 
     const unsubKey = `${data.pair}:${data.granularity}`;
     const clientSubsUnsub = this.chartSubscriptions.get(ws._clientId);
@@ -378,17 +361,14 @@ export class WebSocketHandler {
       // If no clients are subscribed, unsubscribe from Coinbase
       if (!stillSubscribed) {
         this.coinbaseWebSocket.unsubscribe(data.pair, 'matches');
-        console.log(`📡 Unsubscribed from Coinbase for ${unsubKey} - no more clients`);
 
         // 🔥 MEMORY LEAK FIX: Clean up granularity mappings and timestamps
         const granularitySeconds = this.getGranularitySeconds(data.granularity);
         const mappingKey = `${data.pair}:${granularitySeconds}`;
         this.granularityMappings.delete(mappingKey);
         this.granularityMappingTimes.delete(mappingKey);
-        console.log(`🧹 Cleaned up granularity mapping: ${mappingKey}`);
       }
 
-      console.log(`📡 Unsubscribed client ${ws._clientId} from ${unsubKey}`);
     }
 
     ws.send(JSON.stringify({
@@ -403,21 +383,17 @@ export class WebSocketHandler {
    */
   handleRequestLevel2Snapshot(ws, data) {
     // Force refresh of level2 orderbook snapshot by re-subscribing
-    console.log('📸 [Backend] Level2 snapshot requested by client', ws._clientId);
 
     // 🔧 FIX: Send cached snapshot only if it has data, otherwise wait for real data
     if (this.cachedLevel2Snapshot && this.cachedLevel2Snapshot.bids && this.cachedLevel2Snapshot.bids.length > 0) {
-      console.log(`✅ [Backend] Sending cached level2 snapshot to client (${this.cachedLevel2Snapshot.bids.length} bids, ${this.cachedLevel2Snapshot.asks.length} asks)`);
       try {
         ws.send(JSON.stringify({
           type: 'level2',
           data: this.cachedLevel2Snapshot
         }));
       } catch (error) {
-        console.error('❌ [Backend] Failed to send cached snapshot:', error);
       }
     } else {
-      console.warn('⚠️ [Backend] No valid cached level2 snapshot yet (waiting for Coinbase data...)');
     }
 
     // Also unsubscribe and re-subscribe to get fresh data for future updates
@@ -426,7 +402,6 @@ export class WebSocketHandler {
     // Wait a moment before re-subscribing
     setTimeout(() => {
       this.coinbaseWebSocket.subscribeLevel2('BTC-USD');
-      console.log('📡 [Backend] Re-subscribed to level2 to get fresh updates');
     }, 500);
   }
 
@@ -450,14 +425,12 @@ export class WebSocketHandler {
         if (!stillSubscribed) {
           const [pair, granularityStr] = subscriptionKey.split(':');
           this.coinbaseWebSocket.unsubscribe(pair, 'matches');
-          console.log(`📡 Unsubscribed from Coinbase for ${subscriptionKey} - client disconnected`);
 
           // 🔥 MEMORY LEAK FIX: Clean up granularity mappings and timestamps
           const granularitySeconds = this.getGranularitySeconds(granularityStr);
           const mappingKey = `${pair}:${granularitySeconds}`;
           this.granularityMappings.delete(mappingKey);
           this.granularityMappingTimes.delete(mappingKey);
-          console.log(`🧹 Cleaned up granularity mapping: ${mappingKey}`);
         }
       });
 
@@ -475,14 +448,12 @@ export class WebSocketHandler {
     }
     keysToDelete.forEach(key => this.lastEmissionTimes.delete(key));
 
-    console.log(`🧹 WebSocket client ${ws._clientId} disconnected and cleaned up (${keysToDelete.length} throttle entries removed)`);
   }
 
   /**
    * Handle WebSocket connection error
    */
   handleError(ws, error) {
-    console.error(`WebSocket error for client ${ws._clientId}:`, error);
     // Trigger cleanup on error
     ws.close();
   }
@@ -512,7 +483,6 @@ export class WebSocketHandler {
     if (message.type === 'candle') {
       // 🔧 FIX: Reduced logging - only log summary, not per-client details
       // Access granularity from flat structure (message.granularity)
-      console.log(`📡 [Broadcast] Broadcasting candle (${message.granularity}) to ${clientCount} clients`);
     }
 
     this.wss.clients.forEach(client => {
@@ -521,7 +491,6 @@ export class WebSocketHandler {
           client.send(JSON.stringify(message));
         } catch (error) {
           const clientInfo = client._socket ? `${client._socket.remoteAddress}:${client._socket.remotePort}` : 'unknown';
-          console.error(`❌ [Broadcast] Failed to send to ${clientInfo}: ${error.message}`);
         }
       }
     });

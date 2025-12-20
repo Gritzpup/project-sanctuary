@@ -13,7 +13,6 @@ export class BotManager {
 
     // Auto-restore bots on startup
     this.restoreBotsFromPersistence().catch(err => {
-      console.error('❌ Failed to restore bots from persistence:', err);
     });
   }
 
@@ -84,7 +83,6 @@ export class BotManager {
       }
     });
 
-    // console.log(`Created bot ${botId} for strategy ${strategyType}`);
     return botId;
   }
 
@@ -94,12 +92,10 @@ export class BotManager {
     }
 
     this.activeBotId = botId;
-    // console.log(`Bot Manager: Selected bot ${botId}`);
     
     // Get bot status for logging
     const bot = this.getActiveBot();
     const status = bot?.getStatus();
-    // console.log(`  Bot status: Running=${status?.isRunning}, Positions=${status?.positions?.length || 0}`);
     
     // Broadcast update
     this.broadcast({
@@ -156,7 +152,6 @@ export class BotManager {
       data: { botId }
     });
 
-    // console.log(`Deleted bot ${botId}`);
   }
 
   // Initialize default bots for each strategy
@@ -169,7 +164,8 @@ export class BotManager {
       'vwap-bounce',
       'micro-scalping',
       'proper-scalping',
-      'ultra-micro-scalping'
+      'ultra-micro-scalping',
+      'test'  // High-frequency test strategy
     ];
 
     // First, check which bots already exist by looking for state files
@@ -232,8 +228,6 @@ export class BotManager {
       }
     }
 
-    // console.log(`Bot Manager: Initialized ${this.bots.size} bots (${this.maxBotsPerStrategy} per strategy)`);
-    // console.log(`Found ${botsToRestart.length} bots that need to restart`);
     
     // Wait a bit for all bots to fully initialize
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -253,16 +247,13 @@ export class BotManager {
     
     // Log final status after a delay
     // setTimeout(() => {
-    //   console.log('\nBot states after initialization:');
     //   let runningCount = 0;
     //   for (const [botId, bot] of this.bots.entries()) {
     //     const status = bot.getStatus();
     //     if (status.isRunning) {
     //       runningCount++;
-    //       console.log(`  ${botId}: Running=true, Positions=${status.positions.length}, Balance=$${status.balance.usd.toFixed(2)}`);
     //     }
     //   }
-    //   console.log(`Total running bots: ${runningCount}`);
     // }, 2000);
   }
 
@@ -375,7 +366,6 @@ export class BotManager {
   }
 
   updateRealtimePrice(price, productId) {
-    console.log(`💰 [BotManager] updateRealtimePrice: ${productId} @ $${price}, updating ${this.bots.size} bots`);
     // Update ALL bots with the real-time price (not just running ones)
     // This ensures bots waiting for initial price can start
     for (const [botId, bot] of this.bots.entries()) {
@@ -386,7 +376,6 @@ export class BotManager {
   getStatus() {
     const bot = this.getActiveBot();
     if (!bot) {
-      console.log('⚠️ [BotManager] getStatus: No active bot');
       return {
         isRunning: false,
         isPaused: false,
@@ -395,7 +384,6 @@ export class BotManager {
       };
     }
     const status = bot.getStatus();
-    console.log(`📊 [BotManager] getStatus: activeBotId=${this.activeBotId}, isRunning=${status.isRunning}, positions=${status.positions?.length || 0}`);
     return {
       ...status,
       activeBotId: this.activeBotId,
@@ -429,14 +417,12 @@ export class BotManager {
    * Restore all bots from persistence on startup
    */
   async restoreBotsFromPersistence() {
-    console.log('🔄 [BotManager] Restoring bots from persistence...');
 
     try {
       // Get all saved bot IDs
       const botIds = await this.persistence.getAllBotIds();
 
       if (botIds.length === 0) {
-        console.log('📭 [BotManager] No saved bots found');
         return;
       }
 
@@ -447,12 +433,6 @@ export class BotManager {
 
         const { botName, strategyType, status } = savedState;
 
-        console.log(`🔄 [BotManager] Restoring bot ${botId}:`, {
-          botName,
-          strategyType,
-          wasRunning: status.isRunning,
-          balance: status.balance
-        });
 
         // Create the bot (this creates a TradingService instance)
         try {
@@ -464,7 +444,6 @@ export class BotManager {
           // Restore the bot's state
           if (status.isRunning && status.strategy) {
             // Auto-resume trading if it was running
-            console.log(`▶️  [BotManager] Auto-resuming bot ${botId}...`);
             await bot.startTrading(status.strategy, status.currentPrice || 100000);
 
             // Restore balance and positions if available
@@ -474,7 +453,6 @@ export class BotManager {
             }
           }
         } catch (error) {
-          console.error(`❌ [BotManager] Failed to restore bot ${botId}:`, error.message);
         }
       }
 
@@ -482,23 +460,18 @@ export class BotManager {
       const activeBotId = await this.persistence.loadActiveBotId();
       if (activeBotId && this.bots.has(activeBotId)) {
         this.selectBot(activeBotId);
-        console.log(`✅ [BotManager] Restored active bot: ${activeBotId}`);
       }
 
-      console.log(`✅ [BotManager] Restored ${this.bots.size} bot(s)`);
     } catch (error) {
-      console.error('❌ [BotManager] Failed to restore bots:', error);
     }
   }
 
   cleanup() {
-    // console.log('Cleaning up bot manager...');
 
     // Save all bot states before cleanup
     if (this.autoSaveEnabled) {
       for (const [botId] of this.bots.entries()) {
         this.saveBotStateToPersistence(botId).catch(err => {
-          console.error(`Failed to save bot ${botId} on cleanup:`, err);
         });
       }
     }

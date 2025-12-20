@@ -21,19 +21,14 @@ export class CDPAuth {
 
     // Debug logging
     if (this.keyName) {
-      console.log('✅ [CDPAuth] CDP_API_KEY_NAME is set');
     } else {
-      console.warn('⚠️ [CDPAuth] CDP_API_KEY_NAME is NOT set - cannot authenticate with Coinbase');
     }
 
     if (this.privateKey) {
-      console.log('✅ [CDPAuth] CDP_API_KEY_PRIVATE is set');
     } else {
-      console.warn('⚠️ [CDPAuth] CDP_API_KEY_PRIVATE is NOT set - cannot generate JWT tokens');
     }
 
     if (!this.keyName || !this.privateKey) {
-      console.error('❌ [CDPAuth] Missing Coinbase CDP credentials - WebSocket authentication will fail!');
     }
   }
 
@@ -111,11 +106,9 @@ export class CDPAuth {
       this.currentJWT = token;
       this.jwtExpiresAt = exp;
 
-      console.log(`🔑 [CDPAuth] Generated new JWT token, expires in 120s`);
 
       return token;
     } catch (error) {
-      console.error(`❌ [CDPAuth] Failed to generate JWT:`, error.message);
       return null;
     }
   }
@@ -127,11 +120,9 @@ export class CDPAuth {
     const jwt = this.generateWebSocketJWT();
 
     if (!jwt) {
-      console.error('❌ [CDPAuth] Failed to generate JWT - check credentials');
       return null;
     }
 
-    console.log('✅ [CDPAuth] Generated JWT token for WebSocket authentication');
 
     // ✅ CRITICAL FIX: Use 'l2_data' channel for Advanced Trade API
     // The response comes back with channel: 'l2_data' not 'level2'
@@ -151,7 +142,6 @@ export class CDPAuth {
    */
   startAutoRenewal(onTokenRenewed) {
     if (!this.keyName || !this.privateKey) {
-      console.warn('⚠️ [CDPAuth] Cannot start auto-renewal - credentials missing');
       return;
     }
 
@@ -160,13 +150,11 @@ export class CDPAuth {
       clearInterval(this.renewalInterval);
     }
 
-    console.log('🔄 [CDPAuth] Starting JWT auto-renewal (every 90s)');
 
     // Renew every 90 seconds (30s before 120s expiration)
     this.renewalInterval = setInterval(() => {
       const newToken = this.generateWebSocketJWT(true); // Force new token
       if (newToken && onTokenRenewed) {
-        console.log('🔑 [CDPAuth] JWT token renewed, triggering callback');
         onTokenRenewed(newToken);
       }
     }, 90000); // 90 seconds
@@ -179,7 +167,6 @@ export class CDPAuth {
     if (this.renewalInterval) {
       clearInterval(this.renewalInterval);
       this.renewalInterval = null;
-      console.log('⏹️ [CDPAuth] Stopped JWT auto-renewal');
     }
   }
 }

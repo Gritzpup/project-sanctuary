@@ -27,9 +27,7 @@ export class ChartAPIService {
     const fetchStartTime = performance.now();
     perfTest.mark('fetchCandles-start');
 
-    logger.debug(`fetchCandles called for ${pair} ${granularity}`, {}, 'ChartAPIService');
     if (start && end) {
-      logger.debug(`Time range: ${new Date(start * 1000).toISOString()} to ${new Date(end * 1000).toISOString()}`, {}, 'ChartAPIService');
     }
 
     // Log performance start for 3M/1d

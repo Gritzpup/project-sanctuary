@@ -76,7 +76,6 @@ export class BotManager {
       }
     });
 
-    // console.log(`Created bot ${botId} for strategy ${strategyType}`);
     return botId;
   }
 
@@ -86,12 +85,10 @@ export class BotManager {
     }
 
     this.activeBotId = botId;
-    // console.log(`Bot Manager: Selected bot ${botId}`);
     
     // Get bot status for logging
     const bot = this.getActiveBot();
     const status = bot?.getStatus();
-    // console.log(`  Bot status: Running=${status?.isRunning}, Positions=${status?.positions?.length || 0}`);
     
     // Broadcast update
     this.broadcast({
@@ -148,7 +145,6 @@ export class BotManager {
       data: { botId }
     });
 
-    // console.log(`Deleted bot ${botId}`);
   }
 
   // Initialize default bots for each strategy
@@ -161,7 +157,8 @@ export class BotManager {
       'vwap-bounce',
       'micro-scalping',
       'proper-scalping',
-      'ultra-micro-scalping'
+      'ultra-micro-scalping',
+      'test'
     ];
 
     // First, check which bots already exist by looking for state files
@@ -224,8 +221,6 @@ export class BotManager {
       }
     }
 
-    // console.log(`Bot Manager: Initialized ${this.bots.size} bots (${this.maxBotsPerStrategy} per strategy)`);
-    // console.log(`Found ${botsToRestart.length} bots that need to restart`);
     
     // Wait a bit for all bots to fully initialize
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -245,16 +240,13 @@ export class BotManager {
     
     // Log final status after a delay
     // setTimeout(() => {
-    //   console.log('\nBot states after initialization:');
     //   let runningCount = 0;
     //   for (const [botId, bot] of this.bots.entries()) {
     //     const status = bot.getStatus();
     //     if (status.isRunning) {
     //       runningCount++;
-    //       console.log(`  ${botId}: Running=true, Positions=${status.positions.length}, Balance=$${status.balance.usd.toFixed(2)}`);
     //     }
     //   }
-    //   console.log(`Total running bots: ${runningCount}`);
     // }, 2000);
   }
 
@@ -350,7 +342,6 @@ export class BotManager {
   }
 
   updateRealtimePrice(price, productId) {
-    console.log(`💰 [BotManager] updateRealtimePrice: ${productId} @ $${price}, updating ${this.bots.size} bots`);
     // Update ALL bots with the real-time price (not just running ones)
     // This ensures bots waiting for initial price can start
     for (const [botId, bot] of this.bots.entries()) {
@@ -361,7 +352,6 @@ export class BotManager {
   getStatus() {
     const bot = this.getActiveBot();
     if (!bot) {
-      console.log('⚠️ [BotManager] getStatus: No active bot');
       return {
         isRunning: false,
         isPaused: false,
@@ -370,7 +360,6 @@ export class BotManager {
       };
     }
     const status = bot.getStatus();
-    console.log(`📊 [BotManager] getStatus: activeBotId=${this.activeBotId}, isRunning=${status.isRunning}, positions=${status.positions?.length || 0}`);
     return {
       ...status,
       activeBotId: this.activeBotId,
@@ -380,7 +369,6 @@ export class BotManager {
 
   // Clean up all bots
   cleanup() {
-    // console.log('Cleaning up bot manager...');
     for (const [botId, bot] of this.bots.entries()) {
       if (bot.isRunning) {
         bot.stopTrading();

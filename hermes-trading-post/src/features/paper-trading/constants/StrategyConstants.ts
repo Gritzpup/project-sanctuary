@@ -12,7 +12,8 @@ export const builtInStrategies: StrategyDefinition[] = [
   { value: 'vwap-bounce', label: 'VWAP Bounce', description: 'Trade VWAP support/resistance', isCustom: false },
   { value: 'micro-scalping', label: 'Micro Scalping', description: 'High-frequency trading', isCustom: false },
   { value: 'proper-scalping', label: 'Proper Scalping', description: 'Professional scalping', isCustom: false },
-  { value: 'ultra-micro-scalping', label: 'Ultra Micro Scalping', description: 'Hyper-aggressive 1-minute scalping', isCustom: false }
+  { value: 'ultra-micro-scalping', label: 'Ultra Micro Scalping', description: 'Hyper-aggressive 1-minute scalping', isCustom: false },
+  { value: 'test', label: 'Test', description: 'High-frequency: 0.05% entry, 0.3% profit (5x more trades)', isCustom: false }
 ];
 
 export const DEFAULT_STRATEGY_CONFIG = {

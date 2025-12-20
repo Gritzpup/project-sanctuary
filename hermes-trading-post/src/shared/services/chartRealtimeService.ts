@@ -162,7 +162,7 @@ export class ChartRealtimeService {
     // Get or create batch for this subscription
     let batch = this.messageBatchers.get(subscriptionKey);
     if (!batch) {
-      batch = { messages: [], timeoutId: null };
+      batch = { messages: [], rafId: null };
       this.messageBatchers.set(subscriptionKey, batch);
     }
 
@@ -174,11 +174,11 @@ export class ChartRealtimeService {
       return;
     }
 
-    // Schedule batch processing if not already scheduled
-    if (!batch.timeoutId) {
-      batch.timeoutId = setTimeout(() => {
+    // Schedule batch processing with RAF (syncs to browser paint cycle)
+    if (!batch.rafId) {
+      batch.rafId = requestAnimationFrame(() => {
         this.processBatch(subscriptionKey);
-      }, this.BATCH_MAX_WAIT_MS);
+      });
     }
   }
 
@@ -191,10 +191,10 @@ export class ChartRealtimeService {
       return;
     }
 
-    // Clear timeout
-    if (batch.timeoutId) {
-      clearTimeout(batch.timeoutId);
-      batch.timeoutId = null;
+    // Clear RAF ID
+    if (batch.rafId) {
+      cancelAnimationFrame(batch.rafId);
+      batch.rafId = null;
     }
 
     const callback = this.wsSubscriptions.get(subscriptionKey);
@@ -243,10 +243,10 @@ export class ChartRealtimeService {
       this.ws = null;
     }
 
-    // Clean up all message batchers
+    // Clean up all message batchers - cancel RAF to prevent memory leak
     this.messageBatchers.forEach((batch) => {
-      if (batch.timeoutId) {
-        clearTimeout(batch.timeoutId);
+      if (batch.rafId) {
+        cancelAnimationFrame(batch.rafId);
       }
     });
     this.messageBatchers.clear();

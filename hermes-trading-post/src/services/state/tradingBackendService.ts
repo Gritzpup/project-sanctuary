@@ -61,6 +61,10 @@ class TradingBackendService {
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
   private backendUrl: string;
+  private updateThrottleMs = 100; // Throttle to 10fps to reduce load
+  private lastUpdateTime = 0;
+  private pendingUpdate: Partial<BackendTradingState> | null = null;
+  private updateScheduled = false;
 
   constructor() {
     this.backendUrl = getBackendWsUrl();
@@ -131,7 +135,7 @@ class TradingBackendService {
       this.ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          this.handleMessage(message);
+          this.handleMessageDirect(message);
         } catch (error) {
         }
       };
@@ -160,8 +164,8 @@ class TradingBackendService {
     }
   }
 
-  private handleMessage(message: any) {
-    
+  // Direct update - no setTimeout batching
+  private handleMessageDirect(message: any) {
     switch (message.type) {
       case 'connected':
         if (message.managerState) {
@@ -171,33 +175,39 @@ class TradingBackendService {
           this.updateStateFromBackend(message.status);
         }
         break;
-        
+
       case 'status':
         this.updateStateFromBackend(message.data);
         break;
-        
+
       case 'priceUpdate':
         this.state.update(s => ({
           ...s,
           currentPrice: message.price,
           chartData: message.chartData || s.chartData
         }));
-        // If status is included, update P&L and other values
         if (message.status) {
           this.updateStateFromBackend(message.status);
         }
         break;
-        
+
       case 'trade':
-        this.state.update(s => ({
-          ...s,
-          trades: [...s.trades, message.trade]
-        }));
+        this.state.update(s => {
+          // Cap trades array at 1000 most recent to prevent memory leak
+          const newTrades = [...s.trades, message.trade];
+          if (newTrades.length > 1000) {
+            newTrades.shift(); // Remove oldest
+          }
+          return {
+            ...s,
+            trades: newTrades
+          };
+        });
         if (message.status) {
           this.updateStateFromBackend(message.status);
         }
         break;
-        
+
       case 'tradingStarted':
       case 'tradingStopped':
       case 'tradingPaused':
@@ -207,10 +217,10 @@ class TradingBackendService {
           this.updateStateFromBackend(message.status);
         }
         break;
-        
+
       case 'error':
         break;
-        
+
       // Bot manager messages
       case 'botManagerState':
       case 'managerState':
@@ -218,14 +228,15 @@ class TradingBackendService {
         //   botCount: Object.keys(message.data?.bots || {}).length,
         //   activeBotId: message.data?.activeBotId
         // });
-        
-        this.state.update(s => ({ 
-          ...s, 
+
+        // Direct update - no batching needed for manager state
+        this.state.update(s => ({
+          ...s,
           managerState: message.data,
           activeBotId: message.data?.activeBotId || s.activeBotId
         }));
         break;
-        
+
       case 'botCreated':
       case 'botSelected':
       case 'botDeleted':
@@ -235,13 +246,11 @@ class TradingBackendService {
           this.updateStateFromBackend(message.data.status);
         }
         break;
-        
+
       case 'resetComplete':
         if (message.status) {
           this.updateStateFromBackend(message.status);
         }
-        // Clear chart markers when reset is complete
-        this.state.update(s => ({ ...s, shouldClearChart: true }));
         // Request updated manager state to refresh all bot states
         this.send({ type: 'getManagerState' });
         break;
@@ -256,43 +265,53 @@ class TradingBackendService {
   }
 
   private updateStateFromBackend(status: any) {
-    
-    this.state.update(s => ({
-      ...s,
-      isRunning: status.isRunning || false,
-      isPaused: status.isPaused || false,
-      strategy: status.strategy || null,
-      balance: status.balance || s.balance,
-      positions: status.positions || s.positions,
-      trades: status.trades || s.trades,
-      currentPrice: status.currentPrice || s.currentPrice,
-      totalValue: status.totalValue || s.totalValue,
-      profitLoss: status.profitLoss || 0,
-      profitLossPercent: status.profitLossPercent || 0,
-      startTime: status.startTime || s.startTime,
-      lastUpdateTime: status.lastUpdateTime || s.lastUpdateTime,
-      chartData: status.chartData || s.chartData,
-      tradesCount: status.tradesCount || status.trades?.length || 0,
-      openPositions: status.openPositions || status.positions?.length || 0,
-      // Trading statistics
-      totalFees: status.totalFees || 0,
-      totalRebates: status.totalRebates || 0,
-      totalReturn: status.totalReturn || 0,
-      totalRebalance: status.totalRebalance || 0,
-      winRate: status.winRate || 0,
-      winningTrades: status.winningTrades || 0,
-      losingTrades: status.losingTrades || 0,
-      // Vault balances
-      vaultBalance: status.vaultBalance || 0,
-      btcVaultBalance: status.btcVaultBalance || 0,
-      // Next trigger distances and prices
-      nextBuyDistance: status.nextBuyDistance,
-      nextSellDistance: status.nextSellDistance,
-      nextBuyPrice: status.nextBuyPrice,
-      nextSellPrice: status.nextSellPrice,
-      activeBotId: status.activeBotId || s.activeBotId,
-      botName: status.botName || s.botName
-    }));
+    // Direct update - Svelte handles batching internally
+    this.state.update(s => {
+      // Cap arrays to prevent memory leaks
+      let positions = status.positions || s.positions;
+      if (positions.length > 100) {
+        positions = positions.slice(-100); // Keep last 100
+      }
+
+      let trades = status.trades || s.trades;
+      if (trades.length > 1000) {
+        trades = trades.slice(-1000); // Keep last 1000
+      }
+
+      return {
+        ...s,
+        isRunning: status.isRunning || false,
+        isPaused: status.isPaused || false,
+        strategy: status.strategy || null,
+        balance: status.balance || s.balance,
+        positions,
+        trades,
+        currentPrice: status.currentPrice || s.currentPrice,
+        totalValue: status.totalValue || s.totalValue,
+        profitLoss: status.profitLoss || 0,
+        profitLossPercent: status.profitLossPercent || 0,
+        startTime: status.startTime || s.startTime,
+        lastUpdateTime: status.lastUpdateTime || s.lastUpdateTime,
+        chartData: status.chartData || s.chartData,
+        tradesCount: status.tradesCount || status.trades?.length || 0,
+        openPositions: status.openPositions || status.positions?.length || 0,
+        totalFees: status.totalFees || 0,
+        totalRebates: status.totalRebates || 0,
+        totalReturn: status.totalReturn || 0,
+        totalRebalance: status.totalRebalance || 0,
+        winRate: status.winRate || 0,
+        winningTrades: status.winningTrades || 0,
+        losingTrades: status.losingTrades || 0,
+        vaultBalance: status.vaultBalance || 0,
+        btcVaultBalance: status.btcVaultBalance || 0,
+        nextBuyDistance: status.nextBuyDistance,
+        nextSellDistance: status.nextSellDistance,
+        nextBuyPrice: status.nextBuyPrice,
+        nextSellPrice: status.nextSellPrice,
+        activeBotId: status.activeBotId || s.activeBotId,
+        botName: status.botName || s.botName
+      };
+    });
   }
 
   private send(data: any) {

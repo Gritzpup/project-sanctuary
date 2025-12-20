@@ -17,11 +17,6 @@ export class CoinbaseAPI {
     axios.interceptors.response.use(
       response => response,
       error => {
-        logger.error( 'API Error', { 
-          message: error.message,
-          responseData: error.response?.data,
-          responseStatus: error.response?.status
-        });
         return Promise.reject(error);
       }
     );
@@ -41,12 +36,10 @@ export class CoinbaseAPI {
       // Validate time range to prevent future data requests
       const now = Math.floor(Date.now() / 1000);
       if (end && parseInt(end) > now) {
-        logger.warn( 'Attempted to fetch future data. Capping end time at now.');
         end = now.toString();
       }
       
       if (start && parseInt(start) > now) {
-        logger.warn( 'Start time is in the future. Returning empty array.');
         return [];
       }
       
@@ -81,11 +74,6 @@ export class CoinbaseAPI {
       
       return candles;
     }).catch(error => {
-      logger.error( 'API request failed', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data
-      });
       throw error;
     });
   }
@@ -97,7 +85,6 @@ export class CoinbaseAPI {
       const response = await axios.get(`${this.baseUrl}/products/${productId}/ticker`);
       return parseFloat(response.data.price);
     }).catch(error => {
-      logger.error( 'Error fetching ticker', { productId, error: error.message });
       throw error;
     });
   }
@@ -179,12 +166,6 @@ export class CoinbaseAPI {
         }
 
         // For other errors, log and rethrow
-        logger.error( 'Failed to fetch 24h stats', {
-          productId,
-          message: error.message,
-          status: error.response?.status,
-          data: error.response?.data
-        });
         throw error;
       }
     });

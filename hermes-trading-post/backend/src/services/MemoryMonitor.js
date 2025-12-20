@@ -24,7 +24,6 @@ export class MemoryMonitor {
       this.checkMemoryUsage();
     }, this.MONITOR_INTERVAL);
 
-    console.log('📊 Memory Monitor started - checking every 5 minutes');
   }
 
   /**
@@ -37,11 +36,9 @@ export class MemoryMonitor {
     const rssMB = Math.round(memUsage.rss / 1024 / 1024);
 
     // Log memory usage
-    console.log(`📊 Memory Usage: RSS: ${rssMB}MB, Heap: ${heapUsedMB}/${heapTotalMB}MB, Clients: ${this.wss.clients.size}, Subscriptions: ${this.chartSubscriptions.size}`);
 
     // Circuit breaker: If memory usage exceeds 1GB, force cleanup
     if (memUsage.heapUsed > this.HEAP_THRESHOLD) {
-      console.warn(`⚠️ HIGH MEMORY USAGE: ${heapUsedMB}MB - Forcing cleanup`);
 
       // Trigger external cleanup callback
       if (this.cleanupCallback) {
@@ -51,7 +48,6 @@ export class MemoryMonitor {
       // Force garbage collection if available
       if (global.gc) {
         global.gc();
-        console.log('🗑️ Forced garbage collection');
       }
     }
   }
@@ -63,7 +59,6 @@ export class MemoryMonitor {
     if (this.monitoringInterval) {
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = null;
-      console.log('📊 Memory Monitor stopped');
     }
   }
 

@@ -49,7 +49,6 @@ export class CandleStorageWriter {
       // Acquire distributed lock to prevent concurrent writes
       const lockAcquired = await this.acquireLock(lockKey);
       if (!lockAcquired) {
-        logger.warn('Could not acquire lock for storing candles', { pair, granularity });
         return;
       }
 
@@ -91,12 +90,6 @@ export class CandleStorageWriter {
       // Create checkpoint for data validation
       await this.metadataManager.createCheckpoint(pair, granularity, candles);
 
-      logger.info('Stored candles successfully', {
-        pair,
-        granularity,
-        candleCount: candles.length,
-        dayBuckets: candlesByDay.size
-      });
     } finally {
       // Always release the lock
       await this.releaseLock(lockKey);
@@ -115,7 +108,6 @@ export class CandleStorageWriter {
       // Acquire lock for cleanup operation
       const lockAcquired = await this.acquireLock(lockKey, 300); // 5-minute lock for cleanup
       if (!lockAcquired) {
-        logger.debug('Cleanup already in progress', { pair, granularity });
         return;
       }
 
@@ -136,12 +128,6 @@ export class CandleStorageWriter {
       }
 
       if (cleanedDays > 0) {
-        logger.info('Cleaned up old candle data', {
-          pair,
-          granularity,
-          cleanedDays,
-          cutoffTime: new Date(cutoffTime * 1000).toISOString()
-        });
       }
     } finally {
       await this.releaseLock(lockKey);
@@ -174,12 +160,6 @@ export class CandleStorageWriter {
     // Delete metadata
     await this.metadataManager.deleteMetadata(pair, granularity);
 
-    logger.info('Deleted all candles', {
-      pair,
-      granularity,
-      dayBucketsDeleted: deletedDays,
-      candlesDeleted: metadata.totalCandles
-    });
 
     return metadata.totalCandles;
   }
@@ -194,10 +174,6 @@ export class CandleStorageWriter {
       const result = await this.redis.set(lockKey, '1', 'EX', ttl, 'NX');
       return result !== null;
     } catch (error) {
-      logger.error('Error acquiring lock', {
-        error: error instanceof Error ? error.message : String(error),
-        lockKey
-      });
       return false;
     }
   }
@@ -209,10 +185,6 @@ export class CandleStorageWriter {
     try {
       await this.redis.del(lockKey);
     } catch (error) {
-      logger.error('Error releasing lock', {
-        error: error instanceof Error ? error.message : String(error),
-        lockKey
-      });
     }
   }
 }

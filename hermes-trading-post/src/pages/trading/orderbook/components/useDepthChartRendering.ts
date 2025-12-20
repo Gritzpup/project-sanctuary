@@ -205,7 +205,6 @@ export function useDepthChartRendering(
     const { bids, asks } = orderbookStore.getDepthData(500);
 
     if (bids.length === 0 || asks.length === 0) {
-      logger.warn('No depth data available yet', {}, 'DepthChartRendering');
       return;
     }
 

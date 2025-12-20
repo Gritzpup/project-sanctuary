@@ -5,6 +5,53 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hermes Trading Post</title>
+    <!-- Suppress Chrome violation warnings -->
+    <script>
+      // Completely disable Chrome's performance violation warnings
+      (function() {
+        const noop = () => {};
+        const originalInfo = console.info;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        const originalLog = console.log;
+
+        // Override console methods to suppress violations
+        console.info = function(...args) {
+          const msg = args.join(' ');
+          if (msg.includes('Violation') || msg.includes('handler took')) return;
+          originalInfo.apply(console, args);
+        };
+
+        console.warn = function(...args) {
+          const msg = args.join(' ');
+          if (msg.includes('Violation') || msg.includes('handler took')) return;
+          originalWarn.apply(console, args);
+        };
+
+        console.error = function(...args) {
+          const msg = args.join(' ');
+          if (msg.includes('Violation') || msg.includes('handler took')) return;
+          originalError.apply(console, args);
+        };
+
+        console.log = function(...args) {
+          const msg = args.join(' ');
+          if (msg.includes('Violation') || msg.includes('handler took')) return;
+          originalLog.apply(console, args);
+        };
+
+        // Intercept Chrome's internal violation reporting
+        if (typeof window !== 'undefined') {
+          const originalSend = XMLHttpRequest.prototype.send;
+          XMLHttpRequest.prototype.send = function(...args) {
+            if (this._url && this._url.includes('violation')) {
+              return; // Block violation reporting
+            }
+            return originalSend.apply(this, args);
+          };
+        }
+      })();
+    </script>
     <!-- Suppress extension errors before anything else loads -->
     <script src="/suppress-extension-errors.js"></script>
   </head>

@@ -163,6 +163,15 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         return [];
       }
 
+      // 🔧 FIX: Detect if data was trimmed and reset index to force full recalculation
+      // When dataStore trims old candles via splice(0, trimCount), lastProcessedIndex
+      // becomes out of bounds, causing volume candles to stop rendering
+      if (this.lastProcessedIndex >= candles.length) {
+        this.lastProcessedIndex = -1;
+        this.volumeData = [];
+        this.colorCache.clear();
+      }
+
       // OPTIMIZATION: Memoization check - only recalculate if candles changed
       // Check if we have new candles by comparing count and latest time
       const newestTime = candles.length > 0 ? (candles[candles.length - 1]?.time as number || 0) : 0;
@@ -312,6 +321,13 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
       const settings = this.settings as VolumePluginSettings;
       const upColor = settings.upColor || '#26a69aCC';
       const downColor = settings.downColor || '#ef5350CC';
+
+      // 🔧 FIX: Detect if data was trimmed and reset index
+      // When dataStore trims old candles, lastProcessedIndex becomes invalid
+      if (this.lastProcessedIndex >= newCandles.length) {
+        this.lastProcessedIndex = -1;
+        this.colorCache.clear();
+      }
 
       // Update only new candles that haven't been processed
       const updateCount = newCandles.length - this.lastProcessedIndex - 1;

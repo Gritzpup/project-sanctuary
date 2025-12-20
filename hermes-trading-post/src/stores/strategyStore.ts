@@ -40,11 +40,9 @@ function loadStoredStrategy(): StrategyConfig {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      logger.debug('Loaded stored strategy', { selectedType: parsed.selectedType }, 'StrategyStore');
       return parsed;
     }
   } catch (error) {
-    logger.error('Error loading stored strategy', { error: error instanceof Error ? error.message : String(error) }, 'StrategyStore');
   }
   
   // Return default values if no stored strategy or error
@@ -65,7 +63,6 @@ function saveStrategy(config: StrategyConfig): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
   } catch (error) {
-    logger.error('Error saving strategy', { error: error instanceof Error ? error.message : String(error) }, 'StrategyStore');
   }
 }
 
@@ -92,7 +89,6 @@ function createStrategyStore() {
         saveStrategy(newState);
         return newState;
       });
-      logger.info('Strategy updated', { type, hasParameters: Object.keys(parameters).length > 0, isCustom }, 'StrategyStore');
     },
     
     // Update just the parameters
@@ -130,7 +126,6 @@ function createStrategyStore() {
         saveStrategy(newState);
         return newState;
       });
-      logger.info('Balance and fees updated', { balance, fees }, 'StrategyStore');
     },
     
     // Set paper trading status
@@ -143,7 +138,6 @@ function createStrategyStore() {
         saveStrategy(newState);
         return newState;
       });
-      logger.info('Paper trading status changed', { isActive }, 'StrategyStore');
     },
     
     // Reset store to defaults
@@ -161,7 +155,6 @@ function createStrategyStore() {
       };
       set(defaultConfig);
       saveStrategy(defaultConfig);
-      logger.info('Store reset to defaults', {}, 'StrategyStore');
     },
     
     // Sync current backtesting strategy to paper/live trading
@@ -186,10 +179,6 @@ function createStrategyStore() {
           }
         }));
 
-        logger.info('Strategy synced to paper/live trading', {
-          strategy: newState.syncedStrategy?.type,
-          timestamp: newState.lastSyncedAt
-        }, 'StrategyStore');
         return newState;
       });
     },

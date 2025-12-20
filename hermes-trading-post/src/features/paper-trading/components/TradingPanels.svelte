@@ -92,7 +92,7 @@
     />
   </div>
 
-  <!-- Middle Column: Orderbook - 🔒 PERSISTENT: Only data refreshes -->
+  <!-- Middle Column: Orderbook -->
   <div class="middle-column">
     <DepthChart {chartRefreshKey}>
       {#snippet children()}

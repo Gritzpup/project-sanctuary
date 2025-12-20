@@ -94,7 +94,6 @@ export class CoinbaseAPIService {
     } catch (error) {
       if (error.response?.status === 429) {
         // Advanced Trade API has higher limits but still respect them
-        console.warn('⚠️ Rate limited by Coinbase API, backing off...');
         await new Promise(resolve => setTimeout(resolve, 2000));
         throw new Error('Rate limited');
       }

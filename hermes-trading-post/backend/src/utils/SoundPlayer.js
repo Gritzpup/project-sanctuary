@@ -19,18 +19,15 @@ export class SoundPlayer {
 
         paplayProcess.on('close', (code) => {
           if (code === 0) {
-            console.log('🔊 Coin sound played successfully via paplay');
             resolve();
           } else {
             // Try aplay as fallback
-            console.warn(`paplay exited with code ${code}, trying aplay...`);
             SoundPlayer.playWithAplay().then(resolve).catch(() => resolve());
           }
         });
 
         paplayProcess.on('error', (err) => {
           // If paplay fails, try aplay
-          console.warn('paplay not available, trying aplay...', err.message);
           playError = true;
           SoundPlayer.playWithAplay().then(resolve).catch(() => resolve());
         });
@@ -47,7 +44,6 @@ export class SoundPlayer {
         }, 3000);
       });
     } catch (error) {
-      console.warn('Failed to play coin sound:', error.message);
       return Promise.resolve();
     }
   }
@@ -61,16 +57,13 @@ export class SoundPlayer {
 
       aplayProcess.on('close', (code) => {
         if (code === 0 || code === 1) {
-          console.log('🔊 Coin sound played successfully via aplay');
           resolve();
         } else {
-          console.warn(`aplay exited with code ${code}`);
           resolve(); // Resolve anyway
         }
       });
 
       aplayProcess.on('error', (err) => {
-        console.warn('aplay failed:', err.message);
         resolve(); // Resolve anyway
       });
 
@@ -91,7 +84,6 @@ export class SoundPlayer {
 
       process.on('close', (code) => {
         if (code === 0) {
-          console.log('🔊 Coin sound played successfully via ffplay');
           resolve();
         } else {
           reject(new Error(`ffplay exited with code ${code}`));
@@ -118,13 +110,11 @@ export class SoundPlayer {
         const process = spawn('aplay', [audioFile]);
 
         process.on('close', () => {
-          console.log('🔊 Sound played successfully');
           resolve();
         });
 
         process.on('error', () => {
           // Fail silently
-          console.warn('Could not play sound');
           resolve();
         });
 
@@ -137,7 +127,6 @@ export class SoundPlayer {
         }, 5000);
       });
     } catch (error) {
-      console.warn('Sound playback error:', error.message);
     }
   }
 }

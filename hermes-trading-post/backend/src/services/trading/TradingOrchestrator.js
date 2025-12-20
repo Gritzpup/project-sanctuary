@@ -89,16 +89,13 @@ export class TradingOrchestrator extends EventEmitter {
       this.strategyConfig = config.strategyConfig || {};
       try {
         const strategyType = config.strategyType || this.selectedStrategyType || 'reverse-descending-grid';
-        console.log(`🎯 [Orchestrator] Creating strategy: ${strategyType}`);
         this.strategy = strategyRegistry.createStrategy(strategyType, this.strategyConfig);
-        console.log(`✅ [Orchestrator] Strategy created successfully: ${strategyType}`);
 
         // Restore positions to strategy if they exist
         if (this.positionManager.getPositions().length > 0) {
           this.strategy.restorePositions(this.positionManager.getPositions());
         }
       } catch (strategyError) {
-        console.error(`❌ [Orchestrator] FAILED to create strategy:`, strategyError);
         this.strategy = null;
       }
 
@@ -240,24 +237,18 @@ export class TradingOrchestrator extends EventEmitter {
     try {
       // Only proceed with strategy analysis if strategy exists
       if (this.strategy) {
-        console.log(`🔍 [Orchestrator] Analyzing strategy at price $${price}`);
         // Analyze market conditions
         const signal = this.strategy.analyze(this.candles, price);
-        console.log(`📡 [Orchestrator] Strategy signal: ${signal.type}, reason: ${signal.reason || 'none'}`);
 
         if (signal.type === 'buy') {
-          console.log(`💵 [Orchestrator] BUY signal received!`);
           await this.executeBuySignal(signal, price);
         } else if (signal.type === 'sell') {
-          console.log(`💰 [Orchestrator] SELL signal received!`);
           await this.executeSellSignal(signal, price);
         }
       } else {
-        console.log(`⚠️ [Orchestrator] No strategy set, skipping analysis`);
       }
 
     } catch (error) {
-      console.error(`❌ [Orchestrator] Strategy execution error:`, error);
     }
   }
 
@@ -614,14 +605,9 @@ export class TradingOrchestrator extends EventEmitter {
       }
     } else {
       // Silently skip - price not available yet (normal during startup)
-      // console.log('❌ Cannot calculate trigger distances: no current price');
     }
     
     // 🔍 DEBUG: Log vault balances being sent
-    console.log('💰 [Orchestrator] getState() vault balances:', {
-      'this.balance.vault': this.balance.vault,
-      'this.balance.btcVault': this.balance.btcVault
-    });
 
     return {
       isRunning: this.isRunning,
@@ -665,10 +651,6 @@ export class TradingOrchestrator extends EventEmitter {
   broadcastStatus() {
     const status = this.getStatus();
     // 🔍 DEBUG: Log vault balances being broadcast
-    console.log('📡 [broadcastStatus] Broadcasting vaults:', {
-      vaultBalance: status.vaultBalance,
-      btcVaultBalance: status.btcVaultBalance
-    });
 
     this.broadcast({
       type: 'status',
@@ -733,7 +715,6 @@ export class TradingOrchestrator extends EventEmitter {
         }
         
         // 🔍 DEBUG: Log what's being loaded from state
-        console.log('💾 [Orchestrator] Loading state.balance:', JSON.stringify(state.balance, null, 2));
 
         // CRITICAL FIX: Instead of Object.assign, selectively restore properties to avoid overwriting instances
         this.isRunning = state.isRunning || false;
@@ -742,7 +723,6 @@ export class TradingOrchestrator extends EventEmitter {
         this.balance = { ...state.balance };
 
         // 🔍 DEBUG: Log what this.balance contains after loading
-        console.log('💾 [Orchestrator] After loading, this.balance:', JSON.stringify(this.balance, null, 2));
 
         this.trades = [...(state.trades || [])];
         this.statistics = { ...state.statistics };
@@ -762,16 +742,13 @@ export class TradingOrchestrator extends EventEmitter {
         // 🔧 FIX: Recreate strategy if bot was running
         if (this.isRunning && this.selectedStrategyType) {
           try {
-            console.log(`🔄 [Orchestrator] Recreating strategy on loadState: ${this.selectedStrategyType}`);
             this.strategy = strategyRegistry.createStrategy(this.selectedStrategyType, this.strategyConfig || {});
-            console.log(`✅ [Orchestrator] Strategy recreated: ${this.selectedStrategyType}`);
 
             // Restore positions to strategy if they exist
             if (this.positionManager.getPositions().length > 0) {
               this.strategy.restorePositions(this.positionManager.getPositions());
             }
           } catch (strategyError) {
-            console.error(`❌ [Orchestrator] Failed to recreate strategy on load:`, strategyError);
             this.strategy = null;
           }
         }
@@ -785,7 +762,6 @@ export class TradingOrchestrator extends EventEmitter {
 
           // Only update if we calculated a different value (trades exist but stats were reset)
           if (calculatedReturn > 0 && this.statistics.totalReturn === 0) {
-            console.log(`🔧 [Orchestrator] Recalculated totalReturn from ${this.trades.length} trades: $${calculatedReturn.toFixed(2)}`);
             this.statistics.totalReturn = calculatedReturn;
             this.statistics.winningTrades = this.trades.filter(t => t.side === 'sell' && t.profit > 0).length;
           }

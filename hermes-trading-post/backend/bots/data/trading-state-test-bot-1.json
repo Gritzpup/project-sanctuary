@@ -1,0 +1,49 @@
+{
+  "isRunning": true,
+  "isPaused": false,
+  "balance": {
+    "usd": 9700,
+    "btc": 0.0034003886190806455,
+    "vault": 0,
+    "btcVault": 0
+  },
+  "currentPrice": 88225.21,
+  "positions": [
+    {
+      "id": 1766230064757,
+      "entryPrice": 88225.21,
+      "size": 0.0034003886190806455,
+      "timestamp": 1766230064757,
+      "type": "buy",
+      "reason": "Opening initial position immediately (startup)"
+    }
+  ],
+  "trades": [
+    {
+      "id": 1766230064758,
+      "timestamp": 1766230064758,
+      "side": "buy",
+      "amount": 0.0034003886190806455,
+      "price": 88225.21,
+      "value": 300,
+      "fees": 0.3,
+      "reason": "Opening initial position immediately (startup)"
+    }
+  ],
+  "selectedStrategyType": "test",
+  "positionCount": 1,
+  "totalValue": 10000,
+  "totalFees": 0,
+  "totalRebates": 0,
+  "totalReturn": 0,
+  "totalRebalance": 0,
+  "winRate": 0,
+  "vaultBalance": 0,
+  "btcVaultBalance": 0,
+  "recentHigh": 88225.21,
+  "nextBuyDistance": 0,
+  "nextSellDistance": 0,
+  "nextBuyPrice": 88136.98479,
+  "nextSellPrice": 88489.88562999999,
+  "lastSaved": 1766230316422
+}

@@ -20,10 +20,8 @@ const wss = new WebSocketServer({ server });
 
 // Track WebSocket client connections
 wss.on('connection', (ws) => {
-  console.log(`🔌 [Bots WebSocket] Client connected - total clients: ${wss.clients.size}`);
 
   ws.on('close', () => {
-    console.log(`🔌 [Bots WebSocket] Client disconnected - total clients: ${wss.clients.size}`);
   });
 });
 
@@ -43,11 +41,9 @@ const redis = new Redis({
 });
 
 redis.on('connect', () => {
-  console.log('✅ [Bots] Connected to Redis');
 });
 
 redis.on('error', (err) => {
-  console.error('❌ [Bots] Redis error:', err);
 });
 
 // Helper function to broadcast to all WebSocket clients
@@ -62,7 +58,6 @@ function broadcastToClients(message) {
 
 // WebSocket message handler for commands from backend and price updates
 wss.on('connection', (ws) => {
-  console.log('🔌 [Bots] Client connected');
 
   // Add to clients set
   wsClients.add(ws);
@@ -81,7 +76,6 @@ wss.on('connection', (ws) => {
   ws.on('message', async (data) => {
     try {
       const message = JSON.parse(data.toString());
-      console.log(`📥 [Bots] Received command: ${message.type}`);
 
       switch (message.type) {
         // Price updates from main backend
@@ -107,7 +101,6 @@ wss.on('connection', (ws) => {
                 type: 'status',
                 data: status
               }));
-              console.log(`✅ [Bots] Bot started: ${botManager.activeBotId}`);
             }
           }
           break;
@@ -122,7 +115,6 @@ wss.on('connection', (ws) => {
                 type: 'status',
                 data: status
               }));
-              console.log(`⏹️  [Bots] Bot stopped: ${botManager.activeBotId}`);
             }
           }
           break;
@@ -137,7 +129,6 @@ wss.on('connection', (ws) => {
                 type: 'status',
                 data: status
               }));
-              console.log(`⏸️  [Bots] Bot paused: ${botManager.activeBotId}`);
             }
           }
           break;
@@ -152,7 +143,6 @@ wss.on('connection', (ws) => {
                 type: 'status',
                 data: status
               }));
-              console.log(`▶️  [Bots] Bot resumed: ${botManager.activeBotId}`);
             }
           }
           break;
@@ -188,10 +178,8 @@ wss.on('connection', (ws) => {
           break;
 
         default:
-          console.log(`⚠️  [Bots] Unhandled message type: ${message.type}`);
       }
     } catch (error) {
-      console.error('❌ [Bots] Error processing WebSocket message:', error.message);
       ws.send(JSON.stringify({
         type: 'error',
         message: error.message
@@ -200,7 +188,6 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    console.log('🔌 [Bots] Client disconnected');
     wsClients.delete(ws);
     botManager.removeClient(ws);
   });
@@ -440,15 +427,10 @@ app.post('/api/bots/resume', (req, res) => {
 
 // Initialize default bots on startup
 (async () => {
-  console.log('🤖 Initializing Hermes Bots Service...');
 
   try {
     await botManager.initializeDefaultBots();
-    console.log('✅ Default bots initialized successfully');
-    console.log(`🤖 Total bots: ${botManager.bots.size}`);
-    console.log(`🎯 Active bot: ${botManager.activeBotId}`);
   } catch (error) {
-    console.error('❌ Failed to initialize default bots:', error.message);
   }
 })();
 
@@ -468,19 +450,13 @@ setInterval(() => {
 
 // Start the server
 server.listen(PORT, HOST, () => {
-  console.log(`🤖 Hermes Bots Service started on http://${HOST}:${PORT}`);
-  console.log(`📡 WebSocket server ready on ws://${HOST}:${PORT}`);
-  console.log(`❤️  Health Check: http://${HOST}:${PORT}/health`);
-  console.log(`🤖 Bot API: http://${HOST}:${PORT}/api/bots`);
 });
 
 // Graceful shutdown
 const gracefulShutdown = async (signal) => {
-  console.log(`\n⚠️  Received ${signal}, starting graceful shutdown...`);
 
   try {
     // Stop all bots
-    console.log('🛑 Stopping all bots...');
     for (const bot of botManager.bots.values()) {
       if (bot.isRunning) {
         bot.stop();
@@ -488,29 +464,23 @@ const gracefulShutdown = async (signal) => {
     }
 
     // Close WebSocket connections
-    console.log('🔌 Closing WebSocket connections...');
     wss.clients.forEach(client => {
       client.close();
     });
 
     // Close Redis connection
-    console.log('📦 Closing Redis connection...');
     await redis.quit();
 
     // Close HTTP server
-    console.log('🚪 Closing HTTP server...');
     server.close(() => {
-      console.log('✅ Hermes Bots Service shut down gracefully');
       process.exit(0);
     });
 
     // Force exit after 10 seconds
     setTimeout(() => {
-      console.error('❌ Forced shutdown after timeout');
       process.exit(1);
     }, 10000);
   } catch (error) {
-    console.error('❌ Error during shutdown:', error.message);
     process.exit(1);
   }
 };

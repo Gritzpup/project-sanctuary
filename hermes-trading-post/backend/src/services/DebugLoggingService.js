@@ -29,9 +29,7 @@ export class DebugLoggingService {
     if (this.logLevel === 'debug') {
       const formatted = this.formatMessage('DEBUG', context, message);
       if (data) {
-        console.log(`🔍 ${formatted}`, data);
       } else {
-        console.log(`🔍 ${formatted}`);
       }
     }
   }
@@ -43,9 +41,7 @@ export class DebugLoggingService {
     if (['debug', 'info'].includes(this.logLevel)) {
       const formatted = this.formatMessage('INFO', context, message);
       if (data) {
-        console.log(`ℹ️ ${formatted}`, data);
       } else {
-        console.log(`ℹ️ ${formatted}`);
       }
     }
   }
@@ -56,9 +52,7 @@ export class DebugLoggingService {
   warn(context, message, data = null) {
     const formatted = this.formatMessage('WARN', context, message);
     if (data) {
-      console.warn(`⚠️ ${formatted}`, data);
     } else {
-      console.warn(`⚠️ ${formatted}`);
     }
   }
 
@@ -68,15 +62,8 @@ export class DebugLoggingService {
   error(context, message, error = null) {
     const formatted = this.formatMessage('ERROR', context, message);
     if (error instanceof Error) {
-      console.error(`❌ ${formatted}`, {
-        message: error.message,
-        stack: error.stack,
-        code: error.code
-      });
     } else if (error) {
-      console.error(`❌ ${formatted}`, error);
     } else {
-      console.error(`❌ ${formatted}`);
     }
   }
 
@@ -85,14 +72,12 @@ export class DebugLoggingService {
    */
   success(context, message) {
     const formatted = this.formatMessage('SUCCESS', context, message);
-    console.log(`✅ ${formatted}`);
   }
 
   /**
    * Startup logging
    */
   startup(message) {
-    console.log(`🚀 ${message}`);
   }
 
   /**

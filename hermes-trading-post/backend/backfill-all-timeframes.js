@@ -42,25 +42,20 @@ const BACKFILL_CONFIG = [
 ];
 
 async function checkCurrentStatus() {
-  console.log('📊 Checking current data status...\n');
 
   for (const config of BACKFILL_CONFIG) {
     const metadata = await redisCandleStorage.getMetadata(PAIR, config.granularity);
     const candleCount = metadata?.totalCandles || 0;
     const status = candleCount > 0 ? '✅' : '❌';
 
-    console.log(`${status} ${config.granularity.padEnd(4)} - ${candleCount.toString().padStart(5)} candles (${config.reason})`);
   }
 
-  console.log('');
 }
 
 async function backfillAllData() {
-  console.log('🚀 Starting comprehensive historical data backfill...\n');
 
   await checkCurrentStatus();
 
-  console.log('📥 Beginning backfill process...\n');
 
   let totalFetched = 0;
   let totalErrors = 0;
@@ -68,10 +63,6 @@ async function backfillAllData() {
 
   for (let i = 0; i < BACKFILL_CONFIG.length; i++) {
     const config = BACKFILL_CONFIG[i];
-    console.log(`\n${'='.repeat(80)}`);
-    console.log(`📦 [${i + 1}/${BACKFILL_CONFIG.length}] Backfilling ${config.granularity} (${config.daysBack} days)`);
-    console.log(`   Reason: ${config.reason}`);
-    console.log(`${'='.repeat(80)}\n`);
 
     try {
       await historicalDataService.fetchHistoricalData(PAIR, config.granularity, config.daysBack);
@@ -80,52 +71,29 @@ async function backfillAllData() {
       const candleCount = metadata?.totalCandles || 0;
       totalFetched += candleCount;
 
-      console.log(`✅ ${config.granularity} backfill complete: ${candleCount} total candles stored\n`);
 
     } catch (error) {
-      console.error(`❌ Error backfilling ${config.granularity}:`, error.message);
       totalErrors++;
     }
 
     // Wait between granularities to avoid overwhelming the API
     if (i < BACKFILL_CONFIG.length - 1) {
-      console.log('⏳ Waiting 2s before next granularity...\n');
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
   }
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
-  console.log(`\n${'='.repeat(80)}`);
-  console.log('🎉 Backfill process completed!');
-  console.log(`${'='.repeat(80)}`);
-  console.log(`⏱️  Duration: ${duration}s`);
-  console.log(`📊 Total candles stored: ${totalFetched}`);
-  console.log(`❌ Errors: ${totalErrors}`);
-  console.log(`${'='.repeat(80)}\n`);
 
   await checkCurrentStatus();
 
-  console.log('✅ All timeframes should now have sufficient historical data!');
-  console.log('\nSupported timeframes:');
-  console.log('  • 1H: 1m (60), 5m (12), 15m (4)');
-  console.log('  • 6H: 5m (72), 15m (24), 1h (6)');
-  console.log('  • 1D: 15m (96), 1h (24), 6h (4)');
-  console.log('  • 5D: 1h (120), 6h (20), 1d (5)');
-  console.log('  • 1M: 6h (120), 1d (30)');
-  console.log('  • 3M: 1d (90)');
-  console.log('  • 6M: 1d (180)');
-  console.log('  • 1Y: 1d (365)');
-  console.log('  • 5Y: 1d (1825)');
 }
 
 // Run the backfill
 backfillAllData()
   .then(() => {
-    console.log('\n✅ Backfill script completed successfully');
     process.exit(0);
   })
   .catch((error) => {
-    console.error('\n❌ Backfill script failed:', error);
     process.exit(1);
   });

@@ -67,17 +67,14 @@ export class RedisCandleStorage {
    */
   private setupEventHandlers(): void {
     this.redis.on('connect', () => {
-      logger.info('Connected to Redis on port 6379');
       this.isConnected = true;
     });
 
     this.redis.on('error', (error) => {
-      logger.error('Redis connection error', { error: error.message });
       this.isConnected = false;
     });
 
     this.redis.on('close', () => {
-      logger.warn('Redis connection closed');
       this.isConnected = false;
     });
   }
@@ -98,7 +95,6 @@ export class RedisCandleStorage {
       this.writer = new CandleStorageWriter(this.redis, this.metadataManager);
       this.fetcher = new CandleDataFetcher(this.redis, this.metadataManager);
 
-      logger.info('Redis candle storage initialized');
     });
 
     return this.connectionPromise;

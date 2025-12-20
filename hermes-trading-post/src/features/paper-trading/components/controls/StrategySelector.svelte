@@ -51,25 +51,44 @@
   }
   
   .control-group .strategy-dropdown {
-    height: 28px;
-    padding: 2px 6px;
+    height: 32px;
+    padding: 4px 8px;
     border-radius: 4px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
-    background: var(--bg-primary);
+    background: var(--bg-primary, #1a1a2e);
     color: #c4b5fd;
-    border: 1px solid var(--border-primary);
+    border: 1px solid var(--border-primary, #4a00e0);
     appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23c4b5fd' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
-    background-position: right 6px center;
+    background-position: right 8px center;
     background-repeat: no-repeat;
-    background-size: 12px;
-    padding-right: 24px;
+    background-size: 14px;
+    padding-right: 28px;
+    cursor: pointer;
+    width: 100%;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
   }
-  
+
+  .control-group .strategy-dropdown option {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    padding: 8px;
+  }
+
   .control-group .strategy-dropdown:hover {
     background: rgba(74, 0, 224, 0.2);
     border-color: rgba(74, 0, 224, 0.5);
     color: white;
+  }
+
+  .control-group .strategy-dropdown:focus {
+    outline: none;
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
   }
 </style>

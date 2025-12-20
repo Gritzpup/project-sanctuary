@@ -48,7 +48,6 @@ class CacheWarmer {
    */
   async start() {
     try {
-      logger.info('[CacheWarmer] Starting cache warming service...');
 
       // Initial warmup
       await this.performInitialWarmup();
@@ -63,9 +62,7 @@ class CacheWarmer {
         this.performAggregation();
       }, this.config.aggregationIntervalMs);
 
-      logger.info('[CacheWarmer] ✅ Cache warming service started');
     } catch (error) {
-      logger.error('[CacheWarmer] Failed to start cache warming service:', error);
     }
   }
 
@@ -83,7 +80,6 @@ class CacheWarmer {
       this.aggregationInterval = null;
     }
 
-    logger.info('[CacheWarmer] Cache warming service stopped');
   }
 
   /**
@@ -91,12 +87,10 @@ class CacheWarmer {
    */
   async performInitialWarmup() {
     if (this.isWarming) {
-      logger.warn('[CacheWarmer] Warmup already in progress, skipping');
       return;
     }
 
     this.isWarming = true;
-    logger.info('[CacheWarmer] 🔥 Starting initial cache warmup...');
 
     try {
       const endTime = Math.floor(Date.now() / 1000);
@@ -111,9 +105,7 @@ class CacheWarmer {
       // Aggregate to other timeframes
       await this.performAggregation();
 
-      logger.info('[CacheWarmer] ✅ Initial warmup complete');
     } catch (error) {
-      logger.error('[CacheWarmer] Initial warmup failed:', error);
     } finally {
       this.isWarming = false;
     }
@@ -141,9 +133,7 @@ class CacheWarmer {
         }
       }
 
-      logger.debug('[CacheWarmer] Periodic warmup complete');
     } catch (error) {
-      logger.error('[CacheWarmer] Periodic warmup failed:', error);
     } finally {
       this.isWarming = false;
     }
@@ -159,7 +149,6 @@ class CacheWarmer {
 
       if (metadata && metadata.lastTimestamp >= (endTime - 60)) {
         // Cache is up to date
-        logger.debug(`[CacheWarmer] ${pair}:${granularity} already up to date`);
         return;
       }
 
@@ -175,10 +164,8 @@ class CacheWarmer {
       if (candles.length > 0) {
         // Store in Redis
         await this.candleStorage.storeCandles(pair, granularity, candles);
-        logger.info(`[CacheWarmer] ✅ Warmed ${pair}:${granularity} - ${candles.length} candles`);
       }
     } catch (error) {
-      logger.error(`[CacheWarmer] Failed to warm ${pair}:${granularity}:`, error);
     }
   }
 
@@ -187,7 +174,6 @@ class CacheWarmer {
    */
   async performAggregation() {
     try {
-      logger.debug('[CacheWarmer] Starting aggregation...');
 
       for (const pair of this.config.pairs) {
         // Get base data (1m is most granular)
@@ -197,7 +183,6 @@ class CacheWarmer {
         const baseCandles = await this.candleStorage.getCandles(pair, '1m', startTime, endTime);
 
         if (baseCandles.length === 0) {
-          logger.warn(`[CacheWarmer] No base candles found for ${pair}, skipping aggregation`);
           continue;
         }
 
@@ -207,9 +192,7 @@ class CacheWarmer {
         }
       }
 
-      logger.debug('[CacheWarmer] Aggregation complete');
     } catch (error) {
-      logger.error('[CacheWarmer] Aggregation failed:', error);
     }
   }
 
@@ -223,10 +206,8 @@ class CacheWarmer {
 
       if (aggregated.length > 0) {
         await this.candleStorage.storeCandles(pair, targetGranularity, aggregated);
-        logger.debug(`[CacheWarmer] Aggregated ${pair}:${targetGranularity} - ${aggregated.length} candles`);
       }
     } catch (error) {
-      logger.error(`[CacheWarmer] Failed to aggregate ${pair}:${targetGranularity}:`, error);
     }
   }
 
@@ -265,7 +246,6 @@ class CacheWarmer {
    */
   async performCleanup() {
     try {
-      logger.info('[CacheWarmer] Starting cleanup...');
 
       for (const pair of this.config.pairs) {
         for (const granularity in this.config.retentionPeriods) {
@@ -273,13 +253,10 @@ class CacheWarmer {
           const cutoffTime = Math.floor(Date.now() / 1000) - retentionSeconds;
 
           await this.candleStorage.cleanupOldData(pair, granularity, cutoffTime);
-          logger.debug(`[CacheWarmer] Cleaned up ${pair}:${granularity} before ${new Date(cutoffTime * 1000).toISOString()}`);
         }
       }
 
-      logger.info('[CacheWarmer] Cleanup complete');
     } catch (error) {
-      logger.error('[CacheWarmer] Cleanup failed:', error);
     }
   }
 

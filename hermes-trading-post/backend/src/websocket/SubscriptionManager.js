@@ -115,7 +115,6 @@ export class SubscriptionManager {
     }
 
     if (cleanedCount > 0) {
-      console.log(`🧹 Cleaned up ${cleanedCount} old granularity mappings`);
     }
 
     return cleanedCount;

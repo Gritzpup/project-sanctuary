@@ -105,7 +105,6 @@ export class ErrorHandlingService {
           break;
         }
       } catch (handlerError) {
-        logger.error('ERROR_SERVICE', 'Error handler failed', handlerError as Error);
       }
     }
 
@@ -194,7 +193,6 @@ export class ErrorHandlingService {
     // WebSocket error handler
     this.registerHandler(ErrorCategory.WEBSOCKET, (error, context) => {
       if (error.message.includes('connection') || error.message.includes('WebSocket')) {
-        logger.info('WEBSOCKET', 'WebSocket connection error, attempting reconnection', { error: error.message });
         // Trigger reconnection logic here
         return true; // Mark as recovered (reconnection will handle it)
       }
@@ -234,16 +232,13 @@ export class ErrorHandlingService {
     
     switch (logLevel) {
       case 'warn':
-        logger.warn('ERROR_SERVICE', message, { report });
         break;
       case 'error':
-        logger.error('ERROR_SERVICE', message, report.error, { report });
         break;
       case 'critical':
         logger.critical('ERROR_SERVICE', message, report.error, { report });
         break;
       default:
-        logger.info('ERROR_SERVICE', message, { report });
     }
   }
 

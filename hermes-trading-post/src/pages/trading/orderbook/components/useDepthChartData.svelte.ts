@@ -280,7 +280,6 @@ export function useDepthChartData() {
           }
         }
       } catch (error) {
-        logger.error('Error parsing level2 message', { error: error instanceof Error ? error.message : String(error) }, 'DepthChartData');
       }
     };
 

@@ -5,6 +5,7 @@ import { DCAStrategy } from './implementations/DCAStrategy';
 import { VWAPBounceStrategy } from './implementations/VWAPBounceStrategy';
 import { MicroScalpingStrategy } from './implementations/MicroScalpingStrategy';
 import { ProperScalpingStrategy } from './implementations/ProperScalpingStrategy';
+import { TestStrategy } from './implementations/TestStrategy';
 import type { Strategy } from './base/Strategy';
 
 export interface StrategyInfo {
@@ -72,6 +73,14 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
     category: 'Scalping',
     riskLevel: 'High',
     StrategyClass: ProperScalpingStrategy
+  },
+  test: {
+    id: 'test',
+    name: 'Test Strategy',
+    description: 'High-frequency trading: 0.05% entry, 0.3% profit target. Trades 5x more often than ReverseRatio.',
+    category: 'Scalping',
+    riskLevel: 'High',
+    StrategyClass: TestStrategy
   }
 };
 

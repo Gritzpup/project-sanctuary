@@ -41,10 +41,8 @@ export class HistoricalDataService {
    * Fetch historical data for a specific time range
    */
   async fetchHistoricalData(pair, granularity, daysBack = 30) {
-    console.log(`🔍 [HistoricalData] fetchHistoricalData() CALLED with: pair=${pair}, granularity=${granularity}, daysBack=${daysBack}`);
 
     if (this.isRunning) {
-      console.log(`⏳ Historical data fetch already in progress`);
       return;
     }
 
@@ -56,7 +54,6 @@ export class HistoricalDataService {
       startTime: Date.now()
     };
 
-    console.log(`📥 Starting historical data fetch: ${pair} @ ${granularity} for last ${daysBack} days`);
 
 
     try {
@@ -93,7 +90,6 @@ export class HistoricalDataService {
           // This avoids ECDSA signature errors with CDP keys
           const url = `https://api.exchange.coinbase.com/products/${pair}/candles?start=${batch.start}&end=${batch.end}&granularity=${granularitySeconds}`;
 
-          console.log(`📥 [HistoricalData] Fetching batch ${i+1}/${batches.length}: ${batch.start} to ${batch.end}`);
 
           const response = await fetch(url);
 
@@ -102,7 +98,6 @@ export class HistoricalDataService {
           }
 
           const apiData = await response.json();
-          console.log(`✅ [HistoricalData] Batch ${i+1}/${batches.length}: Received ${apiData.length} candles`);
 
           // Convert Exchange API format [time, low, high, open, close, volume] to our format
           const candles = apiData.map(([time, low, high, open, close, volume]) => ({
@@ -118,7 +113,6 @@ export class HistoricalDataService {
             // Store candles in Redis
             await redisCandleStorage.storeCandles(pair, granularity, candles);
             this.stats.totalCandles += candles.length;
-            console.log(`💾 [HistoricalData] Stored ${candles.length} candles (total: ${this.stats.totalCandles})`);
           }
 
           this.stats.totalRequests++;
@@ -130,12 +124,9 @@ export class HistoricalDataService {
 
         } catch (error) {
           this.stats.errors++;
-          console.error(`❌ [HistoricalData] Batch ${i+1}/${batches.length} failed:`, error.message);
-          console.error(`❌ [HistoricalData] Error details:`, error);
 
           // If rate limited, wait longer
           if (error.message.includes('429') || error.message.includes('rate limit')) {
-            console.log(`⏳ [HistoricalData] Rate limited, waiting 5 seconds...`);
             await new Promise(resolve => setTimeout(resolve, 5000));
           } else {
             // Wait 1s on other errors before continuing
@@ -145,11 +136,7 @@ export class HistoricalDataService {
       }
 
       const duration = (Date.now() - this.stats.startTime) / 1000;
-      console.log(`✅ Historical data fetch completed: ${this.stats.totalCandles} candles in ${duration.toFixed(1)}s (${this.stats.totalRequests} requests, ${this.stats.errors} errors)`);
     } catch (error) {
-      console.error(`❌ Historical data fetch error:`, error.message);
-      console.error(`❌ Full error stack:`, error.stack);
-      console.error(`❌ Error details:`, error);
     } finally {
       this.isRunning = false;
     }
@@ -180,7 +167,6 @@ export class HistoricalDataService {
       const response = await fetch(url);
 
       if (!response.ok) {
-        console.error(`❌ [HistoricalData] fillRecentGaps failed: HTTP ${response.status}`);
         return 0;
       }
 
@@ -198,12 +184,10 @@ export class HistoricalDataService {
 
       if (candles.length > 0) {
         await redisCandleStorage.storeCandles(pair, granularity, candles);
-        console.log(`✅ [HistoricalData] Filled ${candles.length} recent candles for ${pair} @ ${granularity}`);
       }
 
       return candles.length;
     } catch (error) {
-      console.error(`❌ [HistoricalData] fillRecentGaps error:`, error.message);
       return 0;
     }
   }
@@ -223,33 +207,26 @@ export class HistoricalDataService {
    * Initialize with default data fetch
    */
   async initialize(pair = 'BTC-USD', granularity = '1m') {
-    console.log(`🔧 Historical Data Service initializing for ${pair} @ ${granularity}...`);
 
     // Test API connection first
     const connected = await coinbaseAPI.testConnection();
     if (!connected) {
-      console.warn(`⚠️ Coinbase API test connection failed`);
       return false;
     }
-    console.log(`✅ Coinbase API connection verified`);
 
     // Check if we need initial data
     try {
       const metadata = await redisCandleStorage.getMetadata(pair, granularity);
       const candleCount = metadata?.totalCandles || 0;
-      console.log(`📊 Redis has ${candleCount} candles stored for ${pair} @ ${granularity}`);
 
       if (candleCount < 1000) {
-        console.log(`📥 Need more data: ${candleCount} < 1000, fetching 7 days of history...`);
         await this.fetchHistoricalData(pair, granularity, 7);
       } else {
-        console.log(`📥 Have enough data: ${candleCount} >= 1000, just filling gaps...`);
         await this.fillRecentGaps(pair, granularity, 6);
       }
 
       return true;
     } catch (error) {
-      console.error(`❌ Historical Data Service initialization error:`, error.message);
       return false;
     }
   }

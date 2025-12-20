@@ -1,8 +1,10 @@
 <script lang="ts">
   import { Router, Route } from 'svelte-routing';
   import { CoinbaseAPI } from './services/api/coinbaseApi';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { sidebarStore } from './stores/sidebarStore';
+  import { tradingBackendService } from './services/state/tradingBackendService';
+  import { chartRealtimeService } from './shared/services/chartRealtimeService';
   import Dashboard from './pages/Dashboard.svelte';
   import Portfolio from './pages/Portfolio.svelte';
   import PaperTrading from './pages/PaperTrading.svelte';
@@ -22,6 +24,12 @@
   let unsubscribeSidebar: (() => void) | null = null;
 
   let priceInterval: number;
+
+  // ⚡ MEMORY LEAK FIX: Cleanup WebSockets on page unload/reload
+  function handleBeforeUnload() {
+    tradingBackendService.disconnect();
+    chartRealtimeService.disconnect();
+  }
 
   onMount(() => {
     // ⚡ MEMORY LEAK FIX: Subscribe and store unsubscribe function
@@ -47,6 +55,9 @@
       }
     }, 1000) as unknown as number;
 
+    // ⚡ MEMORY LEAK FIX: Disconnect WebSockets on page close/reload
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
       clearInterval(priceInterval);
       // ⚡ MEMORY LEAK FIX: Unsubscribe from sidebar store
@@ -54,11 +65,22 @@
         unsubscribeSidebar();
         unsubscribeSidebar = null;
       }
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   });
 
-  function toggleSidebar() {
+  onDestroy(() => {
+    // ⚡ MEMORY LEAK FIX: Cleanup all WebSocket connections on component destroy
+    tradingBackendService.disconnect();
+    chartRealtimeService.disconnect();
+  });
+
+  function toggleSidebar(event: Event) {
     sidebarStore.toggle();
+  }
+
+  function handleDashboardToggle(event: CustomEvent) {
+    toggleSidebar(event);
   }
 
   function handleNavigation(event: CustomEvent) {
@@ -73,7 +95,7 @@
         {currentPrice}
         bind:connectionStatus
         {sidebarCollapsed}
-        on:toggle={toggleSidebar}
+        on:toggle={handleDashboardToggle}
         on:navigate={handleNavigation}
       />
     </Route>
@@ -82,7 +104,7 @@
         {currentPrice}
         bind:connectionStatus
         {sidebarCollapsed}
-        on:toggle={toggleSidebar}
+        on:toggle={handleDashboardToggle}
         on:navigate={handleNavigation}
       />
     </Route>

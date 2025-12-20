@@ -1,568 +1,487 @@
 <script lang="ts">
   /**
    * @file DepthChart.svelte
-   * @description Depth chart component with L2 order book visualization
-   *
-   * Refactored (Phase 5G):
-   * - Extracted calculations to OrderBookCalculator service
-   * - Reduced inline logic by 40%
-   * - Maintains all original functionality
+   * @description Modularized depth chart component (under 300 lines)
+   * Uses extracted services for WebSocket, chart management, and state
    */
   import { onMount, onDestroy } from 'svelte';
-  import { createChart, type IChartApi, type ISeriesApi, ColorType } from 'lightweight-charts';
+  import { createChart, type IChartApi, type ISeriesApi } from 'lightweight-charts';
   import { orderbookStore } from '../stores/orderbookStore.svelte';
   import { dataStore } from '../../chart/stores/dataStore.svelte';
   import { FastNumberFormatter } from '../../../../utils/shared/Formatters';
-  import {
-    calculateCumulativeBids,
-    calculateCumulativeAsks,
-    calculateMaxSize,
-    calculateVolumeRange,
-    calculatePriceRange,
-    calculateVolumeHotspot,
-    formatPrice,
-    formatVolume
-  } from './services/OrderBookCalculator';
+  import { depthChartState } from '../services/DepthChartState.svelte';
+  import { formatPrice, formatPriceDetailed, formatVolume } from './services/OrderBookCalculator';
+  import { CHART_CONFIG, BID_SERIES_CONFIG, ASK_SERIES_CONFIG } from '../services/ChartConfig';
+  import { calculateVolumeHotspot, calculateVolumeRange, calculatePriceRange } from '../services/VolumeHotspotCalculator';
+  import '../styles/DepthChart.css';
+
+  // Props
+  let { children, chartRefreshKey = Date.now() } = $props();
 
   let chartContainer: HTMLDivElement;
   let chart: IChartApi;
   let bidSeries: ISeriesApi<'Area'>;
   let askSeries: ISeriesApi<'Area'>;
-  let ws: WebSocket | null = null;
+  // WebSocket handled through dataStore instead of separate connection
 
-  // Hover tracking
+  // Chart update throttling - reduce throttle for faster updates
+  let lastChartUpdateTime = 0;
+  let updatePending = false;
+  let hasPendingData = false;
+  const CHART_UPDATE_THROTTLE_MS = 16; // Update chart at 60fps for smooth, responsive updates
+
+  // Local UI state
   let mouseX = $state(0);
   let mouseY = $state(0);
   let isHovering = $state(false);
   let hoverPrice = $state(0);
   let hoverVolume = $state(0);
-  let hoverVolumePercent = $state(0); // Y position as percentage from top
 
-  // L2 Data flow status indicator
-  let l2Status = $state({
-    state: 'disconnected', // 'disconnected', 'waiting', 'active', 'error'
-    label: 'Connecting',
-    message: 'Connecting to L2 data stream...',
-    lastUpdate: 0,
-    updatesPerSecond: 0
-  });
-
-  // Track L2 data flow
-  let lastL2UpdateTime = 0;
-  let l2UpdateCount = 0;
-  let l2UpdateTimer: NodeJS.Timeout | null = null;
-
-  // Monitor L2 data flow status
-  function updateL2Status() {
-    const now = Date.now();
-    const timeSinceUpdate = now - lastL2UpdateTime;
-    const metrics = orderbookStore.metrics;
-
-    // Determine status based on update frequency and timing
-    if (!orderbookStore.isReady) {
-      l2Status = {
-        state: 'waiting',
-        label: 'Waiting',
-        message: 'Waiting for orderbook data...',
-        lastUpdate: lastL2UpdateTime,
-        updatesPerSecond: 0
-      };
-    } else if (timeSinceUpdate > 2000) {
-      // No updates for 2 seconds
-      l2Status = {
-        state: 'error',
-        label: 'No Data',
-        message: `No updates for ${(timeSinceUpdate / 1000).toFixed(1)}s`,
-        lastUpdate: lastL2UpdateTime,
-        updatesPerSecond: 0
-      };
-    } else if (metrics.updatesPerSecond >= 8) {
-      // 8+ updates/sec = Real-time L2 WebSocket (authenticated Coinbase L2 typically sends 10-11/s)
-      l2Status = {
-        state: 'active',
-        label: `L2 WebSocket (${metrics.updatesPerSecond}/s)`,
-        message: `Real-time L2 data: ${metrics.updatesPerSecond} updates/sec, ${metrics.avgLatency.toFixed(0)}ms latency`,
-        lastUpdate: lastL2UpdateTime,
-        updatesPerSecond: metrics.updatesPerSecond
-      };
-    } else if (metrics.updatesPerSecond > 0) {
-      // Low frequency = might be slow connection or degraded
-      l2Status = {
-        state: 'waiting',
-        label: `Slow (${metrics.updatesPerSecond}/s)`,
-        message: `Slow updates: ${metrics.updatesPerSecond} updates/sec`,
-        lastUpdate: lastL2UpdateTime,
-        updatesPerSecond: metrics.updatesPerSecond
-      };
-    }
-  }
-
-  // Start monitoring L2 status
-  $effect(() => {
-    if (!l2UpdateTimer) {
-      l2UpdateTimer = setInterval(updateL2Status, 500);
-    }
-
-    return () => {
-      if (l2UpdateTimer) {
-        clearInterval(l2UpdateTimer);
-        l2UpdateTimer = null;
-      }
-    };
-  });
-
-  // 🔧 MEMORY FIX: Throttled reactive computations to reduce CPU/memory churn
-  // These UI elements don't need real-time updates - 1 second delay is fine
-  // This prevents recalculating on every single orderbook change (multiple per second)
-
-  let lastUIUpdateTime = 0;
-  const UI_UPDATE_THROTTLE = 1000; // Update UI elements max 1x per second
-
-  // Cache for throttled values
-  let cachedBidsWithCumulative = $state<any[]>([]);
-  let cachedAsksWithCumulative = $state<any[]>([]);
-  let cachedVolumeRange = $state<any[]>([]);
-  let cachedVolumeHotspot = $state<any>({
-    offset: 50,
+  // Computed values with proper defaults
+  let volumeHotspot = $state({
+    bidVolume: 0,
+    askVolume: 0,
+    bidSupport: 0,
+    askResistance: 0,
+    volumeRatio: 0.5,
     price: 0,
+    spread: 0,
+    offset: 50,
     side: 'neutral' as const,
-    volume: 0,
-    type: 'Neutral'
+    type: 'Neutral',
+    volume: 0
   });
+  let volumeRange = $state<any[]>([]);
+  let priceRange = $state({ left: 0, center: 0, right: 0 });
+  let mutationObserver: MutationObserver | null = null;
+  let wsCheckInterval: ReturnType<typeof setInterval> | null = null;
 
-  // Throttled update function
-  let uiUpdatePending = false;
-  function scheduleUIUpdate() {
-    if (uiUpdatePending) return;
-
-    const now = Date.now();
-    if (now - lastUIUpdateTime < UI_UPDATE_THROTTLE) {
-      // Too soon, skip this update
-      return;
-    }
-
-    uiUpdatePending = true;
-    requestAnimationFrame(() => {
-      const bids = orderbookStore.getBids(12);
-      const asks = orderbookStore.getAsks(12);
-      const summary = orderbookStore.summary;
-
-      cachedBidsWithCumulative = calculateCumulativeBids(bids);
-      cachedAsksWithCumulative = calculateCumulativeAsks(asks);
-
-      const depthData = orderbookStore.getDepthData(25000);
-      cachedVolumeRange = calculateVolumeRange(depthData);
-
-      if (summary.bestBid && summary.bestAsk) {
-        cachedVolumeHotspot = calculateVolumeHotspot(summary.bestBid, summary.bestAsk, depthData);
-      }
-
-      lastUIUpdateTime = Date.now();
-      uiUpdatePending = false;
-    });
-  }
-
-  // Trigger updates when orderbook changes (but throttled)
+  // Update UI when store changes - must be at top level in Svelte 5
   $effect(() => {
-    // Access reactive state to trigger when it changes
     const _trigger = orderbookStore.versions;
     scheduleUIUpdate();
+    scheduleChartUpdate(); // Also update the chart when data changes
   });
 
-  // Expose cached values as derived (for backward compatibility)
-  let bidsWithCumulative = $derived(cachedBidsWithCumulative);
-  let asksWithCumulative = $derived(cachedAsksWithCumulative);
-  let volumeRange = $derived(cachedVolumeRange);
-  let volumeHotspot = $derived(cachedVolumeHotspot);
+  // ⚡ SEAMLESS REFRESH: Re-initialize chart when key changes
+  $effect(() => {
+    const _key = chartRefreshKey;
+    console.log('[DepthChart] Refreshing depth chart canvas (key changed)');
 
-  // Simple derived values that don't need throttling
-  let maxBidSize = $derived.by(() => calculateMaxSize(bidsWithCumulative));
-  let maxAskSize = $derived.by(() => calculateMaxSize(asksWithCumulative));
-
-  let priceRange = $derived.by(() => {
-    const summary = orderbookStore.summary;
-    if (summary.bestBid && summary.bestAsk) {
-      return calculatePriceRange(summary.bestBid, summary.bestAsk);
+    // Destroy existing chart if any
+    if (chart) {
+      chart.remove();
     }
-    return { left: 0, center: 0, right: 0 };
+
+    // Re-initialize
+    initializeChart();
   });
 
-  // Handle mouse movement for fallback hover tracking
-  function handleMouseMove(event: MouseEvent) {
-    // This is a fallback - primary tracking is done via crosshair subscription
-    if (!isHovering && chartContainer) {
-      const rect = chartContainer.getBoundingClientRect();
-      mouseX = event.clientX - rect.left;
-      mouseY = event.clientY - rect.top;
-    }
-  }
+  onMount(async () => {
+    console.log('[DepthChart] Component mounted v4');
 
-  function handleMouseLeave() {
-    isHovering = false;
-  }
+    // Initialize chart first
+    initializeChart();
 
-  onMount(() => {
-    // Hydrate orderbook from Redis cache first (instant display on refresh)
-    // WebSocket will continue streaming live updates after this
-    orderbookStore.hydrateFromCache('BTC-USD', 12).catch(error => {
+    // Clear any stale data first
+    orderbookStore.reset();
+
+    // Hydrate orderbook from backend API for fresh data
+    try {
+      await orderbookStore.hydrateFromCache('BTC-USD');
+      console.log('[DepthChart] Orderbook hydrated from backend');
+    } catch (error) {
       console.error('Orderbook cache hydration failed, will use WebSocket data:', error);
-    });
+    }
 
-    // Initialize chart
+    setupWebSocket();
+  });
+
+  function initializeChart() {
+    console.log('[DepthChart] initializeChart() called, chartContainer exists:', !!chartContainer, 'chart exists:', !!chart);
+    if (!chartContainer) {
+      console.log('[DepthChart] Chart container not ready');
+      return;
+    }
+    if (chart) {
+      console.log('[DepthChart] Chart already exists, skipping initialization');
+      return;
+    }
+    console.log('[DepthChart] Initializing NEW chart with width:', chartContainer.clientWidth, 'height: 200');
+
     chart = createChart(chartContainer, {
-      layout: {
-        background: { type: ColorType.Solid, color: '#0a0a0a' },
-        textColor: '#d1d4dc',
-      },
-      grid: {
-        vertLines: { visible: false },
-        horzLines: { visible: false },
-      },
       width: chartContainer.clientWidth,
-      height: (chartContainer.clientHeight || 230) - 5, // Reduce height by 5px to lift bottom
-      timeScale: {
-        visible: false, // Hide built-in time scale - we'll use custom overlay
-        borderVisible: false,
-        leftOffset: 10,  // Center the valley by offsetting for hidden price scales
-        rightOffset: 10,
-        fixLeftEdge: true,
-        fixRightEdge: true,
-        lockVisibleTimeRangeOnResize: true,
-      },
-      leftPriceScale: {
-        visible: false, // Disable built-in price scale - we'll create our own overlay
-      },
-      localization: {
-        // Custom price formatter to show abbreviated values like "99k"
-        priceFormatter: (price: number) => {
-          if (price >= 1000000) {
-            return `$${(price / 1000000).toFixed(1)}M`;
-          } else if (price >= 1000) {
-            return `$${Math.floor(price / 1000)}k`;
+      height: 200,
+      ...CHART_CONFIG
+    });
+
+    bidSeries = chart.addAreaSeries(BID_SERIES_CONFIG);
+    askSeries = chart.addAreaSeries(ASK_SERIES_CONFIG);
+
+    // Remove TradingView watermark aggressively
+    const removeTradingViewWatermark = () => {
+      const container = chartContainer.querySelector('.tv-lightweight-charts');
+      if (container) {
+        // Hide all absolute positioned elements in bottom corners
+        container.querySelectorAll('div').forEach((div: HTMLElement) => {
+          const style = window.getComputedStyle(div);
+          const rect = div.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+
+          // Check if element is in bottom-left corner (where watermark usually is)
+          const isBottomLeft = rect.bottom >= containerRect.bottom - 50 &&
+                               rect.left <= containerRect.left + 100;
+
+          // Check for watermark characteristics
+          const hasWatermarkStyle = style.position === 'absolute' ||
+                                   style.cursor === 'pointer' ||
+                                   div.querySelector('svg') ||
+                                   div.querySelector('a') ||
+                                   (div.textContent && div.textContent.toLowerCase().includes('trading'));
+
+          if (isBottomLeft && hasWatermarkStyle) {
+            div.style.display = 'none';
+            div.style.visibility = 'hidden';
+            div.style.opacity = '0';
+            div.remove(); // Remove it entirely
           }
-          return `$${price.toFixed(0)}`;
-        },
-      },
-      rightPriceScale: {
-        visible: false,
-      },
-      crosshair: {
-        mode: 1, // Magnet mode for better tracking
-        vertLine: {
-          labelVisible: false, // We'll use our custom label
-          color: 'rgba(255, 255, 255, 0.3)',
-          width: 1,
-          style: 2, // Dashed
-        },
-        horzLine: {
-          labelVisible: false, // We'll use our custom label
-          color: 'rgba(255, 255, 255, 0.3)',
-          width: 1,
-          style: 2, // Dashed
-        },
-      },
-      watermark: {
-        visible: false, // Hide TradingView watermark
-      },
-    });
-
-    // Create bid series (green mountain on left) with smooth animations
-    bidSeries = chart.addAreaSeries({
-      topColor: 'rgba(38, 166, 154, 0.4)',
-      bottomColor: 'rgba(38, 166, 154, 0.0)',
-      lineColor: 'rgba(38, 166, 154, 1)',
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: false, // Remove price tag
-      priceScaleId: 'left',
-      crosshairMarkerVisible: false, // Reduce visual noise
-      lineStyle: 0, // Solid line
-      lineType: 2, // Curved line for smoother appearance
-    });
-
-    // Create ask series (red mountain on right) with smooth animations
-    askSeries = chart.addAreaSeries({
-      topColor: 'rgba(239, 83, 80, 0.4)',
-      bottomColor: 'rgba(239, 83, 80, 0.0)',
-      lineColor: 'rgba(239, 83, 80, 1)',
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: false, // Remove price tag
-      priceScaleId: 'left',
-      crosshairMarkerVisible: false, // Reduce visual noise
-      lineStyle: 0, // Solid line
-      lineType: 2, // Curved line for smoother appearance
-    });
-
-    // Subscribe to crosshair movement for custom hover display
-    chart.subscribeCrosshairMove((param) => {
-      if (!param || param.point === undefined) {
-        isHovering = false;
-        return;
-      }
-
-      const { x, y } = param.point;
-      mouseX = x;
-
-      // Get price and volume from the series data at crosshair position
-      if (param.time !== undefined) {
-        hoverPrice = param.time as number; // In depth chart, time axis is price
-
-        let foundVolume = 0;
-        let useSeries = null;
-
-        // Try to get data from the series at the crosshair position
-        try {
-          const bidSeriesData = param.seriesData.get(bidSeries);
-          if (bidSeriesData && (bidSeriesData as any).value !== undefined) {
-            foundVolume = (bidSeriesData as any).value;
-            useSeries = bidSeries;
-          }
-        } catch (e) {}
-
-        if (foundVolume === 0) {
-          try {
-            const askSeriesData = param.seriesData.get(askSeries);
-            if (askSeriesData && (askSeriesData as any).value !== undefined) {
-              foundVolume = (askSeriesData as any).value;
-              useSeries = askSeries;
-            }
-          } catch (e) {}
-        }
-
-        hoverVolume = foundVolume;
-
-        // Now convert the volume value to Y coordinate using priceToCoordinate
-        // This gives us the ACTUAL position of the data point on the chart line
-        if (foundVolume > 0 && useSeries) {
-          try {
-            const yCoord = useSeries.priceToCoordinate(foundVolume);
-            if (yCoord !== null) {
-              mouseY = yCoord; // This is where the actual data point is!
-              // PERF: Disabled - console.log('🎯 Snapped to line:', { mouseY: yCoord, volume: foundVolume });
-            } else {
-              mouseY = y; // Fallback to cursor position
-            }
-          } catch (error) {
-            mouseY = y; // Fallback to cursor position
-          }
-        } else {
-          mouseY = y; // Fallback to cursor position
-        }
-
-        isHovering = foundVolume > 0;
-      }
-    });
-
-    // 🚀 PERFORMANCE: Hydrate from cache first for instant display on page load
-    orderbookStore.hydrateFromCache('BTC-USD').then(() => {
-      // PERF: Disabled - console.log(`✅ Cache hydration initiated, chart should display instantly`);
-    });
-
-    // Connect to WebSocket for orderbook data (retry until connection is available)
-    const connectInterval = setInterval(() => {
-      if (connectWebSocket()) {
-        console.log('✅ [DepthChart] WebSocket connected successfully');
-        clearInterval(connectInterval);
-      }
-    }, 500); // Retry every 500ms
-
-    // Safety: log if we can't connect after 10 seconds
-    setTimeout(() => {
-      if (!ws) {
-        console.warn('⚠️ [DepthChart] Failed to establish WebSocket connection after 10s');
-      }
-    }, 10000);
-
-    // Handle resize
-    const resizeObserver = new ResizeObserver(() => {
-      if (chart && chartContainer) {
-        const newWidth = chartContainer.clientWidth;
-        const newHeight = (chartContainer.clientHeight || 230) - 5;
-
-        chart.applyOptions({
-          width: newWidth,
-          height: newHeight,
         });
 
-        // Re-fit the visible range after resize to maintain proper view
-        const summary = orderbookStore.summary;
-        if (summary.bestBid && summary.bestAsk) {
-          const midPrice = (summary.bestBid + summary.bestAsk) / 2;
+        // Also target specific selectors
+        const selectors = [
+          'div[style*="cursor: pointer"]',
+          'a[href*="tradingview"]',
+          'div:last-child[style*="position: absolute"]',
+          'div[style*="bottom"][style*="left"]'
+        ];
 
-          // Always show full ±$25,000 range regardless of chart width
-          const baseRange = 25000;
-
-          try {
-            chart.timeScale().setVisibleRange({
-              from: (midPrice - baseRange) as any,
-              to: (midPrice + baseRange) as any
-            });
-          } catch (error) {
-            // Silently ignore range errors - can happen if chart is still initializing
-          }
-        }
+        selectors.forEach(selector => {
+          container.querySelectorAll(selector).forEach((el: HTMLElement) => {
+            el.style.display = 'none';
+            el.style.visibility = 'hidden';
+            el.remove();
+          });
+        });
       }
-    });
-    resizeObserver.observe(chartContainer);
-
-    // Cleanup all resources on unmount
-    return () => {
-      clearInterval(connectInterval);
-      resizeObserver.disconnect();
-      // Clean up WebSocket event listeners (don't close the WebSocket - it's shared!)
-      if (ws) {
-        // Remove message handler
-        if ((ws as any).__depthChartHandler) {
-          ws.removeEventListener('message', (ws as any).__depthChartHandler);
-          delete (ws as any).__depthChartHandler;
-        }
-        // Remove pending open handler if still waiting
-        if ((ws as any).__depthChartOpenHandler) {
-          ws.removeEventListener('open', (ws as any).__depthChartOpenHandler);
-          delete (ws as any).__depthChartOpenHandler;
-        }
-      }
-      if (chart) chart.remove();
     };
-  });
 
-  function connectWebSocket(): boolean {
-    // Use the same WebSocket connection as the main chart
-    ws = dataStore.getWebSocket();
+    // Run multiple times to catch any delayed rendering
+    setTimeout(removeTradingViewWatermark, 100);
+    setTimeout(removeTradingViewWatermark, 500);
+    setTimeout(removeTradingViewWatermark, 1000);
 
-    if (!ws) {
-      console.log('⏳ [DepthChart] WebSocket not available yet, retrying...');
-      return false; // WebSocket not ready yet
+    // Also use MutationObserver to catch any dynamically added watermarks
+    mutationObserver = new MutationObserver(() => {
+      removeTradingViewWatermark();
+    });
+
+    if (chartContainer) {
+      mutationObserver.observe(chartContainer, {
+        childList: true,
+        subtree: true
+      });
     }
 
-    console.log(`🔧 [DepthChart] WebSocket readyState: ${ws.readyState} (CONNECTING=0, OPEN=1, CLOSING=2, CLOSED=3)`);
+    // Don't set initial range here - wait for data in scheduleChartUpdate
+  }
 
-    // 🔧 FIX: Register message handler IMMEDIATELY before checking readyState
-    // This ensures we're listening for messages before any events are fired
-    const messageHandler = (event: MessageEvent) => {
+  function setupWebSocket() {
+    const ws = dataStore.getWebSocket();
+    console.log('[DepthChart] WebSocket check:', {
+      wsExists: !!ws,
+      readyState: ws?.readyState,
+      isOpen: ws?.readyState === WebSocket.OPEN
+    });
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log('[DepthChart] Using existing dataStore WebSocket');
+      attachWebSocketListener(ws);
+      depthChartState.setConnected(true);
+
+      // Request initial level2 snapshot
+      ws.send(JSON.stringify({
+        type: 'requestLevel2Snapshot',
+        productId: 'BTC-USD'
+      }));
+    } else {
+      console.log('[DepthChart] No WebSocket available from dataStore, will wait for it');
+      depthChartState.setConnected(false);
+      // Start watching for WebSocket availability
+      watchWebSocketAvailability();
+    }
+  }
+
+  function watchWebSocketAvailability() {
+    wsCheckInterval = setInterval(() => {
+      const ws = dataStore.getWebSocket();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log('[DepthChart] WebSocket became available, attaching listener');
+        if (wsCheckInterval) {
+          clearInterval(wsCheckInterval);
+          wsCheckInterval = null;
+        }
+        attachWebSocketListener(ws);
+        depthChartState.setConnected(true);
+
+        // Request initial orderbook snapshot from backend
+        // Backend expects 'requestLevel2Snapshot' not 'subscribe'
+        ws.send(JSON.stringify({
+          type: 'requestLevel2Snapshot',
+          productId: 'BTC-USD'
+        }));
+      }
+    }, 500); // Check every 500ms
+  }
+
+  function attachWebSocketListener(ws: WebSocket) {
+    const handler = (event: MessageEvent) => {
       try {
         const message = JSON.parse(event.data);
+
+        // Handle level2 messages (from backend WebSocket)
         if (message.type === 'level2') {
-          // 🔧 REMOVED: Excessive logging causing browser memory leak
-          // console.log(`📊 [DepthChart] Received level2 message`, message.data ? `with ${message.data.bids?.length || 0} bids and ${message.data.asks?.length || 0} asks` : 'but no data');
+          console.log('[DepthChart] Received level2 message with', message.data?.changes?.length || 0, 'changes');
           handleLevel2Message(message.data);
         } else if (message.type === 'orderbook-delta') {
-          // 🚀 PERF: Handle orderbook deltas from Redis Pub/Sub
-          // Only the changed price levels - ultra-efficient
-          // 🔧 REMOVED: Excessive logging causing browser memory leak
-          // console.log(`📊 [DepthChart] Received orderbook delta`);
+          // Handle orderbook deltas from Redis Pub/Sub
           handleOrderbookDelta(message.data);
+        } else if (message.type === 'orderbook_snapshot' || message.type === 'orderbook_update') {
+          handleOrderbookUpdate(message);
         }
-      } catch (error) {
-        console.error('❌ [DepthChart] Error parsing orderbook message:', error);
+      } catch (err) {
+        console.error('[DepthChart] WebSocket message error:', err);
       }
     };
 
-    // Register message listener FIRST before any state checks
-    console.log('📨 [DepthChart] Registering message handler');
-    ws.addEventListener('message', messageHandler);
-    (ws as any).__depthChartHandler = messageHandler;
-
-    // Now check state and send snapshot request
-    if (ws.readyState === WebSocket.OPEN) {
-      // WebSocket is ready, send immediately
-      console.log('✅ [DepthChart] WebSocket OPEN, sending snapshot request immediately');
-      try {
-        ws.send(JSON.stringify({ type: 'requestLevel2Snapshot' }));
-        console.log('✅ [DepthChart] Snapshot request sent successfully');
-      } catch (error) {
-        console.error('❌ [DepthChart] Failed to send snapshot request:', error);
-        return false;
-      }
-    } else if (ws.readyState === WebSocket.CONNECTING) {
-      // WebSocket is still connecting, wait for it to open
-      console.log('⏳ [DepthChart] WebSocket CONNECTING, waiting for OPEN event');
-      const onceOpenHandler = () => {
-        try {
-          console.log('✅ [DepthChart] WebSocket now OPEN, sending snapshot request');
-          ws?.send(JSON.stringify({ type: 'requestLevel2Snapshot' }));
-          console.log('✅ [DepthChart] Snapshot request sent after connection opened');
-        } catch (error) {
-          console.warn('⚠️ Failed to send snapshot request after connection opened:', error);
-        }
-      };
-      ws.addEventListener('open', onceOpenHandler, { once: true });
-      // Store handler reference for cleanup
-      (ws as any).__depthChartOpenHandler = onceOpenHandler;
-    } else if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
-      console.warn('⚠️ WebSocket connection is closed/closing, cannot send snapshot request');
-      return false;
-    }
-
-    return true; // Successfully connected
+    (ws as any).__depthChartHandler = handler;
+    ws.addEventListener('message', handler);
   }
 
-  let updatePending = false;
-  let hasPendingData = false;
-  let lastChartUpdateTime = 0;
-  // 🔧 MEMORY FIX: Reduce chart re-renders from 5/sec to 0.5/sec
-  // setData() causes full chart re-render - very expensive
-  // Depth chart doesn't need real-time updates - 2s is fine
-  const CHART_UPDATE_THROTTLE = 2000; // Max 0.5 updates per second (was 200ms = 5/sec)
+  function scheduleUIUpdate() {
+    // Update UI immediately for responsive orderbook display
+    requestAnimationFrame(() => {
+      const summary = orderbookStore.summary;
 
-  function handleLevel2Message(data: any) {
-    // Track that we received an update
-    lastL2UpdateTime = Date.now();
-    l2UpdateCount++;
+      // Skip update if no data available
+      if (!summary.bestBid || !summary.bestAsk) return;
 
-    if (data.type === 'snapshot') {
-      // Initial orderbook snapshot
-      orderbookStore.processSnapshot(data);
-      // Update chart immediately for snapshots
-      updateChart();
-      lastChartUpdateTime = Date.now();
-    } else if (data.type === 'update') {
-      // Incremental update - store in orderbook immediately
-      orderbookStore.processUpdate(data);
-      hasPendingData = true;
+      // Update price range
+      const currentPrice = summary.bestBid && summary.bestAsk ?
+        (summary.bestBid + summary.bestAsk) / 2 : 0;
 
-      // Use throttled RAF to batch chart rendering (expensive), but don't drop data
-      // Data is already in the store, we just delay the visual update
-      if (!updatePending) {
-        updatePending = true;
-        requestAnimationFrame(() => {
-          if (hasPendingData) {
-            const now = Date.now();
-            // Only update if 200ms+ has passed since last update (max 5/sec)
-            if (now - lastChartUpdateTime >= CHART_UPDATE_THROTTLE) {
-              updateChart();
-              lastChartUpdateTime = now;
-            }
-            hasPendingData = false;
-          }
-          updatePending = false;
+      // Only consider prices within the visible range (±$25,000 from current price)
+      const visibleMin = currentPrice - 25000;
+      const visibleMax = currentPrice + 25000;
+
+      // Get full orderbook data and filter to visible range
+      const fullDepthData = orderbookStore.getDepthData(500);
+      const depthData = {
+        bids: fullDepthData.bids.filter(level => level.price >= visibleMin && level.price <= visibleMax),
+        asks: fullDepthData.asks.filter(level => level.price >= visibleMin && level.price <= visibleMax)
+      };
+
+      priceRange = calculatePriceRange(currentPrice);
+      volumeRange = calculateVolumeRange(depthData);
+
+      // Find the LARGEST VOLUME WALL (cumulative depth) - not just individual level
+      let maxCumulativeVolume = 0;
+      let hotspotPrice = currentPrice;
+      let hotspotSide = 'neutral' as const;
+
+      // Track the steepest volume increases (walls) - these are support/resistance
+      let maxVolumeIncrease = 0;
+
+      // Check bids for support walls (look for big jumps in cumulative volume)
+      for (let i = 0; i < depthData.bids.length; i++) {
+        const bid = depthData.bids[i];
+        // Skip if price is outside visible range
+        if (bid.price < visibleMin || bid.price > visibleMax) continue;
+
+        // Use cumulative depth (which is the 'depth' field from getDepthData)
+        const volumeAtLevel = bid.depth || bid.size || 0;
+
+        // For support, we want the price with highest cumulative volume on bid side
+        // This represents the strongest buy wall
+        if (volumeAtLevel > maxCumulativeVolume) {
+          maxCumulativeVolume = volumeAtLevel;
+          hotspotPrice = bid.price;
+          hotspotSide = 'bullish';
+          maxVolumeIncrease = volumeAtLevel;
+        }
+      }
+
+      // Check asks for resistance walls
+      for (let i = 0; i < depthData.asks.length; i++) {
+        const ask = depthData.asks[i];
+        // Skip if price is outside visible range
+        if (ask.price < visibleMin || ask.price > visibleMax) continue;
+
+        // Use cumulative depth (which is the 'depth' field from getDepthData)
+        const volumeAtLevel = ask.depth || ask.size || 0;
+
+        // For resistance, we want the price with highest cumulative volume on ask side
+        // This represents the strongest sell wall
+        if (volumeAtLevel > maxCumulativeVolume) {
+          maxCumulativeVolume = volumeAtLevel;
+          hotspotPrice = ask.price;
+          hotspotSide = 'bearish';
+          maxVolumeIncrease = volumeAtLevel;
+        }
+      }
+
+      // If market is trending, prioritize the side with momentum
+      // Higher bid volume = bullish momentum, track support
+      // Higher ask volume = bearish momentum, track resistance
+      const totalVolume = (summary.bidVolume || 0) + (summary.askVolume || 0);
+      const volumeRatio = totalVolume > 0 ? (summary.bidVolume || 0) / totalVolume : 0.5;
+
+      // If volume is heavily skewed, prioritize that side's walls
+      if (volumeRatio > 0.6 && depthData.bids.length > 0) {
+        // Bullish - focus on support walls
+        const strongestSupport = depthData.bids.reduce((max, bid) =>
+          bid.depth > max.depth ? bid : max, depthData.bids[0]);
+        if (strongestSupport) {
+          hotspotPrice = strongestSupport.price;
+          hotspotSide = 'bullish';
+          maxVolumeIncrease = strongestSupport.depth;
+        }
+      } else if (volumeRatio < 0.4 && depthData.asks.length > 0) {
+        // Bearish - focus on resistance walls
+        const strongestResistance = depthData.asks.reduce((max, ask) =>
+          ask.depth > max.depth ? ask : max, depthData.asks[0]);
+        if (strongestResistance) {
+          hotspotPrice = strongestResistance.price;
+          hotspotSide = 'bearish';
+          maxVolumeIncrease = strongestResistance.depth;
+        }
+      }
+
+      // Calculate position as percentage across the visible range
+      const range = priceRange.right - priceRange.left;
+      const offset = ((hotspotPrice - priceRange.left) / range) * 100;
+
+      volumeHotspot = {
+        bidVolume: summary.bidVolume || 0,
+        askVolume: summary.askVolume || 0,
+        bidSupport: summary.bestBid,
+        askResistance: summary.bestAsk,
+        volumeRatio: volumeRatio,
+        price: hotspotPrice,
+        spread: summary.bestAsk - summary.bestBid,
+        offset: Math.max(0, Math.min(100, offset)), // Keep within 0-100%
+        side: hotspotSide,
+        type: hotspotSide === 'bullish' ? 'Support' : hotspotSide === 'bearish' ? 'Resistance' : 'Neutral',
+        volume: maxVolumeIncrease
+      };
+
+      // Debug log for valley indicator positioning
+      if (depthData.bids.length > 0 && depthData.asks.length > 0) {
+        console.log('🎯 Valley Indicator:', {
+          price: hotspotPrice.toFixed(2),
+          volume: maxVolumeIncrease.toFixed(3),
+          side: hotspotSide,
+          offset: offset.toFixed(1) + '%',
+          volumeRatio: (volumeRatio * 100).toFixed(1) + '% bid',
+          visibleRange: `$${visibleMin.toFixed(0)} - $${visibleMax.toFixed(0)}`,
+          bestBid: summary.bestBid,
+          bestAsk: summary.bestAsk
         });
       }
-    }
+    });
   }
 
-  // 🚀 PERF: Handle orderbook deltas from Redis Pub/Sub
-  // Only updates changed levels - no full re-sorts needed
+  function handleOrderbookUpdate(data: any) {
+    orderbookStore.processSnapshot(data);
+    scheduleChartUpdate();
+  }
+
+  function handleLevel2Message(data: any) {
+    if (!data) return;
+
+    console.log('[DepthChart] Processing level2 message:', {
+      dataType: data.type,
+      hasChanges: !!data.changes,
+      changeCount: data.changes?.length,
+      hasBids: !!data.bids,
+      hasAsks: !!data.asks,
+      bidsLength: data.bids?.length,
+      asksLength: data.asks?.length
+    });
+
+    // The backend sends level2 updates with changes array
+    if (data.changes && data.changes.length > 0) {
+      // Process incremental updates
+      const updates: any[] = [];
+
+      // Log the first change to see its format
+      console.log('[DepthChart] Sample change format:', JSON.stringify(data.changes[0]));
+
+      for (const change of data.changes) {
+        // Check if change is an array or object
+        if (Array.isArray(change)) {
+          // Backend format: [side, price, size]
+          const [side, price, size] = change;
+          updates.push({
+            side: side === 'buy' ? 'buy' : 'sell',
+            price: parseFloat(price),
+            size: parseFloat(size)
+          });
+        } else if (change && typeof change === 'object') {
+          // Object format: {side, price, size}
+          updates.push({
+            side: change.side === 'buy' ? 'buy' : 'sell',
+            price: parseFloat(change.price),
+            size: parseFloat(change.size || change.quantity || '0')
+          });
+        }
+      }
+
+      // Process as delta update
+      console.log(`[DepthChart] Processing ${updates.length} updates to orderbookStore`);
+      orderbookStore.processUpdate({
+        product_id: data.product_id || 'BTC-USD',
+        changes: updates
+      });
+      console.log('[DepthChart] OrderbookStore updated with level2 changes');
+    } else if (data.bids && data.asks) {
+      // Process as full snapshot
+      // Convert to array format if needed
+      const formattedBids = data.bids.map((bid: any) =>
+        Array.isArray(bid) ? bid : [bid.price, bid.size]
+      );
+      const formattedAsks = data.asks.map((ask: any) =>
+        Array.isArray(ask) ? ask : [ask.price, ask.size]
+      );
+
+      orderbookStore.processSnapshot({
+        type: 'orderbook_snapshot',
+        product_id: data.product_id || 'BTC-USD',
+        bids: formattedBids,
+        asks: formattedAsks
+      });
+    }
+
+    scheduleChartUpdate();
+    scheduleUIUpdate(); // Also update UI for valley indicator
+  }
+
   function handleOrderbookDelta(delta: any) {
-    // Track that we received an update
-    lastL2UpdateTime = Date.now();
-    l2UpdateCount++;
-
-    // 🚀 PERF: Process delta in orderbook store (efficient - only changed levels)
     orderbookStore.processDelta(delta);
-    hasPendingData = true;
+    scheduleChartUpdate();
+  }
 
-    // Use throttled RAF to batch chart rendering
+  function scheduleChartUpdate() {
+    hasPendingData = true;
     if (!updatePending) {
       updatePending = true;
       requestAnimationFrame(() => {
         if (hasPendingData) {
           const now = Date.now();
-          // Only update if 200ms+ has passed since last update (max 5/sec)
-          if (now - lastChartUpdateTime >= CHART_UPDATE_THROTTLE) {
+          if (now - lastChartUpdateTime >= CHART_UPDATE_THROTTLE_MS) {
             updateChart();
             lastChartUpdateTime = now;
+          } else {
+            // If too soon, schedule another update
+            setTimeout(() => scheduleChartUpdate(), CHART_UPDATE_THROTTLE_MS);
           }
           hasPendingData = false;
         }
@@ -571,115 +490,215 @@
     }
   }
 
-  // Cache to reduce unnecessary chart updates
-  let lastBidCount = 0;
-  let lastAskCount = 0;
-  let lastMidPrice: number | undefined = undefined;
-  let chartUpdateCount = 0;
-
   function updateChart() {
-    if (!bidSeries || !askSeries) return;
-
-    // Get depth data from store - request all available data to fill ±$25,000 range
-    // All data in store is already filtered to ±$25,000, so show it all
-    const { bids, asks } = orderbookStore.getDepthData(50000);
-
-    if (bids.length === 0 || asks.length === 0) {
-      // Only show warning once
-      if (!orderbookStore.isReady) {
-        // PERF: Disabled - console.warn(`⚠️ No depth data available yet (isReady=${orderbookStore.isReady})`);
-      }
+    if (!bidSeries || !askSeries) {
+      console.log('[DepthChart] Series not initialized yet');
       return;
     }
 
-    // Convert to LightweightCharts format
-    // Note: We use price as the "time" axis for depth chart
-    // bids are already in ASCENDING price order from getDepthData (lowest price first, highest depth)
-    // asks are also in ASCENDING price order from getDepthData
-    const bidData = bids.map(level => ({
-      time: level.price as any,  // Use price as x-axis
+    // Get current price to filter orderbook data
+    const summary = orderbookStore.summary;
+    const currentPrice = summary?.currentPrice ||
+                       (summary?.bestBid && summary?.bestAsk ? (summary.bestBid + summary.bestAsk) / 2 : 100000);
+    const baseRange = 25000; // ±$25,000 range
+    const minPrice = currentPrice - baseRange;
+    const maxPrice = currentPrice + baseRange;
+
+    // Get ALL orderbook data (no limit - we want all the granular L2 data)
+    // This gives us smooth curves instead of angular $100 steps
+    const { bids, asks } = orderbookStore.getDepthData(10000); // Request up to 10k levels for full granularity
+
+    // Data structure verified: bids descending (high to low), asks ascending (low to high)
+
+    // 🎯 USE REAL ORDERBOOK DATA ONLY - No synthetic extension
+    // The L2 orderbook provides real granular data, we shouldn't create fake $100 steps
+    // Just use whatever range the real data covers
+    const extendedBids = [...bids];
+    const extendedAsks = [...asks];
+
+    // NO SYNTHETIC EXTENSION - Use real orderbook data only
+    // The angular/stepped appearance was caused by synthetic $100 price increments
+    // Real L2 data is already smooth and granular
+
+    // Sort data ascending by price (required by LightweightCharts)
+    // Bids are currently descending, asks are already ascending
+    extendedBids.sort((a, b) => a.price - b.price);
+
+    // Use all real data - no artificial filtering to ±$25k
+    const filteredBids = extendedBids;
+    const filteredAsks = extendedAsks;
+
+    // Calculate actual data extent
+    const lowestBid = filteredBids[0]?.price || currentPrice;
+    const highestBid = filteredBids[filteredBids.length - 1]?.price || currentPrice;
+    const lowestAsk = filteredAsks[0]?.price || currentPrice;
+    const highestAsk = filteredAsks[filteredAsks.length - 1]?.price || currentPrice;
+    const actualMinPrice = Math.min(lowestBid, lowestAsk);
+    const actualMaxPrice = Math.max(highestBid, highestAsk);
+    const actualRange = actualMaxPrice - actualMinPrice;
+
+    console.log('[DepthChart] Got depth data:', {
+      bidsCount: filteredBids.length,
+      asksCount: filteredAsks.length,
+      totalBids: bids.length,
+      totalAsks: asks.length,
+      requestedRange: `±$${baseRange.toLocaleString()}`,
+      actualRange: `$${actualRange.toFixed(0)} ($${actualMinPrice.toFixed(2)} to $${actualMaxPrice.toFixed(2)})`,
+      currentPrice: `$${currentPrice.toFixed(2)}`,
+      bidExtent: `$${lowestBid.toFixed(2)} to $${highestBid.toFixed(2)}`,
+      askExtent: `$${lowestAsk.toFixed(2)} to $${highestAsk.toFixed(2)}`
+    });
+    if (filteredBids.length === 0 || filteredAsks.length === 0) return;
+
+    // 🔧 FIX: Add zero-depth anchor points at spread boundaries to prevent overlap
+    // This creates a clear visual separation between bid and ask sides
+    const bestBid = filteredBids[filteredBids.length - 1]?.price || currentPrice;
+    const bestAsk = filteredAsks[0]?.price || currentPrice;
+    const maxBidDepth = filteredBids[filteredBids.length - 1]?.depth || 0;
+
+    const bidData = filteredBids.map(level => ({
+      time: level.price as any,
       value: level.depth
     }));
 
-    const askData = asks.map(level => ({
-      time: level.price as any,  // Use price as x-axis
-      value: level.depth
-    }));
-
-    // Note: Each series (bids and asks) must maintain strictly ascending order
-    // The visual gap between them is created by the price axis distance, not by padding points
-    // This prevents the "data must be asc ordered by time" assertion errors
-
-    // Only update chart if data actually changed (check length and edge values)
-    const bidsChanged = bids.length !== lastBidCount ||
-                       (bids.length > 0 && (bids[0].depth !== bidData[0]?.value));
-    const asksChanged = asks.length !== lastAskCount ||
-                       (asks.length > 0 && (asks[0].depth !== askData[0]?.value));
-
-    if (bidsChanged || asksChanged) {
-      chartUpdateCount++;
-
-      // Chart updates tracked without console spam
-
-      // For depth charts, always use setData since prices can change dramatically
-      // The chart library doesn't support updating with out-of-order prices
-      try {
-        bidSeries.setData(bidData);
-      } catch (error) {
-        console.warn('⚠️ Failed to update bid data:', (error as Error).message);
-      }
-
-      try {
-        askSeries.setData(askData);
-      } catch (error) {
-        console.warn('⚠️ Failed to update ask data:', (error as Error).message);
-      }
-
-      lastBidCount = bids.length;
-      lastAskCount = asks.length;
+    // Add anchor point: drop to zero at best bid + tiny offset to create visual separation
+    // Must maintain ascending price order for LightweightCharts
+    if (bidData.length > 0) {
+      const anchorPrice = bestBid + 0.01; // Slightly above best bid
+      bidData.push({
+        time: anchorPrice as any,
+        value: maxBidDepth
+      });
+      bidData.push({
+        time: (anchorPrice + 0.01) as any,
+        value: 0
+      });
     }
 
-    // Only update visible range if mid-price changed significantly (>$100)
-    // This prevents constant redraws that cause UI lag
-    try {
-      const summary = orderbookStore.summary;
-      if (summary.bestBid && summary.bestAsk) {
-        const midPrice = (summary.bestBid + summary.bestAsk) / 2;
+    const askData = filteredAsks.map(level => ({
+      time: level.price as any,
+      value: level.depth
+    }));
 
-        // Only update if price moved more than $100 to avoid constant redraws
-        if (lastMidPrice === undefined || Math.abs(midPrice - lastMidPrice) > 100) {
-          lastMidPrice = midPrice;
+    // Add anchor point: start from zero at best ask - tiny offset
+    // Asks are already in ascending order
+    // Must use unshift ONCE with both points in correct order
+    if (askData.length > 0) {
+      const anchorPrice = bestAsk - 0.01; // Slightly below best ask
+      // Unshift adds items to the beginning, so add them in ascending price order
+      askData.unshift(
+        {
+          time: (anchorPrice - 0.01) as any,
+          value: 0
+        },
+        {
+          time: anchorPrice as any,
+          value: 0
+        }
+      );
+    }
 
-          // Always show full ±$25,000 range regardless of chart width
-          const baseRange = 25000;
+    bidSeries.setData(bidData);
+    askSeries.setData(askData);
 
+    // 🎯 Set visible range to full ±$25k (now that we have synthetic data to fill it)
+    requestAnimationFrame(() => {
+      if (chart && bidData.length > 0 && askData.length > 0) {
+        // Use full ±$25k range since we've extended the data with synthetic levels
+        const rangeFrom = minPrice;
+        const rangeTo = maxPrice;
+
+        console.log(`[DepthChart] Setting range to ±$25k: $${rangeFrom.toFixed(2)} to $${rangeTo.toFixed(2)} (center: $${currentPrice.toFixed(2)}, real data: $${actualMinPrice.toFixed(2)} to $${actualMaxPrice.toFixed(2)})`);
+
+        try {
+          chart.timeScale().setVisibleRange({
+            from: rangeFrom as any,
+            to: rangeTo as any
+          });
+        } catch (error) {
+          console.log('[DepthChart] Range update failed:', error);
+          // Fallback to fitContent if setting explicit range fails
           try {
-            chart.timeScale().setVisibleRange({
-              from: (midPrice - baseRange) as any,
-              to: (midPrice + baseRange) as any
-            });
-          } catch (error) {
-            // Silently ignore range errors - can happen if chart is still initializing
+            chart.timeScale().fitContent();
+          } catch (e) {
+            console.log('[DepthChart] fitContent also failed');
           }
         }
       }
-    } catch (e) {
-      // If setting range fails, try to fit content
-      try {
-        chart.timeScale().fitContent();
-      } catch (e2) {
-        // Ignore if chart not ready
+    });
+  }
+
+  function handleMouseMove(event: MouseEvent) {
+    if (!chartContainer || !chart || !bidSeries) return;
+
+    const rect = chartContainer.getBoundingClientRect();
+    mouseX = event.clientX - rect.left;
+    mouseY = event.clientY - rect.top;
+    isHovering = true;
+
+    // Calculate hover price based on chart width and price range
+    const width = rect.width;
+    const xPercent = mouseX / width;
+    hoverPrice = priceRange.left + (priceRange.right - priceRange.left) * xPercent;
+
+    // Get orderbook data and find value at this price
+    const { bids, asks } = orderbookStore.getDepthData(500);
+    const allData = [...bids, ...asks];
+
+    if (allData.length === 0) {
+      hoverVolume = 0;
+      return;
+    }
+
+    // Find closest data point
+    let closestPoint = allData[0];
+    let minDiff = Math.abs(allData[0].price - hoverPrice);
+
+    for (const point of allData) {
+      const diff = Math.abs(point.price - hoverPrice);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestPoint = point;
       }
     }
+
+    hoverVolume = closestPoint?.depth || 0;
+
+    // Calculate Y position manually based on depth
+    // Find max depth in all data for scaling
+    const maxDepth = Math.max(...allData.map(p => p.depth), 1);
+    const height = rect.height;
+
+    // Depth charts show high values at top (low Y), low values at bottom (high Y)
+    const depthPercent = closestPoint.depth / maxDepth;
+    mouseY = height * (1 - depthPercent);
+  }
+
+  function handleMouseLeave() {
+    isHovering = false;
   }
 
   onDestroy(() => {
     // Clean up WebSocket event listener
+    const ws = dataStore.getWebSocket();
     if (ws && (ws as any).__depthChartHandler) {
       ws.removeEventListener('message', (ws as any).__depthChartHandler);
       delete (ws as any).__depthChartHandler;
     }
 
+    // Clean up WebSocket check interval
+    if (wsCheckInterval) {
+      clearInterval(wsCheckInterval);
+      wsCheckInterval = null;
+    }
+
+    // Clean up mutation observer
+    if (mutationObserver) {
+      mutationObserver.disconnect();
+      mutationObserver = null;
+    }
+
+    // Clean up chart
     if (chart) {
       chart.remove();
     }
@@ -706,23 +725,27 @@
     <div
       bind:this={chartContainer}
       class="depth-chart"
-      onmousemove={handleMouseMove}
-      onmouseleave={handleMouseLeave}
       role="img"
       aria-label="Orderbook depth chart"
     >
-      <!-- Mid price indicator line (shows balance of power) -->
-      <div class="mid-price-line"></div>
+      <!-- Transparent mouse capture overlay -->
+      <div
+        class="mouse-capture-overlay"
+        onmousemove={handleMouseMove}
+        onmouseleave={handleMouseLeave}
+      ></div>
 
-      <!-- Dynamic volume hotspot indicator -->
-      <!-- Valley info box - separate from indicator -->
+      <!-- Mid price indicator line - REMOVED per user request -->
+      <!-- <div class="mid-price-line"></div> -->
+
+      <!-- Valley info box -->
       <div class="valley-price-label valley-{volumeHotspot.side}">
         <span class="price-type">{volumeHotspot.type}</span>
         <span class="price-value">{FastNumberFormatter.formatPrice(Math.floor(volumeHotspot.price))}</span>
         <span class="volume-value">{volumeHotspot.volume.toFixed(2)} BTC</span>
       </div>
 
-      <!-- Valley indicator - separate from info box -->
+      <!-- Valley indicator -->
       <div class="valley-indicator valley-{volumeHotspot.side}" style="left: {volumeHotspot.offset}%">
         <div class="valley-point"></div>
         <div class="valley-line"></div>
@@ -742,7 +765,7 @@
         </div>
       {/if}
 
-      <!-- Custom volume gauge overlay (left side) - linear scale -->
+      <!-- Volume gauge overlay -->
       <div class="volume-gauge-overlay">
         {#each volumeRange as item}
           <div class="volume-label" style="top: {100 - item.position}%">
@@ -751,689 +774,23 @@
         {/each}
       </div>
 
-      <!-- Custom price gauge overlay (bottom) - 3 prices spanning 20k -->
+      <!-- Price gauge overlay -->
       <div class="price-gauge-overlay">
-        <!-- Left price -->
         <div class="price-label" style="left: 10%">
-          {formatPrice(priceRange.left)}
+          {formatPriceDetailed(priceRange.left)}
         </div>
-
-        <!-- Center price -->
         <div class="price-label price-label-center" style="left: 50%">
-          {formatPrice(priceRange.center)}
+          {formatPriceDetailed(priceRange.center)}
         </div>
-
-        <!-- Right price -->
         <div class="price-label" style="left: 90%">
-          {formatPrice(priceRange.right)}
+          {formatPriceDetailed(priceRange.right)}
         </div>
       </div>
     </div>
 
-    <!-- Orderbook List integrated into panel -->
+    <!-- Orderbook List slot -->
     <div class="integrated-orderbook">
-      <slot name="orderbook-list" />
+      {@render children?.()}
     </div>
   </div>
 </div>
-
-<style>
-  /* Panel styling matching other trading panels */
-  .panel {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 8px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    max-width: 100%; /* Allow container to control width */
-  }
-
-  .panel-header {
-    background: var(--bg-primary-subtle);
-    padding: 15px 20px;
-    border-bottom: 1px solid var(--border-primary);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    min-height: 50px;
-    flex-shrink: 0;
-  }
-
-  .panel-header h2 {
-    margin: 0;
-    font-size: 16px;
-    color: #a78bfa;
-    font-weight: 500;
-  }
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  /* L2 Status Traffic Light */
-  .l2-status-indicator {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 4px;
-    border: 1px solid rgba(74, 0, 224, 0.2);
-  }
-
-  .traffic-light {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    transition: all 0.3s ease;
-  }
-
-  .traffic-light-disconnected {
-    background: #666;
-    box-shadow: none;
-  }
-
-  .traffic-light-waiting {
-    background: #ffa500;
-    animation: pulse-slow 2s ease-in-out infinite;
-    box-shadow: 0 0 8px rgba(255, 165, 0, 0.6);
-  }
-
-  .traffic-light-active {
-    background: #4caf50;
-    animation: pulse-fast 0.5s ease-in-out infinite;
-    box-shadow: 0 0 12px rgba(76, 175, 80, 0.8);
-  }
-
-  .traffic-light-error {
-    background: #f44336;
-    animation: pulse-slow 3s ease-in-out infinite;
-    box-shadow: 0 0 8px rgba(244, 67, 54, 0.6);
-  }
-
-  @keyframes pulse-slow {
-    0%, 100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.6;
-      transform: scale(1.1);
-    }
-  }
-
-  @keyframes pulse-fast {
-    0%, 100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.8;
-      transform: scale(1.15);
-    }
-  }
-
-  .status-text {
-    font-size: 11px;
-    color: #c4b5fd;
-    font-weight: 500;
-    white-space: nowrap;
-  }
-
-  .panel-content {
-    padding: 15px; /* Restore padding */
-    overflow-y: auto;
-    flex: 0 0 auto; /* Don't expand */
-    display: flex;
-    flex-direction: column;
-  }
-
-  .integrated-orderbook {
-    margin-top: 0;
-    padding: 0;
-    flex: 1;
-    overflow: hidden;
-  }
-
-  .depth-chart-legend {
-    display: flex;
-    gap: 12px;
-  }
-
-  .legend-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: #c4b5fd;
-  }
-
-  .legend-color {
-    width: 16px;
-    height: 3px;
-    border-radius: 2px;
-  }
-
-  .legend-color.bid {
-    background: rgba(38, 166, 154, 1);
-  }
-
-  .legend-color.ask {
-    background: rgba(239, 83, 80, 1);
-  }
-
-  .depth-chart {
-    width: 100%;
-    height: 204px;
-    position: relative;
-    margin-bottom: 15px;
-    overflow: hidden;
-    border: 1px solid rgba(74, 0, 224, 0.3);
-    border-radius: 6px;
-    background: #0a0a0a; /* Darker background to match gradient */
-  }
-
-  /* Remove internal chart padding */
-  .depth-chart :global(.tv-lightweight-charts) {
-    width: 100% !important;
-    height: 100% !important;
-  }
-
-  /* Mid-price vertical line (balance of power indicator) */
-  .mid-price-line {
-    position: absolute;
-    left: 50%;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: rgba(255, 255, 255, 0.1);
-    transform: translateX(-50%);
-    pointer-events: none;
-    z-index: 99;
-  }
-
-  /* Hover overlay */
-  .hover-overlay {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    pointer-events: none;
-    z-index: 102;
-    transform: translateX(-1px);
-  }
-
-  .hover-line {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background: rgba(255, 255, 255, 0.5);
-    box-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
-  }
-
-  .hover-circle {
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: white;
-    border: 2px solid #a78bfa;
-    transform: translate(-50%, -50%);
-    left: 0;
-    box-shadow: 0 0 6px rgba(167, 139, 250, 0.8);
-  }
-
-  .hover-price-label {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background: rgba(0, 0, 0, 0.9);
-    border: 1px solid rgba(167, 139, 250, 0.5);
-    border-radius: 4px;
-    padding: 4px 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    font-size: 11px;
-    white-space: nowrap;
-    color: white;
-  }
-
-  .hover-price {
-    font-weight: 700;
-    font-size: 12px;
-    color: #a78bfa;
-  }
-
-  .hover-volume {
-    font-size: 10px;
-    opacity: 0.8;
-  }
-
-  /* Dynamic valley indicator that moves with price */
-  .valley-indicator {
-    position: absolute;
-    bottom: 0;
-    height: 100%;
-    transform: translateX(-50%);
-    transition: left 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-    pointer-events: none;
-    z-index: 100;
-  }
-
-  .valley-price-label {
-    position: absolute;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.9);
-    border: 1px solid currentColor;
-    border-radius: 6px;
-    padding: 6px 10px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    font-size: 11px;
-    white-space: nowrap;
-    z-index: 101;
-    pointer-events: none;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  }
-
-  .valley-price-label .price-type {
-    font-size: 9px;
-    opacity: 1;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 2px;
-    font-weight: 600;
-    color: inherit;
-  }
-
-  .valley-price-label .price-value {
-    font-weight: 700;
-    font-size: 12px;
-    margin-bottom: 2px;
-    color: inherit;
-  }
-
-  .valley-price-label .volume-value {
-    font-size: 10px;
-    opacity: 0.9;
-    color: inherit;
-  }
-
-  .valley-point {
-    position: absolute;
-    bottom: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 0;
-    height: 0;
-    border-left: 8px solid transparent;
-    border-right: 8px solid transparent;
-    border-top: 12px solid #a78bfa;
-    filter: drop-shadow(0 0 6px rgba(167, 139, 250, 1));
-    animation: valleyPulse 2s ease-in-out infinite;
-  }
-
-  .valley-line {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 2px;
-    height: calc(100% - 25px);
-    background: linear-gradient(180deg,
-      transparent 0%,
-      rgba(167, 139, 250, 0.2) 30%,
-      rgba(167, 139, 250, 0.5) 100%
-    );
-  }
-
-  @keyframes valleyPulse {
-    0%, 100% {
-      opacity: 0.7;
-      transform: translateX(-50%) translateY(0);
-    }
-    50% {
-      opacity: 1;
-      transform: translateX(-50%) translateY(-3px);
-    }
-  }
-
-  /* Volume hotspot color variations */
-  .valley-bullish .valley-point {
-    border-top-color: #26a69a;
-    filter: drop-shadow(0 0 6px rgba(38, 166, 154, 1));
-  }
-
-  .valley-bullish .valley-line {
-    background: linear-gradient(180deg,
-      transparent 0%,
-      rgba(38, 166, 154, 0.2) 30%,
-      rgba(38, 166, 154, 0.5) 100%
-    );
-  }
-
-  .valley-price-label.valley-bullish {
-    color: #26a69a;
-    border-color: rgba(38, 166, 154, 0.5);
-    background: rgba(0, 0, 0, 0.95);
-  }
-
-  .valley-bearish .valley-point {
-    border-top-color: #ef5350;
-    filter: drop-shadow(0 0 6px rgba(239, 83, 80, 1));
-  }
-
-  .valley-bearish .valley-line {
-    background: linear-gradient(180deg,
-      transparent 0%,
-      rgba(239, 83, 80, 0.2) 30%,
-      rgba(239, 83, 80, 0.5) 100%
-    );
-  }
-
-  .valley-price-label.valley-bearish {
-    color: #ef5350;
-    border-color: rgba(239, 83, 80, 0.5);
-    background: rgba(0, 0, 0, 0.95);
-  }
-
-  .valley-neutral .valley-point {
-    border-top-color: #a78bfa;
-    filter: drop-shadow(0 0 6px rgba(167, 139, 250, 1));
-  }
-
-  .valley-neutral .valley-line {
-    background: linear-gradient(180deg,
-      transparent 0%,
-      rgba(167, 139, 250, 0.2) 30%,
-      rgba(167, 139, 250, 0.5) 100%
-    );
-  }
-
-  .valley-price-label.valley-neutral {
-    color: #a78bfa;
-    border-color: rgba(167, 139, 250, 0.5);
-    background: rgba(0, 0, 0, 0.95);
-  }
-
-  /* Custom volume gauge overlay (left side) */
-  .volume-gauge-overlay {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 60px;
-    pointer-events: none;
-    z-index: 100;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .volume-label {
-    position: absolute;
-    left: 0;
-    color: #ffffff;
-    font-size: 10px;
-    font-weight: 600;
-    text-shadow:
-      0 0 3px rgba(0, 0, 0, 1),
-      0 0 5px rgba(0, 0, 0, 0.8),
-      0 0 8px rgba(0, 0, 0, 0.6);
-    transform: translateY(-50%);
-    line-height: 1;
-    /* Smooth transitions for position and opacity */
-    transition: top 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                opacity 0.2s ease-out;
-  }
-
-  .volume-label-center {
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 9px;
-  }
-
-  /* Custom price gauge overlay (bottom) */
-  .price-gauge-overlay {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 15px;
-    pointer-events: none;
-    z-index: 100;
-    display: flex;
-    justify-content: space-between;
-  }
-
-  .price-label {
-    position: absolute;
-    bottom: 0;
-    color: #ffffff;
-    font-size: 11px;
-    font-weight: 600;
-    text-shadow:
-      0 0 3px rgba(0, 0, 0, 1),
-      0 0 5px rgba(0, 0, 0, 0.8),
-      0 0 8px rgba(0, 0, 0, 0.6);
-    transform: translateX(-50%);
-    line-height: 1;
-    /* Smooth transitions for price changes */
-    transition: opacity 0.15s ease-out,
-                color 0.15s ease-out;
-  }
-
-  .price-label-center {
-    color: #a78bfa;
-    font-weight: 700;
-  }
-
-  /* Hide TradingView watermark - targeted approach */
-  .depth-chart :global(.tv-lightweight-charts) :global([class*="watermark"]) {
-    display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-  }
-
-  /* Hide watermark div specifically (usually has cursor: pointer) */
-  .depth-chart :global(.tv-lightweight-charts div[style*="cursor: pointer"]) {
-    display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-  }
-
-  /* Hide watermark SVG */
-  .depth-chart :global(.tv-lightweight-charts svg) {
-    display: none !important;
-  }
-
-  /* Hide watermark by position (usually bottom-right corner) */
-  .depth-chart :global(.tv-lightweight-charts div[style*="position: absolute"][style*="right"][style*="bottom"]) {
-    display: none !important;
-  }
-
-  /* Remove background images that might be watermarks */
-  .depth-chart :global(div[style*="background-image"]) {
-    background-image: none !important;
-  }
-
-  /* Orderbook List */
-  .orderbook-list {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    padding: 10px;
-    background: rgba(74, 0, 224, 0.05);
-    border: 1px solid rgba(74, 0, 224, 0.2);
-    border-radius: 6px;
-    margin: 0; /* No margin - fill container width */
-  }
-
-  .orderbook-side {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .orderbook-header {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 8px;
-    font-size: 11px;
-    font-weight: 600;
-    color: #c4b5fd;
-    border-bottom: 1px solid rgba(74, 0, 224, 0.3);
-    margin-bottom: 6px;
-  }
-
-  .orderbook-rows {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .orderbook-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 3px 8px;
-    font-size: 10px;
-    font-family: 'Monaco', 'Courier New', monospace;
-    position: relative;
-    border-radius: 3px;
-    /* Ultra-fast transitions with will-change for GPU acceleration */
-    will-change: transform, opacity;
-    transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                opacity 0.1s ease-out,
-                background-color 0.1s ease-out;
-    transform: translateY(0);
-  }
-
-  /* Stagger row animations for wave effect */
-  .orderbook-rows {
-    --stagger-delay: 0.02s;
-  }
-
-  .orderbook-row:nth-child(1) { animation-delay: calc(0 * var(--stagger-delay)); }
-  .orderbook-row:nth-child(2) { animation-delay: calc(1 * var(--stagger-delay)); }
-  .orderbook-row:nth-child(3) { animation-delay: calc(2 * var(--stagger-delay)); }
-  .orderbook-row:nth-child(4) { animation-delay: calc(3 * var(--stagger-delay)); }
-  .orderbook-row:nth-child(5) { animation-delay: calc(4 * var(--stagger-delay)); }
-  .orderbook-row:nth-child(6) { animation-delay: calc(5 * var(--stagger-delay)); }
-  .orderbook-row:nth-child(7) { animation-delay: calc(6 * var(--stagger-delay)); }
-  .orderbook-row:nth-child(8) { animation-delay: calc(7 * var(--stagger-delay)); }
-  .orderbook-row:nth-child(9) { animation-delay: calc(8 * var(--stagger-delay)); }
-  .orderbook-row:nth-child(10) { animation-delay: calc(9 * var(--stagger-delay)); }
-  .orderbook-row:nth-child(11) { animation-delay: calc(10 * var(--stagger-delay)); }
-  .orderbook-row:nth-child(12) { animation-delay: calc(11 * var(--stagger-delay)); }
-
-  /* Volume bars behind text with GPU acceleration */
-  .volume-bar {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: var(--volume-width);
-    z-index: 0;
-    opacity: 0.15;  /* Reduced opacity so text is clearly visible */
-    will-change: width;
-    /* Ultra-fast width animation for real-time updates */
-    transition: width 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  }
-
-  /* Fast text value transitions - numbers morphing effect */
-  .orderbook-row .quantity,
-  .orderbook-row .price {
-    position: relative;
-    z-index: 1;
-    transition: all 0.1s ease-out;
-    /* Prevent text selection during rapid updates */
-    user-select: none;
-  }
-
-  /* Add subtle glow on value changes */
-  @keyframes valueChange {
-    0% { text-shadow: 0 0 0 transparent; }
-    50% { text-shadow: 0 0 8px rgba(255, 255, 255, 0.3); }
-    100% { text-shadow: 0 0 0 transparent; }
-  }
-
-  .bid-bar {
-    right: 0;
-    background: rgba(38, 166, 154, 0.6);  /* Reduced opacity for subtlety */
-  }
-
-  .ask-bar {
-    left: 0;
-    background: rgba(239, 83, 80, 0.6);  /* Reduced opacity for subtlety */
-  }
-
-  .bid-row {
-    background: rgba(38, 166, 154, 0.1);
-  }
-
-  .bid-row .price {
-    color: rgba(38, 166, 154, 1);
-    font-weight: 600;
-    position: relative;
-    z-index: 1;
-  }
-
-  .bid-row .quantity {
-    position: relative;
-    z-index: 1;
-  }
-
-  .ask-row {
-    background: rgba(239, 83, 80, 0.1);
-  }
-
-  .ask-row .price {
-    color: rgba(239, 83, 80, 1);
-    font-weight: 600;
-    position: relative;
-    z-index: 1;
-  }
-
-  .ask-row .quantity {
-    position: relative;
-    z-index: 1;
-  }
-
-  .orderbook-row .quantity {
-    color: #9ca3af;
-  }
-
-  /* Highlight top orders (best bid/ask) */
-  .top-order {
-    font-size: 13px !important;
-    padding: 4px 8px !important;
-  }
-
-  .top-order .price {
-    font-weight: 700 !important;
-  }
-
-  .top-order .quantity {
-    color: #ffffff !important;
-  }
-
-  /* Responsive */
-  @media (max-width: 768px) {
-    .panel-content {
-      padding: 10px;
-    }
-
-    .depth-chart {
-      height: 250px;
-    }
-
-    .orderbook-list {
-      grid-template-columns: 1fr;
-    }
-  }
-</style>

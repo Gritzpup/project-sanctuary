@@ -31,11 +31,9 @@ export class ContinuousCandleUpdater extends EventEmitter {
 
     // Don't start if already running
     if (this.intervals.has(key)) {
-      console.log(`⚠️ [ContinuousUpdater] Already running for ${key}`);
       return;
     }
 
-    console.log(`🔄 [ContinuousUpdater] Starting updates for ${pair} ${granularity} (every ${frequencyMs}ms)`);
 
     // Do an initial fetch immediately
     this.fetchLatestCandles(pair, granularity);
@@ -114,7 +112,6 @@ export class ContinuousCandleUpdater extends EventEmitter {
    * Fetch the latest candles for a pair
    */
   async fetchLatestCandles(pair, granularity) {
-    console.log(`🔄 [ContinuousUpdater] Fetching candles for ${pair} ${granularity}...`);
     try {
       const granularitySeconds = coinbaseAPI.granularityToSeconds(granularity);
       const now = Math.floor(Date.now() / 1000);
@@ -147,7 +144,6 @@ export class ContinuousCandleUpdater extends EventEmitter {
         this.stats.totalCandles += candles.length;
         this.stats.lastUpdate = Date.now();
 
-        console.log(`✅ [ContinuousUpdater] Fetched ${candles.length} candles for ${pair} ${granularity}, latest: $${candles[candles.length - 1].close}`);
 
         // Clean up old data based on retention policy
         await this.cleanupOldData(pair, granularity);
@@ -170,12 +166,10 @@ export class ContinuousCandleUpdater extends EventEmitter {
           candles: candles  // Send ALL candles, not just latest
         });
       } else {
-        console.warn(`⚠️ [ContinuousUpdater] No candles returned for ${pair} ${granularity}`);
       }
 
     } catch (error) {
       this.stats.errors++;
-      console.error(`❌ [ContinuousUpdater] Error fetching candles for ${pair} ${granularity}:`, error.message);
 
       // Emit error event
       this.emit('database_activity', {

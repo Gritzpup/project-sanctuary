@@ -6,6 +6,7 @@ import { redisOrderbookCache } from './redis/RedisOrderbookCache.js';
 import { coinbaseAPI } from './CoinbaseAPIService.js';
 import { MultiGranularityAggregator } from './MultiGranularityAggregator.js';
 import { cdpAuth } from './CDPAuth.js';
+import { config } from './ConfigurationService.js';
 
 /**
  * Coinbase WebSocket client for real-time market data
@@ -39,6 +40,11 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     this.tradeHeartbeatInterval = null;
     this.TRADE_TIMEOUT_MS = 60000; // 60 seconds without trades = problem
     this.HEARTBEAT_CHECK_MS = 30000; // Check every 30 seconds
+
+    // 🔥 MEMORY LEAK FIX: Track all timeouts/intervals for cleanup
+    this.reconnectTimeout = null; // For Advanced Trade API reconnection
+    this.exchangeReconnectTimeout = null; // For Exchange API reconnection
+    this.orderbookRefreshIntervals = new Map(); // Map<productId, intervalId>
 
     // Redis storage integration
     this.redisStorageEnabled = true;
@@ -199,7 +205,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
           // 🔧 FIX: Start JWT auto-renewal to prevent token expiration
           // Renews every 90s and triggers WebSocket reconnection with fresh token
           cdpAuth.startAutoRenewal((newToken) => {
-            console.log('🔑 [WebSocket] JWT renewed - forcing reconnection with new token');
             // Close current connection to trigger reconnect with new JWT
             if (this.ws) {
               this.ws.close();
@@ -236,7 +241,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
           this.isConnected = false;
           this.isConnecting = false;
 
-          console.error('❌ [WebSocket] Connection error:', error.message);
           this.emit('error', error);
 
           // 🔧 FIX: Only reject promise for initial connection failures
@@ -262,13 +266,16 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   async connectExchangeAPI() {
     if (this.exchangeIsConnecting || this.exchangeIsConnected) {
+      console.log(`[ExchangeAPI] Already connected or connecting`);
       return;
     }
 
+    console.log(`[ExchangeAPI] Connecting to wss://ws-feed.exchange.coinbase.com`);
     this.exchangeIsConnecting = true;
 
     return new Promise((resolve, reject) => {
       const connectionTimeout = setTimeout(() => {
+        console.error(`[ExchangeAPI] Connection timeout after 10s`);
         if (this.exchangeWs) {
           this.exchangeWs.terminate();
         }
@@ -277,8 +284,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       }, 10000);
 
       try {
-        // Connect to Coinbase Exchange API WebSocket (legacy but functional)
-        // This endpoint supports the 'level2' channel for orderbook data
+        // Connect to Coinbase Exchange API WebSocket (public API for level2)
         this.exchangeWs = new WebSocket('wss://ws-feed.exchange.coinbase.com');
 
         this.exchangeWs.on('open', () => {
@@ -286,15 +292,10 @@ export class CoinbaseWebSocketClient extends EventEmitter {
           this.exchangeIsConnected = true;
           this.exchangeIsConnecting = false;
           this.exchangeReconnectAttempts = 0;
-          console.log('✅ [ExchangeAPI] Connected to Coinbase Exchange API WebSocket');
+          console.log(`[ExchangeAPI] Connected successfully`);
 
-          // 🔧 FIX: Send authentication before subscribing to level2
-          // Exchange API requires API key authentication for level2 channel
-          this.authenticateExchangeAPI();
-
-          // Resubscribe to any existing subscriptions (will be sent after auth)
+          // Resubscribe to any existing subscriptions
           if (this.exchangeSubscriptions.size > 0) {
-            // Schedule resubscription after short delay to ensure auth completes
             setTimeout(() => this.exchangeResubscribe(), 100);
           }
 
@@ -306,28 +307,28 @@ export class CoinbaseWebSocketClient extends EventEmitter {
             const message = JSON.parse(data.toString());
             this.handleExchangeMessage(message);
           } catch (error) {
-            console.error('Failed to parse Exchange API message:', error);
+            console.error(`[ExchangeAPI] Message parse error:`, error.message);
           }
         });
 
         this.exchangeWs.on('close', (code, reason) => {
+          console.log(`[ExchangeAPI] Connection closed, code: ${code}, reason: ${reason}`);
           this.exchangeIsConnected = false;
           this.exchangeIsConnecting = false;
-          console.log('❌ [ExchangeAPI] Disconnected from Coinbase Exchange API');
           this.scheduleExchangeReconnect();
         });
 
         this.exchangeWs.on('error', (error) => {
+          console.error(`[ExchangeAPI] WebSocket error:`, error.message);
           clearTimeout(connectionTimeout);
           this.exchangeIsConnected = false;
           this.exchangeIsConnecting = false;
-          console.error('❌ [ExchangeAPI] WebSocket error:', error.message);
           reject(error);
         });
 
       } catch (error) {
+        console.error(`[ExchangeAPI] Failed to create WebSocket:`, error.message);
         this.exchangeIsConnecting = false;
-        console.error('❌ [ExchangeAPI] Failed to create WebSocket:', error);
         reject(error);
       }
     });
@@ -339,17 +340,14 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   authenticateExchangeAPI() {
     if (!this.exchangeIsConnected || !this.exchangeWs) {
-      console.warn('⚠️ [ExchangeAPI] Cannot authenticate - not connected');
       return;
     }
 
-    // Get CDP API key from environment
-    const apiKeyName = process.env.CDP_API_KEY_NAME;
-    const privateKey = process.env.CDP_API_KEY_PRIVATE;
+    // Get CDP API key from configuration
+    const apiKeyName = config.get('CDP_API_KEY_NAME');
+    const privateKey = config.get('CDP_API_KEY_PRIVATE');
 
     if (!apiKeyName || !privateKey) {
-      console.error('❌ [ExchangeAPI] Missing CDP API credentials for Exchange WebSocket authentication');
-      console.error('   Set CDP_API_KEY_NAME and CDP_API_KEY_PRIVATE environment variables');
       return;
     }
 
@@ -374,10 +372,8 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         timestamp: timestamp.toString()
       };
 
-      console.log('🔐 [ExchangeAPI] Authenticating with CDP API key (ECDSA signature)...');
       this.exchangeWs.send(JSON.stringify(authMessage));
     } catch (error) {
-      console.error('❌ [ExchangeAPI] Failed to generate ECDSA signature:', error.message);
     }
   }
 
@@ -385,21 +381,18 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * Handle messages from Exchange API WebSocket
    */
   async handleExchangeMessage(message) {
-    // Log ALL message types to understand what's being sent
-    if (!this.exchangeMessageSampleLogged) {
-      console.log('📨 [ExchangeAPI] FIRST MESSAGE:', JSON.stringify(message).substring(0, 800));
-      this.exchangeMessageSampleLogged = true;
-    }
-
     // Route based on type (Exchange API uses 'type' field, not 'channel')
-    if (message.type === 'snapshot' || message.type === 'l2update') {
+    if (message.type === 'snapshot') {
+      console.log(`[ExchangeAPI] Received snapshot for ${message.product_id}: ${message.bids?.length || 0} bids, ${message.asks?.length || 0} asks`);
+      await this.processExchangeLevel2(message);
+    } else if (message.type === 'l2update') {
       await this.processExchangeLevel2(message);
     } else if (message.type === 'subscriptions') {
-      console.log('✅ [ExchangeAPI] Subscription confirmed - channels:', JSON.stringify(message.channels));
+      console.log(`[ExchangeAPI] Subscription confirmed:`, JSON.stringify(message.channels));
     } else if (message.type === 'error') {
-      console.error('❌ [ExchangeAPI] Error from Coinbase:', JSON.stringify(message));
+      console.error(`[ExchangeAPI] Error from server:`, message.message || JSON.stringify(message));
     } else {
-      console.log(`📨 [ExchangeAPI] Received message type: ${message.type}`);
+      console.log(`[ExchangeAPI] Unknown message type: ${message.type}`);
     }
   }
 
@@ -442,7 +435,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       orderbook.bids.sort((a, b) => b.price - a.price);
       orderbook.asks.sort((a, b) => a.price - b.price);
 
-      console.log(`📊 [ExchangeAPI] Level2 snapshot for ${productId}: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);
 
       // Cache in Redis
       if (this.orderbookCacheEnabled) {
@@ -486,7 +478,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * Resubscribe to Exchange API subscriptions after reconnection
    */
   exchangeResubscribe() {
-    console.log(`🔄 [ExchangeAPI] Resubscribing to ${this.exchangeSubscriptions.size} subscriptions`);
     this.exchangeSubscriptions.forEach((subscription) => {
       if (this.exchangeIsConnected) {
         this.exchangeWs.send(JSON.stringify(subscription));
@@ -499,17 +490,20 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   scheduleExchangeReconnect() {
     if (this.exchangeReconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('❌ [ExchangeAPI] Max reconnection attempts reached');
       return;
     }
 
     this.exchangeReconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.exchangeReconnectAttempts - 1);
 
-    setTimeout(() => {
-      console.log(`🔄 [ExchangeAPI] Reconnection attempt ${this.exchangeReconnectAttempts}/${this.maxReconnectAttempts}`);
+    // 🔥 MEMORY LEAK FIX: Clear any existing reconnect timeout
+    if (this.exchangeReconnectTimeout) {
+      clearTimeout(this.exchangeReconnectTimeout);
+    }
+
+    // 🔥 MEMORY LEAK FIX: Store timeout ID for cleanup
+    this.exchangeReconnectTimeout = setTimeout(() => {
       this.connectExchangeAPI().catch(error => {
-        console.error(`❌ [ExchangeAPI] Reconnection failed:`, error.message);
       });
     }, delay);
   }
@@ -519,11 +513,9 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * 🔧 FIX: Advanced Trade API requires JWT authentication for ALL channels including ticker
    */
   subscribeTicker(productId) {
-    console.log(`📡 [Ticker] Subscribe request for ${productId}`);
     const subscriptionKey = `ticker:${productId}`;
 
     if (this.subscriptions.has(subscriptionKey)) {
-      console.log(`⚠️ [Ticker] Already subscribed to ticker:${productId}`);
       return;
     }
 
@@ -533,7 +525,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     const subscription = cdpAuth.getWebSocketAuth();
 
     if (!subscription) {
-      console.error('❌ [Ticker] Failed to generate JWT - cannot subscribe to ticker');
       return;
     }
 
@@ -541,17 +532,13 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     subscription.channel = 'ticker';  // Advanced Trade API uses 'channel' (string), not 'channels' (array)
     subscription.product_ids = [productId];
 
-    console.log(`✅ [Ticker] Subscription for ${productId} using Advanced Trade API with JWT`);
-    console.log(`📡 This will provide REAL-TIME ticker updates (price, bid, ask, volume) via CDP`);
 
     this.subscriptions.set(subscriptionKey, subscription);
 
     // Send immediately if already connected
     if (this.isConnected && this.ws) {
-      console.log(`📤 [Ticker] Sending ticker subscription to Advanced Trade API`);
       this.ws.send(JSON.stringify(subscription));
     } else {
-      console.log(`⏳ [Ticker] Advanced Trade API not connected yet - subscription will be sent on connection`);
     }
   }
 
@@ -561,11 +548,9 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * This is the PROPER way to get candle data - better than aggregating from trades
    */
   subscribeCandles(productId) {
-    console.log(`📡 [Candles] Subscribe request for ${productId}`);
     const subscriptionKey = `candles:${productId}`;
 
     if (this.subscriptions.has(subscriptionKey)) {
-      console.log(`⚠️ [Candles] Already subscribed to candles:${productId}`);
       return;
     }
 
@@ -573,7 +558,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     const subscription = cdpAuth.getWebSocketAuth();
 
     if (!subscription) {
-      console.error('❌ [Candles] Failed to generate JWT - cannot subscribe to candles');
       return;
     }
 
@@ -581,17 +565,13 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     subscription.channel = 'candles';
     subscription.product_ids = [productId];
 
-    console.log(`✅ [Candles] Subscription for ${productId} using Advanced Trade API with JWT`);
-    console.log(`📡 This will provide REAL-TIME 5-minute candle updates via CDP`);
 
     this.subscriptions.set(subscriptionKey, subscription);
 
     // Send immediately if already connected
     if (this.isConnected && this.ws) {
-      console.log(`📤 [Candles] Sending candles subscription to Advanced Trade API`);
       this.ws.send(JSON.stringify(subscription));
     } else {
-      console.log(`⏳ [Candles] Advanced Trade API not connected yet - subscription will be sent on connection`);
     }
   }
 
@@ -601,112 +581,60 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * Need to use Exchange API (wss://ws-feed.exchange.coinbase.com) with 'level2' channel
    */
   subscribeLevel2(productId) {
-    console.log(`📡 [Level2] Subscribe request for ${productId}`);
     const subscriptionKey = `level2:${productId}`;
 
     if (this.subscriptions.has(subscriptionKey)) {
-      console.log(`⚠️ [Level2] Already subscribed to level2:${productId}`);
+      console.log(`[Level2] Already subscribed to ${productId}`);
       return;
     }
 
+    // Track subscription immediately for visibility in health check
+    this.subscriptions.set(subscriptionKey, { productId, type: 'level2', pending: true });
+    console.log(`[Level2] Subscribing to ${productId} via Exchange WebSocket`);
+
     // Connect to Exchange API if not already connected
     if (!this.exchangeIsConnected && !this.exchangeIsConnecting) {
-      console.log(`🔄 [Level2] Connecting to Exchange API for level2 data...`);
       this.connectExchangeAPI().then(() => {
-        console.log(`✅ [Level2] Exchange API connected, subscribing to level2`);
+        console.log(`[Level2] Exchange API connected, subscribing to level2 channel`);
         this.subscribeLevel2Exchange(productId);
+        this.subscriptions.set(subscriptionKey, { productId, type: 'level2', connected: true });
       }).catch(error => {
-        console.error(`❌ [Level2] Failed to connect to Exchange API:`, error);
+        console.error(`[Level2] Exchange API connection failed:`, error.message);
+        // No REST fallback - WebSocket only
+        this.subscriptions.set(subscriptionKey, { productId, type: 'level2', failed: true });
       });
       return;
     }
 
     // If Exchange API is already connected, subscribe directly
     if (this.exchangeIsConnected) {
+      console.log(`[Level2] Exchange API already connected, subscribing directly`);
       this.subscribeLevel2Exchange(productId);
-    } else {
-      console.log(`⏳ [Level2] Exchange API is connecting, subscription will be sent once connected`);
-      // Store subscription to be sent after connection
-      this.subscriptions.set(subscriptionKey, { productId, type: 'level2' });
+      this.subscriptions.set(subscriptionKey, { productId, type: 'level2', connected: true });
     }
   }
 
   /**
-   * Subscribe to level2 on Exchange API
+   * Subscribe to level2 on Exchange API via WebSocket (no REST polling)
+   * Uses level2_batch channel which doesn't require authentication
+   * level2_batch delivers data in 50ms batches
    */
-  async subscribeLevel2Exchange(productId) {
-    const fetchOrderbook = async () => {
-      try {
-        const response = await fetch(`https://api.exchange.coinbase.com/products/${productId}/book?level=2`);
-        const orderbookData = await response.json();
+  subscribeLevel2Exchange(productId) {
+    console.log(`[Level2] Subscribing to ${productId} on Exchange WebSocket (level2_batch channel)`);
 
-        if (orderbookData.bids && orderbookData.asks) {
-          // Limit to top 1000 levels to prevent memory issues
-          const bids = orderbookData.bids.slice(0, 1000).map(([price, size]) => ({
-            price: parseFloat(price),
-            size: parseFloat(size)
-          }));
-
-          const asks = orderbookData.asks.slice(0, 1000).map(([price, size]) => ({
-            price: parseFloat(price),
-            size: parseFloat(size)
-          }));
-
-          // Convert to our format
-          const orderbook = {
-            type: 'snapshot',
-            product_id: productId,
-            bids,
-            asks
-          };
-
-          // Already sorted from API
-          // PERF: Disabled console.log(`📊 [Level2] REST API snapshot for ${productId}: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);
-
-          // Cache in Redis
-          if (this.orderbookCacheEnabled) {
-            await redisOrderbookCache.storeOrderbookSnapshot(productId, orderbook.bids, orderbook.asks);
-          }
-
-          // Emit to listeners
-          this.emit('level2', orderbook);
-        }
-      } catch (error) {
-        console.error(`❌ [Level2] Failed to fetch orderbook from REST API:`, error.message);
-      }
-    };
-
-    // Fetch initial orderbook
-    await fetchOrderbook();
-
-    // Set up periodic refresh (every 5 seconds to reduce memory pressure)
-    if (!this.orderbookRefreshIntervals) {
-      this.orderbookRefreshIntervals = new Map();
-    }
-
-    // Clear any existing interval for this product
-    if (this.orderbookRefreshIntervals.has(productId)) {
-      clearInterval(this.orderbookRefreshIntervals.get(productId));
-    }
-
-    // Set new interval for periodic updates
-    const intervalId = setInterval(() => {
-      fetchOrderbook();
-    }, 1000); // Refresh every 1 second for faster orderbook updates
-
-    this.orderbookRefreshIntervals.set(productId, intervalId);
-    console.log(`🔄 [Level2] Set up periodic orderbook refresh for ${productId} every 5 seconds`);
-
-    // Still try WebSocket for potential future updates if auth is fixed
+    // Subscribe via WebSocket - level2_batch channel (no auth needed, 50ms batches)
     const subscription = {
       type: 'subscribe',
       product_ids: [productId],
-      channels: ['level2_batch']  // Use level2_batch which might not require auth
+      channels: ['level2_batch']
     };
 
     if (this.exchangeWs && this.exchangeWs.readyState === WebSocket.OPEN) {
       this.exchangeWs.send(JSON.stringify(subscription));
       this.exchangeSubscriptions.set(`level2:${productId}`, subscription);
+      console.log(`[Level2] Subscription message sent for ${productId} (level2_batch)`);
+    } else {
+      console.error(`[Level2] Exchange WebSocket not ready, state: ${this.exchangeWs?.readyState}`);
     }
   }
 
@@ -716,12 +644,10 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * 🔧 FIX: Advanced Trade API requires JWT authentication for ALL channels including market_trades
    */
   subscribeMatches(productId, granularity = '60') {
-    console.log(`📡 [MarketTrades] Subscribe request for ${productId}`);
     const subscriptionKey = `matches:${productId}`;
 
 
     if (this.subscriptions.has(subscriptionKey)) {
-      console.log(`⚠️ [MarketTrades] Already subscribed to matches:${productId}`);
       return;
     }
 
@@ -731,7 +657,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     const subscription = cdpAuth.getWebSocketAuth();
 
     if (!subscription) {
-      console.error('❌ [MarketTrades] Failed to generate JWT - cannot subscribe to market_trades');
       return;
     }
 
@@ -739,8 +664,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     subscription.channel = 'market_trades';  // Advanced Trade API uses 'channel' (string), not 'channels' (array)
     subscription.product_ids = [productId];
 
-    console.log(`✅ [MarketTrades] Subscription for ${productId} using Advanced Trade API with JWT`);
-    console.log(`📡 This will provide REAL-TIME trade data for candle aggregation via CDP`);
 
     this.subscriptions.set(subscriptionKey, subscription);
 
@@ -748,7 +671,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     const aggregatorKey = productId; // Key by product only, since it handles all granularities
     if (!this.candleAggregators.has(aggregatorKey)) {
       const aggregator = new MultiGranularityAggregator(productId);
-      console.log(`📊 [MarketTrades] Created MultiGranularityAggregator for ${productId}`);
 
       // Listen for gap detection events from the aggregator
       aggregator.on('gap_detected', async (gapInfo) => {
@@ -760,10 +682,8 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
     // Send immediately if already connected
     if (this.isConnected && this.ws) {
-      console.log(`📤 [MarketTrades] Sending market_trades subscription to Advanced Trade API`);
       this.ws.send(JSON.stringify(subscription));
     } else {
-      console.log(`⏳ [MarketTrades] Advanced Trade API not connected yet - subscription will be sent on connection`);
       // Subscription is already added to this.subscriptions map, will be sent on connection via resubscribe()
     }
   }
@@ -815,14 +735,12 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       // Log channel summary every 30 seconds
       const now = Date.now();
       if (now - this.lastChannelLogTime > 30000) {
-        console.log(`📊 [WebSocket Channels - Last 30s]:`, this.messageChannelCounts);
         this.messageChannelCounts = {}; // Reset
         this.lastChannelLogTime = now;
       }
 
       // Always log candles messages since they're critical and rare
       if (message.channel === 'candles') {
-        console.log(`🎯 [CANDLES MESSAGE RECEIVED]`, JSON.stringify(message).substring(0, 800));
       }
     }
 
@@ -934,7 +852,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       return;
     }
 
-    console.log(`📊 [Candles] Received candles message with ${message.events.length} events`);
 
     // Process all events in the message
     message.events.forEach(event => {
@@ -942,7 +859,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         return;
       }
 
-      console.log(`📊 [Candles] Processing ${event.candles.length} candles (type: ${event.type})`);
 
       // Process each candle
       event.candles.forEach(async (candleData) => {
@@ -958,7 +874,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
           volume: parseFloat(candleData.volume || 0)
         };
 
-        console.log(`📊 [Candles] ${productId} @ ${candle.close} (5m candle from ${new Date(candle.time * 1000).toISOString()})`);
 
         // Store in Redis (5m = 300 seconds)
         await this.storeCandle(productId, 300, candle);
@@ -984,11 +899,9 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
     // Log the event structure once every 100 events to avoid log spam but still understand it
     if (!this.eventSampleLogged) {
-      console.log(`📊 [CoinbaseWS] SAMPLE EVENT STRUCTURE:`, JSON.stringify(event).substring(0, 2000));
       this.eventSampleLogged = true;
     }
 
-    console.log(`📊 [CoinbaseWS] Event for ${productId}: type=${event.type}, has updates=${!!event.updates}, has bids=${!!event.bids}, has asks=${!!event.asks}`);
 
     if (event.type === 'snapshot') {
       // Full orderbook snapshot
@@ -1001,7 +914,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       };
 
       if (event.updates) {
-        console.log(`  Updates array length: ${event.updates.length}`);
         event.updates.forEach(update => {
           const priceLevel = {
             price: parseFloat(update.price_level),
@@ -1014,9 +926,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
             orderbook.asks.push(priceLevel);
           }
         });
-        console.log(`  Parsed: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);
       } else {
-        console.warn(`  ⚠️ No updates array in snapshot event!`);
       }
 
       // Sort bids descending, asks ascending
@@ -1030,7 +940,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         await redisOrderbookCache.storeOrderbookSnapshot(productId, orderbook.bids, orderbook.asks);
       }
 
-      console.log(`📊 [CoinbaseWS] Emitting level2 snapshot: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);
       this.emit('level2', orderbook);
 
     } else if (event.type === 'update') {
@@ -1078,7 +987,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     if (message.type === 'snapshot') {
       // Full orderbook snapshot
       // Advanced Trade API format: updates array with {side, price_level, new_quantity, event_time}
-      console.log(`📊 [CoinbaseWS] Fallback: Processing snapshot for ${productId}, has updates=${!!message.updates}`);
 
       const orderbook = {
         type: 'snapshot',
@@ -1089,7 +997,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
       // Parse updates array
       if (message.updates) {
-        console.log(`📊 [CoinbaseWS] Parsing ${message.updates.length} updates from fallback snapshot`);
         message.updates.forEach(update => {
           const priceLevel = {
             price: parseFloat(update.price_level),
@@ -1129,7 +1036,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         redisOrderbookCache.publishOrderbookDelta(productId, changedLevels.bids, changedLevels.asks);
       }
 
-      console.log(`📊 [CoinbaseWS] Emitting level2 snapshot: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);
       this.emit('level2', orderbook);
 
     } else if (message.type === 'l2update') {
@@ -1231,7 +1137,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       }
 
       // Bids and asks are already sorted
-      console.log(`📊 [CoinbaseWS] Emitting level2 snapshot: ${orderbook.bids.length} bids, ${orderbook.asks.length} asks`);
       this.emit('level2', orderbook);
     }
   }
@@ -1255,7 +1160,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       }
 
       // PERF: Disabled - excessive logging causes browser lag
-      // console.log(`📈 [MarketTrades] Received ${event.trades.length} trades`);
 
       // Process each trade in the event
       event.trades.forEach(trade => {
@@ -1347,7 +1251,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * Resubscribe to all active subscriptions
    */
   resubscribe() {
-    console.log(`🔄 [Resubscribe] Resubscribing to ${this.subscriptions.size} channels with FRESH JWT tokens`);
 
     this.subscriptions.forEach((subscription, key) => {
       // 🔧 FIX: Regenerate JWT token for each subscription
@@ -1364,10 +1267,8 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         this.subscriptions.set(key, freshAuth);
 
         // Send with fresh JWT
-        console.log(`📤 [Resubscribe] Sending ${subscription.channel} subscription with fresh JWT`);
         this.ws.send(JSON.stringify(freshAuth));
       } else {
-        console.error(`❌ [Resubscribe] Failed to generate fresh JWT for ${key}`);
       }
     });
   }
@@ -1377,20 +1278,22 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    */
   scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('❌ [Reconnect] Max reconnection attempts reached');
       return;
     }
 
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
     this.reconnectAttempts++;
 
-    console.log(`🔄 [Reconnect] Scheduling reconnection attempt ${this.reconnectAttempts} in ${delay}ms`);
+    // 🔥 MEMORY LEAK FIX: Clear any existing reconnect timeout
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
 
-    setTimeout(() => {
+    // 🔥 MEMORY LEAK FIX: Store timeout ID for cleanup
+    this.reconnectTimeout = setTimeout(() => {
       // 🔧 FIX: Add catch handler to prevent unhandled promise rejection
       // This prevents the server from crashing when reconnection fails
       this.connect().catch(error => {
-        console.error(`❌ [Reconnect] Connection attempt ${this.reconnectAttempts} failed:`, error.message);
         // Don't crash - the scheduleReconnect will be called again from the close handler
       });
     }, delay);
@@ -1409,7 +1312,6 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       clearInterval(this.tradeHeartbeatInterval);
     }
 
-    console.log('💓 [TradeHeartbeat] Starting trade flow monitor');
 
     // Track when the monitor started to detect if we NEVER receive trades
     const monitorStartTime = Date.now();
@@ -1425,10 +1327,8 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         // Never received any trades - check if we've been waiting too long
         const timeSinceMonitorStart = now - monitorStartTime;
         if (timeSinceMonitorStart > this.TRADE_TIMEOUT_MS) {
-          console.warn(`⚠️ [TradeHeartbeat] NEVER received any trades after ${Math.floor(timeSinceMonitorStart / 1000)}s - FORCING WEBSOCKET RECONNECTION`);
 
           if (this.ws) {
-            console.log(`🔌 [TradeHeartbeat] Closing stuck WebSocket connection (no initial trades)`);
             this.ws.close();
           }
         }
@@ -1439,14 +1339,12 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
       // If we haven't received trades in TRADE_TIMEOUT_MS, something is wrong
       if (timeSinceLastTrade > this.TRADE_TIMEOUT_MS) {
-        console.warn(`⚠️ [TradeHeartbeat] No trades received for ${Math.floor(timeSinceLastTrade / 1000)}s - FORCING WEBSOCKET RECONNECTION`);
 
         // 🔧 CRITICAL FIX: Coinbase WebSocket goes stale - resubscribing doesn't work
         // We need to close and reconnect the entire WebSocket connection
 
         // Close current WebSocket and trigger reconnection
         if (this.ws) {
-          console.log(`🔌 [TradeHeartbeat] Closing stale WebSocket connection`);
           this.ws.close();
           // The 'close' event handler will trigger scheduleReconnect()
         }
@@ -1465,13 +1363,28 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     if (this.tradeHeartbeatInterval) {
       clearInterval(this.tradeHeartbeatInterval);
       this.tradeHeartbeatInterval = null;
-      console.log('💓 [TradeHeartbeat] Stopped trade flow monitor');
     }
   }
 
   disconnect() {
     // Stop heartbeat monitor
     this.stopTradeHeartbeatMonitor();
+
+    // 🔥 MEMORY LEAK FIX: Clear all reconnect timeouts
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    if (this.exchangeReconnectTimeout) {
+      clearTimeout(this.exchangeReconnectTimeout);
+      this.exchangeReconnectTimeout = null;
+    }
+
+    // 🔥 MEMORY LEAK FIX: Clear all orderbook refresh intervals
+    for (const [productId, intervalId] of this.orderbookRefreshIntervals.entries()) {
+      clearInterval(intervalId);
+    }
+    this.orderbookRefreshIntervals.clear();
 
     // 🔧 FIX: Stop JWT auto-renewal
     cdpAuth.stopAutoRenewal();
@@ -1483,8 +1396,16 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       this.ws = null;
     }
 
+    if (this.exchangeWs) {
+      // 🔥 MEMORY LEAK FIX: Remove all event listeners from Exchange WebSocket
+      this.exchangeWs.removeAllListeners();
+      this.exchangeWs.close();
+      this.exchangeWs = null;
+    }
+
     // 🔥 MEMORY LEAK FIX: Clear all data structures
     this.subscriptions.clear();
+    this.exchangeSubscriptions.clear();
     this.candleAggregators.clear();
 
     // 🔥 MEMORY LEAK FIX: Remove all EventEmitter listeners
@@ -1493,6 +1414,9 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     this.isConnected = false;
     this.isConnecting = false;
     this.reconnectAttempts = 0;
+    this.exchangeIsConnected = false;
+    this.exchangeIsConnecting = false;
+    this.exchangeReconnectAttempts = 0;
 
   }
 

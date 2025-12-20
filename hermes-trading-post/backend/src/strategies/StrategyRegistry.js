@@ -1,4 +1,5 @@
 import { ReverseRatioStrategy } from './implementations/ReverseRatioStrategy.js';
+import { TestStrategy } from './implementations/TestStrategy.js';
 
 export class StrategyRegistry {
   constructor() {
@@ -11,6 +12,7 @@ export class StrategyRegistry {
     this.register('reverse-descending-grid', ReverseRatioStrategy);
     this.register('ultra-micro-scalping', ReverseRatioStrategy); // Use same for now
     this.register('micro-scalping', ReverseRatioStrategy); // Use same strategy class
+    this.register('test', TestStrategy); // High-frequency test strategy
     // Add other strategies as they're implemented
   }
 
@@ -39,9 +41,11 @@ export class StrategyRegistry {
   extractStrategyType(strategyName) {
     const nameToType = {
       'Reverse Descending Grid Buying': 'reverse-ratio',
-      'Ultra Micro-Scalping': 'ultra-micro-scalping'
+      'Ultra Micro-Scalping': 'ultra-micro-scalping',
+      'Test Strategy': 'test',
+      'Test': 'test'
     };
-    
+
     return nameToType[strategyName] || strategyName.toLowerCase().replace(/\s+/g, '-');
   }
 }
