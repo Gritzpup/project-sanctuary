@@ -51,9 +51,19 @@ export class PaperTradingStateManager {
   });
   
   public managerState: any = {};
-  public activeBotInstance: any = null;
-  public botTabs: BotTab[] = [];
+  // 🔧 FIX: Make botTabs and activeBotInstance reactive stores
+  // This ensures UI updates when bot selection changes
+  public activeBotInstanceStore = writable<any>(null);
+  public botTabsStore = writable<BotTab[]>([]);
   public customStrategies: any[] = [];
+
+  // Getters for backward compatibility
+  get activeBotInstance() {
+    return get(this.activeBotInstanceStore);
+  }
+  get botTabs() {
+    return get(this.botTabsStore);
+  }
   
   constructor() {
     this.orchestrator = new PaperTradingOrchestrator();
@@ -306,15 +316,54 @@ export class PaperTradingStateManager {
   // ⚡ PHASE 5F: Removed duplicate loadCustomStrategies - now handled in setupStrategyStoreSubscription
 
   private updateBotTabs() {
-    this.botTabs = this.managerState.instances?.map((instance: any, index: number) => ({
-      id: instance.id || `bot-${index}`,
-      name: instance.name || `Bot ${index + 1}`,
-      strategy: instance.strategy?.strategyType || 'unknown',
-      isActive: instance.isRunning || false,
-      performance: instance.performance || { totalReturn: 0, tradesCount: 0 }
-    })) || [];
-    
-    this.activeBotInstance = this.botTabs.find(tab => tab.isActive) || this.botTabs[0] || null;
+    // Get backend manager state from tradingBackendService
+    const backendState = get(tradingBackendService.getState());
+    const backendManagerState = backendState.managerState;
+
+    if (backendManagerState?.bots) {
+      // Get current strategy type to filter bots
+      const currentState = get(this.tradingState);
+      const currentStrategy = currentState.selectedStrategyType || 'reverse-descending-grid';
+
+      // Filter bots for current strategy (e.g., "test-bot-1", "test-bot-2" for "test" strategy)
+      const strategyBots = Object.entries(backendManagerState.bots)
+        .filter(([botId]) => botId.startsWith(`${currentStrategy}-bot-`))
+        .map(([botId, botData]: [string, any]) => ({
+          id: botId,
+          name: botData.name || botId.replace(`${currentStrategy}-`, '').replace('-', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+          strategy: currentStrategy,
+          isActive: botData.status?.isRunning || false,
+          performance: {
+            totalReturn: botData.status?.totalReturn || 0,
+            tradesCount: botData.status?.trades?.length || 0
+          }
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id));
+
+      // 🔧 FIX: Use store.set() for reactivity
+      this.botTabsStore.set(strategyBots);
+
+      // Set active bot instance - the one that matches activeBotId or is running
+      const activeBotId = backendManagerState.activeBotId;
+      const newActiveBotInstance = strategyBots.find(tab => tab.id === activeBotId)
+        || strategyBots.find(tab => tab.isActive)
+        || strategyBots[0]
+        || null;
+      this.activeBotInstanceStore.set(newActiveBotInstance);
+    } else {
+      // Fallback to old behavior if backend manager state is not available
+      const fallbackBotTabs = this.managerState.instances?.map((instance: any, index: number) => ({
+        id: instance.id || `bot-${index}`,
+        name: instance.name || `Bot ${index + 1}`,
+        strategy: instance.strategy?.strategyType || 'unknown',
+        isActive: instance.isRunning || false,
+        performance: instance.performance || { totalReturn: 0, tradesCount: 0 }
+      })) || [];
+      this.botTabsStore.set(fallbackBotTabs);
+
+      const fallbackActiveBot = fallbackBotTabs.find(tab => tab.isActive) || fallbackBotTabs[0] || null;
+      this.activeBotInstanceStore.set(fallbackActiveBot);
+    }
   }
 
   // Public API methods
@@ -355,10 +404,14 @@ export class PaperTradingStateManager {
   }
 
   public handleBotTabSelect(botId: string) {
-    
-    const selectedBot = this.botTabs.find(tab => tab.id === botId);
+    const currentBotTabs = get(this.botTabsStore);
+    const selectedBot = currentBotTabs.find(tab => tab.id === botId);
     if (selectedBot) {
-      this.activeBotInstance = selectedBot;
+      // 🔧 FIX: Use store.set() for reactivity
+      this.activeBotInstanceStore.set(selectedBot);
+
+      // Tell the backend to switch to this bot
+      tradingBackendService.selectBot(botId);
     }
   }
 

@@ -24,6 +24,11 @@ export class TradeExecutor {
       reason
     });
 
+    // 🔥 MEMORY LEAK FIX: Limit execution history to prevent unbounded growth
+    if (this.executionHistory.length > 500) {
+      this.executionHistory = this.executionHistory.slice(-500);
+    }
+
     // Track open position for profit calculation on sell
     this.openPositions.push(position);
 
@@ -71,6 +76,11 @@ export class TradeExecutor {
     };
 
     this.executionHistory.push(execution);
+
+    // 🔥 MEMORY LEAK FIX: Limit execution history to prevent unbounded growth
+    if (this.executionHistory.length > 500) {
+      this.executionHistory = this.executionHistory.slice(-500);
+    }
 
     // Play sound for profitable trades via system audio
     if (profit > 0) {

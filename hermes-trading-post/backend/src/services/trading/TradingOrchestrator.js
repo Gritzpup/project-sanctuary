@@ -267,6 +267,11 @@ export class TradingOrchestrator extends EventEmitter {
       this.strategy.addPosition(position);
       const tradeRecord = this.createTradeRecord('buy', positionSize, price, signal.reason);
       this.trades.push(tradeRecord);
+
+      // 🔥 MEMORY LEAK FIX: Limit trades array to prevent unbounded growth
+      if (this.trades.length > 1000) {
+        this.trades = this.trades.slice(-1000);
+      }
       
       
       // Log the trade execution
@@ -352,6 +357,11 @@ export class TradingOrchestrator extends EventEmitter {
       tradeRecord.costBasis = costBasis;
       tradeRecord.positionId = mostProfitablePosition.id;
       this.trades.push(tradeRecord);
+
+      // 🔥 MEMORY LEAK FIX: Limit trades array to prevent unbounded growth
+      if (this.trades.length > 1000) {
+        this.trades = this.trades.slice(-1000);
+      }
       
       
       // Log the trade execution with profit details

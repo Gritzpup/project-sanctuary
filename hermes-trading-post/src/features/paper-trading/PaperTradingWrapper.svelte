@@ -35,6 +35,9 @@
   let stateManager = $state<PaperTradingStateManager | null>(null);
   let tradingState = $state<any>({});
   let backendState = $state<any>({});
+  // 🔧 FIX: Add reactive state for botTabs and activeBotInstance
+  let botTabs = $state<any[]>([]);
+  let activeBotInstance = $state<any>(null);
 
   // Component state - all need $state() for Svelte 5 reactivity
   let selectedPair = $state<string>('BTC-USD');
@@ -154,12 +157,23 @@
       backendState = state;
     });
 
+    // 🔧 FIX: Subscribe to botTabs and activeBotInstance stores for reactivity
+    const unsubscribeBotTabs = stateManager.botTabsStore.subscribe(state => {
+      botTabs = state;
+    });
+
+    const unsubscribeActiveBotInstance = stateManager.activeBotInstanceStore.subscribe(state => {
+      activeBotInstance = state;
+    });
+
     // Add resize listener for responsive layout
     window.addEventListener('resize', updateLayout);
 
     return () => {
       unsubscribeTradingState();
       unsubscribeBackendState();
+      unsubscribeBotTabs();
+      unsubscribeActiveBotInstance();
       window.removeEventListener('resize', updateLayout);
       stateManager.destroy();
     };
@@ -190,8 +204,8 @@
             {selectedPeriod}
             {chartSpeed}
             {selectedTestDateString}
-            botTabs={stateManager.botTabs}
-            activeBotInstance={stateManager.activeBotInstance}
+            {botTabs}
+            {activeBotInstance}
             {tradingState}
             {backendState}
             strategies={stateManager.strategies}
@@ -200,7 +214,7 @@
             on:periodChange={handleChartEvents}
             on:speedChange={handleChartEvents}
             on:dateChange={handleChartEvents}
-            on:botTabSelect={handleBotTabSelect}
+            on:botSelect={handleBotTabSelect}
             on:strategyChange={handleStrategyChange}
             on:balanceChange={handleBalanceChange}
             on:start={handleStartTrading}
