@@ -91,5 +91,25 @@
     height: 6px;
     border-radius: 50%;
     flex-shrink: 0;
+    background: #6b7280;
+  }
+
+  .status-running {
+    background: #10b981;
+    box-shadow: 0 0 4px rgba(16, 185, 129, 0.5);
+  }
+
+  .status-paused {
+    background: #f59e0b;
+    box-shadow: 0 0 4px rgba(245, 158, 11, 0.5);
+  }
+
+  .status-stopped {
+    background: #6b7280;
+  }
+
+  .status-empty {
+    background: transparent;
+    border: 1px dashed rgba(255, 255, 255, 0.3);
   }
 </style>

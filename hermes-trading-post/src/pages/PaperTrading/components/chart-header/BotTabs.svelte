@@ -37,16 +37,18 @@
     font-size: 11px;
     height: 24px;
     padding: 2px 6px;
-    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .status-dot {
-    position: absolute;
-    top: 2px;
-    right: 2px;
+    display: inline-block;
     width: 6px;
     height: 6px;
     border-radius: 50%;
+    background: #6b7280;
+    flex-shrink: 0;
   }
 
   .status-running {

@@ -19,12 +19,13 @@
 
   function getBotStatus(bot: any): 'idle' | 'running' | 'paused' | 'empty' {
     if (!bot) return 'empty';
-    // For Bot 1 (reverse-descending-grid bot), use the backend status
-    if (bot.name === 'Bot 1' || bot.id === 'reverse-descending-grid-bot-1' || bot.id === 'bot-1') {
-      const status = isRunning ? (isPaused ? 'paused' : 'running') : 'idle';
-      return status;
-    }
-    return bot.status || 'idle';
+    // Use each bot's individual status from the botTabs data
+    // The status is set by updateBotTabs() in PaperTradingStateManager.ts
+    // which reads from backendManagerState.bots[botId].status.isRunning
+    if (bot.status === 'running') return 'running';
+    if (bot.status === 'paused') return 'paused';
+    if (bot.status === 'stopped') return 'idle';
+    return 'idle';
   }
 
   function getStatusColor(status: string): string {
@@ -137,5 +138,25 @@
     border-radius: 50%;
     flex-shrink: 0;
     box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+    background: #6b7280; /* Default gray for idle/empty */
+  }
+
+  .status-running {
+    background: #22c55e !important;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+  }
+
+  .status-paused {
+    background: #f59e0b !important;
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+  }
+
+  .status-idle {
+    background: #6b7280 !important;
+  }
+
+  .status-empty {
+    background: transparent;
+    border: 1px dashed rgba(255, 255, 255, 0.3);
   }
 </style>

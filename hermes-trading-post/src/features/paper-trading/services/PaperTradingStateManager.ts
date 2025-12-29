@@ -328,16 +328,23 @@ export class PaperTradingStateManager {
       // Filter bots for current strategy (e.g., "test-bot-1", "test-bot-2" for "test" strategy)
       const strategyBots = Object.entries(backendManagerState.bots)
         .filter(([botId]) => botId.startsWith(`${currentStrategy}-bot-`))
-        .map(([botId, botData]: [string, any]) => ({
-          id: botId,
-          name: botData.name || botId.replace(`${currentStrategy}-`, '').replace('-', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
-          strategy: currentStrategy,
-          isActive: botData.status?.isRunning || false,
-          performance: {
-            totalReturn: botData.status?.totalReturn || 0,
-            tradesCount: botData.status?.trades?.length || 0
-          }
-        }))
+        .map(([botId, botData]: [string, any]) => {
+          const isRunning = botData.status?.isRunning || false;
+          const isPaused = botData.status?.isPaused || false;
+          // 🔧 FIX: Add status string for green light indicator
+          const status = isRunning ? 'running' : (isPaused ? 'paused' : 'stopped');
+          return {
+            id: botId,
+            name: botData.name || botId.replace(`${currentStrategy}-`, '').replace('-', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+            strategy: currentStrategy,
+            isActive: isRunning,
+            status, // 'running', 'paused', or 'stopped'
+            performance: {
+              totalReturn: botData.status?.totalReturn || 0,
+              tradesCount: botData.status?.trades?.length || 0
+            }
+          };
+        })
         .sort((a, b) => a.id.localeCompare(b.id));
 
       // 🔧 FIX: Use store.set() for reactivity
@@ -352,13 +359,19 @@ export class PaperTradingStateManager {
       this.activeBotInstanceStore.set(newActiveBotInstance);
     } else {
       // Fallback to old behavior if backend manager state is not available
-      const fallbackBotTabs = this.managerState.instances?.map((instance: any, index: number) => ({
-        id: instance.id || `bot-${index}`,
-        name: instance.name || `Bot ${index + 1}`,
-        strategy: instance.strategy?.strategyType || 'unknown',
-        isActive: instance.isRunning || false,
-        performance: instance.performance || { totalReturn: 0, tradesCount: 0 }
-      })) || [];
+      const fallbackBotTabs = this.managerState.instances?.map((instance: any, index: number) => {
+        const isRunning = instance.isRunning || false;
+        const isPaused = instance.isPaused || false;
+        const status = isRunning ? 'running' : (isPaused ? 'paused' : 'stopped');
+        return {
+          id: instance.id || `bot-${index}`,
+          name: instance.name || `Bot ${index + 1}`,
+          strategy: instance.strategy?.strategyType || 'unknown',
+          isActive: isRunning,
+          status,
+          performance: instance.performance || { totalReturn: 0, tradesCount: 0 }
+        };
+      }) || [];
       this.botTabsStore.set(fallbackBotTabs);
 
       const fallbackActiveBot = fallbackBotTabs.find(tab => tab.isActive) || fallbackBotTabs[0] || null;
