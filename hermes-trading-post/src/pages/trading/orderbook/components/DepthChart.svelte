@@ -68,6 +68,9 @@
   $effect(() => {
     const _key = chartRefreshKey;
 
+    // Skip if container not ready yet (will be handled by onMount)
+    if (!chartContainer) return;
+
     // Clean up existing MutationObserver before reinitializing
     if (mutationObserver) {
       mutationObserver.disconnect();
