@@ -3,12 +3,25 @@
  */
 
 export class ChartIntegration {
-  public static updateChartMarkers(chartComponent: any, trades: any[]) {
+  public static updateChartMarkers(chartComponent: any, trades: any[], activeBotId?: string) {
     if (!chartComponent || !trades.length) return;
-    
+
     try {
-      // Create markers from trades
-      const markers = trades.map(trade => {
+      // Filter trades by active bot if specified
+      const filteredTrades = activeBotId
+        ? trades.filter(trade => trade.botId === activeBotId)
+        : trades;
+
+      if (!filteredTrades.length) {
+        // Clear markers if no trades for this bot
+        if (chartComponent.clearMarkers) {
+          chartComponent.clearMarkers();
+        }
+        return;
+      }
+
+      // Create markers from filtered trades
+      const markers = filteredTrades.map(trade => {
         const quantity = trade.quantity || trade.amount || 0;
         const price = trade.price || 0;
         const side = trade.side || 'unknown';

@@ -264,7 +264,8 @@ export class PaperTradingStateManager {
   }
 
   private updateChartMarkers(trades: any[]) {
-    ChartIntegration.updateChartMarkers(this.chartComponent, trades);
+    const activeBotId = get(this.activeBotInstanceStore)?.id;
+    ChartIntegration.updateChartMarkers(this.chartComponent, trades, activeBotId);
   }
 
   private updateBackendState(backendState: any) {
@@ -417,14 +418,18 @@ export class PaperTradingStateManager {
   }
 
   public handleBotTabSelect(botId: string) {
+    console.log('[StateManager] Bot tab selected:', botId);
     const currentBotTabs = get(this.botTabsStore);
     const selectedBot = currentBotTabs.find(tab => tab.id === botId);
     if (selectedBot) {
+      console.log('[StateManager] Found bot:', selectedBot.id, 'status:', selectedBot.status);
       // 🔧 FIX: Use store.set() for reactivity
       this.activeBotInstanceStore.set(selectedBot);
 
       // Tell the backend to switch to this bot
       tradingBackendService.selectBot(botId);
+    } else {
+      console.log('[StateManager] Bot not found in tabs:', botId);
     }
   }
 

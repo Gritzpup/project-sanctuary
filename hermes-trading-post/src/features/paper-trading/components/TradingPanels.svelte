@@ -88,7 +88,7 @@
     on:periodChange={forwardEvent}
     on:speedChange={forwardEvent}
     on:dateChange={forwardEvent}
-    on:botTabSelect={forwardEvent}
+    on:botSelect={forwardEvent}
     />
   </div>
 

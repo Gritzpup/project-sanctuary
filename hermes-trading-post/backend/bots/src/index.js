@@ -107,14 +107,19 @@ wss.on('connection', (ws) => {
 
         case 'stop':
           {
+            console.log('[Backend] Stop command received');
             const activeBot = botManager.getActiveBot();
             if (activeBot) {
+              console.log('[Backend] Stopping active bot:', botManager.activeBotId);
               await activeBot.stopTrading();
               const status = activeBot.getStatus();
+              console.log('[Backend] Bot stopped, isRunning:', status.isRunning);
               ws.send(JSON.stringify({
                 type: 'status',
                 data: status
               }));
+            } else {
+              console.log('[Backend] No active bot to stop');
             }
           }
           break;
@@ -168,12 +173,29 @@ wss.on('connection', (ws) => {
           break;
 
         case 'selectBot':
+          console.log('[Backend] SelectBot command received:', message.botId);
           if (message.botId) {
-            botManager.selectBot(message.botId);
-            ws.send(JSON.stringify({
-              type: 'managerState',
-              data: botManager.getManagerState()
-            }));
+            try {
+              botManager.selectBot(message.botId);
+              console.log('[Backend] Bot selected, activeBotId now:', botManager.activeBotId);
+              // Send manager state first
+              ws.send(JSON.stringify({
+                type: 'managerState',
+                data: botManager.getManagerState()
+              }));
+              // CRITICAL: Also send the new bot's status so UI updates isRunning/isPaused
+              const selectedBot = botManager.getActiveBot();
+              if (selectedBot) {
+                const status = selectedBot.getStatus();
+                console.log('[Backend] Sending selected bot status, isRunning:', status.isRunning);
+                ws.send(JSON.stringify({
+                  type: 'status',
+                  data: status
+                }));
+              }
+            } catch (err) {
+              console.error('[Backend] SelectBot error:', err.message);
+            }
           }
           break;
 

@@ -77,10 +77,12 @@ export class TradingOperations {
   }
 
   public static async handleStopTrading() {
-    
+    console.log('[TradingOperations] Stop trading called');
     try {
       await tradingBackendService.stopTrading();
+      console.log('[TradingOperations] Stop trading sent to backend');
     } catch (error) {
+      console.error('[TradingOperations] Stop trading error:', error);
     }
   }
 

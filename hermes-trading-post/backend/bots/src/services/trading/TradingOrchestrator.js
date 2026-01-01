@@ -377,6 +377,7 @@ export class TradingOrchestrator extends EventEmitter {
     return {
       id: Date.now(),
       timestamp: Date.now(),
+      botId: this.botId,
       side,
       amount,
       price,

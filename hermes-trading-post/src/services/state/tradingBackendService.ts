@@ -342,6 +342,7 @@ class TradingBackendService {
   }
 
   stopTrading() {
+    console.log('[BackendService] Sending stop command');
     this.send({ type: 'stop' });
   }
 
@@ -394,6 +395,7 @@ class TradingBackendService {
   }
 
   selectBot(botId: string) {
+    console.log('[BackendService] Selecting bot:', botId);
     this.send({
       type: 'selectBot',
       botId
