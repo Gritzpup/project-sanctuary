@@ -46,6 +46,7 @@ class OrderbookStore {
   // Price update subscribers - for chart to get instant L2 price updates
   private priceSubscribers: Set<(price: number) => void> = new Set();
   private _lastNotifiedMidPrice: number | null = null;  // Track last notified price to avoid redundant updates
+  private readonly MAX_PRICE_SUBSCRIBERS = 50;  // ⚡ PERF: Limit subscribers to prevent memory leaks
 
   // ✅ PHASE 6 FIX: Mutex to prevent concurrent snapshot processing
   // Prevents race conditions where multiple parallel processSnapshot() calls corrupt state
@@ -549,6 +550,11 @@ class OrderbookStore {
     this._lastBidVersion = 0;
     this._lastAskVersion = 0;
     this.isReady = false;
+    // ⚡ PERF: Clear memoization caches on reset
+    this._bidsMemoCache.clear();
+    this._asksMemoCache.clear();
+    this._lastBidsCacheVersion = 0;
+    this._lastAsksCacheVersion = 0;
   }
 
   /**
@@ -641,8 +647,15 @@ class OrderbookStore {
   /**
    * Subscribe to instant price updates from L2 data (best bid/ask midpoint)
    * This provides faster price updates than candle/ticker data
+   * ⚡ PERF: Limited to MAX_PRICE_SUBSCRIBERS to prevent memory leaks
    */
   subscribeToPriceUpdates(callback: (price: number) => void): () => void {
+    // ⚡ PERF: Enforce subscriber limit to prevent memory leaks
+    if (this.priceSubscribers.size >= this.MAX_PRICE_SUBSCRIBERS) {
+      console.warn(`⚠️ OrderbookStore: Max price subscribers (${this.MAX_PRICE_SUBSCRIBERS}) reached, dropping new subscription`);
+      // Return no-op unsubscribe function
+      return () => {};
+    }
     this.priceSubscribers.add(callback);
 
     // Immediately notify with current price if available

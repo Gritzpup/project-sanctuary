@@ -22,6 +22,9 @@ export class ServerLifecycle {
     this.granularityMappingTimes = dependencies.granularityMappingTimes;
     this.lastEmissionTimes = dependencies.lastEmissionTimes;
 
+    // ⚡ PERF: Bots reconnect timeout cleanup function
+    this.clearBotsReconnectTimeout = dependencies.clearBotsReconnectTimeout;
+
     // Shutdown state
     this.isShuttingDown = false;
     this.SHUTDOWN_TIMEOUT = 5000; // 5 seconds to gracefully close
@@ -87,6 +90,12 @@ export class ServerLifecycle {
       if (this.coinbaseWebSocket.__level2Handler) {
         this.coinbaseWebSocket.off('level2', this.coinbaseWebSocket.__level2Handler);
       }
+      if (this.coinbaseWebSocket.__tickerHandler) {
+        this.coinbaseWebSocket.off('ticker', this.coinbaseWebSocket.__tickerHandler);
+      }
+      if (this.coinbaseWebSocket.__candleHandler) {
+        this.coinbaseWebSocket.off('candle', this.coinbaseWebSocket.__candleHandler);
+      }
       if (this.coinbaseWebSocket.__errorHandler) {
         this.coinbaseWebSocket.off('error', this.coinbaseWebSocket.__errorHandler);
       }
@@ -96,6 +105,11 @@ export class ServerLifecycle {
 
       // 6. Close Coinbase WebSocket
       this.coinbaseWebSocket.disconnect();
+
+      // 6b. Clear bots reconnect timeout to prevent reconnect after shutdown
+      if (this.clearBotsReconnectTimeout) {
+        this.clearBotsReconnectTimeout();
+      }
 
       // 7. Close all client WebSocket connections
       this.wss.clients.forEach(client => {

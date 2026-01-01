@@ -23,6 +23,15 @@ export class BroadcastService {
     this.cachedLevel2Snapshot = dependencies.cachedLevel2Snapshot;
     this.deltaSubscriber = dependencies.deltaSubscriber;
 
+    // ⚡ PERF: Store handler references for cleanup
+    this._handlers = {
+      databaseActivity: null,
+      level2: null,
+      candle: null,
+      ticker: null,
+      deltaMessage: null
+    };
+
     // Broadcast statistics for monitoring
     this.broadcastStats = {
       databaseActivity: 0,
@@ -51,13 +60,15 @@ export class BroadcastService {
    * Triggered by continuousCandleUpdater 'database_activity' events
    */
   setupDatabaseActivityBroadcast() {
-    this.continuousCandleUpdater.on('database_activity', (activity) => {
+    // ⚡ PERF: Store handler reference for cleanup
+    this._handlers.databaseActivity = (activity) => {
       this.broadcast({
         type: 'database_activity',
         data: activity
       });
       this.broadcastStats.databaseActivity++;
-    });
+    };
+    this.continuousCandleUpdater.on('database_activity', this._handlers.databaseActivity);
   }
 
   /**
@@ -66,7 +77,8 @@ export class BroadcastService {
    * Caches snapshot for new clients
    */
   setupLevel2Broadcast() {
-    this.coinbaseWebSocket.on('level2', (data) => {
+    // ⚡ PERF: Store handler reference for cleanup
+    this._handlers.level2 = (data) => {
       // Update cached snapshot for new clients
       if (data && data.bids && data.asks) {
         this.cachedLevel2Snapshot = data;
@@ -77,7 +89,8 @@ export class BroadcastService {
         data: data
       });
       this.broadcastStats.level2++;
-    });
+    };
+    this.coinbaseWebSocket.on('level2', this._handlers.level2);
   }
 
   /**
@@ -86,7 +99,8 @@ export class BroadcastService {
    */
   setupOrderbookDeltaBroadcast() {
     if (this.deltaSubscriber) {
-      this.deltaSubscriber.on('message', (channel, message) => {
+      // ⚡ PERF: Store handler reference for cleanup
+      this._handlers.deltaMessage = (channel, message) => {
         try {
           const delta = JSON.parse(message);
 
@@ -98,7 +112,8 @@ export class BroadcastService {
           this.broadcastStats.orderbookDelta++;
         } catch (error) {
         }
-      });
+      };
+      this.deltaSubscriber.on('message', this._handlers.deltaMessage);
     }
   }
 
@@ -109,7 +124,8 @@ export class BroadcastService {
    * Reduces WebSocket traffic by 90% for incomplete candles while keeping complete candles instant
    */
   setupCandleBroadcast() {
-    this.coinbaseWebSocket.on('candle', (candleData) => {
+    // ⚡ PERF: Store handler reference for cleanup
+    this._handlers.candle = (candleData) => {
       const now = Date.now();
 
       // 🔧 FIX: candleData has 'granularity' (seconds) NOT 'granularitySeconds'
@@ -168,7 +184,8 @@ export class BroadcastService {
           }
         }
       });
-    });
+    };
+    this.coinbaseWebSocket.on('candle', this._handlers.candle);
   }
 
   /**
@@ -177,7 +194,8 @@ export class BroadcastService {
    * Includes subscription filtering, NO throttling (real-time)
    */
   setupTickerBroadcast() {
-    this.coinbaseWebSocket.on('ticker', (tickerData) => {
+    // ⚡ PERF: Store handler reference for cleanup
+    this._handlers.ticker = (tickerData) => {
       this.wss.clients.forEach((client) => {
         if (client.readyState === client.OPEN) {
           // Get client's chart subscriptions
@@ -209,7 +227,8 @@ export class BroadcastService {
           }
         }
       });
-    });
+    };
+    this.coinbaseWebSocket.on('ticker', this._handlers.ticker);
   }
 
   /**
@@ -257,5 +276,43 @@ export class BroadcastService {
       ticker: 0,
       totalMessages: 0
     };
+  }
+
+  /**
+   * ⚡ PERF: Cleanup all event listeners to prevent memory leaks
+   * Called during graceful shutdown
+   */
+  cleanup() {
+    // Remove continuousCandleUpdater listener
+    if (this._handlers.databaseActivity) {
+      this.continuousCandleUpdater.off('database_activity', this._handlers.databaseActivity);
+    }
+
+    // Remove coinbaseWebSocket listeners
+    if (this._handlers.level2) {
+      this.coinbaseWebSocket.off('level2', this._handlers.level2);
+    }
+    if (this._handlers.candle) {
+      this.coinbaseWebSocket.off('candle', this._handlers.candle);
+    }
+    if (this._handlers.ticker) {
+      this.coinbaseWebSocket.off('ticker', this._handlers.ticker);
+    }
+
+    // Remove deltaSubscriber listener
+    if (this.deltaSubscriber && this._handlers.deltaMessage) {
+      this.deltaSubscriber.off('message', this._handlers.deltaMessage);
+    }
+
+    // Clear handler references
+    this._handlers = {
+      databaseActivity: null,
+      level2: null,
+      candle: null,
+      ticker: null,
+      deltaMessage: null
+    };
+
+    console.log('🧹 BroadcastService: All event listeners cleaned up');
   }
 }

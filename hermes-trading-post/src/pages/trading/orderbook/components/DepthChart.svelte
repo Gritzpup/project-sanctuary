@@ -55,6 +55,7 @@
   let priceRange = $state({ left: 0, center: 0, right: 0 });
   let mutationObserver: MutationObserver | null = null;
   let wsCheckInterval: ReturnType<typeof setInterval> | null = null;
+  let watermarkTimeouts: ReturnType<typeof setTimeout>[] = [];  // Track watermark removal timeouts
 
   // Update UI when store changes - must be at top level in Svelte 5
   $effect(() => {
@@ -66,6 +67,16 @@
   // ⚡ SEAMLESS REFRESH: Re-initialize chart when key changes
   $effect(() => {
     const _key = chartRefreshKey;
+
+    // Clean up existing MutationObserver before reinitializing
+    if (mutationObserver) {
+      mutationObserver.disconnect();
+      mutationObserver = null;
+    }
+
+    // Clear watermark removal timeouts
+    watermarkTimeouts.forEach(t => clearTimeout(t));
+    watermarkTimeouts = [];
 
     // Destroy existing chart if any
     if (chart) {
@@ -157,21 +168,24 @@
       }
     };
 
-    // Run multiple times to catch any delayed rendering
-    setTimeout(removeTradingViewWatermark, 100);
-    setTimeout(removeTradingViewWatermark, 500);
-    setTimeout(removeTradingViewWatermark, 1000);
+    // Run multiple times to catch any delayed rendering - store IDs for cleanup
+    watermarkTimeouts.push(setTimeout(removeTradingViewWatermark, 100));
+    watermarkTimeouts.push(setTimeout(removeTradingViewWatermark, 500));
+    watermarkTimeouts.push(setTimeout(removeTradingViewWatermark, 1000));
 
     // Also use MutationObserver to catch any dynamically added watermarks
-    mutationObserver = new MutationObserver(() => {
-      removeTradingViewWatermark();
-    });
-
-    if (chartContainer) {
-      mutationObserver.observe(chartContainer, {
-        childList: true,
-        subtree: true
+    // Only create if not already exists (prevents duplicate observers)
+    if (!mutationObserver) {
+      mutationObserver = new MutationObserver(() => {
+        removeTradingViewWatermark();
       });
+
+      if (chartContainer) {
+        mutationObserver.observe(chartContainer, {
+          childList: true,
+          subtree: true
+        });
+      }
     }
 
     // Don't set initial range here - wait for data in scheduleChartUpdate
@@ -498,23 +512,20 @@
     // This creates a clear visual separation between bid and ask sides
     const bestBid = filteredBids[filteredBids.length - 1]?.price || currentPrice;
     const bestAsk = filteredAsks[0]?.price || currentPrice;
-    const maxBidDepth = filteredBids[filteredBids.length - 1]?.depth || 0;
+    const spread = bestAsk - bestBid;
+    const midPrice = (bestBid + bestAsk) / 2;
 
     const bidData = filteredBids.map(level => ({
       time: level.price as any,
       value: level.depth
     }));
 
-    // Add anchor point: drop to zero at best bid + tiny offset to create visual separation
-    // Must maintain ascending price order for LightweightCharts
+    // Add anchor point: drop to zero IMMEDIATELY after best bid
+    // This prevents overlap with asks at the spread
     if (bidData.length > 0) {
-      const anchorPrice = bestBid + 0.01; // Slightly above best bid
+      // Drop to 0 right at the midpoint of the spread
       bidData.push({
-        time: anchorPrice as any,
-        value: maxBidDepth
-      });
-      bidData.push({
-        time: (anchorPrice + 0.01) as any,
+        time: (bestBid + 1) as any,  // $1 above best bid
         value: 0
       });
     }
@@ -524,22 +535,14 @@
       value: level.depth
     }));
 
-    // Add anchor point: start from zero at best ask - tiny offset
-    // Asks are already in ascending order
-    // Must use unshift ONCE with both points in correct order
+    // Add anchor point: start from zero just before best ask
+    // This creates a clean gap at the spread
     if (askData.length > 0) {
-      const anchorPrice = bestAsk - 0.01; // Slightly below best ask
-      // Unshift adds items to the beginning, so add them in ascending price order
-      askData.unshift(
-        {
-          time: (anchorPrice - 0.01) as any,
-          value: 0
-        },
-        {
-          time: anchorPrice as any,
-          value: 0
-        }
-      );
+      // Start from 0 right at the midpoint of the spread
+      askData.unshift({
+        time: (bestAsk - 1) as any,  // $1 below best ask
+        value: 0
+      });
     }
 
     bidSeries.setData(bidData);
@@ -633,6 +636,10 @@
       wsCheckInterval = null;
     }
 
+    // Clean up watermark removal timeouts
+    watermarkTimeouts.forEach(t => clearTimeout(t));
+    watermarkTimeouts = [];
+
     // Clean up mutation observer
     if (mutationObserver) {
       mutationObserver.disconnect();
@@ -679,17 +686,15 @@
       <!-- Mid price indicator line - REMOVED per user request -->
       <!-- <div class="mid-price-line"></div> -->
 
-      <!-- Valley info box -->
-      <div class="valley-price-label valley-{volumeHotspot.side}">
-        <span class="price-type">{volumeHotspot.type}</span>
-        <span class="price-value">{FastNumberFormatter.formatPrice(Math.floor(volumeHotspot.price))}</span>
-        <span class="volume-value">{volumeHotspot.volume.toFixed(2)} BTC</span>
-      </div>
-
-      <!-- Valley indicator -->
+      <!-- Valley indicator with integrated label -->
       <div class="valley-indicator valley-{volumeHotspot.side}" style="left: {volumeHotspot.offset}%">
-        <div class="valley-point"></div>
+        <div class="valley-price-label valley-{volumeHotspot.side}">
+          <span class="price-type">{volumeHotspot.type}</span>
+          <span class="price-value">{FastNumberFormatter.formatPrice(Math.floor(volumeHotspot.price))}</span>
+          <span class="volume-value">{volumeHotspot.volume.toFixed(2)} BTC</span>
+        </div>
         <div class="valley-line"></div>
+        <div class="valley-point"></div>
       </div>
 
       <!-- Hover overlay -->

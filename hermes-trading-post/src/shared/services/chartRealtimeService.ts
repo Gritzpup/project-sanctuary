@@ -10,7 +10,7 @@ type WebSocketCandle = any; // Imported from page-specific types
 
 interface PendingBatch {
   messages: WebSocketCandle[];
-  timeoutId: NodeJS.Timeout | null;
+  rafId: number | null;  // requestAnimationFrame ID for batch processing
 }
 
 /**

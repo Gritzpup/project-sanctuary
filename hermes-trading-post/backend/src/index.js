@@ -52,6 +52,7 @@ wss.on('connection', (ws) => {
 // Create WebSocket connection to bots service
 const BOTS_SERVICE_URL = process.env.BOTS_SERVICE_URL || 'ws://localhost:4829';
 let botsWebSocket = null;
+let botsReconnectTimeout = null;  // ⚡ PERF: Track reconnect timeout for cleanup
 
 const connectToBotsService = () => {
   console.log(`🤖 Connecting to Hermes Bots Service at ${BOTS_SERVICE_URL}...`);
@@ -84,7 +85,12 @@ const connectToBotsService = () => {
   botsWebSocket.on('close', () => {
     console.log('🔴 Disconnected from Bots Service, reconnecting in 5s...');
     botsWebSocket = null;
-    setTimeout(connectToBotsService, 5000);
+    // ⚡ PERF: Clear any existing reconnect timeout to prevent stacking
+    if (botsReconnectTimeout) {
+      clearTimeout(botsReconnectTimeout);
+    }
+    // ⚡ PERF: Track timeout so it can be cleared on shutdown
+    botsReconnectTimeout = setTimeout(connectToBotsService, 5000);
   });
 };
 
@@ -411,7 +417,14 @@ const serverLifecycle = new ServerLifecycle(server, wss, {
   granularityMappings,
   granularityMappingTimes,
   lastEmissionTimes,
-  botsWebSocket // Add bots WebSocket for cleanup
+  botsWebSocket, // Add bots WebSocket for cleanup
+  botsReconnectTimeout: () => botsReconnectTimeout, // Pass getter for current timeout
+  clearBotsReconnectTimeout: () => {
+    if (botsReconnectTimeout) {
+      clearTimeout(botsReconnectTimeout);
+      botsReconnectTimeout = null;
+    }
+  }
 });
 
 // Start the server

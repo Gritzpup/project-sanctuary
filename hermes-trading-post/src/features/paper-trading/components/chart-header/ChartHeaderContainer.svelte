@@ -1,17 +1,14 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import PriceDisplay from '../PriceDisplay.svelte';
-  import BotTabs from './BotTabs.svelte';
   import HeaderControls from './HeaderControls.svelte';
   import MobileHeaderDragHandler from './MobileHeaderDragHandler.svelte';
   import type { ChartHeaderProps } from './ChartHeaderTypes';
-  
+
   export let selectedPair: string = 'BTC-USD';
   export let currentPrice: number = 0;
   export let priceChange24h: number = 0;
   export let priceChangePercent24h: number = 0;
-  export let botTabs: any[] = [];
-  export let activeBotInstance: any = null;
   export let selectedGranularity: string = '1m';
   export let selectedPeriod: string = '1H';
   
@@ -27,21 +24,13 @@
 </script>
 
 <div class="chart-header">
-  <!-- Row 1: Price Display and Bot Tabs -->
+  <!-- Row 1: Price Display -->
   <div class="header-row-1">
     <div class="price-section">
-      <PriceDisplay 
+      <PriceDisplay
         {currentPrice}
         {priceChange24h}
         {priceChangePercent24h}
-      />
-    </div>
-    
-    <div class="bot-section">
-      <BotTabs 
-        {botTabs}
-        {activeBotInstance}
-        on:botSelect={forwardEvent}
       />
     </div>
   </div>
@@ -62,7 +51,7 @@
       on:touchmove={mobileHeaderDragHandler?.handleHeaderDragMove}
       on:touchend={mobileHeaderDragHandler?.handleHeaderDragEnd}
     >
-      <HeaderControls 
+      <HeaderControls
         {selectedPair}
         {selectedGranularity}
         {selectedPeriod}
@@ -70,14 +59,6 @@
         on:granularityChange={forwardEvent}
         on:zoomReset={forwardEvent}
       />
-      
-      <div class="bot-section">
-        <BotTabs 
-          {botTabs}
-          {activeBotInstance}
-          on:botSelect={forwardEvent}
-        />
-      </div>
     </div>
   </MobileHeaderDragHandler>
 </div>
@@ -111,20 +92,16 @@
     flex: 1;
   }
 
-  .bot-section {
-    flex-shrink: 0;
-  }
-
   /* Mobile responsive adjustments */
   @media (max-width: 768px) {
     .chart-header {
       padding: var(--space-xs);
     }
-    
+
     .header-row-1 {
       margin-bottom: var(--space-xs);
     }
-    
+
     .header-row-2 {
       overflow-x: auto;
       overflow-y: hidden;
@@ -134,25 +111,13 @@
       cursor: grab;
       gap: var(--space-sm);
     }
-    
+
     .header-row-2::-webkit-scrollbar {
       display: none; /* Chrome/Safari */
     }
-    
+
     .header-row-2:active {
       cursor: grabbing;
-    }
-    
-    /* Hide bot tabs in row 2 on mobile to avoid duplication */
-    .header-row-2 .bot-section {
-      display: none;
-    }
-  }
-
-  /* Desktop: Hide bot tabs in row 1 */
-  @media (min-width: 769px) {
-    .header-row-1 .bot-section {
-      display: none;
     }
   }
 </style>

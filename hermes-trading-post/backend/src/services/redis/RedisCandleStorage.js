@@ -35,6 +35,14 @@ class RedisCandleStorage {
     this.candleCountCache = new Map(); // key: "pair:granularity", value: {count, timestamp}
     this.CACHE_TTL = 60000; // Cache for 1 minute
 
+    // ⚡ PERF: Cache size limits to prevent memory leaks
+    this.MAX_CACHE_ENTRIES = 100; // Max 100 pair:granularity combinations
+
+    // ⚡ PERF: Periodic cache pruning
+    this.cachePruneInterval = setInterval(() => {
+      this.pruneCountCache();
+    }, 120000); // Every 2 minutes
+
     this.setupEventHandlers();
   }
 
@@ -65,9 +73,40 @@ class RedisCandleStorage {
   }
 
   async disconnect() {
+    // ⚡ PERF: Clear pruning interval to prevent memory leak
+    if (this.cachePruneInterval) {
+      clearInterval(this.cachePruneInterval);
+      this.cachePruneInterval = null;
+    }
+
+    // Clear in-memory cache
+    this.candleCountCache.clear();
+
     if (this.redis) {
       await this.redis.quit();
       this.isConnected = false;
+    }
+  }
+
+  /**
+   * ⚡ PERF: Prune expired cache entries and enforce size limits
+   * Called periodically to prevent unbounded memory growth
+   */
+  pruneCountCache() {
+    const now = Date.now();
+
+    // 1. Remove expired entries
+    for (const [key, value] of this.candleCountCache.entries()) {
+      if (now - value.timestamp > this.CACHE_TTL) {
+        this.candleCountCache.delete(key);
+      }
+    }
+
+    // 2. Enforce size limit (keep most recent entries)
+    if (this.candleCountCache.size > this.MAX_CACHE_ENTRIES) {
+      const entries = Array.from(this.candleCountCache.entries())
+        .sort((a, b) => b[1].timestamp - a[1].timestamp);
+      this.candleCountCache = new Map(entries.slice(0, this.MAX_CACHE_ENTRIES));
     }
   }
 

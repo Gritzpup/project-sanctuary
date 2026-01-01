@@ -35,6 +35,16 @@ class RedisOrderbookCache {
     // Throttle tracking per product
     this.throttleTimestamps = new Map(); // key: "pair", value: lastUpdateTime
 
+    // ⚡ PERF: Cache size limits to prevent memory leaks
+    this.MAX_SNAPSHOT_CACHE_SIZE = 50;    // Max 50 pairs cached
+    this.MAX_CLIENT_STATES_SIZE = 1000;   // Max 1000 client:pair combinations
+    this.MAX_THROTTLE_ENTRIES = 100;       // Max 100 products tracked
+
+    // ⚡ PERF: Periodic cache cleanup interval
+    this.cacheCleanupInterval = setInterval(() => {
+      this.pruneExpiredCaches();
+    }, 60000); // Every 60 seconds
+
     this.setupEventHandlers();
   }
 
@@ -65,9 +75,72 @@ class RedisOrderbookCache {
   }
 
   async disconnect() {
+    // ⚡ PERF: Clear cleanup interval to prevent memory leak
+    if (this.cacheCleanupInterval) {
+      clearInterval(this.cacheCleanupInterval);
+      this.cacheCleanupInterval = null;
+    }
+
+    // Clear all in-memory caches
+    this.snapshotCache.clear();
+    this.clientStates.clear();
+    this.throttleTimestamps.clear();
+
     if (this.redis) {
       await this.redis.quit();
       this.isConnected = false;
+    }
+  }
+
+  /**
+   * ⚡ PERF: Prune expired cache entries and enforce size limits
+   * Called periodically to prevent unbounded memory growth
+   */
+  pruneExpiredCaches() {
+    const now = Date.now();
+
+    // 1. Prune expired snapshot cache entries
+    for (const [key, value] of this.snapshotCache.entries()) {
+      if (now - value.timestamp > this.CACHE_TTL) {
+        this.snapshotCache.delete(key);
+      }
+    }
+
+    // Enforce max size for snapshot cache (keep most recent)
+    if (this.snapshotCache.size > this.MAX_SNAPSHOT_CACHE_SIZE) {
+      const entries = Array.from(this.snapshotCache.entries())
+        .sort((a, b) => b[1].timestamp - a[1].timestamp);
+      this.snapshotCache = new Map(entries.slice(0, this.MAX_SNAPSHOT_CACHE_SIZE));
+    }
+
+    // 2. Prune client states older than 5 minutes
+    const CLIENT_STATE_TTL = 5 * 60 * 1000; // 5 minutes
+    for (const [key, value] of this.clientStates.entries()) {
+      if (value.lastTimestamp && (now - value.lastTimestamp) > CLIENT_STATE_TTL) {
+        this.clientStates.delete(key);
+      }
+    }
+
+    // Enforce max size for client states (keep most recent)
+    if (this.clientStates.size > this.MAX_CLIENT_STATES_SIZE) {
+      const entries = Array.from(this.clientStates.entries())
+        .sort((a, b) => (b[1].lastTimestamp || 0) - (a[1].lastTimestamp || 0));
+      this.clientStates = new Map(entries.slice(0, this.MAX_CLIENT_STATES_SIZE));
+    }
+
+    // 3. Prune old throttle timestamps (older than 10 seconds)
+    const THROTTLE_TTL = 10000; // 10 seconds
+    for (const [key, timestamp] of this.throttleTimestamps.entries()) {
+      if (now - timestamp > THROTTLE_TTL) {
+        this.throttleTimestamps.delete(key);
+      }
+    }
+
+    // Enforce max size for throttle timestamps
+    if (this.throttleTimestamps.size > this.MAX_THROTTLE_ENTRIES) {
+      const entries = Array.from(this.throttleTimestamps.entries())
+        .sort((a, b) => b[1] - a[1]);
+      this.throttleTimestamps = new Map(entries.slice(0, this.MAX_THROTTLE_ENTRIES));
     }
   }
 
