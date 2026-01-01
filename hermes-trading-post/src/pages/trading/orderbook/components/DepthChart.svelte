@@ -81,6 +81,9 @@
     // Destroy existing chart if any
     if (chart) {
       chart.remove();
+      chart = null as any;  // Reset so initializeChart() can create a new one
+      bidSeries = null as any;
+      askSeries = null as any;
     }
 
     // Re-initialize
