@@ -131,7 +131,7 @@
 <!-- Strategy Editor Modal -->
 {#if showStrategyEditor}
   <div class="strategy-editor-overlay" onclick={closeEditor} role="button" tabindex="0" aria-label="Close dialog" onkeydown={(e) => e.key === 'Enter' && closeEditor()}>
-    <div class="strategy-editor-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="strategy-editor-title" tabindex="0">
+    <div class="strategy-editor-modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-labelledby="strategy-editor-title" aria-modal="true" tabindex="-1">
       <div class="modal-header">
         <h3 id="strategy-editor-title">
           {editingStrategy ? 'Edit Strategy' : 'Create New Strategy'}

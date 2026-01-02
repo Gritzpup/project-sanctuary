@@ -56,7 +56,7 @@
   } = $props();
 
   let chartCore: ChartCore;
-  let chartPanes: ChartPanes;
+  let chartPanes: ChartPanes = $state() as unknown as ChartPanes;
   let pluginManager: PluginManager | null = null;
   let chart: IChartApi | null = null;
   let isReady = false;

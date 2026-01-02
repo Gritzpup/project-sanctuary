@@ -685,6 +685,7 @@
       <!-- Transparent mouse capture overlay -->
       <div
         class="mouse-capture-overlay"
+        role="presentation"
         onmousemove={handleMouseMove}
         onmouseleave={handleMouseLeave}
       ></div>

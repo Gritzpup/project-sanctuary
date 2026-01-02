@@ -67,8 +67,8 @@ export class ChartRealtimeService {
       // Clean up any pending batch for this subscription
       const batch = this.messageBatchers.get(subscriptionKey);
       if (batch) {
-        if (batch.timeoutId) {
-          clearTimeout(batch.timeoutId);
+        if (batch.rafId) {
+          cancelAnimationFrame(batch.rafId);
         }
         this.messageBatchers.delete(subscriptionKey);
       }

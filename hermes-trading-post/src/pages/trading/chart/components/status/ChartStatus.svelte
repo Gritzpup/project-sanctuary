@@ -43,34 +43,14 @@
     large: 'status-large'
   };
   
-  // 🚀 PERF: Cache these values to prevent unnecessary re-renders
-  // Only update when actual values change, not on every update
-  let currentStatus = $state(statusStore.status);
-  let wsConnected = $state(statusStore.wsConnected);
-  let isTransitioning = $state(statusStore.isTransitioning);
-  let statusColor = $state(getStatusColor(currentStatus, wsConnected));
-  let statusIcon = $state(statusIcons[currentStatus] || '●');
-  let displayText = $state(wsConnected ? 'Connected' : 'Ready (No WebSocket)');
-
-  // Update on actual changes only
-  $effect(() => {
-    const newStatus = statusStore.status;
-    const newWsConnected = statusStore.wsConnected;
-    const newIsTransitioning = statusStore.isTransitioning;
-
-    // Only update if something actually changed
-    if (newStatus !== currentStatus || newWsConnected !== wsConnected) {
-      currentStatus = newStatus;
-      wsConnected = newWsConnected;
-      statusColor = getStatusColor(currentStatus, wsConnected);
-      statusIcon = statusIcons[currentStatus] || '●';
-      displayText = wsConnected ? 'Connected' : 'Ready (No WebSocket)';
-    }
-
-    if (newIsTransitioning !== isTransitioning) {
-      isTransitioning = newIsTransitioning;
-    }
-  });
+  // 🚀 PERF: Use $derived for computed values - reference store directly
+  // to ensure proper reactivity tracking
+  let currentStatus = $derived(statusStore.status);
+  let wsConnected = $derived(statusStore.wsConnected);
+  let isTransitioning = $derived(statusStore.isTransitioning);
+  let statusColor = $derived(getStatusColor(statusStore.status, statusStore.wsConnected));
+  let statusIcon = $derived(statusIcons[statusStore.status] || '●');
+  let displayText = $derived(statusStore.wsConnected ? 'Connected' : 'Ready (No WebSocket)');
 
   function getStatusColor(status: string, wsConnected: boolean): string {
     // Override colors based on WebSocket connection
@@ -83,13 +63,8 @@
     return statusColors[status] || '#999';
   }
 
-  // Position classes - cache to prevent unnecessary recalculations
-  let positionClass = $state(`position-${position}`);
-
-  // Only update positionClass when position prop changes
-  $effect(() => {
-    positionClass = `position-${position}`;
-  });
+  // Position class - derived from position prop
+  let positionClass = $derived(`position-${position}`);
 
   // 🚀 PERF: Separate state for history visibility to avoid modifying prop
   let historyVisible = $state(showHistory);

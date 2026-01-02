@@ -39,22 +39,22 @@ export class CacheManager {
     hours: number = 24
   ): Promise<CandlestickDataWithVolume[] | null> {
     try {
-      const cacheKey = this.generateCacheKey(pair, granularity);
-      const cachedData = await this.redisService.getCandles(
-        cacheKey,
-        pair,
-        granularity,
-        hours
-      );
-
+      // Try IndexedDB cache first (local browser storage)
+      const cachedData = await this.getCachedFromIndexedDB(pair, granularity, hours);
       if (cachedData && cachedData.length > 0) {
         return cachedData;
       }
 
-      // Fall back to IndexedDB if Redis miss
-      return await this.getCachedFromIndexedDB(pair, granularity, hours);
+      // Fall back to Redis backend fetch if no local cache
+      const request = { pair, granularity, limit: hours * 60 };
+      const fetchedData = await this.redisService.fetchCandles(request);
+      if (fetchedData && fetchedData.length > 0) {
+        return fetchedData as CandlestickDataWithVolume[];
+      }
+
+      return null;
     } catch (error) {
-      // Try IndexedDB as fallback
+      // Try IndexedDB as fallback on error
       return await this.getCachedFromIndexedDB(pair, granularity, hours);
     }
   }
@@ -69,15 +69,15 @@ export class CacheManager {
   private async getCachedFromIndexedDB(
     pair: string,
     granularity: string,
-    hours: number
+    _hours: number
   ): Promise<CandlestickDataWithVolume[] | null> {
     try {
-      const candles = await chartIndexedDBCache.getCandles(
-        pair,
-        granularity,
-        hours
-      );
-      return candles && candles.length > 0 ? candles : null;
+      // Use the get() method which returns CachedChartData
+      const cachedData = await chartIndexedDBCache.get(pair, granularity);
+      if (cachedData && cachedData.candles && cachedData.candles.length > 0) {
+        return cachedData.candles as CandlestickDataWithVolume[];
+      }
+      return null;
     } catch (error) {
       return null;
     }
@@ -99,19 +99,9 @@ export class CacheManager {
     }
 
     try {
-      const cacheKey = this.generateCacheKey(pair, granularity);
-
-      // Store in Redis
-      await this.redisService.storeCandles(
-        cacheKey,
-        pair,
-        granularity,
-        candles,
-        this.DEFAULT_CACHE_TTL
-      );
-
-      // Store in IndexedDB as backup
-      await chartIndexedDBCache.storeCandles(pair, granularity, candles);
+      // Store in IndexedDB (local browser cache)
+      // Note: Redis backend handles its own caching, we only cache locally
+      await chartIndexedDBCache.set(pair, granularity, candles as any);
     } catch (error) {
       // Continue even if caching fails - don't block data operations
     }
@@ -124,13 +114,9 @@ export class CacheManager {
    */
   async invalidateCache(pair: string, granularity: string): Promise<void> {
     try {
-      const cacheKey = this.generateCacheKey(pair, granularity);
-
-      // Invalidate Redis cache
-      await this.redisService.invalidateCandles(cacheKey, pair, granularity);
-
-      // Invalidate IndexedDB cache
-      await chartIndexedDBCache.invalidateCandles(pair, granularity);
+      // Clear local IndexedDB cache
+      // Note: Redis backend manages its own cache invalidation
+      await chartIndexedDBCache.clear(pair, granularity);
     } catch (error) {
       // Continue even if invalidation fails
     }

@@ -8,6 +8,7 @@ import type { CandlestickData } from 'lightweight-charts';
 import type { WebSocketCandle } from '../../types/data.types';
 import { RedisChartService } from '../../services/RedisChartService';
 import { orderbookStore } from '../../../orderbook/stores/orderbookStore.svelte';
+import { chartRealtimeService } from '../../../../../shared/services/chartRealtimeService';
 
 /**
  * Manages WebSocket and event subscriptions for realtime data
@@ -62,26 +63,27 @@ export class DataStoreSubscriptions {
           // Notify callback with processed candle
           if (onCandleUpdate) {
             onCandleUpdate({
-              time: normalizedTime as any,
+              time: normalizedTime,
               open: update.open,
               high: update.high,
               low: update.low,
               close: update.close,
               volume: update.volume || 0
-            });
+            } as any);
           }
         }
 
         // Notify callback with ticker update (for real-time price)
         if (onCandleUpdate) {
-          onCandleUpdate(update as CandlestickData);
+          onCandleUpdate(update as unknown as CandlestickData);
         }
       },
       onReconnect
     );
 
     // Also subscribe to orderbook L2 for instant price updates
-    this.subscribeToOrderbookPrices(onCandleUpdate);
+    // Note: This subscribes to price updates separately from candle updates
+    this.subscribeToOrderbookPrices();
 
     // Return cleanup function
     return () => this.unsubscribeFromRealtime();

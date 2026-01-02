@@ -134,8 +134,8 @@ class DataStore {
       if (sortedCandles.length < result.data.length) {
       }
 
-      this._candles = sortedCandles;
-      this._visibleCandles = sortedCandles;
+      this._candles = sortedCandles as any;
+      this._visibleCandles = sortedCandles as any;
       this._currentPair = pair;
       this._currentGranularity = granularity;
 

@@ -31,13 +31,13 @@ export interface CandlestickDataWithVolume extends CandlestickData {
 }
 
 export class CandleDataBuffer {
-  // Internal TypedArrays for efficient storage
-  private timeBuffer: BigInt64Array;
-  private openBuffer: Float64Array;
-  private highBuffer: Float64Array;
-  private lowBuffer: Float64Array;
-  private closeBuffer: Float64Array;
-  private volumeBuffer: Float64Array;
+  // Internal TypedArrays for efficient storage (initialized in allocateBuffers)
+  private timeBuffer!: BigInt64Array;
+  private openBuffer!: Float64Array;
+  private highBuffer!: Float64Array;
+  private lowBuffer!: Float64Array;
+  private closeBuffer!: Float64Array;
+  private volumeBuffer!: Float64Array;
 
   // Current size tracking
   private size: number = 0;
@@ -158,7 +158,7 @@ export class CandleDataBuffer {
     }
 
     return {
-      time: Number(this.timeBuffer[index]),
+      time: Number(this.timeBuffer[index]) as any,
       open: this.openBuffer[index],
       high: this.highBuffer[index],
       low: this.lowBuffer[index],
@@ -176,7 +176,7 @@ export class CandleDataBuffer {
 
     for (let i = startIndex; i < end && i < this.size; i++) {
       result.push({
-        time: Number(this.timeBuffer[i]),
+        time: Number(this.timeBuffer[i]) as any,
         open: this.openBuffer[i],
         high: this.highBuffer[i],
         low: this.lowBuffer[i],
