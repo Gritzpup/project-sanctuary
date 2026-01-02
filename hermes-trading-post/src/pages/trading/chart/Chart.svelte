@@ -106,7 +106,3 @@
   {onGranularityChange}
   {onPairChange}
 />
-
-<style>
-  /* All styles are now in ChartContainer */
-</style>
