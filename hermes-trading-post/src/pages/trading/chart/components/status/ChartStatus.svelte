@@ -45,12 +45,12 @@
   
   // 🚀 PERF: Cache these values to prevent unnecessary re-renders
   // Only update when actual values change, not on every update
-  let currentStatus = statusStore.status;
-  let wsConnected = statusStore.wsConnected;
-  let isTransitioning = statusStore.isTransitioning;
-  let statusColor = getStatusColor(currentStatus, wsConnected);
-  let statusIcon = statusIcons[currentStatus] || '●';
-  let displayText = wsConnected ? 'Connected' : 'Ready (No WebSocket)';
+  let currentStatus = $state(statusStore.status);
+  let wsConnected = $state(statusStore.wsConnected);
+  let isTransitioning = $state(statusStore.isTransitioning);
+  let statusColor = $state(getStatusColor(currentStatus, wsConnected));
+  let statusIcon = $state(statusIcons[currentStatus] || '●');
+  let displayText = $state(wsConnected ? 'Connected' : 'Ready (No WebSocket)');
 
   // Update on actual changes only
   $effect(() => {
@@ -84,7 +84,7 @@
   }
 
   // Position classes - cache to prevent unnecessary recalculations
-  let positionClass = `position-${position}`;
+  let positionClass = $state(`position-${position}`);
 
   // Only update positionClass when position prop changes
   $effect(() => {

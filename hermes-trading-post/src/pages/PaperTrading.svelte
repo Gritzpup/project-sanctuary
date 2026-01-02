@@ -17,7 +17,6 @@
 
   import PaperTradingWrapper from '../features/paper-trading/PaperTradingWrapper.svelte';
 
-  export let currentPrice: number = 0;
   export let connectionStatus: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
   export let sidebarCollapsed = false;
 </script>

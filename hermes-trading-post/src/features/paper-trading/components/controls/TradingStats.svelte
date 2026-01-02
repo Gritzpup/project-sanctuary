@@ -4,7 +4,6 @@
   export let totalTrades: number;
   export let totalFees: number;
   export let totalRebates: number;
-  export let totalReturn: number = 0; // Realized profit from backend
   export let positions: any[];
   export let currentPrice: number;
   export let btcBalance: number;

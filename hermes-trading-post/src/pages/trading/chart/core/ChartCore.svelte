@@ -17,6 +17,8 @@
   import { ChartSubscriptionOrchestrator } from '../services/ChartSubscriptionOrchestrator';
   import { ChartTimeframeCoordinator } from '../services/ChartTimeframeCoordinator';
 
+  import type { Snippet } from 'svelte';
+
   // 🚀 Svelte 5 runes mode: Use $props() instead of export let
   const {
     pair = 'BTC-USD',
@@ -25,7 +27,9 @@
     enablePlugins = true,
     enableAutoGranularity = true,
     chartRefreshKey = Date.now(),
-    onReady
+    onReady,
+    overlays,
+    controls
   } = $props<{
     pair?: string;
     granularity?: string;
@@ -34,6 +38,8 @@
     enableAutoGranularity?: boolean;
     chartRefreshKey?: number;
     onReady?: (chart: IChartApi) => void;
+    overlays?: Snippet;
+    controls?: Snippet;
   }>();
 
   let chartCanvas: ChartCanvas;
@@ -461,8 +467,8 @@
     onChartReady={handleChartReady}
   />
 
-  <slot name="overlays" />
-  <slot name="controls" />
+  {@render overlays?.()}
+  {@render controls?.()}
 </div>
 
 <style>

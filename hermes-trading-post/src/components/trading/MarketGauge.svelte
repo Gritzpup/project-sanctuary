@@ -2,7 +2,6 @@
   export let currentPrice: number = 0;
   export let nextBuyPrice: number = 0;
   export let nextSellPrice: number = 0;
-  export let positions: any[] = [];
   export let recentHigh: number = 0;
   export let isRunning: boolean = false;
   export let trades: any[] = [];
@@ -311,12 +310,6 @@
   /* Needle animation - smooth and professional */
   .needle {
     transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .separator {
-    height: 1px;
-    background: rgba(74, 0, 224, 0.3);
-    margin: 8px 16px;
   }
 
   .compact-stats {

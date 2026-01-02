@@ -285,6 +285,35 @@
     </div>
   {/if}
   
+  {#snippet chartOverlays()}
+    {#if multiPane}
+      <ChartPanes bind:this={chartPanes}>
+        <div slot="main-pane" class="main-pane">
+          <!-- Main chart is rendered by ChartCore -->
+        </div>
+
+        <div slot="indicator-pane" let:pane class="indicator-pane">
+          <!-- Indicator panes would be rendered here based on pane.id -->
+          {#if pane.id === 'rsi'}
+            <div class="pane-label">RSI</div>
+          {/if}
+        </div>
+      </ChartPanes>
+    {/if}
+
+    <ChartError
+      position="center"
+      dismissible={true}
+    />
+
+    {#if showDebug}
+      <ChartDebug
+        show={true}
+        expanded={false}
+      />
+    {/if}
+  {/snippet}
+
   <div class="chart-body">
     <ChartCore
       bind:this={chartCore}
@@ -295,36 +324,8 @@
       {enableAutoGranularity}
       {chartRefreshKey}
       onReady={handleChartReady}
-    >
-      <div slot="overlays">
-        {#if multiPane}
-          <ChartPanes bind:this={chartPanes}>
-            <div slot="main-pane" class="main-pane">
-              <!-- Main chart is rendered by ChartCore -->
-            </div>
-
-            <div slot="indicator-pane" let:pane class="indicator-pane">
-              <!-- Indicator panes would be rendered here based on pane.id -->
-              {#if pane.id === 'rsi'}
-                <div class="pane-label">RSI</div>
-              {/if}
-            </div>
-          </ChartPanes>
-        {/if}
-
-        <ChartError
-          position="center"
-          dismissible={true}
-        />
-
-        {#if showDebug}
-          <ChartDebug
-            show={true}
-            expanded={false}
-          />
-        {/if}
-      </div>
-    </ChartCore>
+      overlays={chartOverlays}
+    />
   </div>
 
   {#if showInfo}

@@ -196,11 +196,7 @@
   .price-container:not(.price-up):not(.price-down) .price-symbol {
     color: var(--text-primary);
   }
-  
-  .animating {
-    /* Remove font-weight change to avoid brightness differences */
-  }
-  
+
   .price-container {
     color: var(--text-primary);
   }
