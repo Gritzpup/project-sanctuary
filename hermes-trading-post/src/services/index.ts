@@ -6,7 +6,7 @@
 
 // ✨ New recommended services (backend-first architecture)
 export { backendCache, BackendCacheService } from './cache/BackendCacheService';
-export { BackendAPIService, backendAPI } from './api/BackendAPIService';
+export { BackendAPIService } from './api/BackendAPIService';
 
 // 🔄 Strategy adapters (eliminates frontend/backend duplication)
 export { BackendStrategyAdapter, BackendStrategyFactory } from '../strategies/adapters/BackendStrategyAdapter';
@@ -17,7 +17,8 @@ export * from './cache';
 export * from './chart';
 export * from './core';
 export * from './data';
-export * from './state';
+// Note: ./state has no index.ts - import individual files directly
+// export * from './state';
 export * from './trading';
 export * from './backtesting';
 
@@ -25,11 +26,11 @@ export * from './backtesting';
 export const services = {
   // New unified services (recommended)
   cache: () => import('./cache/BackendCacheService').then(m => m.backendCache),
-  api: () => import('./api/BackendAPIService').then(m => m.backendAPI),
+  api: () => import('./api/BackendAPIService').then(m => m.BackendAPIService.getInstance()),
 
   // Legacy services (for migration)
-  legacyCache: () => import('./cache/indexedDB').then(m => new m.IndexedDBCache()),
-  legacyPaperTrading: () => import('./state/paperTradingService'),
+  legacyCache: () => import('./cache/indexeddb').then(m => m.IndexedDBCacheService),
+  legacyPaperTrading: () => import('./paper-trading/paperTradingService'),
   legacyPaperTest: () => import('./state/paperTestService')
 };
 
@@ -42,28 +43,29 @@ export const migration = {
     if (useBackend) {
       return (await import('./cache/BackendCacheService')).backendCache;
     } else {
-      const { IndexedDBCache } = await import('./cache/indexedDB');
-      return new IndexedDBCache();
+      const { IndexedDBCacheService } = await import('./cache/indexeddb');
+      return IndexedDBCacheService;
     }
   },
-  
+
   // Trading engine migration
   async getTradingEngine() {
     // Return legacy service selector
     return {
-      paperTrading: () => import('./state/paperTradingService'),
+      paperTrading: () => import('./paper-trading/paperTradingService'),
       paperTest: () => import('./state/paperTestService')
     };
   },
-  
+
   // Strategy migration
   async getStrategy(strategyType: string, useBackend = true) {
     if (useBackend) {
       const { BackendStrategyFactory } = await import('../strategies/adapters/BackendStrategyAdapter');
       return BackendStrategyFactory.createReverseRatio(); // Example
     } else {
-      const { StrategyRegistry } = await import('../strategies');
-      return new StrategyRegistry[strategyType as keyof typeof StrategyRegistry]();
+      // Import strategy directly from implementations
+      const strategies = await import('../strategies/implementations/ReverseRatioStrategy');
+      return new strategies.ReverseRatioStrategy();
     }
   }
 };

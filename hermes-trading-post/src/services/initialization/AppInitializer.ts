@@ -169,8 +169,9 @@ export class AppInitializer {
     initialized: boolean;
     initializing: boolean;
     storeManager: { totalStores: number; initializedStores: number };
-    metrics: { size: number; usage: number };
+    metrics: { size: number; capacity: number; usage: number };
   } {
+    const bufferStats = metricsCollector.getBufferStats();
     return {
       initialized: AppInitializer.initialized,
       initializing: AppInitializer.initializing,
@@ -179,8 +180,9 @@ export class AppInitializer {
         initializedStores: storeManager.getStats().initializedStores
       },
       metrics: {
-        size: metricsCollector.getBufferStats().size,
-        usage: metricsCollector.getBufferStats().usage
+        size: bufferStats.size,
+        capacity: bufferStats.capacity,
+        usage: bufferStats.usage
       }
     };
   }
@@ -207,7 +209,7 @@ export function getAppStatus(): {
   initialized: boolean;
   initializing: boolean;
   storeManager: { totalStores: number; initializedStores: number };
-  metrics: { size: number; usage: number };
+  metrics: { size: number; capacity: number; usage: number };
 } {
   return AppInitializer.getStatus();
 }

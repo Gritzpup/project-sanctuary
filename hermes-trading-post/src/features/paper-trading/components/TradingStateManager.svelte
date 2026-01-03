@@ -3,7 +3,7 @@
   import { tradingBackendService } from '../../services/state/tradingBackendService';
   import { paperTestService } from '../../services/state/paperTestService';
   import { ChartDataFeed } from '../../services/chart/dataFeed';
-  import type { Strategy } from '../../strategies/base/Strategy';
+  import type { Strategy } from '../../../strategies/base/Strategy';
   
   export let activeBotInstance: any = null;
   export let currentStrategy: Strategy | null = null;

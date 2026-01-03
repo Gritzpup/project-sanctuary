@@ -66,15 +66,16 @@
   );
 
   // Initialize on mount
-  $effect.pre(async () => {
+  $effect.pre(() => {
     if (!isInitialized) {
-      // Initialize server time synchronization
-      await ServerTimeService.initServerTime();
-      isInitialized = true;
-      lastSecond = ServerTimeService.getNowDate().getSeconds();
+      // Initialize server time synchronization asynchronously
+      ServerTimeService.initServerTime().then(() => {
+        isInitialized = true;
+        lastSecond = ServerTimeService.getNowDate().getSeconds();
 
-      // Start RAF loop for smooth updates
-      updateClock();
+        // Start RAF loop for smooth updates
+        updateClock();
+      });
     }
 
     // Cleanup RAF on unmount

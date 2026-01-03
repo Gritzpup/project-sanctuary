@@ -1,6 +1,11 @@
 import type { CandlestickData, Time } from 'lightweight-charts';
 import { PERIOD_TO_SECONDS } from './constants';
 
+// Extended CandlestickData with volume
+interface CandlestickDataWithVolume extends CandlestickData<Time> {
+  volume?: number;
+}
+
 // Import shared utilities (Phase 1 refactoring)
 import { getCurrentTimestamp } from './timeHelpers';
 import { alignTimeToGranularity, getGranularitySeconds } from './granularityHelpers';
@@ -75,10 +80,10 @@ export function calculateLowerWick(candle: CandlestickData): number {
 
 // Data aggregation
 export function aggregateCandles(
-  candles: CandlestickData[],
+  candles: CandlestickDataWithVolume[],
   targetGranularity: string,
   sourceGranularity: string
-): CandlestickData[] {
+): CandlestickDataWithVolume[] {
   const targetSeconds = getGranularitySeconds(targetGranularity);
   const sourceSeconds = getGranularitySeconds(sourceGranularity);
 
@@ -86,7 +91,7 @@ export function aggregateCandles(
     return candles;
   }
 
-  const aggregated: Map<number, CandlestickData> = new Map();
+  const aggregated: Map<number, CandlestickDataWithVolume> = new Map();
 
   candles.forEach(candle => {
     const alignedTime = alignTimeToGranularity(candle.time as number, targetGranularity);
@@ -119,7 +124,7 @@ export function aggregateCandles(
 }
 
 // Export utilities
-export function exportToCSV(candles: CandlestickData[]): string {
+export function exportToCSV(candles: CandlestickDataWithVolume[]): string {
   const headers = ['Time', 'Open', 'High', 'Low', 'Close', 'Volume'];
   const rows = candles.map(candle => [
     new Date((candle.time as number) * 1000).toISOString(),

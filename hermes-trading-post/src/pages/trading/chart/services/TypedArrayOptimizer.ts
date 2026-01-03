@@ -66,13 +66,10 @@ export class TypedArrayOptimizer {
 
 
     if (stats.totalMemoryUsage > 0) {
-      const memoryMB = (stats.totalMemoryUsage / 1024 / 1024).toFixed(2);
-
-      stats.entries.forEach(entry => {
-          `  ${entry.key}: ${entry.candles} candles, ${(entry.memoryUsage / 1024).toFixed(1)}KB, ${entry.hits} hits`
-        );
+      // Memory stats available
+      stats.entries.forEach(() => {
+        // Process each entry
       });
-    } else {
     }
 
   }

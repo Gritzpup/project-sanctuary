@@ -1,7 +1,8 @@
 <script lang="ts" context="module">
   import { BacktestingEngine } from '../../../services/backtesting/engine';
   import type { Strategy } from '../../../strategies/base/Strategy';
-  import type { BacktestConfig, BacktestResult } from '../../../strategies/base/StrategyTypes';
+  import type { BacktestResult } from '../../../strategies/base/StrategyTypes';
+  import type { BacktestConfig } from '../../../services/backtesting/engine/types';
   import type { CandleData } from '../../../types/coinbase';
 
   export async function runBacktest(
@@ -19,7 +20,10 @@
     }
 
     const backtestConfig: BacktestConfig = {
-      startBalance: config.startBalance,
+      initialBalance: config.startBalance,
+      startTime: 0,
+      endTime: Date.now(),
+      feePercent: config.makerFeePercent, // Legacy
       makerFeePercent: config.makerFeePercent,
       takerFeePercent: config.takerFeePercent,
       feeRebatePercent: config.feeRebatePercent,

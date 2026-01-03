@@ -26,7 +26,7 @@ import { StateManager } from './reverse-descending-grid/StateManager';
  * - Test Strategy: ~10.2 entries/day, ~5.0 exits/day
  */
 export class TestStrategy extends Strategy {
-  private config: ReverseRatioConfig;
+  protected testConfig: ReverseRatioConfig;
   private internalState: ReverseRatioState;
 
   // Modular components
@@ -59,7 +59,7 @@ export class TestStrategy extends Strategy {
       fullConfig
     );
 
-    this.config = fullConfig;
+    this.testConfig = fullConfig;
 
     // Initialize internal state
     this.internalState = {
@@ -71,10 +71,10 @@ export class TestStrategy extends Strategy {
     };
 
     // Initialize modular components
-    this.marketAnalyzer = new MarketAnalyzer(this.config, this.internalState);
-    this.entryLogic = new EntryLogic(this.config, this.internalState);
-    this.exitLogic = new ExitLogic(this.config, this.internalState);
-    this.positionSizer = new PositionSizer(this.config, this.internalState);
+    this.marketAnalyzer = new MarketAnalyzer(this.testConfig, this.internalState);
+    this.entryLogic = new EntryLogic(this.testConfig, this.internalState);
+    this.exitLogic = new ExitLogic(this.testConfig, this.internalState);
+    this.positionSizer = new PositionSizer(this.testConfig, this.internalState);
     this.stateManager = new StateManager(this.internalState);
   }
 
@@ -122,9 +122,9 @@ export class TestStrategy extends Strategy {
           strength: 1.0,
           price: currentPrice,
           size: sellSize,
-          reason: `Taking profit at ${this.config.profitTarget}% above initial entry`,
+          reason: `Taking profit at ${this.testConfig.profitTarget}% above initial entry`,
           metadata: {
-            targetPrice: this.internalState.initialEntryPrice * (1 + this.config.profitTarget / 100),
+            targetPrice: this.internalState.initialEntryPrice * (1 + this.testConfig.profitTarget / 100),
             totalProfit: (currentPrice - this.exitLogic.getAverageEntryPrice(this.state.positions)) * sellSize,
             isCompleteExit: true
           }
@@ -171,7 +171,7 @@ export class TestStrategy extends Strategy {
   }
 
   getRequiredHistoricalData(): number {
-    return this.config.lookbackPeriod + 10; // Extra buffer
+    return this.testConfig.lookbackPeriod + 10; // Extra buffer
   }
 
   reset(): void {

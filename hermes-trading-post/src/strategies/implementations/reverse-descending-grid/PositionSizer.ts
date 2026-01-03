@@ -1,4 +1,4 @@
-import type { Signal, StrategyBalance } from '../../base/StrategyTypes';
+import type { Signal } from '../../base/StrategyTypes';
 import type { ReverseRatioConfig, ReverseRatioState } from './types';
 
 /**
@@ -17,7 +17,7 @@ export class PositionSizer {
   /**
    * Calculate position size for a buy signal
    */
-  calculatePositionSize(balance: number, signal: Signal, currentPrice: number, strategyBalance: StrategyBalance): number {
+  calculatePositionSize(balance: number, signal: Signal, currentPrice: number, _strategyBalance?: unknown): number {
     if (signal.type !== 'buy' || !signal.metadata?.level) return 0;
     
     const level = signal.metadata.level;

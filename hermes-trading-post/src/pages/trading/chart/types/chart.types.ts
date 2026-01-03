@@ -8,6 +8,8 @@ export interface ChartConfig {
   showVolume: boolean;
   showGrid: boolean;
   showCrosshair: boolean;
+  showDebug?: boolean;
+  pair?: string;
 }
 
 export interface ChartInstance {

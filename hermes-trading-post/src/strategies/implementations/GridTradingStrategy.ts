@@ -163,7 +163,7 @@ export class GridTradingStrategy extends Strategy {
 
   private findNearestGridLevels(currentPrice: number): { above: any; below: any } | null {
     const levels = Array.from(this.gridLevels.entries())
-      .map(([price, data]) => ({ price, ...data }))
+      .map(([_key, data]) => data)
       .sort((a, b) => a.price - b.price);
     
     let above = null;

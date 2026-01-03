@@ -60,9 +60,12 @@ export class VisibleCandleTracker {
 
     // Subscribe to visible range changes
     try {
-      this.unsubscribe = this.chart.timeScale().subscribeVisibleLogicalRangeChange(
+      this.chart.timeScale().subscribeVisibleLogicalRangeChange(
         this.visibleRangeChangeHandler as any
       );
+      this.unsubscribe = () => {
+        this.chart?.timeScale().unsubscribeVisibleLogicalRangeChange(this.visibleRangeChangeHandler as any);
+      };
 
       // Get and log initial range immediately
       const initialRange = this.chart.timeScale().getVisibleLogicalRange();

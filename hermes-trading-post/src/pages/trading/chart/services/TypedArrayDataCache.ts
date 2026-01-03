@@ -17,11 +17,7 @@
  */
 
 import { CandleDataBuffer } from './CandleDataBuffer';
-import type { CandlestickData } from 'lightweight-charts';
-
-export interface CandlestickDataWithVolume extends CandlestickData {
-  volume?: number;
-}
+import type { CandlestickDataWithVolume } from '../stores/services/DataTransformations';
 
 interface CacheEntry {
   buffer: CandleDataBuffer;

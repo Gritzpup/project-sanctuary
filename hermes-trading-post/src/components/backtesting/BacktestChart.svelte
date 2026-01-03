@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { createChart, ColorType } from 'lightweight-charts';
   import type { IChartApi, ISeriesApi } from 'lightweight-charts';
-  import type { CandleData } from '../types/coinbase';
+  import type { CandleData } from '../../types/trading/market';
   
   export let data: CandleData[] = [];
   export let trades: any[] = [];
@@ -106,34 +106,22 @@
     // Add trade markers if available
     if (trades && trades.length > 0) {
       
-      // Debug: Log candle time range
+      // Calculate candle time range for validation
       const candleTimeRange = {
         first: data[0]?.time,
-        last: data[data.length - 1]?.time,
-        firstDate: data[0] ? new Date(data[0].time * 1000).toISOString() : 'none',
-        lastDate: data[data.length - 1] ? new Date(data[data.length - 1].time * 1000).toISOString() : 'none'
+        last: data[data.length - 1]?.time
       };
-        timestamp: t.timestamp,
-        date: new Date(t.timestamp * 1000).toISOString(),
-        type: t.type,
-        price: t.price
-      })));
-      
-      // Verify trade timestamps are within candle range
-      const tradesOutOfRange = trades.filter(t => t.timestamp < candleTimeRange.first || t.timestamp > candleTimeRange.last);
-      if (tradesOutOfRange.length > 0) {
-      }
       
       // Create markers for candlestick series
-      const markers = trades.map((trade, index) => {
-        // Trade timestamp is already in seconds (same as candle.time)
+      const markers = trades
+        .filter((trade) => {
+          const time = trade.timestamp;
+          // Only include trades within candle range
+          return time >= candleTimeRange.first && time <= candleTimeRange.last;
+        })
+        .map((trade) => {
         const time = trade.timestamp;
-        
-        
-        // Check if trade time is within candle range
-        if (time < candleTimeRange.first || time > candleTimeRange.last) {
-        }
-        
+
         return {
           time: time,
           position: trade.type === 'buy' ? 'belowBar' : 'aboveBar',

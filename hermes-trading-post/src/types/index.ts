@@ -36,18 +36,8 @@ export * from './api/api';
 // ============================
 export * from './ui/ui';
 
-// ============================
-// Event Types
-// ============================
-export * from './Events';
-
-// ============================
-// Legacy Exports (Backward Compatibility)
-// ============================
-// These re-export from new consolidated locations
-// @deprecated Import from specific modules instead
-export * from './coinbase';
-
-// Legacy trading types (still used by some files)
-// @deprecated Import from '@/types/trading' instead
-export * from './trading/trading';
+// Note: Legacy exports removed to avoid duplicate declarations
+// For backward compatibility, import from:
+//   - '@/types/trading' for trading types
+//   - '@/types/api/websocket' for websocket types
+//   - '@/types/coinbase' for CandleData

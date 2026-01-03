@@ -58,37 +58,37 @@
   // Event handlers that forward to state manager
   function handleStrategyChange(event: CustomEvent) {
     const { value } = event.detail;
-    stateManager.handleStrategyChange(value);
+    stateManager?.handleStrategyChange(value);
   }
 
   function handleBalanceChange(event: CustomEvent) {
     const { balance } = event.detail;
-    stateManager.handleBalanceChange(balance);
+    stateManager?.handleBalanceChange(balance);
   }
 
   function handleStartTrading() {
-    stateManager.handleStartTrading();
+    stateManager?.handleStartTrading();
   }
 
   function handlePauseTrading() {
-    stateManager.handlePauseTrading();
+    stateManager?.handlePauseTrading();
   }
 
   function handleResumeTrading() {
-    stateManager.handleResumeTrading();
+    stateManager?.handleResumeTrading();
   }
 
   function handleStopTrading() {
-    stateManager.handleStopTrading();
+    stateManager?.handleStopTrading();
   }
 
   function handleReset() {
-    stateManager.handleReset(chartComponent);
+    stateManager?.handleReset(chartComponent);
   }
 
   function handleBotTabSelect(event: CustomEvent) {
     const { botId } = event.detail;
-    stateManager.handleBotTabSelect(botId);
+    stateManager?.handleBotTabSelect(botId);
   }
 
   function handleChartEvents(event: CustomEvent) {
@@ -175,7 +175,7 @@
       unsubscribeBotTabs();
       unsubscribeActiveBotInstance();
       window.removeEventListener('resize', updateLayout);
-      stateManager.destroy();
+      stateManager?.destroy();
     };
   });
 
@@ -208,7 +208,7 @@
             {activeBotInstance}
             {tradingState}
             {backendState}
-            strategies={stateManager.strategies}
+            strategies={stateManager?.strategies ?? []}
             on:pairChange={handleChartEvents}
             on:granularityChange={handleChartEvents}
             on:periodChange={handleChartEvents}

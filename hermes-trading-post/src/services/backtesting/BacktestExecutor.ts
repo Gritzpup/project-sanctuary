@@ -3,7 +3,30 @@
  * Extracted from backtestingEngine.ts
  */
 
-import type { Trade, Signal, StrategyState } from '../../strategies/base/StrategyTypes';
+import type { StrategyState } from '../../strategies/base/StrategyTypes';
+
+// Backtest-specific signal interface
+interface BacktestSignal {
+  action: 'BUY' | 'SELL' | 'HOLD';
+  amount: number;
+  reason: string;
+  orderType?: 'limit' | 'market';
+  confidence?: number;
+  indicators?: Record<string, unknown>;
+}
+
+// Backtest-specific trade interface
+interface BacktestTrade {
+  id: string;
+  type: 'BUY' | 'SELL';
+  amount: number;
+  price: number;
+  fee: number;
+  timestamp: number;
+  reason: string;
+  confidence?: number;
+  strategyState?: Record<string, unknown>;
+}
 
 export interface ExecutionConfig {
   makerFeePercent: number;
@@ -25,13 +48,13 @@ export class BacktestExecutor {
    * Execute a trade signal
    */
   executeSignal(
-    signal: Signal,
+    signal: BacktestSignal,
     currentPrice: number,
     state: StrategyState,
     timestamp: number
-  ): { 
-    newState: StrategyState; 
-    trade: Trade | null;
+  ): {
+    newState: StrategyState;
+    trade: BacktestTrade | null;
     feeCollected: number;
     feeRebate: number;
   } {
@@ -71,7 +94,7 @@ export class BacktestExecutor {
           }
         };
         
-        const trade: Trade = {
+        const trade: BacktestTrade = {
           id: `backtest-${timestamp}`,
           type: 'BUY',
           amount: signal.amount,
@@ -108,7 +131,7 @@ export class BacktestExecutor {
           }
         };
         
-        const trade: Trade = {
+        const trade: BacktestTrade = {
           id: `backtest-${timestamp}`,
           type: 'SELL',
           amount: signal.amount,
@@ -189,7 +212,7 @@ export class BacktestExecutor {
    * Calculate position size based on risk management
    */
   calculatePositionSize(
-    signal: Signal,
+    signal: BacktestSignal,
     balance: number,
     currentPrice: number,
     maxPositionPercent: number = 100

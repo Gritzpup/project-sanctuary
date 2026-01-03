@@ -57,14 +57,14 @@
   const veryUrgent = $derived(showUrgentStyling && timeToNextCandle <= 2);
 
   // Initialize on mount
-  $effect.pre(async () => {
+  $effect.pre(() => {
     if (!isInitialized) {
-      // Initialize server time synchronization
-      await ServerTimeService.initServerTime();
-      isInitialized = true;
-
-      // Start RAF loop
-      updateCandleCountdown();
+      // Initialize server time synchronization asynchronously
+      ServerTimeService.initServerTime().then(() => {
+        isInitialized = true;
+        // Start RAF loop
+        updateCandleCountdown();
+      });
     }
 
     // Cleanup RAF on unmount

@@ -54,7 +54,7 @@ export class PaperTradingCalculator {
       const sell = sellTrades[i];
       
       if (buy && sell) {
-        const profit = (sell.price - buy.price) * Math.min(buy.amount, sell.amount);
+        const profit = (sell.price - buy.price) * Math.min(buy.size, sell.size);
         completedTrades++;
         
         if (profit > 0) {
@@ -84,7 +84,7 @@ export class PaperTradingCalculator {
   calculateAverageTradeSize(trades: Trade[]): number {
     if (trades.length === 0) return 0;
     
-    const totalSize = trades.reduce((total, trade) => total + trade.total, 0);
+    const totalSize = trades.reduce((total, trade) => total + trade.value, 0);
     return totalSize / trades.length;
   }
 
@@ -121,9 +121,9 @@ export class PaperTradingCalculator {
     
     trades.forEach(trade => {
       if (trade.type === 'buy') {
-        balance -= trade.total + (trade.fee || 0);
+        balance -= trade.value + (trade.fee || 0);
       } else {
-        balance += trade.total - (trade.fee || 0);
+        balance += trade.value - (trade.fee || 0);
       }
       
       if (balance > peak) {
@@ -170,9 +170,9 @@ export class PaperTradingCalculator {
       const date = new Date(trade.timestamp).toDateString();
       
       if (trade.type === 'buy') {
-        currentBalance -= trade.total + (trade.fee || 0);
+        currentBalance -= trade.value + (trade.fee || 0);
       } else {
-        currentBalance += trade.total - (trade.fee || 0);
+        currentBalance += trade.value - (trade.fee || 0);
       }
       
       dailyBalances.set(date, currentBalance);

@@ -4,16 +4,17 @@
   
   export let selectedStrategyType: string;
   export let strategies: Array<any>;
-  export let strategyParams: Record<string, any>;
+  export let strategyParams: Record<string, any> = {};
   export let startBalance: number;
   export let makerFeePercent: number;
   export let takerFeePercent: number;
   export let feeRebatePercent: number;
-  export let isSynced: boolean;
-  export let paperTradingActive: boolean;
-  export let isRunning: boolean;
-  export let customPresets: Array<any>;
-  export let selectedPresetIndex: number;
+  export let isSynced: boolean = false;
+  export let paperTradingActive: boolean = false;
+  export let isRunning: boolean = false;
+  export let customPresets: Array<any> = [];
+  export let selectedPresetIndex: number = 0;
+  export let showSaveSuccess: boolean = false;
   
   const dispatch = createEventDispatcher();
 

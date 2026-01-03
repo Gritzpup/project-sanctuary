@@ -15,16 +15,21 @@ export interface Deposit {
 export interface BotVault {
   botId: string;
   name: string;
+  botName?: string; // Alias for name
   strategy: string;
   asset: string;
-  status: 'active' | 'paused' | 'stopped';
+  status: 'active' | 'paused' | 'stopped' | 'running';
   value: number;
+  totalValue?: number; // Alias for value
   initialDeposit: number;
   growthPercent: number;
+  profitPercent?: number; // Alias for growthPercent
   totalTrades: number;
   winRate: number;
   startedAt: number;
   deposits: Deposit[];
+  btcBalance?: number;
+  usdBalance?: number;
 }
 
 export interface AssetVaults {
@@ -33,10 +38,20 @@ export interface AssetVaults {
   totalGrowth: number;
 }
 
+export interface VaultBalance {
+  balance: number;
+  value: number;
+  growthPercent: number;
+}
+
 export interface VaultData {
   assets: Record<string, AssetVaults>;
   totalBots: number;
   totalGrowthPercent: number;
+  // Individual vault summaries for quick access
+  btcVault: VaultBalance;
+  usdVault: VaultBalance;
+  usdcVault: VaultBalance;
 }
 
 class VaultService {
@@ -137,7 +152,11 @@ class VaultService {
         }
       },
       totalBots: 4,
-      totalGrowthPercent: 17.88
+      totalGrowthPercent: 17.88,
+      // Individual vault summaries
+      btcVault: { balance: 0.5, value: 47500, growthPercent: 15.2 },
+      usdVault: { balance: 5000, value: 5000, growthPercent: 8.5 },
+      usdcVault: { balance: 10000, value: 10000, growthPercent: 5.2 }
     };
 
     this.data = initialData;

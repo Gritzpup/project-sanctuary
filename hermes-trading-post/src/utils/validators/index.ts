@@ -18,11 +18,13 @@ export {
   combineValidationResults
 } from './ValidationTypes';
 
-// Individual validator classes
-export { NumberValidator } from './NumberValidator';
-export { StringValidator } from './StringValidator';
-export { DateValidator } from './DateValidator';
-export { TradingValidator } from './TradingValidator';
+// Individual validator classes - import then export
+import { NumberValidator } from './NumberValidator';
+import { StringValidator } from './StringValidator';
+import { DateValidator } from './DateValidator';
+import { TradingValidator } from './TradingValidator';
+
+export { NumberValidator, StringValidator, DateValidator, TradingValidator };
 
 // Convenience re-exports for backward compatibility
 export const Validators = {

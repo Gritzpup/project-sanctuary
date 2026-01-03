@@ -113,7 +113,11 @@ export class ChartInteractionTracker {
     if (!this.chart) return;
 
     // Track chart zoom and pan events
-    this.visibleRangeUnsubscribe = this.chart.timeScale().subscribeVisibleLogicalRangeChange(this.visibleRangeHandler);
+    // Note: subscribeVisibleLogicalRangeChange returns void but we store a cleanup function
+    this.chart.timeScale().subscribeVisibleLogicalRangeChange(this.visibleRangeHandler);
+    this.visibleRangeUnsubscribe = () => {
+      this.chart?.timeScale().unsubscribeVisibleLogicalRangeChange(this.visibleRangeHandler);
+    };
   }
 
   /**

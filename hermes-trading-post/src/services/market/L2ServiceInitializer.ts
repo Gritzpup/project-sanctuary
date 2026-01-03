@@ -67,13 +67,9 @@ export class L2ServiceInitializer {
       const aggregator = l2CandleFactory.getAggregator(granularity);
       this.aggregators.set(granularity, aggregator);
 
-      // Log completed candles (for debugging)
-      aggregator.subscribeToCandles((candle) => {
-        const metrics = aggregator.getMetrics();
-        if (metrics.candlesGenerated % 10 === 0) {
-            `[L2] Candles generated: ${metrics.candlesGenerated} (${granularity}s)`
-          );
-        }
+      // Subscribe to completed candles
+      aggregator.subscribeToCandles(() => {
+        // Candle generated
       });
     }
 

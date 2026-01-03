@@ -34,7 +34,7 @@
 
   onMount(() => {
     // Update metrics every 1 second
-    updateInterval = setInterval(() => {
+    updateInterval = window.setInterval(() => {
       const current = metricsCollector.getCurrentMetrics();
       metrics = {
         fps: current.fps,

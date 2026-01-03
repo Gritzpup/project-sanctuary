@@ -27,9 +27,31 @@ export interface TradingState {
   currentPrice: number;
 }
 
+interface BackendStatusData {
+  isRunning?: boolean;
+  isPaused?: boolean;
+  trades?: Trade[];
+  positions?: Position[];
+  balance?: {
+    usd?: number;
+    btc?: number;
+    vault?: number;
+    btcVault?: number;
+  };
+  totalReturn?: number;
+  winRate?: number;
+  totalFees?: number;
+  totalRebates?: number;
+  totalRebalance?: number;
+  recentHigh?: number;
+  recentLow?: number;
+  currentPrice?: number;
+}
+
 interface BackendMessage {
   type: string;
-  data?: unknown;
+  data?: BackendStatusData;
+  status?: BackendStatusData;
 }
 
 interface BotState {
@@ -218,13 +240,13 @@ export class PaperTradingOrchestrator {
         const strategy = await this.createStrategy(strategyType); // Now async with lazy loading
 
         if (strategy) {
-          activeBot.service.start(strategy, 'BTC-USD', get(this.state).balance);
+          activeBot.service.start(strategy, 'BTC-USD');
 
           const botState = activeBot.service.getState();
-          const currentBotState = get(botState);
+          const currentBotState = get(botState) as { isRunning?: boolean; isPaused?: boolean };
           this.updateState({
-            isRunning: currentBotState.isRunning,
-            isPaused: currentBotState.isPaused || false,
+            isRunning: currentBotState?.isRunning ?? true,
+            isPaused: currentBotState?.isPaused ?? false,
             currentStrategy: strategy,
             selectedStrategyType: strategyType
           });
@@ -243,11 +265,11 @@ export class PaperTradingOrchestrator {
     
     const activeBot = paperTradingManager.getActiveBot();
     if (activeBot) {
-      activeBot.service.setPaused(true);
+      activeBot.service.pause();
       const botState = activeBot.service.getState();
-      const currentBotState = get(botState);
+      const currentBotState = get(botState) as { isPaused?: boolean };
       this.updateState({
-        isPaused: currentBotState.isPaused || false
+        isPaused: currentBotState?.isPaused || true
       });
     }
   }
@@ -260,11 +282,11 @@ export class PaperTradingOrchestrator {
     
     const activeBot = paperTradingManager.getActiveBot();
     if (activeBot) {
-      activeBot.service.setPaused(false);
+      activeBot.service.resume();
       const botState = activeBot.service.getState();
-      const currentBotState = get(botState);
+      const currentBotState = get(botState) as { isPaused?: boolean };
       this.updateState({
-        isPaused: currentBotState.isPaused || false
+        isPaused: currentBotState?.isPaused || false
       });
     }
   }
@@ -302,7 +324,7 @@ export class PaperTradingOrchestrator {
     
     const activeBot = paperTradingManager.getActiveBot();
     if (activeBot) {
-      activeBot.service.resetStrategy();
+      activeBot.service.reset();
     }
   }
 
@@ -327,9 +349,9 @@ export class PaperTradingOrchestrator {
   private processPriceThroughStrategy(activeBot: { service: { getState: () => any } }, price: number) {
     try {
       const botState = activeBot.service.getState();
-      const currentBotState = get(botState);
-      
-      if (currentBotState.strategy && currentBotState.isRunning) {
+      const currentBotState = get(botState) as { strategy?: Strategy | null; isRunning?: boolean };
+
+      if (currentBotState?.strategy && currentBotState?.isRunning) {
         const candleData = {
           time: Math.floor(Date.now() / 1000),
           open: price,
@@ -338,8 +360,8 @@ export class PaperTradingOrchestrator {
           close: price,
           volume: 0
         };
-        
-        const signal = currentBotState.strategy.onCandle(candleData, currentBotState.strategy.getState());
+
+        const signal = (currentBotState.strategy as any).onCandle?.(candleData, (currentBotState.strategy as any).getState?.());
         
         if (signal && (signal.action === 'buy' || signal.action === 'sell')) {
           this.executeTradeFromSignal(activeBot, signal, price);
@@ -352,10 +374,10 @@ export class PaperTradingOrchestrator {
   private executeTradeFromSignal(activeBot: any, signal: any, price: number) {
     try {
       const botService = activeBot.service;
-      const currentState = get(botService.getState());
-      
+      const currentState = get(botService.getState()) as { balance?: { usd?: number; btcPositions?: number } };
+
       if (signal.action === 'buy') {
-        const buyAmount = Math.min(signal.amount || 100, currentState.balance.usd);
+        const buyAmount = Math.min(signal.amount || 100, currentState?.balance?.usd || 0);
         if (buyAmount > 0) {
           const btcAmount = buyAmount / price;
           
@@ -367,18 +389,20 @@ export class PaperTradingOrchestrator {
               btcPositions: state.balance.btcPositions + btcAmount
             },
             trades: [...state.trades, {
-              id: Date.now(),
+              id: `buy-${Date.now()}`,
               timestamp: Date.now(),
-              type: 'buy',
+              type: 'buy' as const,
               price: price,
-              amount: btcAmount,
+              size: btcAmount,
               value: buyAmount,
-              fees: buyAmount * 0.001
+              fee: buyAmount * 0.001,
+              reason: 'Signal-based buy order'
             }]
           }));
         }
       } else if (signal.action === 'sell') {
-        const sellAmount = Math.min(signal.amount || currentState.balance.btcPositions, currentState.balance.btcPositions);
+        const btcHeld = currentState?.balance?.btcPositions || 0;
+        const sellAmount = Math.min(signal.amount || btcHeld, btcHeld);
         if (sellAmount > 0) {
           const usdAmount = sellAmount * price;
           
@@ -390,13 +414,14 @@ export class PaperTradingOrchestrator {
               btcPositions: state.balance.btcPositions - sellAmount
             },
             trades: [...state.trades, {
-              id: Date.now(),
+              id: `sell-${Date.now()}`,
               timestamp: Date.now(),
-              type: 'sell',
+              type: 'sell' as const,
               price: price,
-              amount: sellAmount,
+              size: sellAmount,
               value: usdAmount,
-              fees: usdAmount * 0.001
+              fee: usdAmount * 0.001,
+              reason: 'Signal-based sell order'
             }]
           }));
         }

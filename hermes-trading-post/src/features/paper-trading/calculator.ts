@@ -58,7 +58,7 @@ export class PaperTradingCalculator {
     // Calculate profits for completed trades
     const minPairs = Math.min(stats.buys.length, stats.sells.length);
     for (let i = 0; i < minPairs; i++) {
-      const profit = (stats.sells[i].price - stats.buys[i].price) * Math.min(stats.buys[i].amount, stats.sells[i].amount);
+      const profit = (stats.sells[i].price - stats.buys[i].price) * Math.min(stats.buys[i].size, stats.sells[i].size);
       stats.completedTrades++;
       if (profit > 0) stats.profitableTrades++;
     }
@@ -84,7 +84,7 @@ export class PaperTradingCalculator {
   calculateAverageTradeSize(trades: Trade[]): number {
     if (trades.length === 0) return 0;
     
-    const totalSize = trades.reduce((total, trade) => total + trade.total, 0);
+    const totalSize = trades.reduce((total, trade) => total + trade.value, 0);
     return totalSize / trades.length;
   }
 
@@ -123,7 +123,7 @@ export class PaperTradingCalculator {
       (acc, trade) => {
         // ⚡ Update balance in single expression
         const fee = trade.fee || 0;
-        acc.balance += trade.type === 'buy' ? -(trade.total + fee) : (trade.total - fee);
+        acc.balance += trade.type === 'buy' ? -(trade.value + fee) : (trade.value - fee);
 
         // ⚡ Track peak and drawdown in single pass
         if (acc.balance > acc.peak) {
@@ -193,7 +193,7 @@ export class PaperTradingCalculator {
       const date = new Date(trade.timestamp).toDateString();
       const fee = trade.fee || 0;
 
-      currentBalance += trade.type === 'buy' ? -(trade.total + fee) : (trade.total - fee);
+      currentBalance += trade.type === 'buy' ? -(trade.value + fee) : (trade.value - fee);
 
       dailyBalances.set(date, currentBalance);
     });

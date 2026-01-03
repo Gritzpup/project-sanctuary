@@ -3,7 +3,10 @@
   import { chartStore } from '../../stores/chartStore.svelte';
   import { dataStore } from '../../stores/dataStore.svelte';
   import { CHART_COLORS } from '../../utils/constants';
-  
+
+  // Type for theme keys
+  type ThemeKey = keyof typeof CHART_COLORS;
+
   // Props using Svelte 5 runes syntax
   const {
     container,
@@ -14,83 +17,90 @@
     width?: number;
     height?: number;
   } = $props();
-  
+
   // Check if we have a small dataset (5m chart case) - but never for 1m charts
   const isSmallDataset = $derived(dataStore.candles.length <= 30 && dataStore.candles.length > 0 && chartStore.config.granularity !== '1m');
 
+  // Get theme colors safely
+  const getThemeColors = () => {
+    const themeKey = chartStore.config.theme.toUpperCase() as ThemeKey;
+    return CHART_COLORS[themeKey] ?? CHART_COLORS.DARK;
+  };
+
   // Reactive chart options based on store
-  const chartOptions = $derived({
-    layout: {
-      background: { 
-        color: CHART_COLORS[chartStore.config.theme.toUpperCase()].background 
+  const chartOptions = $derived(() => {
+    const colors = getThemeColors();
+    return {
+      layout: {
+        background: { color: colors.background },
+        textColor: colors.textColor,
       },
-      textColor: CHART_COLORS[chartStore.config.theme.toUpperCase()].textColor,
-    },
-    grid: {
-      vertLines: { 
-        color: CHART_COLORS[chartStore.config.theme.toUpperCase()].gridLines,
-        style: 1,
-        visible: chartStore.config.showGrid,
+      grid: {
+        vertLines: {
+          color: colors.gridLines,
+          style: 1,
+          visible: chartStore.config.showGrid,
+        },
+        horzLines: {
+          color: colors.gridLines,
+          style: 1,
+          visible: chartStore.config.showGrid,
+        },
       },
-      horzLines: { 
-        color: CHART_COLORS[chartStore.config.theme.toUpperCase()].gridLines,
-        style: 1,
-        visible: chartStore.config.showGrid,
-      },
-    },
-    rightPriceScale: {
-      borderColor: CHART_COLORS[chartStore.config.theme.toUpperCase()].borderColor,
-      visible: true,
-      scaleMargins: {
-        top: 0.1,
-        bottom: 0.1,
-      },
-    },
-    timeScale: {
-      borderColor: CHART_COLORS[chartStore.config.theme.toUpperCase()].borderColor,
-      timeVisible: true,
-      secondsVisible: false,
-      visible: true,
-      ticksVisible: true,
-      fixLeftEdge: false,
-      fixRightEdge: false,
-      lockVisibleTimeRangeOnResize: false,
-      rightBarStaysOnScroll: !isSmallDataset, // Disable for small datasets
-      borderVisible: true,
-      shiftVisibleRangeOnNewBar: !isSmallDataset, // Disable auto-scrolling for small datasets
-      rightOffset: isSmallDataset ? 0 : 3, // Minimal right offset for maximum chart utilization
-      leftOffset: 3, // Adjust for price scale to center chart properly
-      barSpacing: isSmallDataset ? 50 : 13, // Close to 60-candle view (800px/60 ≈ 13px)
-      minBarSpacing: 0.5,
-    },
-    crosshair: {
-      mode: 0,
-      vertLine: {
-        color: CHART_COLORS[chartStore.config.theme.toUpperCase()].crosshair,
-        width: 1,
-        style: 3,
+      rightPriceScale: {
+        borderColor: colors.borderColor,
         visible: true,
-        labelVisible: true,
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.1,
+        },
       },
-      horzLine: {
-        color: CHART_COLORS[chartStore.config.theme.toUpperCase()].crosshair,
-        width: 1,
-        style: 3,
+      timeScale: {
+        borderColor: colors.borderColor,
+        timeVisible: true,
+        secondsVisible: false,
         visible: true,
-        labelVisible: true,
+        ticksVisible: true,
+        fixLeftEdge: false,
+        fixRightEdge: false,
+        lockVisibleTimeRangeOnResize: false,
+        rightBarStaysOnScroll: !isSmallDataset,
+        borderVisible: true,
+        shiftVisibleRangeOnNewBar: !isSmallDataset,
+        rightOffset: isSmallDataset ? 0 : 3,
+        leftOffset: 3,
+        barSpacing: isSmallDataset ? 50 : 13,
+        minBarSpacing: 0.5,
       },
-    },
-    handleScroll: {
-      mouseWheel: true,
-      pressedMouseMove: true,
-      horzTouchDrag: true,
-      vertTouchDrag: true,
-    },
-    handleScale: {
-      axisPressedMouseMove: true,
-      mouseWheel: true,
-      pinch: true,
-    },
+      crosshair: {
+        mode: 0,
+        vertLine: {
+          color: colors.crosshair,
+          width: 1,
+          style: 3,
+          visible: true,
+          labelVisible: true,
+        },
+        horzLine: {
+          color: colors.crosshair,
+          width: 1,
+          style: 3,
+          visible: true,
+          labelVisible: true,
+        },
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true,
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
+      },
+    };
   });
   
   export function createChartInstance(): IChartApi | null {

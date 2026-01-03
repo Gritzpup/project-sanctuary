@@ -24,11 +24,10 @@
  * = ~88 bytes per candle (vs 250 bytes object-based)
  */
 
-import type { CandlestickData } from 'lightweight-charts';
+import type { CandlestickDataWithVolume } from '../stores/services/DataTransformations';
 
-export interface CandlestickDataWithVolume extends CandlestickData {
-  volume?: number;
-}
+// Re-export for backwards compatibility
+export type { CandlestickDataWithVolume };
 
 export class CandleDataBuffer {
   // Internal TypedArrays for efficient storage (initialized in allocateBuffers)

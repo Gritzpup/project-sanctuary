@@ -60,12 +60,57 @@ export class BackendStrategyAdapter extends Strategy {
   private strategyType: string;
   private backendConfig: BackendConfigType;
   private lastCandles: CandleData[] = [];
-  
+  private lastBackendSignal: Signal | null = null;
+
   constructor(config: BackendStrategyConfig) {
-    super(config);
+    super(
+      `Backend: ${config.strategyType}`,
+      `Backend-managed ${config.strategyType} strategy`,
+      config
+    );
     this.backendAPI = BackendAPIService.getInstance();
     this.strategyType = config.strategyType;
     this.backendConfig = config.backendConfig;
+  }
+
+  // Required abstract method implementations
+  analyze(candles: CandleData[], currentPrice: number): Signal {
+    // Store candles for processCandle to use
+    this.lastCandles = candles.slice(-100);
+
+    // Return last known signal or hold
+    if (this.lastBackendSignal) {
+      return this.lastBackendSignal;
+    }
+
+    return {
+      type: 'hold',
+      strength: 0,
+      price: currentPrice,
+      reason: 'Awaiting backend signal'
+    };
+  }
+
+  calculatePositionSize(balance: number, signal: Signal, _currentPrice: number): number {
+    if (signal.type === 'hold') return 0;
+    // Use 5% of balance per position by default
+    return balance * 0.05 * signal.strength;
+  }
+
+  shouldTakeProfit(position: Position, currentPrice: number): boolean {
+    // Default 1% profit target
+    const priceChange = ((currentPrice - position.entryPrice) / position.entryPrice) * 100;
+    return priceChange >= 1.0;
+  }
+
+  shouldStopLoss(position: Position, currentPrice: number): boolean {
+    // Default 0.5% stop loss
+    const priceChange = ((currentPrice - position.entryPrice) / position.entryPrice) * 100;
+    return priceChange <= -0.5;
+  }
+
+  getRequiredHistoricalData(): number {
+    return 100; // Keep last 100 candles for backend analysis
   }
   
   /**
@@ -89,15 +134,17 @@ export class BackendStrategyAdapter extends Strategy {
       });
       
       if (response.signal) {
-        return {
-          action: response.signal.type === 'buy' ? 'buy' : 'sell',
-          amount: response.signal.amount || 0.01,
+        const signal: Signal = {
+          type: response.signal.type === 'buy' ? 'buy' : response.signal.type === 'sell' ? 'sell' : 'hold',
+          strength: response.signal.confidence || 0.5,
           price: candle.close,
-          confidence: response.signal.confidence || 0.5,
+          size: response.signal.amount || 0.01,
           reason: response.signal.reason || 'Backend strategy signal'
         };
+        this.lastBackendSignal = signal;
+        return signal;
       }
-      
+
       return null;
     } catch (error) {
       logger.strategy.error(this.strategyType, 'Backend strategy analysis failed', error as Error);
@@ -121,7 +168,7 @@ export class BackendStrategyAdapter extends Strategy {
    * Update strategy configuration on backend
    */
   async updateConfig(newConfig: Partial<BackendConfigType>): Promise<void> {
-    this.backendConfig = { ...this.backendConfig, ...newConfig };
+    this.backendConfig = { ...this.backendConfig, ...newConfig } as BackendConfigType;
     
     try {
       await this.backendAPI.updateStrategyConfig(this.strategyType, this.backendConfig);
@@ -205,33 +252,35 @@ export class BackendStrategyFactory {
   static createRSIMeanReversion(config: Partial<RSIMeanReversionConfig> = {}): BackendStrategyAdapter {
     return BackendStrategyAdapter.create('rsi-mean-reversion', {
       rsiPeriod: 14,
-      oversoldThreshold: 30,
-      overboughtThreshold: 70,
+      oversoldLevel: 30,
+      overboughtLevel: 70,
+      positionSize: 100,
       ...config
     });
   }
-  
+
   /**
    * Create a Micro Scalping strategy adapter
    */
   static createMicroScalping(config: Partial<ScalpingConfig> = {}): BackendStrategyAdapter {
     return BackendStrategyAdapter.create('micro-scalping', {
-      profitTarget: 0.2,
-      stopLoss: 0.1,
-      timeframe: '1m',
+      spreadThreshold: 0.2,
+      minProfit: 0.1,
+      maxHoldTime: 60,
+      positionSize: 100,
       ...config
     });
   }
-  
+
   /**
    * Create an Ultra Micro Scalping strategy adapter
    */
   static createUltraMicroScalping(config: Partial<ScalpingConfig> = {}): BackendStrategyAdapter {
     return BackendStrategyAdapter.create('ultra-micro-scalping', {
-      profitTarget: 0.1,
-      stopLoss: 0.05,
-      timeframe: '1m',
-      aggression: 'high',
+      spreadThreshold: 0.1,
+      minProfit: 0.05,
+      maxHoldTime: 30,
+      positionSize: 100,
       ...config
     });
   }

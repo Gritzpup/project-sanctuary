@@ -3,8 +3,29 @@
  * Extracted from paperTradingService.ts
  */
 
-import type { Trade, Signal } from '../../strategies/base/StrategyTypes';
 import type { PaperTradingState } from './TradingStateManager';
+
+// Executor-specific signal interface
+interface ExecutorSignal {
+  action: 'BUY' | 'SELL' | 'HOLD';
+  amount: number;
+  reason: string;
+  confidence?: number;
+  indicators?: Record<string, unknown>;
+}
+
+// Executor-specific trade interface
+interface ExecutorTrade {
+  id: string;
+  type: 'BUY' | 'SELL';
+  amount: number;
+  price: number;
+  fee: number;
+  timestamp: number;
+  reason: string;
+  confidence?: number;
+  strategyState?: Record<string, unknown>;
+}
 
 export class TradeExecutor {
   private feePercent: number = 0.1;
@@ -18,7 +39,7 @@ export class TradeExecutor {
   /**
    * Process a trading signal and execute trades
    */
-  processSignal(signal: Signal, currentPrice: number, state: PaperTradingState): PaperTradingState {
+  processSignal(signal: ExecutorSignal, currentPrice: number, state: PaperTradingState): PaperTradingState {
     const newState = { ...state };
     newState.currentSignal = signal;
     
@@ -36,7 +57,7 @@ export class TradeExecutor {
         newState.balance.usd -= totalCost;
         newState.balance.btcPositions += signal.amount;
         
-        const trade: Trade = {
+        const trade: ExecutorTrade = {
           id: `trade-${Date.now()}`,
           type: 'BUY',
           amount: signal.amount,
@@ -59,7 +80,7 @@ export class TradeExecutor {
         newState.balance.usd += proceeds;
         newState.balance.btcPositions -= signal.amount;
         
-        const trade: Trade = {
+        const trade: ExecutorTrade = {
           id: `trade-${Date.now()}`,
           type: 'SELL',
           amount: signal.amount,
@@ -96,7 +117,7 @@ export class TradeExecutor {
       newState.balance.usd -= totalCost;
       newState.balance.btcPositions += amount;
       
-      const trade: Trade = {
+      const trade: ExecutorTrade = {
         id: `manual-${Date.now()}`,
         type: 'BUY',
         amount,
@@ -129,7 +150,7 @@ export class TradeExecutor {
       newState.balance.usd += proceeds;
       newState.balance.btcPositions -= amount;
       
-      const trade: Trade = {
+      const trade: ExecutorTrade = {
         id: `manual-${Date.now()}`,
         type: 'SELL',
         amount,

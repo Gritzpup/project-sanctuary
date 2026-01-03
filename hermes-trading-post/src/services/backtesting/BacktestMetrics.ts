@@ -103,7 +103,7 @@ export class BacktestMetrics {
       if (trade.type === 'BUY') {
         currentBuyPrice = trade.price;
       } else if (trade.type === 'SELL' && currentBuyPrice > 0) {
-        const profit = (trade.price - currentBuyPrice) * trade.amount - trade.fee;
+        const profit = (trade.price - currentBuyPrice) * trade.size - (trade.fee || 0);
         positions.push({
           buyPrice: currentBuyPrice,
           sellPrice: trade.price,

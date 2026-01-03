@@ -1,10 +1,6 @@
 import type { CandlestickData } from 'lightweight-charts';
-
-// Extend CandlestickData to include volume
-interface CandlestickDataWithVolume extends CandlestickData {
-  volume?: number;
-}
 import type { WebSocketCandle } from '../types/data.types';
+import type { CandlestickDataWithVolume } from './services/DataTransformations';
 import { chartCacheService } from '../../../../shared/services/chartCacheService';
 import { chartRealtimeService } from '../../../../shared/services/chartRealtimeService';
 // ✅ REMOVED: chartIndexedDBCache - no longer needed with Redis + Memory architecture
@@ -551,9 +547,10 @@ class DataStore {
   }
 
   updateVisibleRange(from: number, to: number) {
-    this._visibleCandles = this._candles.filter(
-      candle => candle.time >= from && candle.time <= to
-    );
+    this._visibleCandles = this._candles.filter(candle => {
+      const time = typeof candle.time === 'string' ? parseInt(candle.time) : candle.time;
+      return time >= from && time <= to;
+    });
 
     // 🚀 PHASE 6 FIX: Don't update visibleCount here - it's managed by VisibleCandleTracker
     // this._dataStats.visibleCount = this._visibleCandles.length;
@@ -600,8 +597,8 @@ class DataStore {
             return;
           }
 
-          const candleData: CandlestickData = {
-            time: normalizedTime as any,
+          const candleData: CandlestickDataWithVolume = {
+            time: normalizedTime,
             open: update.open,
             high: update.high,
             low: update.low,
@@ -867,6 +864,7 @@ class DataStore {
       totalCount: 0,
       totalDatabaseCount: 0,
       visibleCount: 0,
+      loadedCount: 0,
       oldestTime: null,
       newestTime: null,
       lastUpdate: null,

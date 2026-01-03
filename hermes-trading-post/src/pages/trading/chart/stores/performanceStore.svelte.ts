@@ -136,11 +136,12 @@ class PerformanceStore {
   }
 
   private startMemoryMonitoring() {
-    if (!performance.memory) {
+    // Chrome-only performance.memory API
+    if (!(performance as any).memory) {
       return;
     }
 
-    this.memoryInterval = setInterval(() => {
+    this.memoryInterval = window.setInterval(() => {
       const memory = (performance as any).memory;
       if (memory) {
         this._stats.memoryUsage = Math.round(memory.usedJSHeapSize / 1048576); // MB

@@ -2,7 +2,7 @@
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { paperTradingManager } from '../../services/state/paperTradingManager';
   import { paperTestService } from '../../services/state/paperTestService';
-  import type { Strategy } from '../../strategies/base/Strategy';
+  import type { Strategy } from '../../../strategies/base/Strategy';
   
   export let selectedStrategyType: string;
   export let currentStrategy: Strategy | null = null;

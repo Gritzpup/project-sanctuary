@@ -2,8 +2,10 @@
   export let balance: number;
   export let startingBalance: number;
   export let totalTrades: number;
+  export let totalReturn: number = 0;
   export let totalFees: number;
   export let totalRebates: number;
+  export let totalRebalance: number = 0;
   export let positions: any[];
   export let currentPrice: number;
   export let btcBalance: number;

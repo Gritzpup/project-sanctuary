@@ -20,20 +20,16 @@ export class ChartAnimationService {
     try {
       if (!chart || candles.length === 0) return;
 
-      // Get the newest candle time
-      let newestTime = candles[candles.length - 1].time;
-
-      // Normalize time if it's an object or string
-      newestTime = this.normalizeTime(newestTime);
+      // Get the newest candle time (normalized to number)
+      const newestTime = this.normalizeTime(candles[candles.length - 1].time);
       if (!newestTime || newestTime <= 0) return;
 
       // Get visible candles
       const visibleCandles = this.calculateVisibleCandles(candles, 60);
       if (visibleCandles.length <= 1) return;
 
-      // Get first visible time
-      let firstVisibleTime = visibleCandles[0].time;
-      firstVisibleTime = this.normalizeTime(firstVisibleTime);
+      // Get first visible time (normalized to number)
+      const firstVisibleTime = this.normalizeTime(visibleCandles[0].time);
       if (!firstVisibleTime || firstVisibleTime <= 0) return;
 
       // Calculate time span

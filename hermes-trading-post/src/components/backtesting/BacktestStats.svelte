@@ -4,7 +4,7 @@
   import BTCGrowthChart from './charts/BTCGrowthChart.svelte';
   import FeeAnalysisChart from './charts/FeeAnalysisChart.svelte';
   import TradeDistributionChart from './charts/TradeDistributionChart.svelte';
-  import type { BacktestResult } from '../strategies/base/StrategyTypes';
+  import type { BacktestResult } from '../../strategies/base/StrategyTypes';
   
   export let results: BacktestResult;
   

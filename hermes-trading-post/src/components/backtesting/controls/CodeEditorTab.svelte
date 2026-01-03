@@ -4,10 +4,10 @@
   
   export let strategies: Array<any>;
   export let selectedStrategyType: string;
-  
+  export let strategySourceCode: string = '';
+
   const dispatch = createEventDispatcher();
-  
-  let strategySourceCode = '';
+
   let showStrategyEditor = false;
   let newStrategyName = '';
   let newStrategyLabel = '';

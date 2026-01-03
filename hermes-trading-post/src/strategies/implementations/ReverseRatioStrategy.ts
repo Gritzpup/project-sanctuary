@@ -27,7 +27,7 @@ import { StateManager } from './reverse-descending-grid/StateManager';
  * - 20 trades/day = $13.50 daily profit (1.35% return)
  */
 export class ReverseRatioStrategy extends Strategy {
-  private config: ReverseRatioConfig;
+  protected ratioConfig: ReverseRatioConfig;
   private internalState: ReverseRatioState;
   
   // Modular components
@@ -60,8 +60,8 @@ export class ReverseRatioStrategy extends Strategy {
       fullConfig
     );
 
-    this.config = fullConfig;
-    
+    this.ratioConfig = fullConfig;
+
     // Initialize internal state
     this.internalState = {
       recentHigh: 0,
@@ -72,10 +72,10 @@ export class ReverseRatioStrategy extends Strategy {
     };
 
     // Initialize modular components
-    this.marketAnalyzer = new MarketAnalyzer(this.config, this.internalState);
-    this.entryLogic = new EntryLogic(this.config, this.internalState);
-    this.exitLogic = new ExitLogic(this.config, this.internalState);
-    this.positionSizer = new PositionSizer(this.config, this.internalState);
+    this.marketAnalyzer = new MarketAnalyzer(this.ratioConfig, this.internalState);
+    this.entryLogic = new EntryLogic(this.ratioConfig, this.internalState);
+    this.exitLogic = new ExitLogic(this.ratioConfig, this.internalState);
+    this.positionSizer = new PositionSizer(this.ratioConfig, this.internalState);
     this.stateManager = new StateManager(this.internalState);
   }
 
@@ -120,9 +120,9 @@ export class ReverseRatioStrategy extends Strategy {
           strength: 1.0,
           price: currentPrice,
           size: sellSize,
-          reason: `Taking profit at ${this.config.profitTarget}% above initial entry`,
+          reason: `Taking profit at ${this.ratioConfig.profitTarget}% above initial entry`,
           metadata: {
-            targetPrice: this.internalState.initialEntryPrice * (1 + this.config.profitTarget / 100),
+            targetPrice: this.internalState.initialEntryPrice * (1 + this.ratioConfig.profitTarget / 100),
             totalProfit: (currentPrice - this.exitLogic.getAverageEntryPrice(this.state.positions)) * sellSize,
             isCompleteExit: true
           }
@@ -169,7 +169,7 @@ export class ReverseRatioStrategy extends Strategy {
   }
 
   getRequiredHistoricalData(): number {
-    return this.config.lookbackPeriod + 10; // Extra buffer
+    return this.ratioConfig.lookbackPeriod + 10; // Extra buffer
   }
 
   reset(): void {

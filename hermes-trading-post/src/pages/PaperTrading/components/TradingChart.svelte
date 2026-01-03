@@ -150,13 +150,13 @@
     
     // Clear any existing interval
     if (forwardTestInterval) {
-      clearInterval(forwardTestInterval);
+      window.clearInterval(forwardTestInterval);
     }
-    
-    forwardTestInterval = setInterval(() => {
+
+    forwardTestInterval = window.setInterval(() => {
       if (!isForwardTestRunning || forwardTestProgress >= 100) {
         if (forwardTestInterval) {
-          clearInterval(forwardTestInterval);
+          window.clearInterval(forwardTestInterval);
           forwardTestInterval = null;
         }
         if (forwardTestProgress >= 100) {
@@ -164,10 +164,10 @@
         }
         return;
       }
-      
+
       const speedMultiplier = parseFloat(chartSpeed.replace('x', ''));
       forwardTestProgress += (0.5 * speedMultiplier);
-      
+
       if (forwardTestProgress > 100) {
         forwardTestProgress = 100;
       }
@@ -177,7 +177,7 @@
   // Cleanup timers on component destroy
   onDestroy(() => {
     if (forwardTestInterval) {
-      clearInterval(forwardTestInterval);
+      window.clearInterval(forwardTestInterval);
       forwardTestInterval = null;
     }
   });
