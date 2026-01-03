@@ -54,7 +54,7 @@ export class CandleStorageWriter {
 
       // Group candles by day for efficient storage
       const candlesByDay = groupCandlesByDay(candles);
-      const pipeline = this.redis.pipeline();
+      let pipeline = this.redis.pipeline();
       let operationCount = 0;
 
       // Process each day's candles
@@ -74,7 +74,8 @@ export class CandleStorageWriter {
         // Execute pipeline in batches to avoid memory issues
         if (operationCount >= CANDLE_STORAGE_CONFIG.batchSizes.insert) {
           await pipeline.exec();
-          pipeline.clear();
+          // Create new pipeline for next batch (ChainableCommander doesn't have clear())
+          pipeline = this.redis.pipeline();
           operationCount = 0;
         }
       }

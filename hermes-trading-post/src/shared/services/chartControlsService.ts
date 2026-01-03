@@ -3,9 +3,9 @@
  * @description Chart controls service for managing timeframe, granularity, and data operations
  */
 
-import { dataStore } from '../../stores/dataStore.svelte';
-import { statusStore } from '../../stores/statusStore.svelte';
-import { chartStore } from '../../stores/chartStore.svelte';
+import { dataStore } from '../../pages/trading/chart/stores/dataStore.svelte';
+import { statusStore } from '../../pages/trading/chart/stores/statusStore.svelte';
+import { chartStore } from '../../pages/trading/chart/stores/chartStore.svelte';
 import {
   RECOMMENDED_GRANULARITIES,
   VALID_GRANULARITIES

@@ -5,9 +5,14 @@
 -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { chartIndexedDBCache } from '../../services/ChartIndexedDBCache';
+  import { chartIndexedDBCache, type CacheMetadata } from '../../services/ChartIndexedDBCache';
 
-  let cacheStats = $state({
+  let cacheStats = $state<{
+    totalEntries: number;
+    totalCandles: number;
+    totalSizeBytes: number;
+    entries: CacheMetadata[];
+  }>({
     totalEntries: 0,
     totalCandles: 0,
     totalSizeBytes: 0,

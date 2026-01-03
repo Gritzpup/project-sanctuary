@@ -60,6 +60,7 @@ export class CircuitBreaker {
     this.debug = config.debug ?? false;
 
     if (this.debug) {
+      console.log(
         `[CircuitBreaker] Initialized: ` +
         `failureThreshold=${this.failureThreshold}, ` +
         `timeout=${this.timeout}ms`
@@ -112,6 +113,7 @@ export class CircuitBreaker {
     }
 
     if (this.debug) {
+      console.log('[CircuitBreaker] ✅ Success');
     }
   }
 
@@ -124,6 +126,7 @@ export class CircuitBreaker {
     this.failureCount++;
 
     if (this.debug) {
+      console.log(
         `[CircuitBreaker] ❌ Failure (${this.failureCount}/${this.failureThreshold})`
       );
     }
@@ -150,6 +153,7 @@ export class CircuitBreaker {
     }
 
     if (this.debug) {
+      console.log(
         `[CircuitBreaker] ⏰ Scheduling recovery in ${this.timeout}ms`
       );
     }
@@ -162,6 +166,7 @@ export class CircuitBreaker {
       this.halfOpenTimer = setTimeout(() => {
         if (this.state === CircuitState.HALF_OPEN) {
           if (this.debug) {
+            console.log('[CircuitBreaker] ⏱️ Half-open timeout, reopening');
           }
           this.transitionTo(CircuitState.OPEN);
           this.scheduleRecovery();
@@ -199,6 +204,7 @@ export class CircuitBreaker {
     this.stateChangeTime = Date.now();
 
     if (this.debug) {
+      console.log(
         `[CircuitBreaker] 🔄 State transition: ${oldState} → ${newState}`
       );
     }
@@ -253,6 +259,7 @@ export class CircuitBreaker {
     this.lastFailureTime = null;
 
     if (this.debug) {
+      console.log('[CircuitBreaker] 🔁 Reset');
     }
   }
 

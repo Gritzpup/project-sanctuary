@@ -23,7 +23,7 @@
     onChartReady?: (chart: IChartApi) => void;
   } = $props();
 
-  let container: HTMLDivElement = $state();
+  let container: HTMLDivElement | undefined = $state();
   let chart: IChartApi | null = $state(null);
   let candleSeries: ISeriesApi<'Candlestick'> | null = $state(null);
   let volumeSeries: ISeriesApi<'Histogram'> | null = $state(null);
@@ -38,7 +38,7 @@
   let visibleCandleTracker: VisibleCandleTracker | null = null;
 
   // Historical data loader
-  let historicalDataLoader: ReturnType<typeof useHistoricalDataLoader>;
+  let historicalDataLoader: ReturnType<typeof useHistoricalDataLoader> | null = null;
 
   // Debug state
   let initCalled: boolean = $state(false);
@@ -359,7 +359,6 @@
   bind:this={dataManager}
   {chart}
   bind:candleSeries
-  bind:volumeSeries
 />
 
 <!-- Debug info -->

@@ -101,6 +101,21 @@ class DataStore {
     return this._candles.length === 0;
   }
 
+  get pair() {
+    return this._currentPair;
+  }
+
+  get granularity() {
+    return this._currentGranularity;
+  }
+
+  /**
+   * Check if realtime subscription is active
+   */
+  isRealtimeActive(): boolean {
+    return this.realtimeUnsubscribe !== null;
+  }
+
   /**
    * 🚀 PERF: Load cached candles from Redis on mount
    * Enables instant chart display - refreshes no longer have loading delay
@@ -259,7 +274,7 @@ class DataStore {
     this.updateStats();
   }
 
-  async fetchGapData(fromTime: number, toTime: number): Promise<CandlestickData[]> {
+  async fetchGapData(fromTime: number, toTime: number): Promise<CandlestickDataWithVolume[]> {
 
     try {
       const config = this.getCurrentConfig();
@@ -659,7 +674,7 @@ class DataStore {
         // Notify callback with the update (ticker or full candle)
         // The callback handler will decide how to handle it
         if (onUpdate) {
-          onUpdate(update as CandlestickData);
+          onUpdate(update as unknown as CandlestickData);
         }
       },
       onReconnect
@@ -870,6 +885,20 @@ class DataStore {
       lastUpdate: null,
       loadingStatus: 'idle'
     };
+  }
+
+  /**
+   * Clear cached data - alias for reset()
+   */
+  async clearCache(): Promise<void> {
+    this.reset();
+  }
+
+  /**
+   * Get cache status - alias for getCacheStats
+   */
+  getCacheStatus() {
+    return this.getCacheStats();
   }
 
   // Debug method to check current state

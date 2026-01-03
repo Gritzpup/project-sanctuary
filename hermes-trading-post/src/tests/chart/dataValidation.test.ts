@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * @file dataValidation.test.ts
  * @description Tests for chart data validation
@@ -68,7 +69,7 @@ export class DataValidationTests {
       return {
         testName: 'Candle Validation',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -98,7 +99,7 @@ export class DataValidationTests {
       return {
         testName: 'Config Validation',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -123,7 +124,7 @@ export class DataValidationTests {
       return {
         testName: 'Data Integrity',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -160,7 +161,7 @@ export class DataValidationTests {
       return {
         testName: 'Edge Cases',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }

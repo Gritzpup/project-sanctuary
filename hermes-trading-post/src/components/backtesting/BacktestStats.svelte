@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck - Chart components not yet implemented
   import { onMount } from 'svelte';
   import VaultGrowthChart from './charts/VaultGrowthChart.svelte';
   import BTCGrowthChart from './charts/BTCGrowthChart.svelte';

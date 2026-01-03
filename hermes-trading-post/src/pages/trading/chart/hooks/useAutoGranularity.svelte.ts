@@ -88,14 +88,14 @@ export function useAutoGranularity(config: UseAutoGranularityConfig) {
       // Too many candles visible, switch to larger granularity
       newGranularity = granularityOrder[currentIndex + 1];
       // Update timeframe to match
-      const timeframeMap = { '1m': '1H', '5m': '6H', '15m': '1D', '1h': '1W', '6h': '1M', '1d': '1Y' };
-      newTimeframe = timeframeMap[newGranularity];
+      const timeframeMap: Record<string, string> = { '1m': '1H', '5m': '6H', '15m': '1D', '1h': '1W', '6h': '1M', '1d': '1Y' };
+      newTimeframe = timeframeMap[newGranularity] || '1H';
     } else if (visibleCandleCount < 5 && currentIndex > 0) {
       // Very few candles visible (user zoomed in very far), switch to smaller granularity
       // Changed from 50 to 5 to avoid interfering with small datasets like 5m/1H (12 candles)
       newGranularity = granularityOrder[currentIndex - 1];
-      const timeframeMap = { '1m': '1H', '5m': '6H', '15m': '1D', '1h': '1W', '6h': '1M', '1d': '1Y' };
-      newTimeframe = timeframeMap[newGranularity];
+      const timeframeMap: Record<string, string> = { '1m': '1H', '5m': '6H', '15m': '1D', '1h': '1W', '6h': '1M', '1d': '1Y' };
+      newTimeframe = timeframeMap[newGranularity] || '1H';
     }
 
     // Only switch if granularity actually changed
@@ -113,17 +113,21 @@ export function useAutoGranularity(config: UseAutoGranularityConfig) {
 
       ChartDebug.log(`Loading ${candlesToLoad} candles for new granularity ${newGranularity}`);
 
+      // Calculate time range for loading
+      const now = Math.floor(Date.now() / 1000);
+      const granularitySeconds: Record<string, number> = {
+        '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '6h': 21600, '1d': 86400
+      };
+      const seconds = granularitySeconds[newGranularity] || 60;
+      const startTime = now - (candlesToLoad * seconds);
+
       // Load data with new granularity
-      dataStore.loadData({
-        pair,
-        granularity: newGranularity,
-        maxCandles: candlesToLoad
-      }).then(() => {
+      dataStore.loadData(pair, newGranularity, startTime, now, candlesToLoad).then(() => {
         // Reset last switched to allow switching back if user zooms again
         setTimeout(() => {
           lastSwitchedGranularity = '';
         }, 1000);
-      }).catch(err => {
+      }).catch(() => {
         lastSwitchedGranularity = '';
       });
     }

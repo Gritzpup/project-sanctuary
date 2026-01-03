@@ -148,7 +148,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
           }
         } catch (smallDatasetError) {
           // Fall back to not maintaining zoom to prevent freezing
-          ChartDebug.log(`Skipping zoom maintenance due to error: ${smallDatasetError.message}`);
+          ChartDebug.log(`Skipping zoom maintenance due to error: ${smallDatasetError instanceof Error ? smallDatasetError.message : String(smallDatasetError)}`);
         }
         return;
       }
@@ -560,7 +560,7 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
    * Check if real-time subscription is active
    */
   function isSubscribed(): boolean {
-    return dataStore.realtimeUnsubscribe !== null;
+    return dataStore.isRealtimeActive();
   }
 
   return {

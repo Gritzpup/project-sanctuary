@@ -60,7 +60,7 @@
     if (status === 'error' && !wsConnected) {
       return '#f44336'; // Red for WebSocket disconnected
     }
-    return statusColors[status] || '#999';
+    return (statusColors as Record<string, string>)[status] || '#999';
   }
 
   // Position class - derived from position prop
@@ -129,7 +129,7 @@
   {/if}
 </div>
 
-{#if statusStore.error && currentStatus === 'error'}
+{#if statusStore.isError() && currentStatus === 'error'}
   <div 
     class="error-toast" 
     transition:scale={{ duration: 300, start: 0.9 }}

@@ -1,4 +1,5 @@
 <script>
+  // @ts-nocheck - Legacy routing file, not used in production
   import { Router, Route, Link } from "svelte-routing";
   import { onMount } from "svelte";
   import Dashboard from "./pages/Dashboard.svelte";

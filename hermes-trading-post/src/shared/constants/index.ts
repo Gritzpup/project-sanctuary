@@ -20,4 +20,4 @@ export {
 } from './chart.constants';
 
 // Vault-related constants
-export { VAULT_ALLOCATIONS, DEFAULT_VAULT_STATE } from './vault.constants';
+export { VAULT_ALLOCATION, TRADING_FEES, STRATEGY_DEFAULTS, MICRO_SCALPING, ULTRA_MICRO_SCALPING, REBALANCING } from './vault.constants';

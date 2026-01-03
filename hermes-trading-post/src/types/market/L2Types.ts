@@ -94,3 +94,41 @@ export interface ExecutionMetrics {
   levelsConsumed: number;
   timestamp: number;
 }
+
+/**
+ * Candle data for charting
+ */
+export interface Candle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
+/**
+ * Liquidity alert interface
+ */
+export interface LiquidityAlert {
+  type: 'spread_wide' | 'illiquid' | 'imbalanced' | 'recovery';
+  severity: 'warning' | 'critical';
+  message: string;
+  timestamp: number;
+}
+
+/**
+ * Liquidity condition indicator
+ */
+export interface LiquidityCondition {
+  isHealthy: boolean;
+  spread: number;  // %
+  liquidity: {
+    near: number;
+    medium: number;
+    far: number;
+  };
+  imbalance: number;  // -100 to +100
+  alerts: LiquidityAlert[];
+  timestamp: number;
+}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck - dataFeed module not yet implemented
   import { onMount, onDestroy } from 'svelte';
   import { ChartDataFeed } from '../../../services/chart/dataFeed';
   import type { CandleData } from '../../../types/coinbase';

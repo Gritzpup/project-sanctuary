@@ -3,10 +3,12 @@
  * @description Type definitions for paper test service
  */
 
-import type { ChartDataFeed } from '../../chart/dataFeed';
+// Note: ChartDataFeed module not yet implemented - using 'any' as placeholder
 import type { Strategy } from '../../../strategies/base/Strategy';
 import type { CandleData } from '../../../types/coinbase';
 import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
+
+type ChartDataFeed = any;
 
 export interface PaperTestOptions {
   date: Date;

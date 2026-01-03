@@ -54,9 +54,9 @@ export class RedisCandleStorage {
       port: REDIS_CONFIG.port,
       password: REDIS_CONFIG.password,
       db: REDIS_CONFIG.db,
-      retryDelayOnFailover: REDIS_CONFIG.retryDelayOnFailover,
       maxRetriesPerRequest: REDIS_CONFIG.maxRetriesPerRequest,
-      lazyConnect: true
+      lazyConnect: true,
+      retryStrategy: (times) => Math.min(times * REDIS_CONFIG.retryDelayOnFailover, 3000)
     });
 
     this.setupEventHandlers();

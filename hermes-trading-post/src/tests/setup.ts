@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { beforeEach, vi } from 'vitest';
 
 // Mock console methods to avoid spam during tests

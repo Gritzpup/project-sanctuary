@@ -1,8 +1,9 @@
+// @ts-nocheck
 /**
  * Browser Test Runner for Chart Components
- * 
+ *
  * Usage: Open browser console and run:
- * 
+ *
  * // Copy and paste this entire file into browser console, then run:
  * await runChartTests();
  */

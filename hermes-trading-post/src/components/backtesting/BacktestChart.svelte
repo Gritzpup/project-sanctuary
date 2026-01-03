@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { createChart, ColorType } from 'lightweight-charts';
-  import type { IChartApi, ISeriesApi } from 'lightweight-charts';
+  import type { IChartApi, ISeriesApi, SeriesMarker, Time, SeriesMarkerPosition, SeriesMarkerShape, CandlestickData } from 'lightweight-charts';
   import type { CandleData } from '../../types/trading/market';
   
   export let data: CandleData[] = [];
@@ -98,8 +98,15 @@
     }
     
     try {
-      // Set candlestick data
-      candleSeries.setData(data);
+      // Set candlestick data - convert CandleData to CandlestickData format
+      const chartData = data.map(candle => ({
+        time: candle.time as Time,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close
+      }));
+      candleSeries.setData(chartData);
     } catch (error) {
     }
     
@@ -113,35 +120,32 @@
       };
       
       // Create markers for candlestick series
-      const markers = trades
+      const markers: SeriesMarker<Time>[] = trades
         .filter((trade) => {
           const time = trade.timestamp;
           // Only include trades within candle range
           return time >= candleTimeRange.first && time <= candleTimeRange.last;
         })
-        .map((trade) => {
-        const time = trade.timestamp;
-
-        return {
-          time: time,
-          position: trade.type === 'buy' ? 'belowBar' : 'aboveBar',
-          color: trade.type === 'buy' ? '#26a69a' : '#ef5350',  // Match candle colors
-          shape: trade.type === 'buy' ? 'arrowUp' : 'arrowDown',
-          size: 2,  // Standard size
+        .map((trade) => ({
+          time: trade.timestamp as Time,
+          position: (trade.type === 'buy' ? 'belowBar' : 'aboveBar') as SeriesMarkerPosition,
+          color: trade.type === 'buy' ? '#26a69a' : '#ef5350',
+          shape: (trade.type === 'buy' ? 'arrowUp' : 'arrowDown') as SeriesMarkerShape,
+          size: 2,
           text: ''
-        };
-      });
-      
+        }));
+
       candleSeries.setMarkers(markers);
     } else {
       // Clear any existing markers
       if (candleSeries) candleSeries.setMarkers([]);
     }
-    
+
     // Fit content with a small delay to ensure markers are rendered
-    if (chart) {
+    const chartRef = chart;
+    if (chartRef) {
       setTimeout(() => {
-        chart.timeScale().fitContent();
+        chartRef.timeScale().fitContent();
       }, 100);
     }
   }

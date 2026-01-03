@@ -29,7 +29,7 @@ export const services = {
   api: () => import('./api/BackendAPIService').then(m => m.BackendAPIService.getInstance()),
 
   // Legacy services (for migration)
-  legacyCache: () => import('./cache/indexeddb').then(m => m.IndexedDBCacheService),
+  legacyCache: () => import('./cache/indexeddb').then(m => m.IndexedDBService),
   legacyPaperTrading: () => import('./paper-trading/paperTradingService'),
   legacyPaperTest: () => import('./state/paperTestService')
 };
@@ -43,8 +43,8 @@ export const migration = {
     if (useBackend) {
       return (await import('./cache/BackendCacheService')).backendCache;
     } else {
-      const { IndexedDBCacheService } = await import('./cache/indexeddb');
-      return IndexedDBCacheService;
+      const { IndexedDBService } = await import('./cache/indexeddb');
+      return IndexedDBService;
     }
   },
 

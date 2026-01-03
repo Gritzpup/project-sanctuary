@@ -85,8 +85,7 @@ export class ChartInitializationService {
   private forceReadyAfterTimeout(timeoutMs: number): void {
     setTimeout(() => {
       // Only force ready if still initializing
-      const currentStatus = statusStore.status || {};
-      if (currentStatus.state === 'initializing') {
+      if (statusStore.status === 'initializing') {
         statusStore.setReady();
       }
     }, timeoutMs);

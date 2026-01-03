@@ -132,12 +132,12 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   /**
    * Cleanup subscription when plugin is destroyed
    */
-  override onDestroy(): void {
+  override async onDestroy(): Promise<void> {
     if (this.dataStoreUnsubscribe) {
       this.dataStoreUnsubscribe();
       this.dataStoreUnsubscribe = null;
     }
-    super.onDestroy();
+    await super.onDestroy();
   }
 
   /**

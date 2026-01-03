@@ -12,7 +12,8 @@ import { ChartDebug } from '../utils/debug';
 import { perfTest } from '../utils/performanceTest';
 import { getGranularitySeconds, alignTimeToGranularity } from '../utils/granularityHelpers';
 import { getCandleCount } from '../../../../lib/chart/TimeframeCompatibility';
-import type { IChartApi, ISeriesApi, CandlestickData } from 'lightweight-charts';
+import type { IChartApi, ISeriesApi } from 'lightweight-charts';
+import type { CandlestickDataWithVolume } from '../stores/services/DataTransformations';
 
 export interface DataLoaderConfig {
   pair: string;
@@ -23,8 +24,8 @@ export interface DataLoaderConfig {
 }
 
 export interface UseDataLoaderOptions {
-  onDataLoaded?: (candles: CandlestickData[]) => void;
-  onGapFilled?: (gapData: CandlestickData[]) => void;
+  onDataLoaded?: (candles: CandlestickDataWithVolume[]) => void;
+  onGapFilled?: (gapData: CandlestickDataWithVolume[]) => void;
   onError?: (error: string) => void;
 }
 
@@ -63,18 +64,18 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
   /**
    * Create bridge candles to fill gaps in data
    */
-  function createBridgeCandles(lastCandleTime: number, currentTime: number, interval: number): CandlestickData[] {
-    const bridgeCandles: CandlestickData[] = [];
+  function createBridgeCandles(lastCandleTime: number, currentTime: number, interval: number): CandlestickDataWithVolume[] {
+    const bridgeCandles: CandlestickDataWithVolume[] = [];
     const lastCandle = dataStore.candles[dataStore.candles.length - 1];
-    
+
     if (!lastCandle) return bridgeCandles;
-    
+
     const lastPrice = lastCandle.close;
     let bridgeTime = lastCandleTime + interval;
-    
+
     while (bridgeTime < currentTime) {
       bridgeCandles.push({
-        time: bridgeTime as any,
+        time: bridgeTime,
         open: lastPrice,
         high: lastPrice,
         low: lastPrice,
@@ -82,7 +83,7 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
       });
       bridgeTime += interval;
     }
-    
+
     return bridgeCandles;
   }
 
@@ -333,7 +334,8 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
               .sort((a, b) => (a.time as number) - (b.time as number));
 
             if (validGapCandles.length > 0) {
-              series.setData(validGapCandles);
+              // Cast to chart-compatible type - our numeric timestamps work with UTCTimestamp
+              series.setData(validGapCandles as any);
             }
           }
 
@@ -370,7 +372,8 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
                 .sort((a, b) => (a.time as number) - (b.time as number));
 
               if (validBridgeCandles.length > 0) {
-                series.setData(validBridgeCandles);
+                // Cast to chart-compatible type - our numeric timestamps work with UTCTimestamp
+                series.setData(validBridgeCandles as any);
               }
             }
 

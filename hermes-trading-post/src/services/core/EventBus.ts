@@ -267,7 +267,7 @@ export class EventBus {
         }
       } catch (error) {
         if (requestData.responseEvent) {
-          this.emitSync(requestData.responseEvent, { error: error.message });
+          this.emitSync(requestData.responseEvent, { error: error instanceof Error ? error.message : String(error) });
         }
       }
     });

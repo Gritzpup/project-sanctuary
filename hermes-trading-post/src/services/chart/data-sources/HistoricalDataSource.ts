@@ -157,15 +157,15 @@ export class HistoricalDataSource {
 
   // Get optimal chunk size for data fetching based on granularity
   public getOptimalChunkSize(granularity: string): number {
-    const chunkSizes = {
+    const chunkSizes: Record<string, number> = {
       '1m': 300,   // 5 hours
-      '5m': 288,   // 24 hours  
+      '5m': 288,   // 24 hours
       '15m': 96,   // 24 hours
       '1h': 168,   // 1 week
       '6h': 120,   // 30 days
       '1d': 365    // 1 year
     };
-    
+
     return chunkSizes[granularity] || 100;
   }
 

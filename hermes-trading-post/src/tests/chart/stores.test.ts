@@ -59,7 +59,7 @@ export class StoreTests {
       return {
         testName: 'Chart Store',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -94,7 +94,7 @@ export class StoreTests {
       return {
         testName: 'Data Store',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -129,7 +129,7 @@ export class StoreTests {
       return {
         testName: 'Subscription Store',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -166,7 +166,7 @@ export class StoreTests {
       return {
         testName: 'State Updates',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }

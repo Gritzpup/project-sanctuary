@@ -90,7 +90,7 @@ export class TestRunner {
       const result: TestResult = {
         name,
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: Date.now() - startTime
       };
       

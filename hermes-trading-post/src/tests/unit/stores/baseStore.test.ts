@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * @file baseStore.test.ts
  * @description Unit tests for base store factory

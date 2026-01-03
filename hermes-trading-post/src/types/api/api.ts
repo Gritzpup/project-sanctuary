@@ -102,17 +102,7 @@ export interface ApiRequestConfig {
   retries?: number;
 }
 
-/**
- * WebSocket connection configuration
- */
-export interface WebSocketConfig {
-  url: string;
-  channels: string[];
-  productIds: string[];
-  heartbeat?: boolean;
-  reconnectInterval?: number;
-  maxReconnectAttempts?: number;
-}
+// Note: WebSocketConfig is defined in ./websocket.ts to avoid duplication
 
 /**
  * Cache configuration for API responses

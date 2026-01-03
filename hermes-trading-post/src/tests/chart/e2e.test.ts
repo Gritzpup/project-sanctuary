@@ -89,7 +89,7 @@ export class E2ETests {
       return {
         testName: 'Full Workflow',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -126,7 +126,7 @@ export class E2ETests {
       return {
         testName: 'Real-Time Updates',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -161,7 +161,7 @@ export class E2ETests {
       return {
         testName: 'Error Recovery',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -198,7 +198,7 @@ export class E2ETests {
       return {
         testName: 'Performance',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }

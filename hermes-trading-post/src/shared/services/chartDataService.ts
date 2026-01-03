@@ -4,7 +4,7 @@
  * Phase 5D: Consolidate 6+ chart services into 3 coordinated services
  */
 
-import { dataStore } from '../../stores/dataStore.svelte';
+import { dataStore } from '../../pages/trading/chart/stores/dataStore.svelte';
 import type { CandleData } from '../../types/coinbase';
 
 /**

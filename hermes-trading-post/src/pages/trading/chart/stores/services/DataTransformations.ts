@@ -9,10 +9,11 @@ import type { WebSocketCandle } from '../../types/data.types';
 import { memoized } from '../../utils/memoization';
 
 /**
- * Candle data with volume
+ * Candle data with volume - uses number for time (Unix timestamps in seconds)
+ * Cast to UTCTimestamp when passing to lightweight-charts APIs
  */
 export interface CandlestickDataWithVolume {
-  time: number | string;
+  time: number;
   open: number;
   high: number;
   low: number;

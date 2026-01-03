@@ -208,3 +208,27 @@ export interface OpportunityDetectionConfig {
   preEmptiveSpread: number;       // % below current price
 }
 
+// ============================
+// Supported Type Aliases
+// ============================
+
+/**
+ * Supported trading pairs
+ */
+export type SupportedTradingPair =
+  | 'BTC-USD' | 'ETH-USD' | 'LTC-USD' | 'BCH-USD' | 'PAXG-USD'
+  | 'ADA-USD' | 'DOT-USD' | 'LINK-USD' | 'XLM-USD' | 'UNI-USD';
+
+/**
+ * Supported time granularities
+ */
+export type SupportedGranularity =
+  | '1m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '6h' | '12h' | '1d';
+
+/**
+ * Supported trading strategies
+ */
+export type SupportedStrategy =
+  | 'reverse-descending-grid' | 'grid-trading' | 'rsi-mean-reversion' | 'dca'
+  | 'vwap-bounce' | 'micro-scalping' | 'proper-scalping' | 'ultra-micro-scalping';
+

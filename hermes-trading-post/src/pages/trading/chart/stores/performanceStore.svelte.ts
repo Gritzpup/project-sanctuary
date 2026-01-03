@@ -26,8 +26,8 @@ class PerformanceStore {
   private _metrics = $state<PerformanceMetric[]>([]);
   private _isMonitoring = $state<boolean>(false);
   
-  private fpsInterval: NodeJS.Timeout | null = null;
-  private memoryInterval: NodeJS.Timeout | null = null;
+  private fpsInterval: number | null = null;
+  private memoryInterval: number | null = null;
   private lastFrameTime: number = 0;
   private frameCount: number = 0;
   private cacheHits: number = 0;

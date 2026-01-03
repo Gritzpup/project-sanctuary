@@ -148,11 +148,11 @@ export abstract class APIService extends ServiceBase {
 
     } catch (error) {
       // Emit error event
-      this.emit('request:error', { 
-        requestId, 
-        method, 
-        url, 
-        error: error.message 
+      this.emit('request:error', {
+        requestId,
+        method,
+        url,
+        error: error instanceof Error ? error.message : String(error)
       });
       
       throw error;
@@ -286,11 +286,11 @@ export abstract class APIService extends ServiceBase {
         const delay = config.retryDelay * Math.pow(2, attempt);
         await new Promise(resolve => setTimeout(resolve, delay));
         
-        this.emit('request:retry', { 
+        this.emit('request:retry', {
           requestId,
-          attempt: attempt + 1, 
-          maxRetries: config.retries, 
-          error: error.message
+          attempt: attempt + 1,
+          maxRetries: config.retries,
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }

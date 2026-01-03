@@ -40,7 +40,9 @@ export class ChartDataMemoizer {
     if (this.cache.size >= this.maxCacheSize) {
       // Remove oldest entry
       const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey);
+      }
     }
 
     this.cache.set(time, formatted);

@@ -67,7 +67,7 @@ export class ServiceTests {
       return {
         testName: 'WebSocket Service',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -101,7 +101,7 @@ export class ServiceTests {
       return {
         testName: 'Data Service',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -140,7 +140,7 @@ export class ServiceTests {
       return {
         testName: 'Cache Service',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -179,7 +179,7 @@ export class ServiceTests {
       return {
         testName: 'Error Handling',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }

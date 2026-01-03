@@ -1,4 +1,4 @@
-import type { WebSocketMessage, TickerMessage, SubscribeMessage } from '../types/coinbase';
+import type { WebSocketMessage, TickerMessage, SubscribeMessage } from '../../types/coinbase';
 import { priceForwarder } from './priceForwarder';
 import { messageBatcher } from './messageBatcher';
 

@@ -37,7 +37,25 @@
     strategies: any[];
   } = $props();
 
-  const dispatch = createEventDispatcher();
+  // Event types for dispatch
+  type Events = {
+    pairChange: { pair: string };
+    granularityChange: { granularity: string };
+    periodChange: { period: string };
+    speedChange: { speed: string };
+    dateChange: { date: string };
+    botSelect: { botId: string };
+    strategyChange: { strategy: string };
+    balanceChange: { balance: number };
+    start: void;
+    pause: void;
+    resume: void;
+    stop: void;
+    selectBot: { botId: string };
+    reset: void;
+  };
+
+  const dispatch = createEventDispatcher<Events>();
 
   // ⚡ SEAMLESS REFRESH: Key changes on every page load to refresh only chart canvases
   let chartRefreshKey = $state(Date.now());
@@ -46,7 +64,7 @@
   });
 
   function forwardEvent(event: CustomEvent) {
-    dispatch(event.type, event.detail);
+    dispatch(event.type as keyof Events, event.detail);
   }
 
   // Reactive orderbook data calculations - EXACTLY 10 rows each side

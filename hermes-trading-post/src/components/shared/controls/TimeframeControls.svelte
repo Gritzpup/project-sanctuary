@@ -16,7 +16,7 @@
   });
 
   export let currentTimeframe: string = '1H';
-  export let availableTimeframes: string[] = ['1H', '6H', '1D', '1W', '1M', '5Y'];
+  export let availableTimeframes: readonly string[] = ['1H', '6H', '1D', '1W', '1M', '5Y'];
   export let displayNames: Record<string, string> = {};
   export let debounceMs: number = 200;
   export let showLabel: boolean = false;

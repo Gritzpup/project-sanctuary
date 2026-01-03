@@ -198,7 +198,7 @@ export class ServiceInitializer {
           results[serviceName] = { healthy: true }; // Assume healthy if no health check
         }
       } catch (error) {
-        results[serviceName] = { healthy: false, error: error.message };
+        results[serviceName] = { healthy: false, error: error instanceof Error ? error.message : String(error) };
         allHealthy = false;
       }
     }

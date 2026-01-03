@@ -35,9 +35,9 @@ export class PaperTradingExecution {
       timestamp: Date.now(),
       type: 'buy',
       price,
-      amount,
+      size: amount,
       fee,
-      total: amount * price,
+      value: amount * price,
       signal: signal.reason,
       strategyType: state.strategy?.constructor.name || 'Unknown'
     };
@@ -76,9 +76,9 @@ export class PaperTradingExecution {
       timestamp: Date.now(),
       type: 'sell',
       price,
-      amount,
+      size: amount,
       fee,
-      total: grossProceeds,
+      value: grossProceeds,
       signal: signal.reason,
       strategyType: state.strategy?.constructor.name || 'Unknown'
     };

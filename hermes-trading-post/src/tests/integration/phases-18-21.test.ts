@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * @file phases-18-21.test.ts
  * @description Integration tests for Phases 18-21

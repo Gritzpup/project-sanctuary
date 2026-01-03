@@ -165,10 +165,11 @@
         ];
 
         selectors.forEach(selector => {
-          container.querySelectorAll(selector).forEach((el: HTMLElement) => {
-            el.style.display = 'none';
-            el.style.visibility = 'hidden';
-            el.remove();
+          container.querySelectorAll(selector).forEach(el => {
+            const htmlEl = el as HTMLElement;
+            htmlEl.style.display = 'none';
+            htmlEl.style.visibility = 'hidden';
+            htmlEl.remove();
           });
         });
       }
@@ -287,7 +288,7 @@
       // Find the LARGEST VOLUME WALL (cumulative depth) - not just individual level
       let maxCumulativeVolume = 0;
       let hotspotPrice = currentPrice;
-      let hotspotSide = 'neutral' as const;
+      let hotspotSide: 'neutral' | 'bullish' | 'bearish' = 'neutral';
 
       // Track the steepest volume increases (walls) - these are support/resistance
       let maxVolumeIncrease = 0;
@@ -299,7 +300,7 @@
         if (bid.price < visibleMin || bid.price > visibleMax) continue;
 
         // Use cumulative depth (which is the 'depth' field from getDepthData)
-        const volumeAtLevel = bid.depth || bid.size || 0;
+        const volumeAtLevel = bid.depth || 0;
 
         // For support, we want the price with highest cumulative volume on bid side
         // This represents the strongest buy wall
@@ -318,7 +319,7 @@
         if (ask.price < visibleMin || ask.price > visibleMax) continue;
 
         // Use cumulative depth (which is the 'depth' field from getDepthData)
-        const volumeAtLevel = ask.depth || ask.size || 0;
+        const volumeAtLevel = ask.depth || 0;
 
         // For resistance, we want the price with highest cumulative volume on ask side
         // This represents the strongest sell wall
@@ -333,8 +334,11 @@
       // If market is trending, prioritize the side with momentum
       // Higher bid volume = bullish momentum, track support
       // Higher ask volume = bearish momentum, track resistance
-      const totalVolume = (summary.bidVolume || 0) + (summary.askVolume || 0);
-      const volumeRatio = totalVolume > 0 ? (summary.bidVolume || 0) / totalVolume : 0.5;
+      // Calculate volumes from the bids/asks arrays
+      const bidVolume = summary.bids.reduce((sum, bid) => sum + bid.size, 0);
+      const askVolume = summary.asks.reduce((sum, ask) => sum + ask.size, 0);
+      const totalVolume = bidVolume + askVolume;
+      const volumeRatio = totalVolume > 0 ? bidVolume / totalVolume : 0.5;
 
       // If volume is heavily skewed, prioritize that side's walls
       if (volumeRatio > 0.6 && depthData.bids.length > 0) {
@@ -362,11 +366,11 @@
       const offset = ((hotspotPrice - priceRange.left) / range) * 100;
 
       volumeHotspot = {
-        bidVolume: summary.bidVolume || 0,
-        askVolume: summary.askVolume || 0,
+        bidVolume,
+        askVolume,
         bidSupport: summary.bestBid,
         askResistance: summary.bestAsk,
-        volumeRatio: volumeRatio,
+        volumeRatio,
         price: hotspotPrice,
         spread: summary.bestAsk - summary.bestBid,
         offset: Math.max(0, Math.min(100, offset)), // Keep within 0-100%

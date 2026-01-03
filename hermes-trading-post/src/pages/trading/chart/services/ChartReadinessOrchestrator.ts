@@ -6,6 +6,8 @@
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import type { PluginManager } from '../plugins/base/PluginManager';
 import { dataStore } from '../stores/dataStore.svelte';
+import { chartStore } from '../stores/chartStore.svelte';
+import { statusStore } from '../stores/statusStore.svelte';
 import { ChartDebug } from '../utils/debug';
 
 /**
@@ -83,7 +85,8 @@ export class ChartReadinessOrchestrator {
       await pluginManager.setContext({
         chart,
         dataStore,
-        // Store references will be injected as needed
+        chartStore,
+        statusStore
       });
 
       ChartDebug.log('Plugin manager initialized');
@@ -171,8 +174,9 @@ export class ChartReadinessOrchestrator {
     this.pluginRefreshTimeout = setTimeout(() => {
       try {
         // Refresh all plugins via plugin manager
-        if (pluginManager && typeof pluginManager.refreshAll === 'function') {
-          (pluginManager as any).refreshAll(delayMs);
+        const pm = pluginManager as any;
+        if (pm && typeof pm.refreshAll === 'function') {
+          pm.refreshAll(delayMs);
         }
         ChartDebug.log('All plugins refreshed');
       } catch (error) {

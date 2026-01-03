@@ -69,7 +69,7 @@ export class ComponentTests {
       return {
         testName: 'Chart Component',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -115,7 +115,7 @@ export class ComponentTests {
       return {
         testName: 'Controls Component',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -157,7 +157,7 @@ export class ComponentTests {
       return {
         testName: 'Overlays Component',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }
@@ -192,7 +192,7 @@ export class ComponentTests {
       return {
         testName: 'Component Integration',
         passed: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: performance.now() - startTime
       };
     }

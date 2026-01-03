@@ -18,7 +18,7 @@
  */
 
 import { orderbookStore } from '../../pages/trading/orderbook/stores/orderbookStore.svelte';
-import {
+import type {
   Orderbook,
   SpreadMetrics,
   LiquidityMetrics,

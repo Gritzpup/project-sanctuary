@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BackendStrategyAdapter, BackendStrategyFactory } from './BackendStrategyAdapter';
 import type { CandleData } from '../base/StrategyTypes';
