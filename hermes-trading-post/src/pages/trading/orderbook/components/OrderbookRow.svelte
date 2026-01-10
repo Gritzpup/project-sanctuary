@@ -30,7 +30,7 @@
   // ⚡ PHASE 6D: Memoize expensive calculations using $derived.by()
   // These are now cached until their dependencies change
   let volumeWidth = $derived.by(() => (level.size / maxSize * 100).toFixed(1));
-  let formattedPrice = $derived.by(() => FastNumberFormatter.formatPrice(Math.floor(level.price)));
+  let formattedPrice = $derived.by(() => FastNumberFormatter.formatPrice(level.price));
   let formattedQuantity = $derived.by(() => level.cumulative.toFixed(5));
 
   // ⚡ PHASE 6D: Cache CSS class computation

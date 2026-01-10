@@ -5,10 +5,7 @@
   import FixedOrderbookList from '../../../pages/trading/orderbook/components/FixedOrderbookList.svelte';
   import MarketGauge from '../../../components/trading/MarketGauge.svelte';
   import { createEventDispatcher, onMount } from 'svelte';
-  import { orderbookStore } from '../../../pages/trading/orderbook/stores/orderbookStore.svelte';
-  import {
-    aggregateOrderbookLevels
-  } from '../../../pages/trading/orderbook/components/services/OrderBookCalculator';
+  // orderbookStore and aggregateOrderbookLevels imports removed - orderbook disconnected from live API
 
   // Props using Svelte 5 runes syntax
   let {
@@ -67,16 +64,14 @@
     dispatch(event.type as keyof Events, event.detail);
   }
 
-  // Reactive orderbook data calculations - EXACTLY 10 rows each side
-  let bids = $derived(orderbookStore.getBids(100));
-  let asks = $derived(orderbookStore.getAsks(100));
-
-  // Aggregate then slice to EXACTLY 10 rows - no more, no less
-  let bidsWithCumulative = $derived(aggregateOrderbookLevels(bids, 10, true).slice(0, 10));
-  let asksWithCumulative = $derived(aggregateOrderbookLevels(asks, 10, false).slice(0, 10));
-
-  let maxBidSize = $derived(Math.max(...bidsWithCumulative.map(b => b.cumulative), 0));
-  let maxAskSize = $derived(Math.max(...asksWithCumulative.map(a => a.cumulative), 0));
+  // Orderbook data - DISCONNECTED from live API for performance
+  // Using empty arrays instead of orderbookStore to prevent WebSocket connections
+  let bids: any[] = [];
+  let asks: any[] = [];
+  let bidsWithCumulative: any[] = [];
+  let asksWithCumulative: any[] = [];
+  let maxBidSize = 0;
+  let maxAskSize = 0;
 
 </script>
 
@@ -110,7 +105,7 @@
     />
   </div>
 
-  <!-- Middle Column: Orderbook -->
+  <!-- Middle Column: Orderbook - Displayed but DISCONNECTED from live API -->
   <div class="middle-column">
     <DepthChart {chartRefreshKey}>
       {#snippet children()}
@@ -135,11 +130,9 @@
     {botTabs}
     {activeBotInstance}
     totalTrades={tradingState.trades?.length || 0}
-    totalReturn={tradingState.totalReturn}
     startingBalance={10000}
     totalFees={tradingState.totalFees}
     totalRebates={tradingState.totalRebates}
-    totalRebalance={tradingState.totalRebalance}
     nextBuyDistance={backendState.nextBuyDistance}
     nextSellDistance={backendState.nextSellDistance}
     nextBuyPrice={backendState.nextBuyPrice}
@@ -201,7 +194,7 @@
     margin-top: 0;
   }
 
-  /* Desktop enhancement: 3-column layout for larger screens */
+  /* Desktop enhancement: 3-column layout (orderbook displayed but disconnected) */
   @media (min-width: 769px) {
     .panels-row,
     .main-panels-row {

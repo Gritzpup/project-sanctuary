@@ -40,7 +40,7 @@ export class StrategyRegistry {
 
   extractStrategyType(strategyName) {
     const nameToType = {
-      'Reverse Descending Grid Buying': 'reverse-ratio',
+      'Reverse Descending Grid Buying': 'reverse-descending-grid',
       'Ultra Micro-Scalping': 'ultra-micro-scalping',
       'Test Strategy': 'test',
       'Test': 'test'

@@ -10,9 +10,9 @@
   // Props (chartRefreshKey for consistency, though not used as data is already reactive)
   let { chartRefreshKey = Date.now() } = $props();
 
-  // Simple price formatter
+  // Simple price formatter - 2 decimal places like exchanges
   function formatPrice(price: number): string {
-    return `$${price.toFixed(0)}`;
+    return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   // Get current price using $derived - calculate from mid-price of best bid/ask
@@ -54,12 +54,35 @@
   let allBids = $state<Array<{price: number, size: number}>>([]);
   let allAsks = $state<Array<{price: number, size: number}>>([]);
 
-  // Use $effect to update when versions change
+  // Throttle timer for orderbook updates (50ms = 20 updates/sec max, keeps up with WebSocket)
+  let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingUpdate = false;
+
+  // Use $effect to update when versions change - with throttling
   $effect(() => {
     const bidVer = orderbookStore.versions.bids;
     const askVer = orderbookStore.versions.asks;
-    allBids = orderbookStore.getBids(1000);
-    allAsks = orderbookStore.getAsks(1000);
+
+    // Mark that we have a pending update
+    pendingUpdate = true;
+
+    // If no throttle timer running, process immediately and start timer
+    if (!throttleTimer) {
+      allBids = orderbookStore.getBids(20);  // Reduced from 1000 to 20
+      allAsks = orderbookStore.getAsks(20);
+      pendingUpdate = false;
+
+      // Set throttle timer to prevent updates for 50ms
+      throttleTimer = setTimeout(() => {
+        throttleTimer = null;
+        // Process any pending update after throttle period
+        if (pendingUpdate) {
+          allBids = orderbookStore.getBids(20);
+          allAsks = orderbookStore.getAsks(20);
+          pendingUpdate = false;
+        }
+      }, 50);
+    }
   });
 
   // PERF: Disabled debug logging

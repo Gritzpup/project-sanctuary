@@ -26,9 +26,10 @@ export class ChartRealtimeService {
 
   // ⚡ PERF: Message batching per subscription to prevent queue saturation
   // Each subscription gets its own batcher to handle 50-100 msgs/sec
+  // Changed from 100ms to 50ms to sync with orderbook updates
   private messageBatchers: Map<string, PendingBatch> = new Map();
   private readonly BATCH_MAX_MESSAGES = 50;
-  private readonly BATCH_MAX_WAIT_MS = 100;
+  private readonly BATCH_MAX_WAIT_MS = 50;
 
   private getBackendHost(): string {
     const envHost = (import.meta as any)?.env?.VITE_BACKEND_HOST;
@@ -96,6 +97,7 @@ export class ChartRealtimeService {
     this.ws = new WebSocket(this.backendUrl);
 
     this.ws.onopen = () => {
+      console.log('[ChartRealtime] WebSocket connected to', this.backendUrl);
 
       // Subscribe to all active subscriptions
       this.wsSubscriptions.forEach((callback, subscriptionKey) => {
@@ -113,14 +115,17 @@ export class ChartRealtimeService {
         const message = JSON.parse(event.data);
         this.handleWebSocketMessage(message);
       } catch (error) {
+        console.error('[ChartRealtime] Failed to parse WebSocket message:', error, 'Data:', event.data?.substring?.(0, 100));
       }
     };
 
     this.ws.onclose = (event) => {
+      console.warn('[ChartRealtime] WebSocket closed:', event.code, event.reason || 'No reason');
       this.scheduleReconnect();
     };
 
     this.ws.onerror = (error) => {
+      console.error('[ChartRealtime] WebSocket error:', error);
     };
   }
 

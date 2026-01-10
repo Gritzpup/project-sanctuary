@@ -19,15 +19,13 @@ export class FastNumberFormatter {
       return this.cache.get(cacheKey)!;
     }
 
-    // Fast manual formatting without Intl overhead
-    const formatted = price < 100
-      ? `$${price.toFixed(2)}` // BTC typically $30K-$100K, use 2 decimals
-      : `$${Math.floor(price).toLocaleString('en', {useGrouping: true})}`;
+    // Fast manual formatting without Intl overhead - always 2 decimal places like exchanges
+    const formatted = `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     // Simple LRU: clear cache if too large
     if (this.cache.size >= this.MAX_CACHE_SIZE) {
       const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
+      if (firstKey) this.cache.delete(firstKey);
     }
 
     this.cache.set(cacheKey, formatted);
@@ -57,7 +55,7 @@ export class FastNumberFormatter {
 
     if (this.cache.size >= this.MAX_CACHE_SIZE) {
       const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
+      if (firstKey) this.cache.delete(firstKey);
     }
 
     this.cache.set(cacheKey, formatted);

@@ -683,11 +683,12 @@ class OrderbookStore {
       const bestAsk = this._sortedAsks[0][0];
       const midPrice = (bestBid + bestAsk) / 2;
 
-      // Only notify if price changed by at least $1.00 to reduce constant re-renders
+      // Only notify if price changed by at least $0.01 to reduce constant re-renders
+      // Changed from $1.00 to $0.01 to keep header price in sync with chart
       if (this._lastNotifiedMidPrice !== null) {
         const priceChange = Math.abs(midPrice - this._lastNotifiedMidPrice);
-        if (priceChange < 1.00) {
-          return;  // Skip small fluctuations
+        if (priceChange < 0.01) {
+          return;  // Skip sub-cent fluctuations
         }
       }
 
