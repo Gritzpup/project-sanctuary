@@ -54,7 +54,7 @@
   let allBids = $state<Array<{price: number, size: number}>>([]);
   let allAsks = $state<Array<{price: number, size: number}>>([]);
 
-  // Throttle timer for orderbook updates (50ms = 20 updates/sec max, keeps up with WebSocket)
+  // Throttle timer for orderbook updates (100ms = 10 updates/sec max, reduces lag)
   let throttleTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingUpdate = false;
 
@@ -68,20 +68,20 @@
 
     // If no throttle timer running, process immediately and start timer
     if (!throttleTimer) {
-      allBids = orderbookStore.getBids(20);  // Reduced from 1000 to 20
-      allAsks = orderbookStore.getAsks(20);
+      allBids = orderbookStore.getBids(500);  // Fetch enough orders to aggregate across $500 range
+      allAsks = orderbookStore.getAsks(500);
       pendingUpdate = false;
 
-      // Set throttle timer to prevent updates for 50ms
+      // Set throttle timer to prevent updates for 100ms
       throttleTimer = setTimeout(() => {
         throttleTimer = null;
         // Process any pending update after throttle period
         if (pendingUpdate) {
-          allBids = orderbookStore.getBids(20);
-          allAsks = orderbookStore.getAsks(20);
+          allBids = orderbookStore.getBids(500);
+          allAsks = orderbookStore.getAsks(500);
           pendingUpdate = false;
         }
-      }, 50);
+      }, 100);
     }
   });
 
@@ -96,22 +96,30 @@
   //   });
   // }
 
-  // Get quantities for each price level from orderbook
-  function getQuantityAtPrice(price: number, levels: Array<{price: number, size: number}>) {
-    // Find closest price in orderbook
+  // Get aggregated quantity for a price range (all orders within the row's step range)
+  const step = RANGE / ROWS; // ~$45.45 per row
+
+  function getQuantityAtPrice(price: number, levels: Array<{price: number, size: number}>, isBid: boolean) {
+    // Aggregate all orders within this row's price range
+    // For bids: from (price - step) to price
+    // For asks: from price to (price + step)
+    const rangeMin = isBid ? price - step : price;
+    const rangeMax = isBid ? price : price + step;
+
+    let totalSize = 0;
     for (const level of levels) {
-      if (Math.abs(level.price - price) < 100) {
-        return level.size;
+      if (level.price >= rangeMin && level.price < rangeMax) {
+        totalSize += level.size;
       }
     }
-    return 0;
+    return totalSize;
   }
 
   // Calculate cumulative depth with reactive orderbook data
-  function calculateCumulative(priceLevels: number[], orderbookLevels: Array<{price: number, size: number}>) {
+  function calculateCumulative(priceLevels: number[], orderbookLevels: Array<{price: number, size: number}>, isBid: boolean) {
     let cumulative = 0;
     return priceLevels.map(price => {
-      const qty = getQuantityAtPrice(price, orderbookLevels);
+      const qty = getQuantityAtPrice(price, orderbookLevels, isBid);
       cumulative += qty;
       return {
         price,
@@ -122,8 +130,8 @@
   }
 
   // These will re-run when allBids or allAsks change - use $derived
-  const bidRows = $derived(calculateCumulative(bidPriceLevels, allBids));
-  const askRows = $derived(calculateCumulative(askPriceLevels, allAsks));
+  const bidRows = $derived(calculateCumulative(bidPriceLevels, allBids, true));
+  const askRows = $derived(calculateCumulative(askPriceLevels, allAsks, false));
 
   // Get max sizes for bar scaling
   const maxBidSize = $derived(Math.max(...bidRows.map(r => r.size), 0.001));
@@ -140,7 +148,7 @@
       {#each bidRows as row}
         <div class="orderbook-row bid">
           <div class="size-bar bid-bar" style="width: {(row.size / maxBidSize) * 100}%"></div>
-          <span class="quantity">{row.size.toFixed(8)}</span>
+          <span class="quantity">{row.size.toFixed(4)}</span>
           <span class="price">{formatPrice(row.price)}</span>
         </div>
       {/each}
@@ -157,7 +165,7 @@
         <div class="orderbook-row ask">
           <div class="size-bar ask-bar" style="width: {(row.size / maxAskSize) * 100}%"></div>
           <span class="price">{formatPrice(row.price)}</span>
-          <span class="quantity">{row.size.toFixed(8)}</span>
+          <span class="quantity">{row.size.toFixed(4)}</span>
         </div>
       {/each}
     </div>
