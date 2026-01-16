@@ -5,9 +5,22 @@
   export let recentHigh: number = 0;
   export let isRunning: boolean = false;
   export let trades: any[] = [];
+  export let positions: any[] = [];
+  export let nextBuyDistance: number = 0;
 
   // Get starting price from the first trade, or use current price if no trades
   $: startingPrice = trades && trades.length > 0 ? trades[0].price : currentPrice;
+
+  // LAST BUY - actual price of most recent buy trade (check both type and side fields)
+  $: lastBuyTrade = trades?.filter((t: any) => (t.type || t.side) === 'buy').pop();
+  $: lastBuyPrice = lastBuyTrade?.price || 0;
+
+  // PROFIT ZONE - profit from last buy at current price
+  $: profitAmount = lastBuyPrice > 0 ? currentPrice - lastBuyPrice : 0;
+  $: profitPercent = lastBuyPrice > 0 ? ((currentPrice - lastBuyPrice) / lastBuyPrice) * 100 : 0;
+
+  // DROP TARGET - percentage to next buy (from backendState or calculated)
+  $: dropTargetPercent = nextBuyDistance || (nextBuyPrice > 0 ? ((currentPrice - nextBuyPrice) / currentPrice) * 100 : 0);
 
   // Calculate recentHigh from trades if not provided by backend
   $: calculatedRecentHigh = (() => {
@@ -24,20 +37,25 @@
   $: actualNextSellPrice = nextSellPrice || 0;
 
   // Calculate the gauge needle angle based on market position relative to next buy/sell orders
-  $: angle = calculateNeedleAngle();
+  // Explicitly reference all dependencies so Svelte tracks them
+  $: angle = (() => {
+    // Reference all dependencies for Svelte reactivity
+    const price = currentPrice;
+    const buyPrice = nextBuyPrice;
+    const sellPrice = nextSellPrice;
 
-  function calculateNeedleAngle(): number {
-    if (!isRunning || currentPrice === 0) {
-      return 90; // Center when not running
+    // Only need valid price data to show position (don't require isRunning)
+    if (price === 0) {
+      return 90; // Center when no price
     }
 
     // If we don't have next buy/sell prices from backend, center the needle
-    if (!nextBuyPrice || !nextSellPrice) {
+    if (!buyPrice || !sellPrice) {
       return 90;
     }
 
     // Calculate the range between next buy and next sell
-    const range = nextSellPrice - nextBuyPrice;
+    const range = sellPrice - buyPrice;
 
     if (range <= 0) {
       return 90; // Invalid range, center the needle
@@ -48,16 +66,44 @@
     // Center (90°) = price between buy/sell triggers
     // Right (150°) = price at or above next sell trigger
 
-    if (currentPrice <= nextBuyPrice) {
+    if (price <= buyPrice) {
       return 30; // Far left - at/below buy trigger
-    } else if (currentPrice >= nextSellPrice) {
+    } else if (price >= sellPrice) {
       return 150; // Far right - at/above sell trigger
     } else {
       // Linear interpolation between buy and sell triggers
-      const position = (currentPrice - nextBuyPrice) / range;
+      const position = (price - buyPrice) / range;
       return 30 + position * 120; // Map 0-1 to 30-150 degrees
     }
+  })();
+
+  // Convert any price to an angle on the gauge arc (for positioning circles)
+  function priceToAngle(price: number): number {
+    if (!nextBuyPrice || !nextSellPrice || price === 0) return 90;
+    const range = nextSellPrice - nextBuyPrice;
+    if (range <= 0) return 90;
+
+    if (price <= nextBuyPrice) return 30;
+    if (price >= nextSellPrice) return 150;
+
+    const position = (price - nextBuyPrice) / range;
+    return 30 + position * 120;
   }
+
+  // Calculate circle positions on the gauge arc (matches needle rotation math)
+  function getCirclePosition(angle: number, radius: number = 80): { cx: number; cy: number } {
+    const theta = (angle - 90) * Math.PI / 180;
+    return {
+      cx: 100 + radius * Math.sin(theta),
+      cy: 100 - radius * Math.cos(theta)
+    };
+  }
+
+  // Pre-calculate positions for buy/sell targets
+  $: buyTargetAngle = priceToAngle(nextBuyPrice);
+  $: sellTargetAngle = priceToAngle(nextSellPrice);
+  $: buyTargetPos = getCirclePosition(buyTargetAngle);
+  $: sellTargetPos = getCirclePosition(sellTargetAngle);
 
   // Format display prices - use ACTUAL calculated values from strategy
   $: {
@@ -67,9 +113,8 @@
     displayNextSellPrice = sell;
   }
 
-  // 🔍 DEBUG: Log the prices being received and calculated
-  $: {
-  }
+  // 🔍 DEBUG: Uncomment to debug gauge
+  // $: console.log('🎯 GAUGE:', { currentPrice, nextBuyPrice, nextSellPrice, angle });
 
   let displayNextBuyPrice = 0;
   let displayNextSellPrice = 0;
@@ -157,6 +202,47 @@
         <text x="100" y="25" text-anchor="middle" class="zone-label" fill="#6b7bb8">HOLD</text>
         <text x="180" y="105" text-anchor="middle" class="zone-label" fill="#10b981">SELL</text>
 
+        <!-- Position circles on gauge arc (open positions) -->
+        {#each positions as pos}
+          {@const posAngle = priceToAngle(pos.entryPrice)}
+          {@const posPos = getCirclePosition(posAngle)}
+          <circle
+            cx={posPos.cx}
+            cy={posPos.cy}
+            r="3"
+            fill="rgba(16, 185, 129, 0.5)"
+            stroke="rgba(255, 255, 255, 0.5)"
+            stroke-width="1"
+            class="position-dot"
+          />
+        {/each}
+
+        <!-- Next buy target (red dot with white outline) -->
+        {#if nextBuyPrice > 0}
+          <circle
+            cx={buyTargetPos.cx}
+            cy={buyTargetPos.cy}
+            r="3"
+            fill="rgba(220, 38, 38, 0.5)"
+            stroke="rgba(255, 255, 255, 0.5)"
+            stroke-width="1"
+            class="target-dot buy-target"
+          />
+        {/if}
+
+        <!-- Next sell target (green dot with white outline) -->
+        {#if nextSellPrice > 0}
+          <circle
+            cx={sellTargetPos.cx}
+            cy={sellTargetPos.cy}
+            r="3"
+            fill="rgba(16, 185, 129, 0.5)"
+            stroke="rgba(255, 255, 255, 0.5)"
+            stroke-width="1"
+            class="target-dot sell-target"
+          />
+        {/if}
+
         <!-- Needle - thin and extends into arc -->
         <g transform="rotate({angle - 90} 100 100)" class="needle">
           <!-- Needle line - thinner -->
@@ -181,21 +267,23 @@
           <div class="stat-icon buy-icon">📊</div>
           <div class="stat-info">
             <span class="stat-text">LAST BUY</span>
-            <span class="stat-number">${displayNextBuyPrice.toFixed(0)}</span>
+            <span class="stat-number">{lastBuyPrice > 0 ? `$${lastBuyPrice.toFixed(0)}` : '--'}</span>
           </div>
         </div>
         <div class="compact-stat">
           <div class="stat-icon profit-icon">💰</div>
           <div class="stat-info">
             <span class="stat-text">PROFIT ZONE</span>
-            <span class="stat-number green">$736.32 (0.6%)</span>
+            <span class="stat-number {profitAmount >= 0 ? 'green' : 'red'}">
+              {lastBuyPrice > 0 ? `$${Math.abs(profitAmount).toFixed(2)} (${profitPercent >= 0 ? '+' : ''}${profitPercent.toFixed(2)}%)` : '--'}
+            </span>
           </div>
         </div>
         <div class="compact-stat">
           <div class="stat-icon drop-icon">🎯</div>
           <div class="stat-info">
             <span class="stat-text">DROP TARGET</span>
-            <span class="stat-number red">5%</span>
+            <span class="stat-number red">{dropTargetPercent > 0 ? `${dropTargetPercent.toFixed(1)}%` : '--'}</span>
           </div>
         </div>
       </div>
@@ -310,6 +398,11 @@
   /* Needle animation - smooth and professional */
   .needle {
     transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Position and target dots on gauge - semi-transparent with subtle glow */
+  .position-dot, .target-dot {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.3));
   }
 
   .compact-stats {

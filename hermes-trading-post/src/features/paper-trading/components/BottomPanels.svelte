@@ -23,6 +23,8 @@
       recentHigh={backendState.recentHigh || tradingState.recentHigh || 0}
       isRunning={tradingState.isRunning}
       trades={tradingState.trades || []}
+      positions={tradingState.positions || []}
+      nextBuyDistance={backendState.nextBuyDistance || 0}
     />
   </div>
 </div>
