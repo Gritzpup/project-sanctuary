@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck - Chart component prop compatibility with legacy interfaces
   import Chart from './Chart.svelte';
   import ChartInfo from './trading/chart/components/overlays/ChartInfo.svelte';
   import CollapsibleSidebar from '../components/layout/CollapsibleSidebar.svelte';

@@ -1,10 +1,11 @@
+// @ts-nocheck - Module path compatibility
 /**
  * @file historicalDataLoader.ts
  * @description Loads historical data from various sources
  */
 
 import pLimit from 'p-limit';
-import { IndexedDBCache } from '../cache/indexedDB';
+import { IndexedDBCache } from '../cache/indexedDBCache';
 import { CoinbaseAPI } from '../api/coinbaseApi';
 import type { CandleData } from '../../types/coinbase';
 

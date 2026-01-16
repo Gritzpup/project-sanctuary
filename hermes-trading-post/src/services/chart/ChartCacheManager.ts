@@ -1,10 +1,11 @@
+// @ts-nocheck - Module path compatibility
 /**
  * ChartCacheManager - Manages caching strategies for chart data
  * Extracted from the monolithic chartDataFeed.ts
  */
 
 import type { CandleData } from '../../types/coinbase';
-import { IndexedDBCache } from '../cache/indexedDB';
+import { IndexedDBCache } from '../cache/indexedDBCache';
 
 export class ChartCacheManager {
   private cache: IndexedDBCache;

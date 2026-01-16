@@ -3,7 +3,6 @@
 
   export let selectedStrategyType: string;
   export let strategies: any[];
-  export let isRunning: boolean = false;
 
   const dispatch = createEventDispatcher();
 

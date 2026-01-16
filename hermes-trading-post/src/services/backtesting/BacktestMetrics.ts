@@ -86,7 +86,7 @@ export class BacktestMetrics {
     finalValue: number,
     totalFeesCollected: number,
     totalFeeRebates: number
-  ): Partial<BacktestResult> {
+  ) {
     const totalReturn = ((finalValue - initialBalance) / initialBalance) * 100;
     
     // Calculate win rate
@@ -100,9 +100,9 @@ export class BacktestMetrics {
     let currentBuyPrice = 0;
     
     for (const trade of trades) {
-      if (trade.type === 'BUY') {
+      if (trade.type === 'buy') {
         currentBuyPrice = trade.price;
-      } else if (trade.type === 'SELL' && currentBuyPrice > 0) {
+      } else if (trade.type === 'sell' && currentBuyPrice > 0) {
         const profit = (trade.price - currentBuyPrice) * trade.size - (trade.fee || 0);
         positions.push({
           buyPrice: currentBuyPrice,

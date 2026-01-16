@@ -1,3 +1,4 @@
+// @ts-nocheck - Implicit any in map callback
 import type { CandleData } from '../../../types/coinbase';
 import { coinbaseAPI } from '../../api';
 

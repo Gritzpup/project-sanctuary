@@ -17,7 +17,7 @@ interface PersistenceConfig {
 interface BaseStoreOptions<T> {
   initial: T;
   persist?: PersistenceConfig;
-  validate?: (value: any) => value is T;
+  validate?: (value: any) => boolean;
   debug?: boolean;
 }
 
@@ -118,7 +118,7 @@ export function derivedStore<T, U>(
   source: Writable<T>,
   derive: (value: T) => U
 ): Writable<U> {
-  let sourceValue: T;
+  let sourceValue: T = undefined as unknown as T;
   source.subscribe((value) => {
     sourceValue = value;
   });

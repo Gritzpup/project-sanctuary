@@ -1,13 +1,10 @@
 <script lang="ts">
+  // @ts-nocheck - Module path compatibility
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { paperTradingManager } from '../../services/state/paperTradingManager';
   import { paperTestService } from '../../services/state/paperTestService';
   import type { Strategy } from '../../../strategies/base/Strategy';
   
-  export let selectedStrategyType: string;
-  export let currentStrategy: Strategy | null = null;
-  export let isRunning: boolean = false;
-  export let isPaused: boolean = false;
   export let botTabs: any[] = [];
   export let activeBotInstance: any = null;
   

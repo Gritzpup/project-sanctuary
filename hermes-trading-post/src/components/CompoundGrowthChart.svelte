@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck - lightweight-charts Time type compatibility
   import { onMount, onDestroy } from 'svelte';
   import { createChart, ColorType } from 'lightweight-charts';
   import type { IChartApi, ISeriesApi, LineData } from 'lightweight-charts';

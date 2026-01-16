@@ -42,4 +42,4 @@ export { RealtimeCandleAggregator } from './utils/RealtimeCandleAggregator';
 // Types
 export * from './types/chart.types';
 export * from './types/data.types';
-export * from './types/plugin.types';
+// Note: plugin.types exports are already included via ./plugins

@@ -108,7 +108,7 @@ export class PositionMarkerPlugin extends PrimitivePlugin {
     return {
       time: position.entryTime,
       position: isLong ? 'belowBar' : 'aboveBar',
-      color: isLong ? settings.entryLongColor : settings.entryShortColor,
+      color: (isLong ? settings.entryLongColor : settings.entryShortColor) || '#22c55e',
       shape: isLong ? 'arrowUp' : 'arrowDown',
       text: text,
       size: settings.markerSize
@@ -131,7 +131,7 @@ export class PositionMarkerPlugin extends PrimitivePlugin {
     return {
       time: position.exitTime,
       position: isLong ? 'aboveBar' : 'belowBar',
-      color: isProfitable ? settings.exitProfitColor : settings.exitLossColor,
+      color: (isProfitable ? settings.exitProfitColor : settings.exitLossColor) || '#22c55e',
       shape: 'circle',
       text: text,
       size: settings.markerSize

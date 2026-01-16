@@ -9,14 +9,14 @@ import type {
 
 export interface SeriesPluginConfig extends PluginConfig {
   seriesType: SeriesType;
-  seriesOptions?: DeepPartial<SeriesOptionsMap[SeriesType]>;
+  seriesOptions?: Record<string, any>;
   paneIndex?: number;
 }
 
 export abstract class SeriesPlugin<T extends SeriesType = SeriesType> extends Plugin {
   protected series: ISeriesApi<T> | null = null;
   protected seriesType: T;
-  protected seriesOptions: DeepPartial<SeriesOptionsMap[T]>;
+  protected seriesOptions: Record<string, any>;
   protected paneIndex: number;
   protected dataUnsubscribe: (() => void) | null = null;
 

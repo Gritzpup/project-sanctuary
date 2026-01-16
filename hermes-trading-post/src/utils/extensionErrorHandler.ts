@@ -51,13 +51,12 @@ export function setupExtensionErrorHandler() {
   };
 
   // Intercept errors at the window level
-  window.addEventListener('error', (event) => {
+  window.addEventListener('error', (event): void => {
     if (event.message && isExtensionError(event.message)) {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
       showExtensionWarning();
-      return false;
     }
   }, true); // Use capture phase
 

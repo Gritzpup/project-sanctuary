@@ -108,14 +108,14 @@
     <div class="info-item">
       <span class="info-label">Candles:</span>
       <span class="info-value">
-        <CandleCounter updateInterval={2000} showAnimation={true} />
+        <CandleCounter showAnimation={true} />
       </span>
     </div>
   {/if}
   
   {#if showCandleCountdown}
     <div class="info-item">
-      <CandleCountdown updateInterval={500} showUrgentStyling={true} />
+      <CandleCountdown showUrgentStyling={true} />
     </div>
   {/if}
   

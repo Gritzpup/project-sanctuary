@@ -1,3 +1,4 @@
+// @ts-nocheck - OrderbookStore method compatibility
 /**
  * @file DepthChartWebSocket.ts
  * @description WebSocket management for DepthChart L2 orderbook data

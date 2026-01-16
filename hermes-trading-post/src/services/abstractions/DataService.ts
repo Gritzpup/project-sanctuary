@@ -132,13 +132,13 @@ export abstract class DataService<TData = any, TParams = any> extends ServiceBas
    * Fetch data with retry logic
    */
   private async fetchWithRetry(params: TParams, maxRetries: number): Promise<TData> {
-    let lastError: Error;
+    let lastError: Error = new Error('Fetch failed');
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         return await this.fetchData(params);
       } catch (error) {
-        lastError = error;
+        lastError = error instanceof Error ? error : new Error(String(error));
         
         if (attempt === maxRetries) {
           break; // Don't wait after last attempt

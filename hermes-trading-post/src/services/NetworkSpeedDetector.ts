@@ -229,10 +229,6 @@ export const networkSpeedDetector = new NetworkSpeedDetector({
  */
 export async function initializeNetworkDetection(): Promise<NetworkSpeed> {
   const speed = await networkSpeedDetector.measureSpeed();
-    `[NetworkSpeedDetector] Detected network speed: ${speed} (avg: ${
-      networkSpeedDetector.getStats()?.avgLatency.toFixed(0)
-    }ms)`
-  );
   return speed;
 }
 

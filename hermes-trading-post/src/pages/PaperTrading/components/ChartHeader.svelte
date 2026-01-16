@@ -7,9 +7,6 @@
   export let priceChangePercent24h: number = 0;
   export let selectedGranularity = '1m';
   export let selectedPeriod = '1H';
-  // Optional bot-related props (used by TradingChart)
-  export let botTabs: any[] = [];
-  export let activeBotInstance: any = null;
 </script>
 
 <ChartHeaderContainer

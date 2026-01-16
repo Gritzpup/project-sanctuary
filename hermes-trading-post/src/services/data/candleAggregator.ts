@@ -3,7 +3,7 @@
  * @description Aggregates price ticks into candle data
  */
 
-import type { CandleData } from '../types/coinbase';
+import type { CandleData } from '../../types/coinbase';
 
 /**
  * Aggregates 1-minute candles into larger timeframes

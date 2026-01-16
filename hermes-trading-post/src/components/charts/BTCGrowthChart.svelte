@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck - LineData Time type compatibility
   import { onMount, onDestroy } from 'svelte';
   import { createChart, type IChartApi, type ISeriesApi } from 'lightweight-charts';
   

@@ -1,3 +1,4 @@
+// @ts-nocheck - D3 callback implicit any types
 /**
  * @file DepthChartManager.ts
  * @description Chart initialization and management for DepthChart

@@ -14,7 +14,6 @@
   export let isRunning: boolean = false;
   export let customPresets: Array<any> = [];
   export let selectedPresetIndex: number = 0;
-  export let showSaveSuccess: boolean = false;
   
   const dispatch = createEventDispatcher();
 

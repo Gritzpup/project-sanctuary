@@ -202,18 +202,6 @@
     box-shadow: 0 0 6px rgba(167, 139, 250, 0.4);
   }
   
-  .progress-percentage {
-    position: absolute;
-    left: calc(100% + 8px + 80px + 8px);
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 11px;
-    font-weight: 500;
-    color: #c4b5fd;
-    min-width: 30px;
-    text-align: left;
-  }
-  
   /* Mobile adjustments - match header mobile styles */
   @media (max-width: 768px) {
     .right-row-2 .speed-dropdown,

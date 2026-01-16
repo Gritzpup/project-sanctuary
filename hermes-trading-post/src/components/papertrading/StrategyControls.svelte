@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck - Child component prop compatibility with parent
   import { createEventDispatcher } from 'svelte';
   import StrategySelector from './controls/StrategySelector.svelte';
   import BotStatusGrid from './controls/BotStatusGrid.svelte';

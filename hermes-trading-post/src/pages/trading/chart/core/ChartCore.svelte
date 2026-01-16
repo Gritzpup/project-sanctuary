@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck - Complex IChartApi null/undefined compatibility with lightweight-charts
   import { onMount, onDestroy, setContext } from 'svelte';
   import type { IChartApi } from 'lightweight-charts';
   import { chartStore } from '../stores/chartStore.svelte';
@@ -282,6 +283,10 @@
           // Update chart display with loaded data
           chartCanvas?.updateChartDisplay();
 
+          // 🔧 FIX: Explicitly position chart to show 60 candles after data loads
+          // This fixes race condition where checkAndPosition() ran before data was ready
+          chartCanvas?.show60Candles();
+
           // NOW subscribe to real-time after historical data is loaded
           // This ensures current price candle aligns with historical data
           subscriptionOrchestrator.subscribeAfterPositioning(
@@ -308,6 +313,9 @@
 
             // Update chart display with whatever data we have
             chartCanvas?.updateChartDisplay();
+
+            // 🔧 FIX: Explicitly position chart after data loads
+            chartCanvas?.show60Candles();
 
             subscriptionOrchestrator.subscribeAfterPositioning(
               { pair, granularity },

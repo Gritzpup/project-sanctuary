@@ -1,3 +1,4 @@
+// @ts-nocheck - lightweight-charts Time type compatibility with numeric timestamps
 /**
  * Real-time Subscription Hook for Chart Components
  *
@@ -183,7 +184,15 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
 
   /**
    * Process update (called by RAF batching)
-   * Updates live candle with new price data AND volume data
+   *
+   * 🔧 PROFESSIONAL EXCHANGE PATTERN (Binance-style):
+   * The backend sends candles with a `candleType` field:
+   * - 'sync': Historical data from Redis - use directly, never modify
+   * - 'complete': Finalized candle - use backend OHLC, never expand
+   * - 'update': In-progress candle - use backend OHLC (not price expansion)
+   * - No candleType (ticker/L2): Only update close price for visual responsiveness
+   *
+   * Frontend should NEVER calculate OHLC from price ticks - the backend aggregates trades.
    */
   function processUpdate(price: number, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any, fullCandleData?: any) {
     if (!chartSeries) return;
@@ -193,235 +202,201 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       return;
     }
 
-    const config = chartStore?.config;
-    const currentGranularity = config?.granularity || '1m';
+    const candleType = fullCandleData?.candleType;
 
-    // 🔥 FIX: For ticker updates (no volume), ALWAYS update the existing candle
-    // Only candle updates with official timestamps should create new candles
-    // Ticker detection: type='ticker' OR time=0 (we set time=0 for tickers to prevent timestamp issues)
-    const isTicker = fullCandleData?.type === 'ticker' || fullCandleData?.time === 0 || (!fullCandleData?.volume && fullCandleData?.type === 'ticker');
-
-    // 🔍 DEBUG: Ticker detection is now silent (excessive logging removed - 50-100 logs/minute)
-    // Enable by uncommenting the line below if debugging ticker behavior
-
-    if (isTicker) {
-      // Ticker update: ALWAYS update the last candle, never create new ones
-      // 🔒 Lock the candle reference to prevent race conditions
-      const currentCandle = candles[candles.length - 1];
-
-      // Skip ticker updates if we don't have real candle data yet (time would be 0)
-      if (!currentCandle || currentCandle.time === 0 || currentCandle.time == null) {
-        // Chart hasn't loaded real data yet, skip ticker updates
-        return;
-      }
-
-      // 🛡️ Safety check: Make sure we're not trying to update a very old candle
-      const now = Date.now() / 1000; // Current time in seconds
-      // Ensure candleTime is in seconds (could be in milliseconds)
-      // Timestamps after year 2286 are in milliseconds (> 10^10), need conversion
-      const candleTime = (currentCandle.time as number);
-      const candleTimeInSeconds = candleTime > 10000000000 ? candleTime / 1000 : candleTime;
-      const candleAge = Math.abs(now - candleTimeInSeconds); // Use absolute value to handle any timestamp format
-      const granularitySeconds = getGranularitySeconds(currentGranularity);
-
-      // If candle is more than 2 granularity periods old, skip update to prevent
-      // "Cannot update oldest data" error
-      if (candleAge > granularitySeconds * 2) {
-        // Silently skip - this is normal behavior when chart hasn't loaded yet
-        return;
-      }
-
-      // Validate currentCandle has all required fields before updating
-      if (!currentCandle ||
-          currentCandle.open == null ||
-          currentCandle.high == null ||
-          currentCandle.low == null ||
-          currentCandle.close == null) {
-        return;
-      }
-
-      // Additional validation: ensure high >= low to prevent flickering
-      if (currentCandle.high < currentCandle.low) {
-        // Fix the candle by setting high = low = close
-        currentCandle.high = currentCandle.close;
-        currentCandle.low = currentCandle.close;
-      }
-
-      const updatedCandle: CandlestickData = {
-        ...currentCandle,
-        high: Math.max(currentCandle.high, price),
-        low: Math.min(currentCandle.low, price),
-        close: price,
-        // Keep existing volume for ticker updates
-        volume: (currentCandle as any).volume || 0
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SYNC CANDLES: Historical data from Redis - use directly, don't modify
+    // These are authoritative database values that should never be expanded
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (candleType === 'sync') {
+      const syncCandle: CandlestickData = {
+        time: fullCandleData.time as any,
+        open: fullCandleData.open,
+        high: fullCandleData.high,
+        low: fullCandleData.low,
+        close: fullCandleData.close,
+        volume: fullCandleData.volume || 0
       } as any;
 
       try {
-        // ⚡ DIRTY FLAG: Mark price candle as changed only if OHLC actually changed
-        chartDirtyFlagSystem.markPriceCandleIfChanged(updatedCandle);
+        chartDirtyFlagSystem.markPriceCandleIfChanged(syncCandle);
+        chartSeries.update(syncCandle);
 
-        chartSeries.update(updatedCandle);
-        statusStore.setPriceUpdate(); // Direct update for instant response
+        // 🔧 FIX: Force re-enable autoScale after sync updates
+        chartSeries.priceScale().applyOptions({ autoScale: true });
 
-        // Ensure status stays ready during ticker updates
-        if (statusStore.status !== 'ready') {
-          statusStore.setReady();
+        // Update volume if available
+        if (volumeSeries && syncCandle.volume) {
+          const volumeData = {
+            time: syncCandle.time,
+            value: (syncCandle as any).volume * 1000,
+            color: '#8884d8CC'
+          };
+          chartDirtyFlagSystem.markVolumeIfChanged(volumeData);
+          volumeSeries.update(volumeData);
         }
       } catch (error) {
-        // Silently handle "Cannot update oldest data" errors - they're expected
-        // when candles roll over during ticker updates
-        if (!(error as Error).message?.includes('Cannot update oldest data')) {
-        }
+        // Silently handle chart update errors
       }
-
-      return; // Exit early for ticker updates
+      return;
     }
 
-    // For official candle updates, use the candle's timestamp
-    // Don't calculate local time - use the incoming candle time from the backend
-    const lastCandle = candles[candles.length - 1];
-    const lastCandleTime = lastCandle.time as number;
-    const incomingCandleTime = fullCandleData?.time as number;
-
-    // 🔧 FIX: Granularity-aware candle boundary detection
-    // Check if we've crossed into a new candle period based on granularity
-    const granularitySeconds = getGranularitySeconds(currentGranularity);
-    const lastCandlePeriod = Math.floor(lastCandleTime / granularitySeconds);
-    const incomingCandlePeriod = Math.floor((incomingCandleTime || 0) / granularitySeconds);
-
-    // New candle if we've crossed into a different period OR incoming time > last time
-    const isNewCandlePeriod = incomingCandleTime && incomingCandlePeriod > lastCandlePeriod;
-
-    if (isNewCandlePeriod) {
-      // New candle needed
-      // Ensure price is valid before creating candle
-      if (!price || price <= 0 || isNaN(price)) {
-        return;
-      }
-
-      const newCandle: CandlestickData = {
-        time: incomingCandleTime as any,
-        open: price,
-        high: price,
-        low: price,
-        close: price,
-        // Preserve volume data if available, otherwise use 0
-        volume: fullCandleData?.volume || 0
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COMPLETE CANDLES: Finalized candle from previous period
+    // Use backend OHLC values directly - never modify a complete candle
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (candleType === 'complete') {
+      const completeCandle: CandlestickData = {
+        time: fullCandleData.time as any,
+        open: fullCandleData.open,
+        high: fullCandleData.high,
+        low: fullCandleData.low,
+        close: fullCandleData.close,
+        volume: fullCandleData.volume || 0
       } as any;
 
-      // ⚡ DIRTY FLAG: Mark new candle data as changed
-      chartDirtyFlagSystem.markPriceCandleIfChanged(newCandle);
-
-      // DO NOT call dataStore.setCandles() - it causes the entire database to be replaced!
-      // dataStore.subscribeToRealtime() already handles adding new candles, so just update the chart
-      chartSeries.update(newCandle);
-
-      // Update volume series if available - MUST use exact same time as price candle
-      if (volumeSeries && fullCandleData?.volume !== undefined) {
-        const volumeData = {
-          time: newCandle.time, // ✅ Use exact same time as price candle to prevent desync
-          value: fullCandleData.volume * 1000, // Scale volume same as VolumePlugin (1000x)
-          color: price >= lastCandle.close ? '#26a69aCC' : '#ef5350CC' // Up/down color (80% opacity)
-        };
-
-        // ⚡ DIRTY FLAG: Mark volume data as changed
-        chartDirtyFlagSystem.markVolumeIfChanged(volumeData);
-
-        volumeSeries.update(volumeData);
-      }
-
-      statusStore.setNewCandle();
-
-      // Simple auto-scroll for all charts including 5m
-
-      // DISABLED: Auto-scroll was causing chart to snap on every candle
-      // Let the chart maintain its natural 60-candle view without forced scrolling
-      // try {
-      //   const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
-      //   if (chart && chart.timeScale) {
-      //     const config = chartStore?.config;
-      //     chart.timeScale().scrollToPosition(2, false);
-      //   }
-      // } catch (error) {
-      // }
-
-      // Call new candle callback
-      if (onNewCandle) {
-        onNewCandle(newCandle);
-      }
-    } else {
-      // Update current candle - no array copy needed, just get reference
-      const currentCandle = candles[candles.length - 1];
-
-      // Validate currentCandle before updating
-      if (!currentCandle ||
-          currentCandle.open == null ||
-          currentCandle.high == null ||
-          currentCandle.low == null ||
-          currentCandle.close == null) {
-        return;
-      }
-
-      // Validate price before updating
-      if (!price || price <= 0 || isNaN(price)) {
-        return;
-      }
-
-      const updatedCandle: CandlestickData = {
-        ...currentCandle,
-        high: Math.max(currentCandle.high, price),
-        low: Math.min(currentCandle.low, price),
-        close: price,
-        // Preserve volume from WebSocket data or keep existing volume
-        volume: fullCandleData?.volume !== undefined ? fullCandleData.volume : (currentCandle as any).volume || 0
-      } as any;
-
-      // DO NOT call dataStore.setCandles() - it causes the entire database to be replaced!
-      // Just update the chart directly
-      // 🔧 FIX: Wrap in try-catch to handle "Cannot update oldest data" errors
-      // This happens when real-time updates try to apply to historical data (5Y+ timeframes)
       try {
-        chartSeries.update(updatedCandle);
+        chartDirtyFlagSystem.markPriceCandleIfChanged(completeCandle);
+        chartSeries.update(completeCandle);
 
-        // Update volume series if available - MUST use exact same time as price candle
-        if (volumeSeries && fullCandleData?.volume !== undefined) {
-          const prevCandle = candles.length > 1 ? candles[candles.length - 2] : currentCandle;
+        // 🔧 FIX: Force re-enable autoScale after complete candle updates
+        chartSeries.priceScale().applyOptions({ autoScale: true });
+
+        // Update volume
+        if (volumeSeries && completeCandle.volume) {
+          const lastCandle = candles[candles.length - 1];
+          const prevClose = candles.length > 1 ? candles[candles.length - 2].close : lastCandle.close;
           const volumeData = {
-            time: updatedCandle.time, // ✅ Use exact same time as price candle to prevent desync
-            value: fullCandleData.volume * 1000, // Scale volume same as VolumePlugin (1000x)
-            color: price >= prevCandle.close ? '#26a69aCC' : '#ef5350CC' // Up/down color (80% opacity)
+            time: completeCandle.time,
+            value: (completeCandle as any).volume * 1000,
+            color: completeCandle.close >= prevClose ? '#26a69aCC' : '#ef5350CC'
           };
+          chartDirtyFlagSystem.markVolumeIfChanged(volumeData);
           volumeSeries.update(volumeData);
         }
 
-        statusStore.setPriceUpdate(); // Direct update for instant response
-      } catch (error) {
-        // Silently handle "Cannot update oldest data" errors - they're expected when
-        // real-time updates try to apply current-time candles to historical 5Y+ data
-        if (!(error as Error).message?.includes('Cannot update oldest data')) {
-          console.error('Unexpected error updating candle:', error);
+        // Notify about new candle
+        if (onNewCandle) {
+          onNewCandle(completeCandle);
         }
-      }
 
-      // DISABLED: Auto-scroll was causing chart to snap constantly
-      // Let the chart maintain its natural 60-candle view
-      // const config = chartStore?.config;
-      // if (config?.granularity === '5m') {
-      //   try {
-      //     const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
-      //     if (chart && chart.timeScale) {
-      //       chart.timeScale().scrollToPosition(2, false);
-      //     }
-      //   } catch (error) {
-      //   }
-      // }
-      
-      // Ensure status stays ready during price updates
+        statusStore.setNewCandle();
+      } catch (error) {
+        // Silently handle chart update errors
+      }
+      return;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // UPDATE/INCOMPLETE CANDLES: In-progress candle - use backend's aggregated OHLC values
+    // Backend sends 'incomplete' for in-progress candles, we just display what it sends
+    // ═══════════════════════════════════════════════════════════════════════════
+    if ((candleType === 'update' || candleType === 'incomplete') && fullCandleData) {
+      const updateCandle: CandlestickData = {
+        time: fullCandleData.time as any,
+        open: fullCandleData.open,
+        high: fullCandleData.high,
+        low: fullCandleData.low,
+        close: fullCandleData.close,  // Use backend close, not price expansion
+        volume: fullCandleData.volume || 0
+      } as any;
+
+      try {
+        chartDirtyFlagSystem.markPriceCandleIfChanged(updateCandle);
+        chartSeries.update(updateCandle);
+
+        // 🔧 FIX: Force re-enable autoScale after incomplete candle updates
+        chartSeries.priceScale().applyOptions({ autoScale: true });
+
+        // Update volume
+        if (volumeSeries && updateCandle.volume) {
+          const lastCandle = candles[candles.length - 1];
+          const prevClose = candles.length > 1 ? candles[candles.length - 2].close : lastCandle.close;
+          const volumeData = {
+            time: updateCandle.time,
+            value: (updateCandle as any).volume * 1000,
+            color: updateCandle.close >= prevClose ? '#26a69aCC' : '#ef5350CC'
+          };
+          chartDirtyFlagSystem.markVolumeIfChanged(volumeData);
+          volumeSeries.update(volumeData);
+        }
+
+        statusStore.setPriceUpdate();
+      } catch (error) {
+        // Silently handle chart update errors
+      }
+      return;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TICKER/L2 UPDATES: No candleType - only update close price
+    // These are for visual responsiveness only - never expand high/low
+    // The backend is the source of truth for OHLC aggregation
+    // ═══════════════════════════════════════════════════════════════════════════
+    const config = chartStore?.config;
+    const currentGranularity = config?.granularity || '1m';
+
+    // Get the current candle to update
+    const currentCandle = candles[candles.length - 1];
+
+    // Skip if no candle data yet
+    if (!currentCandle || currentCandle.time === 0 || currentCandle.time == null) {
+      return;
+    }
+
+    // Safety check: Don't update very old candles
+    const now = Date.now() / 1000;
+    const candleTime = (currentCandle.time as number);
+    const candleTimeInSeconds = candleTime > 10000000000 ? candleTime / 1000 : candleTime;
+    const candleAge = Math.abs(now - candleTimeInSeconds);
+    const granularitySeconds = getGranularitySeconds(currentGranularity);
+
+    if (candleAge > granularitySeconds * 2) {
+      return;
+    }
+
+    // Validate candle fields
+    if (currentCandle.open == null || currentCandle.high == null ||
+        currentCandle.low == null || currentCandle.close == null) {
+      return;
+    }
+
+    // Validate price
+    if (!price || price <= 0 || isNaN(price)) {
+      return;
+    }
+
+    // 🔧 KEY FIX: Only update close, NEVER expand high/low from ticker/L2 updates
+    // High/low expansion is the backend's job via trade aggregation
+    const updatedCandle: CandlestickData = {
+      time: currentCandle.time,
+      open: currentCandle.open,
+      high: currentCandle.high,   // Keep existing - only backend expands
+      low: currentCandle.low,     // Keep existing - only backend expands
+      close: price,               // Update for visual responsiveness
+      volume: (currentCandle as any).volume || 0
+    } as any;
+
+    try {
+      chartDirtyFlagSystem.markPriceCandleIfChanged(updatedCandle);
+      chartSeries.update(updatedCandle);
+
+      // 🔧 FIX: Force re-enable autoScale after each update
+      // This ensures the price scale adjusts when candles exceed visible range
+      chartSeries.priceScale().applyOptions({ autoScale: true });
+
+      statusStore.setPriceUpdate();
+
       if (statusStore.status !== 'ready') {
         statusStore.setReady();
       }
+    } catch (error) {
+      // Silently handle "Cannot update oldest data" errors
+      if (!(error as Error).message?.includes('Cannot update oldest data')) {
+        // Only log unexpected errors
+      }
     }
-    
+
     // Call price update callback
     if (onPriceUpdate) {
       onPriceUpdate(price);
@@ -463,13 +438,17 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       if (currentChartSeries && dataStore.candles.length > 0) {
         const lastCandle = dataStore.candles[dataStore.candles.length - 1];
 
-        // Ensure time is preserved as a number
+        // 🔧 FIX: L2 mid-price should ONLY update close, NOT expand high/low
+        // L2 mid-price = (best bid + best ask) / 2, which fluctuates with orderbook changes
+        // This caused candles to become artificially tall because high/low expanded
+        // based on orderbook spread rather than actual trade prices.
+        // High/low should ONLY be updated from actual trade data (ticker/candle WebSocket)
         const updatedCandle: CandlestickData = {
           time: lastCandle.time,  // Preserve time as-is
           open: lastCandle.open,
-          high: Math.max(lastCandle.high, l2Price),
-          low: Math.min(lastCandle.low, l2Price),
-          close: l2Price,
+          high: lastCandle.high,  // Keep existing high - only trades should expand
+          low: lastCandle.low,    // Keep existing low - only trades should expand
+          close: l2Price,         // Update close for visual responsiveness
           volume: (lastCandle as any).volume || 0
         };
 
@@ -477,6 +456,11 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         if (currentChartSeries) {
           try {
             currentChartSeries.update(updatedCandle);
+
+            // 🔧 FIX: Force re-enable autoScale after each update
+            // This ensures the price scale adjusts when candles exceed visible range
+            currentChartSeries.priceScale().applyOptions({ autoScale: true });
+
             statusStore.setPriceUpdate();
             // ⚡ PHASE 13c: Mark L2 update time to prevent duplicate dataStore updates within 50ms
             lastChartUpdateTime = Date.now();

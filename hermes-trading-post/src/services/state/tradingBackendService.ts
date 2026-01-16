@@ -421,6 +421,13 @@ class TradingBackendService {
     });
   }
 
+  updateBalance(balance: number) {
+    this.send({
+      type: 'updateBalance',
+      balance
+    });
+  }
+
   disconnect() {
     if (this.ws) {
       this.ws.close();

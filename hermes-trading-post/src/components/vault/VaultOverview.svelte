@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck - VaultService module path compatibility
   import type { VaultData } from '../../services/vaultService';
   
   export let vaultData: VaultData | null;

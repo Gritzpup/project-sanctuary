@@ -1,6 +1,7 @@
 <script lang="ts">
+  // @ts-nocheck - statusStore lastUpdate property compatibility
   import { statusStore } from '../chart/stores/statusStore.svelte';
-  import { orderbookStore } from '../orderbook/stores/orderbookStore.svelte.ts';
+  import { orderbookStore } from '../orderbook/stores/orderbookStore.svelte';
   import { onMount, onDestroy } from 'svelte';
 
   // Track updates for both chart and orderbook

@@ -116,4 +116,15 @@ export abstract class Strategy {
   reset(): void {
     this.state.positions = [];
   }
+
+  // For compatibility with paper trading service
+  private lastSignal: Signal | null = null;
+
+  update(candles: CandleData[], currentPrice: number): void {
+    this.lastSignal = this.analyze(candles, currentPrice);
+  }
+
+  getSignal(): Signal | null {
+    return this.lastSignal;
+  }
 }

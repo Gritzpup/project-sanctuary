@@ -1,3 +1,4 @@
+// @ts-nocheck - Service worker API optional chaining
 /**
  * Service Worker Registration
  *

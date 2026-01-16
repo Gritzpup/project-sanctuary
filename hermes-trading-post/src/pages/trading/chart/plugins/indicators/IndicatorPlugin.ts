@@ -53,11 +53,11 @@ export abstract class IndicatorPlugin extends SeriesPlugin<'Line'> {
 
   protected updateIndicatorStyle(): void {
     if (!this.series) return;
-    
+
     const settings = this.settings as IndicatorSettings;
     this.series.applyOptions({
       color: settings.color,
-      lineWidth: settings.lineWidth,
+      lineWidth: settings.lineWidth as any,
       lineStyle: settings.lineStyle,
     });
   }

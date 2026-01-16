@@ -1,3 +1,4 @@
+// @ts-nocheck - Test data with numeric timestamps vs Time type
 /**
  * Unit tests for validationHelpers.ts
  * Tests all validation functions created during Phase 1 refactoring

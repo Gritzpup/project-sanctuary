@@ -11,7 +11,6 @@
   export let isSynced: boolean;
   export let paperTradingActive: boolean;
   export let isRunning: boolean;
-  export let currentPrice: number = 0;
   export let customPresets: Array<any> = [];
   export let selectedPresetIndex: number = 0;
   export let showSaveSuccess: boolean = false;
@@ -29,7 +28,6 @@
   {isSynced}
   {paperTradingActive}
   {isRunning}
-  {currentPrice}
   {customPresets}
   {selectedPresetIndex}
   {showSaveSuccess}

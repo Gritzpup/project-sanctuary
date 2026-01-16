@@ -114,6 +114,15 @@
         wickDownColor: CHART_COLORS.DARK.candleDown,
       });
 
+      // Ensure price scale auto-scales to fit visible candles
+      candleSeries.priceScale().applyOptions({
+        autoScale: true,
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.1,
+        },
+      });
+
       // NOTE: Volume series will be handled by VolumePlugin, not here
       // The old volume series creation is commented out to avoid conflicts
 
@@ -207,13 +216,22 @@
       // 🚀 PERF: Use incremental updates instead of full replacement
       // 🔧 FIX: Only call setData() once EVER using hasEverCalledSetData flag
       // This prevents multiple conflicting calls even if component remounts or hot-reloads
-      const isFirstLoad = !hasEverCalledSetData && sortedCandles.length > 0;
+      // 🔧 FIX #2: Allow recovery if initial load was incomplete (< 10 candles)
+      // If we only got 2 candles initially but now have 10+, reset and reload
+      const MIN_CANDLES_FOR_LOCK = 10;
+      const wasIncomplete = hasEverCalledSetData && lastProcessedIndex < MIN_CANDLES_FOR_LOCK - 1;
+      const hasSignificantlyMoreData = sortedCandles.length >= MIN_CANDLES_FOR_LOCK && sortedCandles.length > (lastProcessedIndex + 1) * 2;
 
-      if (isFirstLoad) {
-        // Initial load: set all data at once (ONLY ONCE!)
+      // Allow setData if: first load OR recovering from incomplete initial load
+      const shouldCallSetData = (!hasEverCalledSetData && sortedCandles.length > 0) ||
+                                 (wasIncomplete && hasSignificantlyMoreData);
+
+      if (shouldCallSetData) {
+        // Initial load OR recovery from incomplete load: set all data at once
         candleSeries.setData(sortedCandles);
         lastProcessedIndex = sortedCandles.length - 1;
-        hasEverCalledSetData = true;  // 🔧 Mark that we've called setData() - never call again!
+        // Only lock hasEverCalledSetData if we have enough candles to consider it a "complete" load
+        hasEverCalledSetData = sortedCandles.length >= MIN_CANDLES_FOR_LOCK;
         isInitialized = true;
 
         // 🔧 FIX: Force proper zoom level after INITIAL data load ONLY
@@ -306,6 +324,11 @@
       } else {
         candleSeries.update(formattedCandle);
       }
+
+      // 🔧 FIX: Force re-enable autoScale after each update
+      // This ensures the price scale adjusts when candles exceed visible range
+      // Without this, manual user zoom can disable autoScale permanently
+      candleSeries.priceScale().applyOptions({ autoScale: true });
 
       // Volume updates are handled by VolumePlugin
     } catch (error) {

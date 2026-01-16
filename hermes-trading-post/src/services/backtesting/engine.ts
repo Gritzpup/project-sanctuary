@@ -3,4 +3,5 @@
  * @description Main export for the refactored backtesting engine
  */
 
-export { BacktestingEngine, type BacktestConfig } from './engine/backtestingEngine';
+export { BacktestingEngine } from './engine/backtestingEngine';
+export type { BacktestConfig } from './engine/types';

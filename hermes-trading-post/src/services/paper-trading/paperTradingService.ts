@@ -197,6 +197,7 @@ class PaperTradingService {
 
   getStrategyState(): StrategyState | null {
     const currentState = get(this.state);
+    if (!currentState.strategy) return null;
     return this.execution.getStrategyState(currentState.strategy);
   }
 

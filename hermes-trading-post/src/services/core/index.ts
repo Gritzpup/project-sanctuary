@@ -1,4 +1,7 @@
 // Core service infrastructure exports
+import { ServiceRegistry } from './ServiceRegistry';
+import { EventBus } from './EventBus';
+
 export { ServiceRegistry } from './ServiceRegistry';
 export { EventBus } from './EventBus';
 export { ServiceBase } from './ServiceBase';
@@ -13,4 +16,3 @@ export type { EventListener, EventSubscription } from './EventBus';
 // Easy access to singletons
 export const serviceRegistry = ServiceRegistry.getInstance();
 export const eventBus = EventBus.getInstance();
-export { logger } from './LoggingService';

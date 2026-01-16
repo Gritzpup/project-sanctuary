@@ -24,11 +24,15 @@
   let askSeries: ISeriesApi<'Area'>;
   // WebSocket handled through dataStore instead of separate connection
 
-  // Chart update throttling - reduce throttle for faster updates
-  let lastChartUpdateTime = 0;
-  let updatePending = false;
-  let hasPendingData = false;
-  const CHART_UPDATE_THROTTLE_MS = 16; // Update chart at 60fps for smooth, responsive updates
+  // Chart update throttling - interval-based for smooth consistent updates
+  // 250ms = 4 updates/sec - smooth enough for visual representation without freezing
+  const CHART_UPDATE_THROTTLE_MS = 250;
+  let chartUpdateInterval: ReturnType<typeof setInterval> | null = null;
+  let chartNeedsUpdate = false;
+
+  // ⚡ PERFORMANCE FIX: RAF batching for mouse move
+  let pendingMouseMove = false;
+  let pendingMouseEvent: MouseEvent | null = null;
 
   // Local UI state
   let mouseX = $state(0);
@@ -47,7 +51,7 @@
     price: 0,
     spread: 0,
     offset: 50,
-    side: 'neutral' as const,
+    side: 'neutral' as 'neutral' | 'bullish' | 'bearish',
     type: 'Neutral',
     volume: 0
   });
@@ -57,11 +61,13 @@
   let wsCheckInterval: ReturnType<typeof setInterval> | null = null;
   let watermarkTimeouts: ReturnType<typeof setTimeout>[] = [];  // Track watermark removal timeouts
 
-  // Update UI when store changes - must be at top level in Svelte 5
+  // Update UI when store changes - must dereference values for Svelte 5 reactivity
   $effect(() => {
-    const _trigger = orderbookStore.versions;
+    // Access actual values to establish reactive dependencies
+    const _bidVer = orderbookStore.versions.bids;
+    const _askVer = orderbookStore.versions.asks;
     scheduleUIUpdate();
-    scheduleChartUpdate(); // Also update the chart when data changes
+    scheduleChartUpdate();
   });
 
   // ⚡ SEAMLESS REFRESH: Re-initialize chart when key changes
@@ -70,6 +76,9 @@
 
     // Skip if container not ready yet (will be handled by onMount)
     if (!chartContainer) return;
+
+    // Stop chart update interval before reinitializing
+    stopChartUpdateInterval();
 
     // Clean up existing MutationObserver before reinitializing
     if (mutationObserver) {
@@ -91,12 +100,18 @@
 
     // Re-initialize
     initializeChart();
+
+    // Restart chart update interval
+    startChartUpdateInterval();
   });
 
   onMount(async () => {
 
     // Initialize chart first
     initializeChart();
+
+    // Start the chart update interval for smooth consistent rendering
+    startChartUpdateInterval();
 
     // Clear any stale data first
     orderbookStore.reset();
@@ -180,20 +195,10 @@
     watermarkTimeouts.push(setTimeout(removeTradingViewWatermark, 500));
     watermarkTimeouts.push(setTimeout(removeTradingViewWatermark, 1000));
 
-    // Also use MutationObserver to catch any dynamically added watermarks
-    // Only create if not already exists (prevents duplicate observers)
-    if (!mutationObserver) {
-      mutationObserver = new MutationObserver(() => {
-        removeTradingViewWatermark();
-      });
-
-      if (chartContainer) {
-        mutationObserver.observe(chartContainer, {
-          childList: true,
-          subtree: true
-        });
-      }
-    }
+    // ⚡ PERFORMANCE FIX: Disabled MutationObserver - it was causing severe lag
+    // MutationObserver fired on EVERY DOM change (chart updates constantly)
+    // Each fire ran querySelectorAll + getComputedStyle on ALL elements = layout thrashing
+    // setTimeout-based removal above is sufficient for watermark removal
 
     // Don't set initial range here - wait for data in scheduleChartUpdate
   }
@@ -433,7 +438,6 @@
       );
 
       orderbookStore.processSnapshot({
-        type: 'orderbook_snapshot',
         product_id: data.product_id || 'BTC-USD',
         bids: formattedBids,
         asks: formattedAsks
@@ -449,24 +453,29 @@
     scheduleChartUpdate();
   }
 
+  // ⚡ PERFORMANCE FIX: Interval-based chart updates for smooth rendering
+  // The old RAF + setTimeout approach could cause "stuck" behavior due to setTimeout cascading
+  // This interval-based approach guarantees consistent renders at 4fps
   function scheduleChartUpdate() {
-    hasPendingData = true;
-    if (!updatePending) {
-      updatePending = true;
-      requestAnimationFrame(() => {
-        if (hasPendingData) {
-          const now = Date.now();
-          if (now - lastChartUpdateTime >= CHART_UPDATE_THROTTLE_MS) {
-            updateChart();
-            lastChartUpdateTime = now;
-          } else {
-            // If too soon, schedule another update
-            setTimeout(() => scheduleChartUpdate(), CHART_UPDATE_THROTTLE_MS);
-          }
-          hasPendingData = false;
-        }
-        updatePending = false;
-      });
+    // Just mark that we need an update - the interval will handle rendering
+    chartNeedsUpdate = true;
+  }
+
+  function startChartUpdateInterval() {
+    if (chartUpdateInterval) return;
+
+    chartUpdateInterval = setInterval(() => {
+      if (chartNeedsUpdate && chart && bidSeries && askSeries) {
+        updateChart();
+        chartNeedsUpdate = false;
+      }
+    }, CHART_UPDATE_THROTTLE_MS);
+  }
+
+  function stopChartUpdateInterval() {
+    if (chartUpdateInterval) {
+      clearInterval(chartUpdateInterval);
+      chartUpdateInterval = null;
     }
   }
 
@@ -477,15 +486,15 @@
 
     // Get current price to filter orderbook data
     const summary = orderbookStore.summary;
-    const currentPrice = summary?.currentPrice ||
-                       (summary?.bestBid && summary?.bestAsk ? (summary.bestBid + summary.bestAsk) / 2 : 100000);
+    const currentPrice = (summary?.bestBid && summary?.bestAsk ? (summary.bestBid + summary.bestAsk) / 2 : 100000);
     const baseRange = 25000; // ±$25,000 range
     const minPrice = currentPrice - baseRange;
     const maxPrice = currentPrice + baseRange;
 
-    // Get ALL orderbook data (no limit - we want all the granular L2 data)
-    // This gives us smooth curves instead of angular $100 steps
-    const { bids, asks } = orderbookStore.getDepthData(10000); // Request up to 10k levels for full granularity
+    // ⚡ PERFORMANCE FIX: Reduced from 10000 to 500 levels
+    // Processing 10k levels when only ~200 visible caused severe lag
+    // 500 levels provides smooth curves while being performant
+    const { bids, asks } = orderbookStore.getDepthData(500);
 
     // Data structure verified: bids descending (high to low), asks ascending (low to high)
 
@@ -518,42 +527,65 @@
 
     if (filteredBids.length === 0 || filteredAsks.length === 0) return;
 
-    // 🔧 FIX: Add zero-depth anchor points at spread boundaries to prevent overlap
-    // This creates a clear visual separation between bid and ask sides
-    const bestBid = filteredBids[filteredBids.length - 1]?.price || currentPrice;
-    const bestAsk = filteredAsks[0]?.price || currentPrice;
+    // 🔧 FIX: Use summary's bestBid/bestAsk which are correctly calculated from sorted arrays
+    // This ensures proper V-shape regardless of how we process the depth data
+    const summaryData = orderbookStore.summary;
+    let bestBid = summaryData.bestBid || currentPrice;
+    let bestAsk = summaryData.bestAsk || currentPrice;
+
+    // Fallback to calculated values if summary is empty
+    if (!summaryData.bestBid) bestBid = filteredBids[filteredBids.length - 1]?.price || currentPrice;
+    if (!summaryData.bestAsk) bestAsk = filteredAsks[0]?.price || currentPrice;
+
+    // 🔧 FIX: If bestBid > bestAsk (crossed market), swap for proper valley
+    if (bestBid > bestAsk) {
+      // For crossed market, use the overlap region as the spread
+      const overlapLow = bestAsk;  // Lower boundary of overlap
+      const overlapHigh = bestBid; // Upper boundary of overlap
+      bestBid = overlapLow;
+      bestAsk = overlapHigh;
+    }
+
     const spread = bestAsk - bestBid;
     const midPrice = (bestBid + bestAsk) / 2;
 
-    const bidData = filteredBids.map(level => ({
-      time: level.price as any,
-      value: level.depth
-    }));
+    // 🔧 FIX: Filter bids to only include prices <= midPrice (left side of valley)
+    // This prevents bids from crossing into ask territory
+    const bidData = filteredBids
+      .filter(level => level.price <= midPrice)
+      .map(level => ({
+        time: level.price as any,
+        value: level.depth
+      }));
 
-    // Add anchor point: drop to zero IMMEDIATELY after best bid
-    // This prevents overlap with asks at the spread
-    if (bidData.length > 0) {
-      // Drop to 0 right at the midpoint of the spread
-      bidData.push({
-        time: (bestBid + 1) as any,  // $1 above best bid
-        value: 0
-      });
-    }
+    // Add anchor point at midPrice (where bid line meets valley bottom)
+    bidData.push({
+      time: midPrice as any,
+      value: 0
+    });
 
-    const askData = filteredAsks.map(level => ({
-      time: level.price as any,
-      value: level.depth
-    }));
+    // Sort bids ascending by price (required by LightweightCharts)
+    bidData.sort((a, b) => (a.time as number) - (b.time as number));
 
-    // Add anchor point: start from zero just before best ask
-    // This creates a clean gap at the spread
-    if (askData.length > 0) {
-      // Start from 0 right at the midpoint of the spread
-      askData.unshift({
-        time: (bestAsk - 1) as any,  // $1 below best ask
-        value: 0
-      });
-    }
+    // 🔧 FIX: Filter asks to only include prices >= midPrice (right side of valley)
+    // This prevents asks from crossing into bid territory
+    const askData = [{
+      time: midPrice as any,
+      value: 0
+    }];
+
+    // Add ask levels that are at or above midPrice
+    filteredAsks.forEach(level => {
+      if (level.price >= midPrice) {
+        askData.push({
+          time: level.price as any,
+          value: level.depth
+        });
+      }
+    });
+
+    // Sort asks ascending by price (required by LightweightCharts)
+    askData.sort((a, b) => (a.time as number) - (b.time as number));
 
     bidSeries.setData(bidData);
     askSeries.setData(askData);
@@ -583,49 +615,68 @@
   }
 
   function handleMouseMove(event: MouseEvent) {
-    if (!chartContainer || !chart || !bidSeries) return;
-
-    const rect = chartContainer.getBoundingClientRect();
-    mouseX = event.clientX - rect.left;
-    mouseY = event.clientY - rect.top;
-    isHovering = true;
-
-    // Calculate hover price based on chart width and price range
-    const width = rect.width;
-    const xPercent = mouseX / width;
-    hoverPrice = priceRange.left + (priceRange.right - priceRange.left) * xPercent;
-
-    // Get orderbook data and find value at this price
-    const { bids, asks } = orderbookStore.getDepthData(500);
-    const allData = [...bids, ...asks];
-
-    if (allData.length === 0) {
-      hoverVolume = 0;
+    // ⚡ PERFORMANCE FIX: RAF batching - don't process every pixel movement
+    // This was firing 60+ times/sec without throttling, causing severe lag
+    if (pendingMouseMove) {
+      pendingMouseEvent = event;  // Store latest event for RAF callback
       return;
     }
+    pendingMouseMove = true;
+    pendingMouseEvent = event;
 
-    // Find closest data point
-    let closestPoint = allData[0];
-    let minDiff = Math.abs(allData[0].price - hoverPrice);
-
-    for (const point of allData) {
-      const diff = Math.abs(point.price - hoverPrice);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestPoint = point;
+    requestAnimationFrame(() => {
+      if (!pendingMouseEvent || !chartContainer || !chart || !bidSeries) {
+        pendingMouseMove = false;
+        return;
       }
-    }
 
-    hoverVolume = closestPoint?.depth || 0;
+      const e = pendingMouseEvent;
+      const rect = chartContainer.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      isHovering = true;
 
-    // Calculate Y position manually based on depth
-    // Find max depth in all data for scaling
-    const maxDepth = Math.max(...allData.map(p => p.depth), 1);
-    const height = rect.height;
+      // Calculate hover price based on chart width and price range
+      const width = rect.width;
+      const xPercent = mouseX / width;
+      hoverPrice = priceRange.left + (priceRange.right - priceRange.left) * xPercent;
 
-    // Depth charts show high values at top (low Y), low values at bottom (high Y)
-    const depthPercent = closestPoint.depth / maxDepth;
-    mouseY = height * (1 - depthPercent);
+      // Get orderbook data and find value at this price
+      // ⚡ PERFORMANCE FIX: Reduced from 500 to 100 levels for hover calculation
+      const { bids, asks } = orderbookStore.getDepthData(100);
+      const allData = [...bids, ...asks];
+
+      if (allData.length === 0) {
+        hoverVolume = 0;
+        pendingMouseMove = false;
+        return;
+      }
+
+      // Find closest data point
+      let closestPoint = allData[0];
+      let minDiff = Math.abs(allData[0].price - hoverPrice);
+
+      for (const point of allData) {
+        const diff = Math.abs(point.price - hoverPrice);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestPoint = point;
+        }
+      }
+
+      hoverVolume = closestPoint?.depth || 0;
+
+      // Calculate Y position manually based on depth
+      // Find max depth in all data for scaling
+      const maxDepth = Math.max(...allData.map(p => p.depth), 1);
+      const height = rect.height;
+
+      // Depth charts show high values at top (low Y), low values at bottom (high Y)
+      const depthPercent = closestPoint.depth / maxDepth;
+      mouseY = height * (1 - depthPercent);
+
+      pendingMouseMove = false;
+    });
   }
 
   function handleMouseLeave() {
@@ -633,6 +684,9 @@
   }
 
   onDestroy(() => {
+    // Clean up chart update interval
+    stopChartUpdateInterval();
+
     // Clean up WebSocket event listener
     const ws = dataStore.getWebSocket();
     if (ws && (ws as any).__depthChartHandler) {

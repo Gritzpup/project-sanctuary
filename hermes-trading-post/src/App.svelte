@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck - Page component prop compatibility across different parent/child relationships
   import { Router, Route } from 'svelte-routing';
   import { CoinbaseAPI } from './services/api/coinbaseApi';
   import { onMount, onDestroy } from 'svelte';

@@ -84,7 +84,7 @@ export class OrderLinePlugin extends PrimitivePlugin {
     const lineOptions: CreatePriceLineOptions = {
       price: order.price,
       color: this.addAlphaToColor(color || '#000000', settings.opacity || 0.8),
-      lineWidth: settings.lineWidth || 2,
+      lineWidth: (settings.lineWidth || 2) as any,
       lineStyle: settings.lineStyle || 2,
       axisLabelVisible: true,
       title: settings.showQuantity ? `${order.type.toUpperCase()} ${order.quantity}` : order.type.toUpperCase(),

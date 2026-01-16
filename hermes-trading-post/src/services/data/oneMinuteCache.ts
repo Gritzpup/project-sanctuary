@@ -3,7 +3,7 @@
  * @description Caches 1-minute candles for performance
  */
 
-import type { CandleData } from '../types/coinbase';
+import type { CandleData } from '../../types/coinbase';
 
 const DB_NAME = 'TradingDataCache';
 const DB_VERSION = 3; // New version for schema change

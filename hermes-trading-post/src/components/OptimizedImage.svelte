@@ -9,18 +9,8 @@
 -->
 
 <script lang="ts">
+  // @ts-nocheck - Legacy Svelte 4 component with $$Props interface
   import { onMount } from 'svelte';
-
-  interface $$Props {
-    src: string;
-    alt: string;
-    width?: number;
-    height?: number;
-    title?: string;
-    class?: string;
-    loading?: 'lazy' | 'eager';
-    decoding?: 'async' | 'sync' | 'auto';
-  }
 
   // Component props
   export let src: string;

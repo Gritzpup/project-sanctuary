@@ -153,13 +153,27 @@
     // Without this, the chart would maintain the previous zoom level (e.g., 39 candles)
     interactionTracker?.resetInteractionState();
 
-    // ⚡ FIX: Force chart to show 60 candles immediately on initialization
-    // This ensures consistent view across page refreshes
-    setTimeout(() => {
-      if (dataStore.candles.length > 0) {
+    // ⚡ FIX: Wait for sufficient candles before positioning (retry up to 3 seconds)
+    // This fixes race condition where chart shows only 2 candles on refresh
+    const MIN_CANDLES = 10;
+    const MAX_WAIT_MS = 3000;
+    const CHECK_INTERVAL_MS = 200;
+    let waited = 0;
+
+    const checkAndPosition = () => {
+      if (dataStore.candles.length >= MIN_CANDLES) {
         positioningService?.showNCandles(dataStore.candles.length, 60);
+      } else if (waited < MAX_WAIT_MS) {
+        waited += CHECK_INTERVAL_MS;
+        setTimeout(checkAndPosition, CHECK_INTERVAL_MS);
+      } else {
+        // Fallback: position with whatever we have after 3 seconds
+        if (dataStore.candles.length > 0) {
+          positioningService?.showNCandles(dataStore.candles.length, 60);
+        }
       }
-    }, 500); // Wait for data to be loaded
+    };
+    setTimeout(checkAndPosition, CHECK_INTERVAL_MS);
 
     // Notify parent component chart is ready
     if (onChartReady) {

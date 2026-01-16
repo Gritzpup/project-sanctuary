@@ -5,7 +5,7 @@
  * all external API calls (Coinbase, backend, etc.). Implements singleton pattern
  * with exponential backoff for resilience and token bucket for rate control.
  */
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 
 export interface APIError {
   message: string;

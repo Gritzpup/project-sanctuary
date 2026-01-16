@@ -49,11 +49,10 @@ export class L2PriceProvider {
    * Setup listeners on orderbook updates
    */
   private setupListeners() {
-    // Subscribe to orderbook changes
-    orderbookStore.subscribe((state: any) => {
-      if (state.bids && state.bids.length > 0 && state.asks && state.asks.length > 0) {
-        this.onOrderbookUpdate();
-      }
+    // Subscribe to orderbook price updates using the available method
+    orderbookStore.subscribeToPriceUpdates((_price: number) => {
+      // Called whenever orderbook updates with a new mid-price
+      this.onOrderbookUpdate();
     });
   }
 

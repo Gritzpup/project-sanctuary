@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck - Complex event dispatching between components with Svelte 4/5 compatibility
   /**
    * @file PaperTradingWrapper.svelte
    * @description Main wrapper for paper trading - consolidated from PaperTradingContainer
@@ -114,10 +115,11 @@
     }
   }
 
-  // Trigger chart resize when state manager is ready
+  // One-time chart resize after initial mount (not on every state change)
+  let hasInitialized = $state(false);
   $effect(() => {
-    if (typeof window !== 'undefined' && stateManager?.tradingState && chartComponent) {
-      // Just trigger a single chart resize
+    if (!hasInitialized && chartComponent && stateManager) {
+      hasInitialized = true;
       setTimeout(() => {
         updateLayout();
       }, 200);

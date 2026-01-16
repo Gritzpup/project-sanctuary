@@ -192,8 +192,6 @@
       currentPrice={latestPrice || currentPrice || 0}
       priceChange24h={live24hChange || priceChange24h || 0}
       priceChangePercent24h={live24hPercent || priceChangePercent24h || 0}
-      {botTabs}
-      {activeBotInstance}
       on:pairChange={handlePairChange}
       on:granularityChange={handleGranularityChange}
       on:botSelect={handleBotSelect}

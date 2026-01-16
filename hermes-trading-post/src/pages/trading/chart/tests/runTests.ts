@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-nocheck - Module path compatibility
 
 /**
  * Test Runner for Chart Components

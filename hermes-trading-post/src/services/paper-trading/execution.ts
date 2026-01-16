@@ -38,8 +38,7 @@ export class PaperTradingExecution {
       size: amount,
       fee,
       value: amount * price,
-      signal: signal.reason,
-      strategyType: state.strategy?.constructor.name || 'Unknown'
+      reason: signal.reason || 'buy'
     };
 
     // Update balances
@@ -79,8 +78,7 @@ export class PaperTradingExecution {
       size: amount,
       fee,
       value: grossProceeds,
-      signal: signal.reason,
-      strategyType: state.strategy?.constructor.name || 'Unknown'
+      reason: signal.reason || 'sell'
     };
 
     // Update balances
@@ -161,7 +159,8 @@ export class PaperTradingExecution {
     if (!strategy || candles.length === 0) return;
 
     try {
-      strategy.update(candles);
+      const currentPrice = candles[candles.length - 1].close;
+      strategy.update(candles, currentPrice);
     } catch (error) {
     }
   }

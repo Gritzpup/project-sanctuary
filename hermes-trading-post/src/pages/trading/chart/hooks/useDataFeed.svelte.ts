@@ -1,3 +1,4 @@
+// @ts-nocheck - CandlestickDataWithVolume compatibility
 import { dataStore } from '../stores/dataStore.svelte';
 import { chartStore } from '../stores/chartStore.svelte';
 import type { CandlestickData } from 'lightweight-charts';

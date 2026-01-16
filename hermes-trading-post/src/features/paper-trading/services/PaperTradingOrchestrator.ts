@@ -427,7 +427,10 @@ export class PaperTradingOrchestrator {
         }
       }
       
-      const updatedState = get(botService.getState());
+      const updatedState = get(botService.getState()) as {
+        balance: { usd: number; btcPositions: number; vault: number; btcVault: number };
+        trades: Trade[];
+      };
       this.updateState({
         balance: updatedState.balance.usd,
         btcBalance: updatedState.balance.btcPositions,

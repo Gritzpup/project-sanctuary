@@ -128,9 +128,9 @@ export class L2CandleAggregator {
         spread: spread,
       };
     } else {
-      // Update current candle
-      this.currentCandle.high = Math.max(this.currentCandle.high, midPrice);
-      this.currentCandle.low = Math.min(this.currentCandle.low, midPrice);
+      // Update current candle - ONLY update close and spread
+      // DON'T expand high/low from L2 mid-price - that's the backend's job via trade aggregation
+      // L2 mid-price fluctuates with orderbook spread, not actual trades, causing artificially tall candles
       this.currentCandle.close = midPrice;
       this.currentCandle.spread = spread;
     }

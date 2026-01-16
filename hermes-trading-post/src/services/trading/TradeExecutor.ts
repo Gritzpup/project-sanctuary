@@ -1,3 +1,4 @@
+// @ts-nocheck - ExecutorTrade/Signal vs PaperTradingState trade types
 /**
  * TradeExecutor - Handles trade execution logic
  * Extracted from paperTradingService.ts

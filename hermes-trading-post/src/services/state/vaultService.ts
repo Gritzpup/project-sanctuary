@@ -223,6 +223,23 @@ class VaultService {
     }
   }
 
+  async deposit(amount: number, botId: string): Promise<void> {
+    for (const asset of Object.values(this.data.assets)) {
+      const bot = asset.vaults.find(v => v.botId === botId);
+      if (bot) {
+        bot.value += amount;
+        bot.deposits.push({
+          timestamp: Date.now(),
+          amount,
+          source: 'deposit'
+        });
+        this.recalculateTotals();
+        this.store.set(this.data);
+        break;
+      }
+    }
+  }
+
   updateBotStats(botId: string, stats: { totalTrades?: number; winRate?: number }) {
     for (const asset of Object.values(this.data.assets)) {
       const bot = asset.vaults.find(v => v.botId === botId);

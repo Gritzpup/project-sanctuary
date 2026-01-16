@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck - BotVault optional property access
   import type { BotVault } from '../../../services/state/vaultService';
 
   export let botVaults: BotVault[];

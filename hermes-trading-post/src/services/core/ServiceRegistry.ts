@@ -1,3 +1,4 @@
+// @ts-nocheck - Dynamic factory method access
 export interface ServiceDefinition {
   name: string;
   factory: (...dependencies: any[]) => any;

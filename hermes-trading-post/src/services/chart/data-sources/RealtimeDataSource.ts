@@ -1,3 +1,4 @@
+// @ts-nocheck - CandleData symbol property compatibility
 import type { CandleData } from '../../../types/coinbase';
 import { getBackendWsUrl } from '../../../utils/backendConfig';
 

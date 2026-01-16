@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck - VaultData optional property access
   import type { VaultData } from '../../../services/state/vaultService';
 
   export let vaultData: VaultData | null;

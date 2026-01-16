@@ -50,7 +50,13 @@ export interface Trade {
   price: number;                  // Execution price
   size: number;                   // Trade size in base asset
   fee: number;                    // Transaction fee
+  value?: number;                 // Total trade value (price * size)
+  grossFee?: number;              // Gross fee before rebates
+  feeRebate?: number;             // Fee rebate amount
+  position?: Position;            // Associated position
+  reason?: string;                // Trade reason/description
   profit?: number;                // Profit/loss (if closing a position)
+  profitPercent?: number;         // Profit percentage
   positionClosed?: boolean;       // Whether this trade closed a position
   balanceAfter?: {               // Balance snapshot after trade
     usd: number;

@@ -20,11 +20,9 @@
 
   // Additional stats tracking
   export let totalTrades: number = 0;
-  export let totalReturn: number = 0;
   export let startingBalance: number = 10000;
   export let totalFees: number = 0;
   export let totalRebates: number = 0;
-  export let totalRebalance: number = 0;
   export let nextBuyDistance: number | null = null;
   export let nextSellDistance: number | null = null;
   export let nextBuyPrice: number | null = null;
@@ -42,10 +40,9 @@
     <h2>Strategy Controls</h2>
   </div>
   <div class="panel-content">
-    <StrategySelector 
-      {selectedStrategyType} 
-      {strategies} 
-      {isRunning}
+    <StrategySelector
+      {selectedStrategyType}
+      {strategies}
       on:strategyChange={handleEvent}
     />
     
@@ -57,14 +54,12 @@
       on:selectBot={handleEvent}
     />
     
-    <TradingStats 
+    <TradingStats
       {balance}
       {startingBalance}
       {totalTrades}
-      {totalReturn}
       {totalFees}
       {totalRebates}
-      {totalRebalance}
       {positions}
       {currentPrice}
       {btcBalance}

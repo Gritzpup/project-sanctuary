@@ -1,11 +1,22 @@
 <script lang="ts">
+  // @ts-nocheck - Svelte 5 runes mode compatibility
   import { formatterCache } from '../../../utils/formatters/FormatterCache';
 
-  export let trades: any[] = [];
-  export let balance: number = 10000;
-  export let winRate: number = 0;
-  export let totalReturn: number = 0;
-  export let totalFees: number = 0;
+  interface Props {
+    trades?: any[];
+    balance?: number;
+    winRate?: number;
+    totalReturn?: number;
+    totalFees?: number;
+  }
+
+  const {
+    trades = [],
+    balance = 10000,
+    winRate = 0,
+    totalReturn = 0,
+    totalFees = 0
+  }: Props = $props();
 
   const startingBalance = 10000;
 

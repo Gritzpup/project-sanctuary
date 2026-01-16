@@ -98,12 +98,12 @@
   }
   
   // Handle resize start
-  function handleResizeStart(event: MouseEvent, index: number) {
+  function handleResizeStart(event: MouseEvent | KeyboardEvent, index: number) {
     if (!resizable || index >= panes.length - 1) return;
-    
+
     resizing = true;
     resizingPaneIndex = index;
-    startY = event.clientY;
+    startY = 'clientY' in event ? event.clientY : 0;
     startHeights = panes.map(pane => pane.height);
     
     document.addEventListener('mousemove', handleResizeMove);

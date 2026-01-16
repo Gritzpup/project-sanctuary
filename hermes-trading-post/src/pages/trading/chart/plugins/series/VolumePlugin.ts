@@ -93,7 +93,7 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         },
       };
 
-      this.series.applyOptions(visibilityOptions);
+      this.series.applyOptions(visibilityOptions as any);
 
       this.series.priceScale().applyOptions({
         scaleMargins: settings.scaleMargins || { top: 0.85, bottom: 0 },

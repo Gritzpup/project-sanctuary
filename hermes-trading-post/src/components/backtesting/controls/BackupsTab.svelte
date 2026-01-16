@@ -79,7 +79,12 @@
       name: backupName.trim(),
       description: backupDescription.trim(),
       timestamp: new Date().toISOString(),
-      config: {} // This would be populated with current configuration
+      config: {
+        strategyType: 'default',
+        params: {},
+        balance: 10000,
+        fees: { maker: 0.005, taker: 0.005, rebate: 0 }
+      }
     };
 
     dispatch('saveBackup', { backupData });

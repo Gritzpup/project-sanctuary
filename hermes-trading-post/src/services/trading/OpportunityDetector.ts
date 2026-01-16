@@ -127,9 +127,13 @@ export class OpportunityDetector {
       }
     }
     
-    // Detect divergences and early signals
-    const divergences = this.detectDivergences(analyses, candles);
-    opportunities.push(...divergences);
+    // Detect divergences and early signals (use first available timeframe candles)
+    const firstTimeframe = this.config.timeframes[0]?.period;
+    const divergenceCandles = firstTimeframe ? candlesByTimeframe.get(firstTimeframe) : undefined;
+    if (divergenceCandles) {
+      const divergences = this.detectDivergences(analyses, divergenceCandles);
+      opportunities.push(...divergences);
+    }
     
     return opportunities;
   }

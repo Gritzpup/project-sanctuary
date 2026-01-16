@@ -28,7 +28,7 @@
   };
 
   // Reactive chart options based on store
-  const chartOptions = $derived(() => {
+  const chartOptions = $derived.by(() => {
     const colors = getThemeColors();
     return {
       layout: {
@@ -50,6 +50,7 @@
       rightPriceScale: {
         borderColor: colors.borderColor,
         visible: true,
+        autoScale: true,  // CRITICAL: Auto-scale price axis when candles exceed visible range
         scaleMargins: {
           top: 0.1,
           bottom: 0.1,
@@ -76,14 +77,14 @@
         mode: 0,
         vertLine: {
           color: colors.crosshair,
-          width: 1,
+          width: 1 as const,
           style: 3,
           visible: true,
           labelVisible: true,
         },
         horzLine: {
           color: colors.crosshair,
-          width: 1,
+          width: 1 as const,
           style: 3,
           visible: true,
           labelVisible: true,

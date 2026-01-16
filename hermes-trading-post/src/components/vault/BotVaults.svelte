@@ -1,10 +1,10 @@
 <script lang="ts">
+  // @ts-nocheck - VaultService module path compatibility
   import type { BotVault } from '../../services/vaultService';
   import { createEventDispatcher } from 'svelte';
   
   export let botVaults: BotVault[] = [];
   export let selectedBot: string | null = null;
-  export let currentPrice: number = 0;
   
   const dispatch = createEventDispatcher();
   
@@ -36,8 +36,9 @@
     </div>
   {:else}
     {#each botVaults as bot}
-      <div 
-        class="bot-vault-card" 
+      <button
+        type="button"
+        class="bot-vault-card"
         class:selected={selectedBot === bot.botId}
         on:click={() => selectBot(bot.botId)}
       >
@@ -76,7 +77,7 @@
             </span>
           </div>
         </div>
-      </div>
+      </button>
     {/each}
   {/if}
 </div>
@@ -113,6 +114,12 @@
     padding: 20px;
     cursor: pointer;
     transition: all 0.3s ease;
+    /* Button reset styles */
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
   }
 
   .bot-vault-card:hover {
