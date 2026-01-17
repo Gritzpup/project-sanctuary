@@ -212,42 +212,8 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         // The flow should be: useDataLoader updates dataStore → ChartDataManager sees update → ChartDataManager calls series.setData()
         // This ensures a single source of truth (ChartDataManager) for series management
 
-        // ⚡ SEAMLESS REFRESH FIX: Set visible candles based on timeframe
-        // Short-term: Show 60 candles for detail
-        // Long-term (1M+): Zoom all the way out to show full historical view
-        if (config.chart && validCandles.length > 0) {
-          const longTermPeriods = ['1M', '3M', '6M', '1Y', '5Y'];
-          const isLongTerm = longTermPeriods.includes(config.timeframe);
-
-          if (isLongTerm) {
-            // Zoom all the way out for long-term timeframes
-            // Set visible range to show ALL candles, not just the recent ones
-            setTimeout(() => {
-              try {
-                const totalCandles = candlesToRender.length;
-                const visibleRange = {
-                  from: 0,
-                  to: totalCandles
-                };
-                ChartDebug.log(`[FIT-LONG-TERM] Setting range 0→${totalCandles} for ${config.timeframe}`);
-                config.chart!.timeScale().setVisibleLogicalRange(visibleRange);
-                ChartDebug.log(`[FIT-LONG-TERM-DONE] Set visible range for ${config.timeframe}`);
-              } catch (err) {
-                ChartDebug.log(`[FIT-LONG-TERM-ERROR] Failed to set range: ${err}`);
-              }
-            }, 800);
-          } else {
-            // For short-term, show last 60 candles with shorter delay
-            setTimeout(() => {
-              const totalCandles = candlesToRender.length;
-              const visibleRange = {
-                from: Math.max(0, totalCandles - 60),
-                to: totalCandles
-              };
-              config.chart!.timeScale().setVisibleLogicalRange(visibleRange);
-            }, 200);
-          }
-        }
+        // Note: Bar spacing and positioning is handled by ChartCanvas.resetAndUpdateDisplay()
+        // via ChartPositioningService.showNCandles() after granularity changes
       }
       
       // Set initial ready state

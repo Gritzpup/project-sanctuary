@@ -5,22 +5,20 @@
  * This eliminates duplicate code across ChartCore, ChartInfo, and ChartAPIService.
  */
 
-// ✅ VALIDATED Coinbase API Granularities - the single source of truth
+// ✅ VALIDATED Coinbase Advanced Trade API Granularities - the single source of truth
+// 🚀 Upgraded to Advanced Trade API which supports all these granularities
 export const GRANULARITY_SECONDS = {
   '1m': 60,
   '5m': 300,
   '15m': 900,
+  '30m': 1800,    // ✅ Supported by Advanced Trade API
   '1h': 3600,
+  '2h': 7200,     // ✅ Supported by Advanced Trade API
+  '4h': 14400,    // ✅ Supported by Advanced Trade API
   '6h': 21600,
   '1d': 86400,
-  '1D': 86400  // Handle uppercase
+  '1D': 86400     // Handle uppercase
 } as const;
-
-// ❌ UNSUPPORTED by Coinbase API (removed):
-// '30m': 1800,   // HTTP 400
-// '2h': 7200,    // HTTP 400  
-// '4h': 14400,   // HTTP 400
-// '12h': 43200,  // HTTP 400
 
 // Type for valid granularities
 export type Granularity = keyof typeof GRANULARITY_SECONDS;

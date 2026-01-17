@@ -234,26 +234,7 @@
         hasEverCalledSetData = sortedCandles.length >= MIN_CANDLES_FOR_LOCK;
         isInitialized = true;
 
-        // 🔧 FIX: Force proper zoom level after INITIAL data load ONLY
-        // This fixes the issue where chart starts extremely zoomed in showing only 2 candles
-        // Only run on initial load, not on incremental updates, to avoid interfering with auto-scroll
-        // ⚠️ CRITICAL FIX: For long-term timeframes (5Y), show ALL candles, not just 60
-        setTimeout(() => {
-          const chart = (candleSeries as any)?._chart || (candleSeries as any)?.chart;
-          if (chart && sortedCandles.length > 1) {
-            const candleCount = sortedCandles.length;
-            // For 5Y with 1816+ candles, show ALL of them
-            // For normal timeframes, show last 60 candles for detail
-            const showCandles = candleCount > 500 ? candleCount : Math.min(candleCount, 60);
-            const startIndex = Math.max(0, candleCount - showCandles);
-
-            // Set visible logical range to show exact number of candles
-            chart.timeScale().setVisibleLogicalRange({
-              from: startIndex,
-              to: candleCount
-            });
-          }
-        }, 100);
+        // NOTE: Visible range is handled by useDataLoader to avoid conflicts
       } else if (hasEverCalledSetData && sortedCandles.length > lastProcessedIndex + 1) {
         // Incremental update: add only new candles since last update
         // ⚡ SEAMLESS REFRESH FIX: Don't reset visible range on incremental updates

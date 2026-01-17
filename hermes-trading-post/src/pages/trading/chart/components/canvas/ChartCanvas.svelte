@@ -11,6 +11,7 @@
   import { ChartResizeManager } from './services/ChartResizeManager';
   import { ChartInteractionTracker } from './services/ChartInteractionTracker';
   import { VisibleCandleTracker } from '../../services/VisibleCandleTracker';
+  import { getCandleCount } from '../../../../../lib/chart/TimeframeCompatibility';
 
   // Props using Svelte 5 runes syntax
   const {
@@ -352,6 +353,19 @@
     dataManager.updateChartData();
     dataManager.updateVolumeData();
     prevCandleCount = dataStore.candles.length;
+
+    // 🔧 FIX: Recalculate bar spacing after granularity change
+    // This ensures candles fill the chart width properly
+    const config = chartStore.config;
+    const expectedCandles = getCandleCount(config.granularity, config.timeframe);
+    const totalCandles = dataStore.candles.length;
+
+    if (positioningService && totalCandles > 0 && expectedCandles > 0) {
+      // Use setTimeout to ensure chart has rendered the new data first
+      setTimeout(() => {
+        positioningService.showNCandles(totalCandles, expectedCandles);
+      }, 50);
+    }
   }
 </script>
 

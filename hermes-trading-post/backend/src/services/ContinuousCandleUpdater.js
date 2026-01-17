@@ -116,9 +116,9 @@ export class ContinuousCandleUpdater extends EventEmitter {
       const granularitySeconds = coinbaseAPI.granularityToSeconds(granularity);
       const now = Math.floor(Date.now() / 1000);
 
-      // Fetch last 20 candles to ensure we have the latest data
-      // This helps fill any small gaps from WebSocket disconnections
-      const lookbackCandles = 20;
+      // Fetch last 120 candles to ensure we have enough data for 1H charts
+      // 120 = 2 hours buffer for 1m granularity, ensures 60 candles always available
+      const lookbackCandles = 120;
       const lookbackSeconds = lookbackCandles * granularitySeconds;
       const startTime = now - lookbackSeconds;
 

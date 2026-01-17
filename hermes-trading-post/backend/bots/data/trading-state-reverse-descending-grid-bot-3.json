@@ -1,14 +1,71 @@
 {
-  "isRunning": false,
+  "isRunning": true,
   "isPaused": false,
   "balance": {
-    "usd": 25467.33450126015,
-    "btc": -0.17385874267021617,
+    "usd": 16372.698668226558,
+    "btc": -0.07807878645541336,
     "vault": 177.43827963581109,
     "btcVault": 0.000656772428685919
   },
-  "currentPrice": 90906,
-  "positions": [],
+  "currentPrice": 95011.89,
+  "positions": [
+    {
+      "id": 1768586765434,
+      "entryPrice": 95053.27,
+      "size": 0.008037809062621458,
+      "timestamp": 1768586765434,
+      "type": "buy",
+      "reason": "Opening initial position immediately (startup)"
+    },
+    {
+      "id": 1768589360279,
+      "entryPrice": 94993.98,
+      "size": 0.011702311567322534,
+      "timestamp": 1768589360279,
+      "type": "buy",
+      "reason": "Drop level 2 reached: 0.20%"
+    },
+    {
+      "id": 1768589360279,
+      "entryPrice": 94993.98,
+      "size": 0.011702311567322534,
+      "timestamp": 1768589360279,
+      "type": "buy",
+      "reason": "Drop level 2 reached: 0.20%"
+    },
+    {
+      "id": 1768591742966,
+      "entryPrice": 94784.84,
+      "size": 0.02520082444796327,
+      "timestamp": 1768591742966,
+      "type": "buy",
+      "reason": "Drop level 4 reached: 0.42%"
+    },
+    {
+      "id": 1768591742966,
+      "entryPrice": 94784.84,
+      "size": 0.02520082444796327,
+      "timestamp": 1768591742966,
+      "type": "buy",
+      "reason": "Drop level 4 reached: 0.42%"
+    },
+    {
+      "id": 1768636256195,
+      "entryPrice": 95011.89,
+      "size": 0.05083901113689555,
+      "timestamp": 1768636256195,
+      "type": "buy",
+      "reason": "Drop level 6 reached: 0.60%"
+    },
+    {
+      "id": 1768636256195,
+      "entryPrice": 95011.89,
+      "size": 0.05083901113689555,
+      "timestamp": 1768636256195,
+      "type": "buy",
+      "reason": "Drop level 6 reached: 0.60%"
+    }
+  ],
   "trades": [
     {
       "id": 1766934372611,
@@ -414,12 +471,55 @@
       "profit": 6.483850850733508,
       "costBasis": 460.4114335780457,
       "positionId": 1766992280103
+    },
+    {
+      "id": 1768586765435,
+      "timestamp": 1768586765435,
+      "botId": "reverse-descending-grid-bot-3",
+      "side": "buy",
+      "amount": 0.008037809062621458,
+      "price": 95053.27,
+      "value": 764.0200350378044,
+      "fees": 0.7640200350378045,
+      "reason": "Opening initial position immediately (startup)"
+    },
+    {
+      "id": 1768589360282,
+      "timestamp": 1768589360282,
+      "botId": "reverse-descending-grid-bot-3",
+      "side": "buy",
+      "amount": 0.011702311567322534,
+      "price": 94993.98,
+      "value": 1111.6491509800055,
+      "fees": 1.1116491509800055,
+      "reason": "Drop level 2 reached: 0.20%"
+    },
+    {
+      "id": 1768591742967,
+      "timestamp": 1768591742967,
+      "botId": "reverse-descending-grid-bot-3",
+      "side": "buy",
+      "amount": 0.02520082444796327,
+      "price": 94784.84,
+      "value": 2388.656113168287,
+      "fees": 2.388656113168287,
+      "reason": "Drop level 4 reached: 0.42%"
+    },
+    {
+      "id": 1768636256200,
+      "timestamp": 1768636256200,
+      "botId": "reverse-descending-grid-bot-3",
+      "side": "buy",
+      "amount": 0.05083901113689555,
+      "price": 95011.89,
+      "value": 4830.310533847494,
+      "fees": 4.830310533847494,
+      "reason": "Drop level 6 reached: 0.60%"
     }
   ],
-  "strategyType": null,
   "selectedStrategyType": "reverse-descending-grid",
-  "positionCount": 0,
-  "totalValue": 9662.531640081479,
+  "positionCount": 7,
+  "totalValue": 8954.285598191334,
   "totalFees": 0,
   "totalRebates": 0,
   "totalReturn": 295.7304660596851,
@@ -427,9 +527,9 @@
   "winRate": 100,
   "vaultBalance": 177.43827963581109,
   "btcVaultBalance": 0.000656772428685919,
-  "nextBuyDistance": null,
-  "nextSellDistance": null,
-  "nextBuyPrice": null,
-  "nextSellPrice": null,
-  "lastSaved": 1768260253070
+  "nextBuyDistance": 75.07767873956445,
+  "nextSellDistance": 7.784690785193344,
+  "nextBuyPrice": 94821.312,
+  "nextSellPrice": 95590.51113999999,
+  "lastSaved": 1768636256202
 }

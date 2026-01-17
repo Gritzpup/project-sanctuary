@@ -54,9 +54,9 @@ export class CoinbaseAPIService {
   }
 
   /**
-   * Fetch historical candles from Coinbase Public Exchange API
-   * 🚀 FIX: Use public Exchange API instead of authenticated Advanced Trade API
-   * This avoids authentication errors and works for all granularities
+   * Fetch historical candles from Coinbase Advanced Trade API
+   * 🚀 UPGRADED: Using Advanced Trade API which supports all granularities (30m, 2h, 4h)
+   * The market/products endpoint is PUBLIC and doesn't require authentication!
    * @param {string} productId - e.g., 'BTC-USD'
    * @param {number} granularity - granularity in seconds (60, 300, 900, 1800, 3600, 7200, 14400, 21600, 86400)
    * @param {string} start - ISO timestamp
@@ -67,10 +67,14 @@ export class CoinbaseAPIService {
     await this.rateLimit();
 
     try {
-      // 🔧 FIX: Use public Exchange API endpoint instead of authenticated Advanced Trade API
-      // This endpoint is public and doesn't require authentication
-      // Format: [time, low, high, open, close, volume]
-      const url = `https://api.exchange.coinbase.com/products/${productId}/candles?start=${start}&end=${end}&granularity=${granularity}`;
+      // 🚀 Advanced Trade API - supports ALL granularities including 30m, 2h, 4h
+      // The market/products endpoint is PUBLIC (no auth needed for market data)
+      // Convert granularity to seconds first (could be string "1m" or number 60)
+      const granularitySeconds = typeof granularity === 'string'
+        ? this.granularityToSeconds(granularity)
+        : granularity;
+      const granularityEnum = this.secondsToGranularityEnum(granularitySeconds);
+      const url = `${this.baseURL}/market/products/${productId}/candles?start=${start}&end=${end}&granularity=${granularityEnum}`;
 
       const response = await axios.get(url, {
         timeout: 10000,
@@ -79,14 +83,14 @@ export class CoinbaseAPIService {
         }
       });
 
-      // Exchange API returns array format: [timestamp, low, high, open, close, volume]
-      const candles = response.data.map(candle => ({
-        time: candle[0],
-        open: candle[3],
-        high: candle[2],
-        low: candle[1],
-        close: candle[4],
-        volume: candle[5]
+      // Advanced Trade API returns: { candles: [{ start, low, high, open, close, volume }] }
+      const candles = response.data.candles.map(candle => ({
+        time: parseInt(candle.start),
+        open: parseFloat(candle.open),
+        high: parseFloat(candle.high),
+        low: parseFloat(candle.low),
+        close: parseFloat(candle.close),
+        volume: parseFloat(candle.volume)
       }));
 
       return candles;

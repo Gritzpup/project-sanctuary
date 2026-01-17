@@ -64,7 +64,10 @@ export const GRANULARITY_DISPLAY_NAMES: Record<string, string> = {
   '1m': '1 Minute',
   '5m': '5 Minutes',
   '15m': '15 Minutes',
+  '30m': '30 Minutes',
   '1h': '1 Hour',
+  '2h': '2 Hours',
+  '4h': '4 Hours',
   '6h': '6 Hours',
   '1d': '1 Day'
 };

@@ -35,7 +35,10 @@ function calculateCandleCount(granularity: string, period: string): number {
     '1m': 1,
     '5m': 5,
     '15m': 15,
+    '30m': 30,     // ✅ Added for Advanced Trade API
     '1h': 60,
+    '2h': 120,     // ✅ Added for Advanced Trade API
+    '4h': 240,     // ✅ Added for Advanced Trade API
     '6h': 360,
     '1d': 1440
   };
@@ -43,8 +46,10 @@ function calculateCandleCount(granularity: string, period: string): number {
   const periodMinutes: { [key: string]: number } = {
     '1H': 60,
     '4H': 240,
+    '6H': 360,     // ✅ Added
     '1D': 1440,
     '5D': 7200,    // 5 days
+    '1W': 10080,   // ✅ Added - 7 days
     '1M': 43200,   // ~30 days
     '3M': 129600,  // ~90 days
     '6M': 259200,  // ~180 days
@@ -111,9 +116,9 @@ function getCompatibility(candleCount: number): { compatible: boolean; isOptimal
 
 // Build the complete compatibility matrix
 function buildCompatibilityMatrix(): CompatibilityMatrix {
-  // ✅ Only use API-validated granularities
-  const granularities = ['1m', '5m', '15m', '1h', '6h', '1d'];
-  const periods = ['1H', '4H', '1D', '5D', '1M', '3M', '6M', '1Y', '5Y'];
+  // ✅ All API-validated granularities (Advanced Trade API supports 30m, 2h, 4h)
+  const granularities = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '1d'];
+  const periods = ['1H', '4H', '6H', '1D', '5D', '1W', '1M', '3M', '6M', '1Y', '5Y'];
 
   const matrix: CompatibilityMatrix = {};
   
@@ -179,7 +184,7 @@ export function getRecommendedGranularities(period: string): string[] {
     }
   }
   
-  const granularityOrder = ['1m', '5m', '15m', '1h', '6h', '1d'];
+  const granularityOrder = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '1d'];
   return granularities.sort((a, b) => granularityOrder.indexOf(a) - granularityOrder.indexOf(b));
 }
 
@@ -198,7 +203,7 @@ export function getBestGranularityForPeriod(period: string): string {
   }
 
   // If no optimal match, find ANY compatible granularity (prefer larger granularities for longer periods)
-  const granularityOrder = ['1d', '6h', '1h', '15m', '5m', '1m'];
+  const granularityOrder = ['1d', '6h', '4h', '2h', '1h', '30m', '15m', '5m', '1m'];
   for (const granularity of granularityOrder) {
     if (TIMEFRAME_COMPATIBILITY[granularity]?.[period]?.compatible) {
       return granularity;
@@ -255,9 +260,9 @@ export function getAutoSuggestion(
 }
 
 // Extended periods for the period control (footer) - optimized for maximum compatibility
-export const EXTENDED_PERIODS = ['1H', '4H', '1D', '5D', '1M', '3M', '6M', '1Y', '5Y'] as const;
+export const EXTENDED_PERIODS = ['1H', '4H', '6H', '1D', '5D', '1W', '1M', '3M', '6M', '1Y', '5Y'] as const;
 export type ExtendedPeriod = typeof EXTENDED_PERIODS[number];
 
-// ✅ Enhanced granularity options (API-validated only)
-export const ENHANCED_GRANULARITIES = ['1m', '5m', '15m', '1h', '6h', '1d'] as const;
+// ✅ Enhanced granularity options (Advanced Trade API supports all these)
+export const ENHANCED_GRANULARITIES = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '1d'] as const;
 export type EnhancedGranularity = typeof ENHANCED_GRANULARITIES[number];
