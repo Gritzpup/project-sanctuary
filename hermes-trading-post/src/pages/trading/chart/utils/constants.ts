@@ -78,8 +78,8 @@ export const GRANULARITY_DISPLAY_NAMES: Record<string, string> = {
 // 🚀 Updated to include 30m, 2h, 4h, 12h for more flexible trading
 export const RECOMMENDED_GRANULARITIES: Record<string, string[]> = {
   '1H': ['1m', '5m', '15m', '30m'],     // 60-12-4-2 candles
-  '4H': ['5m', '15m', '30m', '1h'],     // 48-16-8-4 candles
-  '6H': ['5m', '15m', '30m', '1h'],     // 72-24-12-6 candles
+  '4H': ['5m', '15m', '30m', '1h', '4h'],     // 48-16-8-4-1 candles
+  '6H': ['5m', '15m', '30m', '1h', '6h'],     // 72-24-12-6-1 candles
   '1D': ['15m', '30m', '1h', '2h', '4h', '6h'],  // 96-48-24-12-6-4 candles
   '5D': ['1h', '2h', '4h', '6h', '12h'],       // 120-60-30-20-10 candles
   '1W': ['1h', '2h', '4h', '6h', '12h'],       // 168-84-42-28-14 candles
@@ -93,8 +93,8 @@ export const RECOMMENDED_GRANULARITIES: Record<string, string[]> = {
 // ✅ All supported intervals for each timeframe (Advanced Trade API validated)
 export const VALID_GRANULARITIES: Record<string, string[]> = {
   '1H': ['1m', '5m', '15m', '30m'],
-  '4H': ['5m', '15m', '30m', '1h', '2h'],
-  '6H': ['5m', '15m', '30m', '1h', '2h'],
+  '4H': ['5m', '15m', '30m', '1h', '2h', '4h'],
+  '6H': ['5m', '15m', '30m', '1h', '2h', '4h', '6h'],
   '1D': ['15m', '30m', '1h', '2h', '4h', '6h'],
   '5D': ['1h', '2h', '4h', '6h', '12h', '1d'],
   '1W': ['1h', '2h', '4h', '6h', '12h', '1d'],
