@@ -19,10 +19,40 @@
     }, 5000); // Increased timeout to allow proper initialization
   });
   
-  // Export all the props that ChartContainer accepts
-  export let pair: string = 'BTC-USD';
-  export let granularity: string = '1m';
-  export let period: string = '1H';
+  // Runes mode: use $props() instead of export let
+  let {
+    pair = 'BTC-USD',
+    granularity = '1m',
+    period = '1H',
+    showControls = true,
+    showStatus = true,
+    showInfo = true,
+    showDebug = false,
+    enablePlugins = true,
+    enableAutoGranularity = true,
+    defaultPlugins = ['volume'],
+    multiPane = false,
+    chartRefreshKey = Date.now(),
+    onReady = undefined,
+    onGranularityChange = undefined,
+    onPairChange = undefined
+  } = $props<{
+    pair?: string;
+    granularity?: string;
+    period?: string;
+    showControls?: boolean;
+    showStatus?: boolean;
+    showInfo?: boolean;
+    showDebug?: boolean;
+    enablePlugins?: boolean;
+    enableAutoGranularity?: boolean;
+    defaultPlugins?: string[];
+    multiPane?: boolean;
+    chartRefreshKey?: number;
+    onReady?: (chart: IChartApi, pluginManager: PluginManager | null) => void;
+    onGranularityChange?: (granularity: string) => void;
+    onPairChange?: (pair: string) => void;
+  }>();
 
   // Debug period changes
   let previousPeriod = period;
@@ -32,18 +62,6 @@
       previousPeriod = period;
     }
   });
-  export let showControls: boolean = true;
-  export let showStatus: boolean = true;
-  export let showInfo: boolean = true;
-  export let showDebug: boolean = false;
-  export let enablePlugins: boolean = true; // Enable plugins by default (especially volume)
-  export let enableAutoGranularity: boolean = true; // Enable automatic granularity switching
-  export let defaultPlugins: string[] = ['volume'];
-  export let multiPane: boolean = false;
-  export let chartRefreshKey: number = Date.now(); // ⚡ SEAMLESS REFRESH: Trigger canvas refresh
-  export let onReady: ((chart: IChartApi, pluginManager: PluginManager | null) => void) | undefined = undefined;
-  export let onGranularityChange: ((granularity: string) => void) | undefined = undefined;
-  export let onPairChange: ((pair: string) => void) | undefined = undefined;
   
   let chartContainer: ChartContainer;
   
