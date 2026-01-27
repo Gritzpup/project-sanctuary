@@ -104,12 +104,15 @@ export class ChartTimeframeCoordinator {
     chartSeries: ISeriesApi<'Candlestick'> | null,
     pluginManager: PluginManager | null
   ): Promise<void> {
+    console.log(`[onPeriodChange] START: newPeriod=${newPeriod}, previousPeriod=${this.previousPeriod}`);
 
     if (newPeriod === this.previousPeriod) {
+      console.log(`[onPeriodChange] Period unchanged, returning`);
       return; // No change
     }
 
     if (!this.shouldReload(this.previousGranularity, newPeriod)) {
+      console.log(`[onPeriodChange] shouldReload returned false, returning`);
       return; // Skip reload
     }
 
@@ -119,6 +122,7 @@ export class ChartTimeframeCoordinator {
     const { chartStore: store } = await import('../stores/chartStore.svelte');
     const correctGranularity = store.config.granularity;
 
+    console.log(`[onPeriodChange] Loading: ${correctGranularity}/${newPeriod}`);
     await this.reloadDataForNewTimeframe(
       correctGranularity,
       newPeriod,
@@ -128,6 +132,7 @@ export class ChartTimeframeCoordinator {
 
     this.previousPeriod = newPeriod;
     this.previousGranularity = correctGranularity; // Update our tracked granularity
+    console.log(`[onPeriodChange] COMPLETE: now=${correctGranularity}/${newPeriod}`);
   }
 
   /**
