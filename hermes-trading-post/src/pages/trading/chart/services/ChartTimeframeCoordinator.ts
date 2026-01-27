@@ -172,21 +172,18 @@ export class ChartTimeframeCoordinator {
     await new Promise(resolve => setTimeout(resolve, 0));
     ChartDebug.log(`[RELOAD-YIELDED] Browser yielded, now starting reload operations`);
 
-    // 🔧 FIX: Don't block if a DIFFERENT timeframe is requested
-    // Allow newer requests to override older ones
+    // 🔧 CRITICAL FIX: Cancel previous reload if a DIFFERENT timeframe is requested
+    // Don't wait for old reload - start new one immediately
     if (this.isReloading) {
       // Check if this is a DIFFERENT reload request
       if (granularity === this.previousGranularity && period === this.previousPeriod) {
-        return; // Same reload already in progress
+        return; // Same reload already in progress - ignore duplicate click
       }
 
-      // Wait for the previous reload to complete before starting this one
-      // This prevents overlapping reloads which can corrupt state
-      let waitCount = 0;
-      while (this.isReloading && waitCount < 100) {
-        await new Promise(resolve => setTimeout(resolve, 50));
-        waitCount++;
-      }
+      // New timeframe requested while old one is still loading
+      // Cancel the old one and start fresh - don't wait
+      ChartDebug.log(`[RELOAD-CANCEL] New timeframe requested (${granularity}/${period}) while loading (${this.previousGranularity}/${this.previousPeriod}). Cancelling old reload.`);
+      this.isReloading = false; // Allow new reload to start immediately
     }
 
     this.isReloading = true;
