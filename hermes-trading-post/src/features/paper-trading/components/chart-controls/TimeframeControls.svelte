@@ -1,7 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { EXTENDED_PERIODS, type ExtendedPeriod } from '../../../../lib/chart/TimeframeCompatibility';
-  import { isCompatible, getBestGranularityForPeriod } from '../../../../lib/chart/TimeframeCompatibility';
 
   let buttonClickHandlers: Array<{ button: HTMLButtonElement; handler: () => void }> = [];
 
@@ -34,18 +33,13 @@
   const dispatch = createEventDispatcher();
 
   function handlePeriodChange(period: ExtendedPeriod) {
-    // Find the best compatible granularity for this period
-    const bestGranularity = getBestGranularityForPeriod(period);
+    // ONLY dispatch period change - granularity buttons handle granularity selection
+    // The Chart component uses BOTH period and granularity props to calculate time range
+    // Period determines the total timeframe (4H = 4 hours)
+    // Granularity determines the candle size (5m = 5 minute candles)
+    // Together: 4H/5m = 48 candles (4 hours / 5 minutes per candle)
 
-    try {
-      const result = dispatch('periodChange', { period });
-    } catch (err) {
-    }
-
-    // If current granularity is not compatible, switch to the best one
-    if (!isCompatible(selectedGranularity, period)) {
-      dispatch('granularityChange', { granularity: bestGranularity });
-    }
+    dispatch('periodChange', { period });
   }
 </script>
 

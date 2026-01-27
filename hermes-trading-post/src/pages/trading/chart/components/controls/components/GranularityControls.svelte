@@ -29,10 +29,13 @@
 
   function handleGranularityChange(granularity: string) {
     // Coordinator handles duplicate prevention via previousGranularity check
+    console.log(`[GranularityControls] Button clicked: ${granularity}`);
     if (onGranularityChange) {
+      console.log(`[GranularityControls] Calling onGranularityChange callback with ${granularity}`);
       onGranularityChange(granularity);
     }
 
+    console.log(`[GranularityControls] Dispatching granularityChange event with ${granularity}`);
     dispatch('granularityChange', { granularity });
   }
 
