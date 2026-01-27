@@ -2,12 +2,12 @@
   "isRunning": true,
   "isPaused": false,
   "balance": {
-    "usd": 2577.8377009046017,
-    "btc": 0.08377582699331157,
-    "vault": 452.5596678652069,
-    "btcVault": 0.0016585840587050949
+    "usd": 31325.193539405773,
+    "btc": -0.23926140764081277,
+    "vault": 505.4859518775234,
+    "btcVault": 0.0018561467066988326
   },
-  "currentPrice": 88910.41,
+  "currentPrice": 89340.1,
   "positions": [
     {
       "id": 1769291984660,
@@ -64,38 +64,6 @@
       "timestamp": 1769299128790,
       "type": "buy",
       "reason": "Drop level 6 reached: 0.31%"
-    },
-    {
-      "id": 1769304809512,
-      "entryPrice": 88974.5,
-      "size": 0.06507073836948525,
-      "timestamp": 1769304809512,
-      "type": "buy",
-      "reason": "Drop level 8 reached: 0.43%"
-    },
-    {
-      "id": 1769304809512,
-      "entryPrice": 88974.5,
-      "size": 0.06507073836948525,
-      "timestamp": 1769304809512,
-      "type": "buy",
-      "reason": "Drop level 8 reached: 0.43%"
-    },
-    {
-      "id": 1769311091243,
-      "entryPrice": 88910.41,
-      "size": 0.09644787894757692,
-      "timestamp": 1769311091243,
-      "type": "buy",
-      "reason": "Drop level 10 reached: 0.50%"
-    },
-    {
-      "id": 1769311091243,
-      "entryPrice": 88910.41,
-      "size": 0.09644787894757692,
-      "timestamp": 1769311091243,
-      "type": "buy",
-      "reason": "Drop level 10 reached: 0.50%"
     }
   ],
   "trades": [
@@ -1444,22 +1412,78 @@
       "value": 8575.220460859433,
       "fees": 8.575220460859432,
       "reason": "Drop level 10 reached: 0.50%"
+    },
+    {
+      "id": 1769546934504,
+      "timestamp": 1769546934504,
+      "botId": "test-bot-1",
+      "side": "sell",
+      "amount": 0.09644787894757692,
+      "price": 89266.37,
+      "value": 8609.552047849611,
+      "fees": 8.609552047849611,
+      "reason": "Grid sell: 0.40% profit",
+      "profit": 25.722034942328428,
+      "costBasis": 8575.220460859433,
+      "positionId": 1769311091243
+    },
+    {
+      "id": 1769546936654,
+      "timestamp": 1769546936654,
+      "botId": "test-bot-1",
+      "side": "sell",
+      "amount": 0.09644787894757692,
+      "price": 89278.18,
+      "value": 8610.691097299983,
+      "fees": 8.610691097299982,
+      "reason": "Grid sell: 0.41% profit",
+      "profit": 26.859945343250168,
+      "costBasis": 8575.220460859433,
+      "positionId": 1769311091243
+    },
+    {
+      "id": 1769546970179,
+      "timestamp": 1769546970179,
+      "botId": "test-bot-1",
+      "side": "sell",
+      "amount": 0.06507073836948525,
+      "price": 89335.11,
+      "value": 5813.101570019186,
+      "fees": 5.813101570019186,
+      "reason": "Grid sell: 0.41% profit",
+      "profit": 17.65205739340125,
+      "costBasis": 5789.636411055765,
+      "positionId": 1769304809512
+    },
+    {
+      "id": 1769546977150,
+      "timestamp": 1769546977150,
+      "botId": "test-bot-1",
+      "side": "sell",
+      "amount": 0.06507073836948525,
+      "price": 89340.1,
+      "value": 5813.42627300365,
+      "fees": 5.81342627300365,
+      "reason": "Grid sell: 0.41% profit",
+      "profit": 17.976435674881024,
+      "costBasis": 5789.636411055765,
+      "positionId": 1769304809512
     }
   ],
   "selectedStrategyType": "test",
-  "positionCount": 11,
-  "totalValue": 10026.380826969002,
-  "totalFees": 0,
+  "positionCount": 7,
+  "totalValue": 9949.555454634796,
+  "totalFees": 28.84677098817243,
   "totalRebates": 0,
-  "totalReturn": 754.2661131086779,
-  "totalRebalance": 0,
+  "totalReturn": 842.4765864625388,
+  "totalRebalance": 17.642094670772174,
   "winRate": 100,
-  "vaultBalance": 452.5596678652069,
-  "btcVaultBalance": 0.0016585840587050949,
+  "vaultBalance": 505.4859518775234,
+  "btcVaultBalance": 0.0018561467066988326,
   "recentHigh": 93566,
   "nextBuyDistance": 0,
-  "nextSellDistance": 0,
-  "nextBuyPrice": 93004.604,
-  "nextSellPrice": 89177.14123,
-  "lastSaved": 1769527815668
+  "nextSellDistance": 76.25090753031417,
+  "nextBuyPrice": 88818.95736,
+  "nextSellPrice": 89347.22997,
+  "lastSaved": 1769546977151
 }

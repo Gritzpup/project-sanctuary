@@ -122,58 +122,60 @@
     });
   });
 
-  // Handle granularity/period changes after initial load
-  // Check for actual prop changes and trigger coordinator
+  // Handle granularity changes
   $effect(() => {
-    // Always log to debug why reactive block might not trigger
-    if (isInitialDataLoaded) {
-      // This reactive dependency should trigger whenever any of these change
-      const _ = [granularity, period, isInitialized];
+    const _ = granularity;
 
-      if (isInitialized && isInitialDataLoaded) {
-        console.log(`[ChartCore] $effect: granularity=${granularity}, period=${period}`);
-        if (granularity !== previousTrackedGranularity) {
-          ChartDebug.log(`⏱️ Granularity prop changed: ${previousTrackedGranularity} → ${granularity}`);
-          previousTrackedGranularity = granularity;
+    if (!isInitialized || !isInitialDataLoaded) return;
 
-          // Use async IIFE to properly await and then reset display
-          (async () => {
-            await timeframeCoordinator.onGranularityChange(granularity, chartCanvas?.getSeries() || null, pluginManager);
-            // Reset display after data loads to ensure chart shows new granularity data
-            createTimeout(() => {
-              if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
-                ChartDebug.log(`📊 Resetting display after granularity change to ${granularity}`);
-                chartCanvas.resetAndUpdateDisplay(pluginManager);
-              }
-            }, 150);
-          })();
-        }
+    if (granularity !== previousTrackedGranularity) {
+      console.log(`[ChartCore] 🔍 Granularity changed: ${previousTrackedGranularity} → ${granularity}`);
+      previousTrackedGranularity = granularity;
 
-        if (period !== previousTrackedPeriod) {
-          console.log(`[ChartCore] 🔍 Period prop changed: ${previousTrackedPeriod} → ${period}`);
-          ChartDebug.log(`⏱️ Period prop changed: ${previousTrackedPeriod} → ${period}`);
-          previousTrackedPeriod = period;
-
-          // Use async IIFE to properly await period change (same as granularity change)
-          (async () => {
-            try {
-              console.log(`[ChartCore] ✅ Calling timeframeCoordinator.onPeriodChange(${period})`);
-              console.log(`[ChartCore] DEBUG: chartCanvas=${!!chartCanvas}, chartSeries=${!!chartCanvas?.getSeries()}, pluginManager=${!!pluginManager}`);
-              await timeframeCoordinator.onPeriodChange(period, chartCanvas?.getSeries() || null, pluginManager);
-              console.log(`[ChartCore] ✅ onPeriodChange completed for ${period}`);
-              // Reset display after data loads to ensure chart shows new period data
-              createTimeout(() => {
-                if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
-                  ChartDebug.log(`📊 Resetting display after period change to ${period}`);
-                  chartCanvas.resetAndUpdateDisplay(pluginManager);
-                }
-              }, 150);
-            } catch (error) {
-              console.error(`[ChartCore] ❌ ERROR in onPeriodChange:`, error);
+      (async () => {
+        try {
+          await timeframeCoordinator.onGranularityChange(granularity, chartCanvas?.getSeries() || null, pluginManager);
+          createTimeout(() => {
+            if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
+              chartCanvas.resetAndUpdateDisplay(pluginManager);
             }
-          })();
+          }, 150);
+        } catch (error) {
+          console.error(`[ChartCore] ❌ ERROR in onGranularityChange:`, error);
         }
-      }
+      })();
+    }
+  });
+
+  // Handle period changes - SEPARATE effect to ensure it always triggers
+  $effect(() => {
+    const _ = period;
+
+    console.log(`[ChartCore] $effect.period triggered: period=${period}, previousTrackedPeriod=${previousTrackedPeriod}`);
+
+    if (!isInitialized || !isInitialDataLoaded) {
+      console.log(`[ChartCore] Skipping period change: isInitialized=${isInitialized}, isInitialDataLoaded=${isInitialDataLoaded}`);
+      return;
+    }
+
+    if (period !== previousTrackedPeriod) {
+      console.log(`[ChartCore] 🔍 Period changed: ${previousTrackedPeriod} → ${period}`);
+      previousTrackedPeriod = period;
+
+      (async () => {
+        try {
+          console.log(`[ChartCore] Calling onPeriodChange(${period})`);
+          await timeframeCoordinator.onPeriodChange(period, chartCanvas?.getSeries() || null, pluginManager);
+          console.log(`[ChartCore] onPeriodChange completed for ${period}`);
+          createTimeout(() => {
+            if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
+              chartCanvas.resetAndUpdateDisplay(pluginManager);
+            }
+          }, 150);
+        } catch (error) {
+          console.error(`[ChartCore] ❌ ERROR in onPeriodChange:`, error);
+        }
+      })();
     }
   });
 
