@@ -33,6 +33,19 @@
   // Increased to 2000 to support 5Y timeframe (1825 daily candles)
   const MAX_CACHED_CANDLES: number = 2000;
 
+  // 🔧 FIX: Track granularity to detect changes and reset cache
+  let lastGranularity: string = '';
+
+  // 🔧 FIX: Auto-reset cache when granularity changes
+  $effect(() => {
+    const currentGranularity = chartStore.granularity;
+    if (lastGranularity && lastGranularity !== currentGranularity) {
+      // Granularity changed - reset all cached state so new data displays correctly
+      resetForNewTimeframe();
+    }
+    lastGranularity = currentGranularity;
+  });
+
   /**
    * Check if array is already sorted by time (ascending)
    * @param candles Array to check

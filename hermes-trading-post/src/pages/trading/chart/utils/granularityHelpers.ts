@@ -16,6 +16,7 @@ export const GRANULARITY_SECONDS = {
   '2h': 7200,     // ✅ Supported by Advanced Trade API
   '4h': 14400,    // ✅ Supported by Advanced Trade API
   '6h': 21600,
+  '12h': 43200,   // ✅ Added for API parity
   '1d': 86400,
   '1D': 86400     // Handle uppercase
 } as const;

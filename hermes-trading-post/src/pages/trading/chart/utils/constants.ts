@@ -38,6 +38,7 @@ export const GRANULARITY_TO_SECONDS: Record<string, number> = {
   '2h': 7200,      // 2 hours ✅ Now supported
   '4h': 14400,     // 4 hours ✅ Re-enabled
   '6h': 21600,     // 6 hours
+  '12h': 43200,    // 12 hours ✅ Added for API parity
   '1d': 86400      // 1 day
 };
 
@@ -69,20 +70,21 @@ export const GRANULARITY_DISPLAY_NAMES: Record<string, string> = {
   '2h': '2 Hours',
   '4h': '4 Hours',
   '6h': '6 Hours',
+  '12h': '12 Hours',
   '1d': '1 Day'
 };
 
 // ✅ Validated trading intervals for each timeframe (Advanced Trade API - 2025-10-21)
-// 🚀 Updated to include 30m, 2h, 4h for more flexible trading
+// 🚀 Updated to include 30m, 2h, 4h, 12h for more flexible trading
 export const RECOMMENDED_GRANULARITIES: Record<string, string[]> = {
   '1H': ['1m', '5m', '15m', '30m'],     // 60-12-4-2 candles
   '4H': ['5m', '15m', '30m', '1h'],     // 48-16-8-4 candles
   '6H': ['5m', '15m', '30m', '1h'],     // 72-24-12-6 candles
   '1D': ['15m', '30m', '1h', '2h', '4h', '6h'],  // 96-48-24-12-6-4 candles
-  '5D': ['1h', '2h', '4h', '6h'],       // 120-60-30-20 candles
-  '1W': ['1h', '2h', '4h', '6h'],       // 168-84-42-28 candles
-  '1M': ['4h', '6h', '1d'],             // 180-120-30 candles
-  '3M': ['1d'],                         // 90 candles
+  '5D': ['1h', '2h', '4h', '6h', '12h'],       // 120-60-30-20-10 candles
+  '1W': ['1h', '2h', '4h', '6h', '12h'],       // 168-84-42-28-14 candles
+  '1M': ['4h', '6h', '12h', '1d'],             // 180-120-60-30 candles
+  '3M': ['12h', '1d'],                         // 180-90 candles
   '6M': ['1d'],                         // 180 candles
   '1Y': ['1d'],                         // 365 candles
   '5Y': ['1d']                          // 1825 candles
@@ -94,10 +96,10 @@ export const VALID_GRANULARITIES: Record<string, string[]> = {
   '4H': ['5m', '15m', '30m', '1h', '2h'],
   '6H': ['5m', '15m', '30m', '1h', '2h'],
   '1D': ['15m', '30m', '1h', '2h', '4h', '6h'],
-  '5D': ['1h', '2h', '4h', '6h', '1d'],
-  '1W': ['1h', '2h', '4h', '6h', '1d'],
-  '1M': ['2h', '4h', '6h', '1d'],
-  '3M': ['1d'],
+  '5D': ['1h', '2h', '4h', '6h', '12h', '1d'],
+  '1W': ['1h', '2h', '4h', '6h', '12h', '1d'],
+  '1M': ['2h', '4h', '6h', '12h', '1d'],
+  '3M': ['12h', '1d'],
   '6M': ['1d'],
   '1Y': ['1d'],
   '5Y': ['1d']

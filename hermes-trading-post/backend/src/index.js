@@ -67,7 +67,8 @@ const connectToBotsService = () => {
     // Forward bot service messages to all frontend clients
     try {
       const message = JSON.parse(data.toString());
-      console.log(`📨 [Backend] Forwarding bot message: ${message.type}`);
+      // 🔇 SILENCED: Too spammy - fires constantly for status updates
+      // console.log(`📨 [Backend] Forwarding bot message: ${message.type}`);
       wss.clients.forEach(client => {
         if (client.readyState === 1) { // WebSocket.OPEN
           client.send(JSON.stringify(message));
@@ -318,7 +319,8 @@ const restAPIService = new RESTAPIService({
 
           wsHandler.broadcast(updateMessage);
           lastLevel2UpdateBroadcastTime = now;
-          console.log(`📤 [Backend] Broadcast level2 update (${data.changes.length} changes)`);
+          // 🔇 SILENCED: Too spammy - fires every 100ms
+          // console.log(`📤 [Backend] Broadcast level2 update (${data.changes.length} changes)`);
         }
         // 🔧 REMOVED: Excessive "Skipped" logging causing log bloat
       }
@@ -373,7 +375,8 @@ const restAPIService = new RESTAPIService({
       // Broadcast candle to all connected WebSocket clients
       wsHandler.broadcast(frontendCandle);
 
-      console.log(`📊 [Backend] New ${candleData.type} candle (${candleData.granularityKey}): ${candleData.product_id} at $${candleData.close}`);
+      // 🔇 SILENCED: Too spammy - fires 6x per second (all granularities)
+      // console.log(`📊 [Backend] New ${candleData.type} candle (${candleData.granularityKey}): ${candleData.product_id} at $${candleData.close}`);
     };
 
     coinbaseWebSocket.on('level2', level2Handler);

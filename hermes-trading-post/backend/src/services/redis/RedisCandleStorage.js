@@ -478,7 +478,8 @@ class RedisCandleStorage {
       // Check if we already have recent data
       const existingCandles = await this.getCandles(pair, granularity, startTime, now);
       const granularitySeconds = {
-        '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600
+        '1m': 60, '5m': 300, '15m': 900, '30m': 1800,
+        '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '12h': 43200, '1d': 86400
       }[granularity] || 60;
       
       const expectedCandles = Math.floor((now - startTime) / granularitySeconds);

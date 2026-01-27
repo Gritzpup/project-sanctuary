@@ -13,8 +13,6 @@
   export let onGranularityChange: ((granularity: string) => void) | undefined = undefined;
 
   const dispatch = createEventDispatcher();
-  let isDebouncing = false;
-  let debounceTimer: number | null = null;
 
   // Get recommended and valid granularities for current timeframe
   $: recommendedGranularities = RECOMMENDED_GRANULARITIES[currentTimeframe] || [];
@@ -30,32 +28,12 @@
     [];
 
   function handleGranularityChange(granularity: string) {
-
-    // Prevent multiple rapid clicks - debounce with 200ms window
-    if (isDebouncing) {
-      return;
-    }
-
-    isDebouncing = true;
-
-    // Clear existing timer if any
-    if (debounceTimer !== null) {
-      clearTimeout(debounceTimer);
-    }
-
-
-    // Call parent callback directly for immediate prop updates
+    // Coordinator handles duplicate prevention via previousGranularity check
     if (onGranularityChange) {
       onGranularityChange(granularity);
     }
 
     dispatch('granularityChange', { granularity });
-
-    // Reset debounce after 200ms
-    debounceTimer = window.setTimeout(() => {
-      isDebouncing = false;
-      debounceTimer = null;
-    }, 200);
   }
 
   function getButtonClass(isActive: boolean, isRecommended: boolean = false, isDisabled: boolean = false): string {
@@ -130,7 +108,7 @@
     font-weight: var(--font-weight-medium);
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all var(--transition-normal);
+    transition: background-color 0.1s ease, border-color 0.1s ease;
     position: relative;
     overflow: hidden;
   }

@@ -87,6 +87,7 @@
   }
   
   function handleGranularityChange(event: CustomEvent) {
+    // Just update the prop - ChartCore's $effect handles the reload + display reset
     selectedGranularity = event.detail.granularity;
     dispatch('granularityChange', event.detail);
   }

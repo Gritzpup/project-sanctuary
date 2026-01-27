@@ -39,6 +39,7 @@ export class WebSocketServiceV2 {
   private circuitBreaker: CircuitBreaker;
   private subscriptions = new Map<string, Subscription>();
   private messageQueue: WebSocketMessage[] = [];
+  private readonly MAX_MESSAGE_QUEUE_SIZE = 1000;  // ⚡ PERF FIX: Prevent memory bloat during connection issues
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
@@ -233,11 +234,27 @@ export class WebSocketServiceV2 {
       } catch (error) {
         if (this.debug) {
         }
-        this.messageQueue.push(message);
+        this.queueMessage(message);
       }
     } else {
-      this.messageQueue.push(message);
+      this.queueMessage(message);
     }
+  }
+
+  /**
+   * ⚡ PERF FIX: Queue message with size limit to prevent memory bloat
+   * Drops oldest messages when queue exceeds MAX_MESSAGE_QUEUE_SIZE
+   */
+  private queueMessage(message: WebSocketMessage): void {
+    // Drop oldest messages if queue is full
+    if (this.messageQueue.length >= this.MAX_MESSAGE_QUEUE_SIZE) {
+      const dropped = this.messageQueue.length - this.MAX_MESSAGE_QUEUE_SIZE + 1;
+      this.messageQueue.splice(0, dropped);
+      if (this.debug) {
+        console.warn(`⚠️ WebSocket message queue full, dropped ${dropped} oldest messages`);
+      }
+    }
+    this.messageQueue.push(message);
   }
 
   /**

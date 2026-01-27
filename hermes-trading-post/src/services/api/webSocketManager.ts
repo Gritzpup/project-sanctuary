@@ -18,6 +18,7 @@ export class WebSocketManager {
   private consumers = new Map<string, DataConsumer>();
   private subscribedSymbols = new Set<string>();
   private isConnected = false;
+  private connectionCheckInterval: ReturnType<typeof setInterval> | null = null;
 
   private constructor() {
     this.ws = new CoinbaseWebSocket();
@@ -70,7 +71,7 @@ export class WebSocketManager {
     });
 
     // Also poll connection status as backup
-    setInterval(() => {
+    this.connectionCheckInterval = setInterval(() => {
       const connected = this.ws.isConnected();
       if (!connected && this.isConnected) {
         this.isConnected = false;
@@ -158,7 +159,12 @@ export class WebSocketManager {
   }
 
   disconnect(): void {
+    if (this.connectionCheckInterval) {
+      clearInterval(this.connectionCheckInterval);
+      this.connectionCheckInterval = null;
+    }
     this.ws.disconnect();
+    this.isConnected = false;
   }
 }
 

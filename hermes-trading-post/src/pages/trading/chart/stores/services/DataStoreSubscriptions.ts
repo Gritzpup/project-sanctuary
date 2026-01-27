@@ -47,35 +47,40 @@ export class DataStoreSubscriptions {
       pair,
       granularity,
       (update: WebSocketCandle) => {
-        if (!this.isValidUpdate(update)) {
-          return;
-        }
-
-        // Process full candle updates (time > 0)
-        if (update.time && update.time > 0) {
-          const normalizedTime = this.normalizeTimestamp(update.time);
-
-          // Validate timestamp
-          if (!this.isValidTimestamp(normalizedTime)) {
+        try {
+          if (!this.isValidUpdate(update)) {
             return;
           }
 
-          // Notify callback with processed candle
-          if (onCandleUpdate) {
-            onCandleUpdate({
-              time: normalizedTime,
-              open: update.open,
-              high: update.high,
-              low: update.low,
-              close: update.close,
-              volume: update.volume || 0
-            } as any);
-          }
-        }
+          // Process full candle updates (time > 0)
+          if (update.time && update.time > 0) {
+            const normalizedTime = this.normalizeTimestamp(update.time);
 
-        // Notify callback with ticker update (for real-time price)
-        if (onCandleUpdate) {
-          onCandleUpdate(update as unknown as CandlestickData);
+            // Validate timestamp
+            if (!this.isValidTimestamp(normalizedTime)) {
+              return;
+            }
+
+            // Notify callback with processed candle
+            if (onCandleUpdate) {
+              onCandleUpdate({
+                time: normalizedTime,
+                open: update.open,
+                high: update.high,
+                low: update.low,
+                close: update.close,
+                volume: update.volume || 0
+              } as any);
+            }
+          }
+
+          // Notify callback with ticker update (for real-time price)
+          if (onCandleUpdate) {
+            onCandleUpdate(update as unknown as CandlestickData);
+          }
+        } catch (error) {
+          // Prevent callback errors from breaking subscription
+          console.error('DataStoreSubscriptions: Candle update callback error:', error);
         }
       },
       onReconnect
@@ -101,14 +106,19 @@ export class DataStoreSubscriptions {
 
     this.orderbookPriceUnsubscribe = orderbookStore.subscribeToPriceUpdates(
       (price: number) => {
-        // Log once to confirm price updates are working
-        if (!this.priceUpdateLoggedOnce) {
-          this.priceUpdateLoggedOnce = true;
-        }
+        try {
+          // Log once to confirm price updates are working
+          if (!this.priceUpdateLoggedOnce) {
+            this.priceUpdateLoggedOnce = true;
+          }
 
-        // Notify callback with latest price
-        if (onPriceUpdate) {
-          onPriceUpdate(price);
+          // Notify callback with latest price
+          if (onPriceUpdate) {
+            onPriceUpdate(price);
+          }
+        } catch (error) {
+          // Prevent callback errors from breaking subscription
+          console.error('DataStoreSubscriptions: Price update callback error:', error);
         }
       }
     );

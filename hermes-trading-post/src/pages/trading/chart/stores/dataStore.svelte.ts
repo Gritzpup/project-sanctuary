@@ -41,7 +41,7 @@ class DataStore {
   private newCandleTimeout: NodeJS.Timeout | null = null;
   private l2SubscriptionCheckInterval: NodeJS.Timeout | null = null;  // Track the candle-loading check interval
   private l2SubscriptionCheckRetries: number = 0;  // ✅ FIXED: Track retries to prevent infinite loop
-  private l2SubscriptionCheckMaxRetries: number = 30;  // Max 30 seconds (30 * 1 second) before giving up
+  private l2SubscriptionCheckMaxRetries: number = 5;  // Max 5 seconds before giving up
   private l2NotifyRafId: number | null = null;  // RAF throttle for notifyDataUpdate calls
   private maxCallbacksSize: number = 50; // Max callbacks to prevent memory leaks
 

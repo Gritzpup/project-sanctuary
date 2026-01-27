@@ -24,11 +24,13 @@
   let askSeries: ISeriesApi<'Area'>;
   // WebSocket handled through dataStore instead of separate connection
 
-  // Chart update throttling - interval-based for smooth consistent updates
-  // 250ms = 4 updates/sec - smooth enough for visual representation without freezing
+  // ⚡ PERF FIX #6: RAF-based chart updates instead of setInterval
+  // setInterval fires regardless of frame rate and can cause irregular timing
+  // RAF syncs with browser paint cycle for smoother updates
   const CHART_UPDATE_THROTTLE_MS = 250;
-  let chartUpdateInterval: ReturnType<typeof setInterval> | null = null;
+  let chartUpdateRafId: number | null = null;
   let chartNeedsUpdate = false;
+  let lastChartUpdateTime = 0;
 
   // ⚡ PERFORMANCE FIX: RAF batching for mouse move
   let pendingMouseMove = false;
@@ -59,7 +61,12 @@
   let priceRange = $state({ left: 0, center: 0, right: 0 });
   let mutationObserver: MutationObserver | null = null;
   let wsCheckInterval: ReturnType<typeof setInterval> | null = null;
+  let wsCheckRetryCount = 0;  // ⚡ PERF FIX #11: Track retries to prevent infinite checking
+  const WS_CHECK_MAX_RETRIES = 60;  // 60 * 500ms = 30 seconds max wait
   let watermarkTimeouts: ReturnType<typeof setTimeout>[] = [];  // Track watermark removal timeouts
+
+  // ⚡ PERF FIX #7: WeakMap to track WS handlers for proper cleanup
+  const wsHandlers = new WeakMap<WebSocket, (event: MessageEvent) => void>();
 
   // Update UI when store changes - must dereference values for Svelte 5 reactivity
   $effect(() => {
@@ -142,58 +149,55 @@
     bidSeries = chart.addAreaSeries(BID_SERIES_CONFIG);
     askSeries = chart.addAreaSeries(ASK_SERIES_CONFIG);
 
-    // Remove TradingView watermark aggressively
+    // ⚡ PERF FIX #5: Batch DOM reads to avoid layout thrashing
+    // Original: 600+ reflows from querySelectorAll + getComputedStyle on every element
+    // Fixed: Batch all reads first, then apply all writes together
     const removeTradingViewWatermark = () => {
       const container = chartContainer.querySelector('.tv-lightweight-charts');
-      if (container) {
-        // Hide all absolute positioned elements in bottom corners
-        container.querySelectorAll('div').forEach((div: HTMLElement) => {
-          const style = window.getComputedStyle(div);
-          const rect = div.getBoundingClientRect();
-          const containerRect = container.getBoundingClientRect();
+      if (!container) return;
 
-          // Check if element is in bottom-left corner (where watermark usually is)
+      // PHASE 1: Batch all DOM reads (getBoundingClientRect, getComputedStyle)
+      const containerRect = container.getBoundingClientRect();
+      const divsToRemove: HTMLElement[] = [];
+
+      // Read all divs once, collect candidates for removal
+      const allDivs = Array.from(container.querySelectorAll('div')) as HTMLElement[];
+      for (const div of allDivs) {
+        // Check for common watermark patterns without heavy getComputedStyle calls
+        // Only use getComputedStyle as last resort
+        const hasSvg = div.querySelector('svg') !== null;
+        const hasLink = div.querySelector('a') !== null;
+        const hasTradingText = div.textContent?.toLowerCase().includes('trading');
+        const hasCursorPointer = div.style.cursor === 'pointer';
+
+        if (hasSvg || hasLink || hasTradingText || hasCursorPointer) {
+          const rect = div.getBoundingClientRect();
           const isBottomLeft = rect.bottom >= containerRect.bottom - 50 &&
                                rect.left <= containerRect.left + 100;
-
-          // Check for watermark characteristics
-          const hasWatermarkStyle = style.position === 'absolute' ||
-                                   style.cursor === 'pointer' ||
-                                   div.querySelector('svg') ||
-                                   div.querySelector('a') ||
-                                   (div.textContent && div.textContent.toLowerCase().includes('trading'));
-
-          if (isBottomLeft && hasWatermarkStyle) {
-            div.style.display = 'none';
-            div.style.visibility = 'hidden';
-            div.style.opacity = '0';
-            div.remove(); // Remove it entirely
+          if (isBottomLeft) {
+            divsToRemove.push(div);
           }
-        });
+        }
+      }
 
-        // Also target specific selectors
-        const selectors = [
-          'div[style*="cursor: pointer"]',
-          'a[href*="tradingview"]',
-          'div:last-child[style*="position: absolute"]',
-          'div[style*="bottom"][style*="left"]'
-        ];
+      // Also check specific selectors (these are cheap queries)
+      const selectors = [
+        'a[href*="tradingview"]',
+        'div:last-child[style*="position: absolute"]'
+      ];
+      for (const selector of selectors) {
+        const elements = container.querySelectorAll(selector);
+        elements.forEach(el => divsToRemove.push(el as HTMLElement));
+      }
 
-        selectors.forEach(selector => {
-          container.querySelectorAll(selector).forEach(el => {
-            const htmlEl = el as HTMLElement;
-            htmlEl.style.display = 'none';
-            htmlEl.style.visibility = 'hidden';
-            htmlEl.remove();
-          });
-        });
+      // PHASE 2: Batch all DOM writes (removal)
+      for (const div of divsToRemove) {
+        div.remove();
       }
     };
 
-    // Run multiple times to catch any delayed rendering - store IDs for cleanup
-    watermarkTimeouts.push(setTimeout(removeTradingViewWatermark, 100));
+    // Run once after chart renders (sufficient for watermark removal)
     watermarkTimeouts.push(setTimeout(removeTradingViewWatermark, 500));
-    watermarkTimeouts.push(setTimeout(removeTradingViewWatermark, 1000));
 
     // ⚡ PERFORMANCE FIX: Disabled MutationObserver - it was causing severe lag
     // MutationObserver fired on EVERY DOM change (chart updates constantly)
@@ -221,8 +225,23 @@
     }
   }
 
+  // ⚡ PERF FIX #11: Add max retry count to prevent indefinite polling
   function watchWebSocketAvailability() {
+    wsCheckRetryCount = 0;  // Reset counter
+
     wsCheckInterval = setInterval(() => {
+      wsCheckRetryCount++;
+
+      // Stop checking after max retries (30 seconds)
+      if (wsCheckRetryCount >= WS_CHECK_MAX_RETRIES) {
+        if (wsCheckInterval) {
+          clearInterval(wsCheckInterval);
+          wsCheckInterval = null;
+        }
+        console.warn('[DepthChart] WebSocket availability check timed out after 30 seconds');
+        return;
+      }
+
       const ws = dataStore.getWebSocket();
       if (ws && ws.readyState === WebSocket.OPEN) {
         if (wsCheckInterval) {
@@ -242,7 +261,14 @@
     }, 500); // Check every 500ms
   }
 
+  // ⚡ PERF FIX #7: Use WeakMap to track handlers, prevent leaks on WS instance changes
   function attachWebSocketListener(ws: WebSocket) {
+    // Remove existing handler if any (prevents duplicates)
+    const existingHandler = wsHandlers.get(ws);
+    if (existingHandler) {
+      ws.removeEventListener('message', existingHandler);
+    }
+
     const handler = (event: MessageEvent) => {
       try {
         const message = JSON.parse(event.data);
@@ -260,7 +286,8 @@
       }
     };
 
-    (ws as any).__depthChartHandler = handler;
+    // Store in WeakMap for proper cleanup
+    wsHandlers.set(ws, handler);
     ws.addEventListener('message', handler);
   }
 
@@ -461,21 +488,30 @@
     chartNeedsUpdate = true;
   }
 
+  // ⚡ PERF FIX #6: RAF-based update loop with throttling
   function startChartUpdateInterval() {
-    if (chartUpdateInterval) return;
+    if (chartUpdateRafId) return;
 
-    chartUpdateInterval = setInterval(() => {
+    const rafLoop = (timestamp: number) => {
+      // Only update if enough time has passed (throttle to ~4fps)
       if (chartNeedsUpdate && chart && bidSeries && askSeries) {
-        updateChart();
-        chartNeedsUpdate = false;
+        if (timestamp - lastChartUpdateTime >= CHART_UPDATE_THROTTLE_MS) {
+          updateChart();
+          chartNeedsUpdate = false;
+          lastChartUpdateTime = timestamp;
+        }
       }
-    }, CHART_UPDATE_THROTTLE_MS);
+      // Continue RAF loop
+      chartUpdateRafId = requestAnimationFrame(rafLoop);
+    };
+
+    chartUpdateRafId = requestAnimationFrame(rafLoop);
   }
 
   function stopChartUpdateInterval() {
-    if (chartUpdateInterval) {
-      clearInterval(chartUpdateInterval);
-      chartUpdateInterval = null;
+    if (chartUpdateRafId) {
+      cancelAnimationFrame(chartUpdateRafId);
+      chartUpdateRafId = null;
     }
   }
 
@@ -687,11 +723,14 @@
     // Clean up chart update interval
     stopChartUpdateInterval();
 
-    // Clean up WebSocket event listener
+    // ⚡ PERF FIX #7: Clean up WebSocket event listener using WeakMap
     const ws = dataStore.getWebSocket();
-    if (ws && (ws as any).__depthChartHandler) {
-      ws.removeEventListener('message', (ws as any).__depthChartHandler);
-      delete (ws as any).__depthChartHandler;
+    if (ws) {
+      const handler = wsHandlers.get(ws);
+      if (handler) {
+        ws.removeEventListener('message', handler);
+        wsHandlers.delete(ws);
+      }
     }
 
     // Clean up WebSocket check interval

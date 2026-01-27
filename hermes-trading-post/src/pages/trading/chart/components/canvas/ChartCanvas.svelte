@@ -154,27 +154,29 @@
     // Without this, the chart would maintain the previous zoom level (e.g., 39 candles)
     interactionTracker?.resetInteractionState();
 
-    // ⚡ FIX: Wait for sufficient candles before positioning (retry up to 3 seconds)
+    // ⚡ FIX: Wait for sufficient candles before positioning (retry up to 1 second)
     // This fixes race condition where chart shows only 2 candles on refresh
     const MIN_CANDLES = 10;
-    const MAX_WAIT_MS = 3000;
+    const MAX_WAIT_MS = 1000;  // Reduced from 3s to 1s
     const CHECK_INTERVAL_MS = 200;
     let waited = 0;
 
     const checkAndPosition = () => {
       if (dataStore.candles.length >= MIN_CANDLES) {
+        positioningTimeout = null;
         positioningService?.showNCandles(dataStore.candles.length, 60);
       } else if (waited < MAX_WAIT_MS) {
         waited += CHECK_INTERVAL_MS;
-        setTimeout(checkAndPosition, CHECK_INTERVAL_MS);
+        positioningTimeout = setTimeout(checkAndPosition, CHECK_INTERVAL_MS);
       } else {
-        // Fallback: position with whatever we have after 3 seconds
+        // Fallback: position with whatever we have after timeout
+        positioningTimeout = null;
         if (dataStore.candles.length > 0) {
           positioningService?.showNCandles(dataStore.candles.length, 60);
         }
       }
     };
-    setTimeout(checkAndPosition, CHECK_INTERVAL_MS);
+    positioningTimeout = setTimeout(checkAndPosition, CHECK_INTERVAL_MS);
 
     // Notify parent component chart is ready
     if (onChartReady) {
@@ -356,15 +358,21 @@
 
     // 🔧 FIX: Recalculate bar spacing after granularity change
     // This ensures candles fill the chart width properly
+    // ⚡ CRITICAL FIX: Use expectedCandles instead of totalCandles for positioning
+    // This prevents the chart from showing wrong candle count when real-time updates arrive
     const config = chartStore.config;
     const expectedCandles = getCandleCount(config.granularity, config.timeframe);
     const totalCandles = dataStore.candles.length;
 
     if (positioningService && totalCandles > 0 && expectedCandles > 0) {
-      // Use setTimeout to ensure chart has rendered the new data first
+      // Use setTimeout with longer delay to ensure chart has rendered new data AND
+      // subscriptions haven't restarted yet. The coordination layer restarts subscriptions
+      // at 200ms, so we position at 100ms to be after data is rendered but before subscriptions
       setTimeout(() => {
-        positioningService.showNCandles(totalCandles, expectedCandles);
-      }, 50);
+        // Use expectedCandles for positioning to lock the view to the correct timeframe
+        // This prevents real-time updates from causing the display to jump to wrong candle count
+        positioningService.showNCandles(expectedCandles, expectedCandles);
+      }, 100);
     }
   }
 </script>

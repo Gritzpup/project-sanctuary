@@ -135,8 +135,8 @@ export class ChartReadinessOrchestrator {
         }
       };
 
-      // Start checking after plugins are registered (1500ms minimum)
-      setTimeout(checkDataReady, 1500);
+      // Start checking after plugins are registered (reduced from 1500ms)
+      setTimeout(checkDataReady, 300);
     });
   }
 

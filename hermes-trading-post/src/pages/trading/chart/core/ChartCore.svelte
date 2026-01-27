@@ -134,7 +134,18 @@
         if (granularity !== previousTrackedGranularity) {
           ChartDebug.log(`⏱️ Granularity prop changed: ${previousTrackedGranularity} → ${granularity}`);
           previousTrackedGranularity = granularity;
-          timeframeCoordinator.onGranularityChange(granularity, chartCanvas?.getSeries() || null, pluginManager);
+
+          // Use async IIFE to properly await and then reset display
+          (async () => {
+            await timeframeCoordinator.onGranularityChange(granularity, chartCanvas?.getSeries() || null, pluginManager);
+            // Reset display after data loads to ensure chart shows new granularity data
+            createTimeout(() => {
+              if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
+                ChartDebug.log(`📊 Resetting display after granularity change to ${granularity}`);
+                chartCanvas.resetAndUpdateDisplay(pluginManager);
+              }
+            }, 150);
+          })();
         }
 
         if (period !== previousTrackedPeriod) {
@@ -465,7 +476,7 @@
         } else {
         }
       }
-    }, 700); // Wait for data load and positioning to complete (1500ms max + buffer)
+    }, 150); // Reduced from 700ms - data load is faster now
   }
 </script>
 

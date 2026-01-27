@@ -18,13 +18,6 @@ app.use(express.json());
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
-// Track WebSocket client connections
-wss.on('connection', (ws) => {
-
-  ws.on('close', () => {
-  });
-});
-
 const botManager = new BotManager();
 
 // Store all connected WebSocket clients for broadcasting
@@ -173,11 +166,12 @@ wss.on('connection', (ws) => {
           break;
 
         case 'selectBot':
-          console.log('[Backend] SelectBot command received:', message.botId);
+          // 🔇 SILENCED: Too spammy - fires constantly from frontend polling
+          // console.log('[Backend] SelectBot command received:', message.botId);
           if (message.botId) {
             try {
               botManager.selectBot(message.botId);
-              console.log('[Backend] Bot selected, activeBotId now:', botManager.activeBotId);
+              // console.log('[Backend] Bot selected, activeBotId now:', botManager.activeBotId);
               // Send manager state first
               ws.send(JSON.stringify({
                 type: 'managerState',
@@ -187,7 +181,7 @@ wss.on('connection', (ws) => {
               const selectedBot = botManager.getActiveBot();
               if (selectedBot) {
                 const status = selectedBot.getStatus();
-                console.log('[Backend] Sending selected bot status, isRunning:', status.isRunning);
+                // console.log('[Backend] Sending selected bot status, isRunning:', status.isRunning);
                 ws.send(JSON.stringify({
                   type: 'status',
                   data: status
@@ -457,7 +451,7 @@ app.post('/api/bots/resume', (req, res) => {
 })();
 
 // Broadcast bot status updates every 2 seconds
-setInterval(() => {
+const broadcastStatusInterval = setInterval(() => {
   if (wsClients.size > 0) {
     const activeBot = botManager.getActiveBot();
     if (activeBot && activeBot.isRunning) {
@@ -478,6 +472,9 @@ server.listen(PORT, HOST, () => {
 const gracefulShutdown = async (signal) => {
 
   try {
+    // Clear the broadcast status interval
+    clearInterval(broadcastStatusInterval);
+
     // Stop all bots
     for (const bot of botManager.bots.values()) {
       if (bot.isRunning) {

@@ -1,7 +1,8 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { fly } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
-  
+
   export let currentPrice: number = 0;
   export let priceChange24h: number = 0;
   export let priceChangePercent24h: number = 0;
@@ -83,6 +84,13 @@
     maximumFractionDigits: 2 
   });
   $: priceChars = formattedPriceString.split('');
+
+  onDestroy(() => {
+    if (directionTimeout) {
+      clearTimeout(directionTimeout);
+      directionTimeout = null;
+    }
+  });
 </script>
 
 <div class="bitcoin-price">

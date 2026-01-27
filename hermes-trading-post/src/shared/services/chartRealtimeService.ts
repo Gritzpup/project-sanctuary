@@ -162,6 +162,7 @@ export class ChartRealtimeService {
   /**
    * Add message to batch for a subscription
    * Process batch when: (1) 50 messages accumulated OR (2) 100ms elapsed
+   * ⚡ PERF FIX #12: Added max batch size to prevent memory spikes during heavy trading
    */
   private addMessageToBatch(subscriptionKey: string, message: WebSocketCandle) {
     // Get or create batch for this subscription
@@ -169,6 +170,13 @@ export class ChartRealtimeService {
     if (!batch) {
       batch = { messages: [], rafId: null };
       this.messageBatchers.set(subscriptionKey, batch);
+    }
+
+    // ⚡ PERF FIX #12: Limit batch size to prevent memory spikes
+    // Drop oldest messages when batch exceeds limit
+    if (batch.messages.length >= this.BATCH_MAX_MESSAGES * 2) {
+      // Batch grew too large (e.g., during heavy trading), drop oldest half
+      batch.messages = batch.messages.slice(-this.BATCH_MAX_MESSAGES);
     }
 
     batch.messages.push(message);

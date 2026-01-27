@@ -191,6 +191,10 @@ export class CoinbaseWebSocketClient extends EventEmitter {
         // This endpoint supports Level2 channel with JWT authentication using CDP keys
         this.ws = new WebSocket('wss://advanced-trade-ws.coinbase.com');
 
+        // 🔥 MEMORY LEAK FIX: Remove old listeners before adding new ones
+        // This prevents listener accumulation during reconnection cycles
+        this.ws.removeAllListeners();
+
         this.ws.on('open', () => {
           clearTimeout(connectionTimeout);
           this.isConnected = true;
@@ -286,6 +290,10 @@ export class CoinbaseWebSocketClient extends EventEmitter {
       try {
         // Connect to Coinbase Exchange API WebSocket (public API for level2)
         this.exchangeWs = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+
+        // 🔥 MEMORY LEAK FIX: Remove old listeners before adding new ones
+        // This prevents listener accumulation during reconnection cycles
+        this.exchangeWs.removeAllListeners();
 
         this.exchangeWs.on('open', () => {
           clearTimeout(connectionTimeout);

@@ -257,11 +257,12 @@ export class ChartTimeframeCoordinator {
       }
 
       // Step 4: Refresh all plugins after a delay (including volume candles for new granularity)
+      // ⚡ PERF: Reduced delay from 500ms to 100ms for faster granularity switching
       if (pluginManager && typeof (pluginManager as any).refreshAll === 'function') {
         setTimeout(() => {
           ChartDebug.log(`🔄 Refreshing all plugins (volume candles for ${granularity})...`);
-          (pluginManager as any).refreshAll(500);
-        }, 500);
+          (pluginManager as any).refreshAll(100);
+        }, 100);
       }
 
       // Step 5: Fit chart to show all candles after positioning
@@ -286,6 +287,7 @@ export class ChartTimeframeCoordinator {
       }
 
       // Step 6: Resubscribe to real-time after positioning completes
+      // ⚡ PERF: Reduced delay from 600ms to 200ms for faster granularity switching
       if (this.subscriptionOrchestrator && chartSeries) {
         setTimeout(() => {
           this.subscriptionOrchestrator?.subscribeAfterPositioning(
@@ -296,7 +298,7 @@ export class ChartTimeframeCoordinator {
             chartSeries,
             pluginManager
           );
-        }, 600);
+        }, 200);
       }
 
       statusStore.setReady();

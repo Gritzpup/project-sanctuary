@@ -175,7 +175,8 @@ export default function tradingRoutes(botManager) {
     try {
       const { pair = 'BTC-USD', granularity = '1m', startTime, endTime, maxCandles = 1000 } = req.query;
 
-      console.log(`[Backend] /chart-data request: pair=${pair}, granularity=${granularity}, maxCandles=${maxCandles}, startTime=${startTime}, endTime=${endTime}`);
+      // 🔇 SILENCED: Too spammy - fires on every chart view/refresh
+      // console.log(`[Backend] /chart-data request: pair=${pair}, granularity=${granularity}, maxCandles=${maxCandles}, startTime=${startTime}, endTime=${endTime}`);
 
       const now = Math.floor(Date.now() / 1000);
       const calculatedEndTime = endTime ? parseInt(endTime) : now;
@@ -187,6 +188,7 @@ export default function tradingRoutes(botManager) {
         '15m': 900,
         '30m': 1800,
         '1h': 3600,
+        '2h': 7200,
         '4h': 14400,
         '6h': 21600,
         '12h': 43200,
@@ -200,21 +202,54 @@ export default function tradingRoutes(botManager) {
       // 🚀 PERF: Parallelize both getCandles and getMetadata calls
       // Before: Sequential calls = 2.5 seconds total (lock wait + scanning)
       // After: Parallel calls = 1.2 seconds total (both run concurrently)
-      const [allCandles, metadata] = await Promise.all([
+      let [allCandles, metadata] = await Promise.all([
         redisCandleStorage.getCandles(pair, granularity, calculatedStartTime, calculatedEndTime),
         redisCandleStorage.getMetadata(pair, granularity)
       ]);
 
-      // Limit results to maxCandles (keep most recent)
+      // 🚀 FALLBACK: If Redis has fewer candles than expected, supplement from Coinbase API
       const maxCandlesInt = parseInt(maxCandles);
+      const expectedCandles = Math.ceil((calculatedEndTime - calculatedStartTime) / granularitySeconds);
+      const redisCount = allCandles.length;
+
+      if (redisCount < expectedCandles && redisCount < maxCandlesInt) {
+        const oldestRedisTime = allCandles[0]?.time || calculatedEndTime;
+        const missingEndTime = oldestRedisTime - granularitySeconds;
+
+        if (missingEndTime >= calculatedStartTime) {
+          try {
+            const coinbaseUrl = `https://api.exchange.coinbase.com/products/${pair}/candles?start=${calculatedStartTime}&end=${missingEndTime}&granularity=${granularitySeconds}`;
+            const coinbaseResponse = await fetch(coinbaseUrl);
+            const coinbaseData = await coinbaseResponse.json();
+
+            if (Array.isArray(coinbaseData) && coinbaseData.length > 0) {
+              const coinbaseCandles = coinbaseData.map(([time, low, high, open, close, volume]) => ({
+                time: Math.floor(time),
+                open: parseFloat(open),
+                high: parseFloat(high),
+                low: parseFloat(low),
+                close: parseFloat(close),
+                volume: parseFloat(volume)
+              })).sort((a, b) => a.time - b.time);
+
+              allCandles = [...coinbaseCandles, ...allCandles];
+              console.log(`[Backend] Supplemented with ${coinbaseCandles.length} Coinbase candles (Redis had ${redisCount}/${expectedCandles} expected)`);
+            }
+          } catch (err) {
+            console.warn(`[Backend] Coinbase supplement failed: ${err.message}`);
+          }
+        }
+      }
+
+      // Limit results to maxCandles (keep most recent)
       const candles = allCandles.length > maxCandlesInt ?
         allCandles.slice(-maxCandlesInt) :
         allCandles;
 
-      console.log(`[Backend] /chart-data response: returning ${candles.length} candles (fetched ${allCandles.length} total, limit was ${maxCandlesInt})`);
+      // 🔇 SILENCED: Too spammy - fires on every chart view/refresh
+      // console.log(`[Backend] /chart-data response: returning ${candles.length} candles (fetched ${allCandles.length} total, limit was ${maxCandlesInt})`);
 
-      // Calculate cache metrics
-      const expectedCandles = Math.ceil((calculatedEndTime - calculatedStartTime) / granularitySeconds);
+      // Calculate cache metrics (expectedCandles already calculated above for Coinbase fallback)
       const cacheHitRatio = expectedCandles > 0 ? candles.length / expectedCandles : 0;
 
       res.json({

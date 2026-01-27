@@ -2,13 +2,86 @@
   "isRunning": true,
   "isPaused": false,
   "balance": {
-    "usd": 13912.774655482126,
-    "btc": -0.0437760399896084,
+    "usd": 4359.689335565365,
+    "btc": 0.06381369153725622,
     "vault": 313.9911910212668,
     "btcVault": 0.0011484811473352883
   },
-  "currentPrice": 93566.1,
-  "positions": [],
+  "currentPrice": 88630.7,
+  "positions": [
+    {
+      "id": 1769291984646,
+      "entryPrice": 89251.96,
+      "size": 0.004676460210671717,
+      "timestamp": 1769291984646,
+      "type": "buy",
+      "reason": "Opening initial position immediately (startup)"
+    },
+    {
+      "id": 1769294609656,
+      "entryPrice": 89176.38,
+      "size": 0.006810016438341574,
+      "timestamp": 1769294609656,
+      "type": "buy",
+      "reason": "Drop level 2 reached: 0.20%"
+    },
+    {
+      "id": 1769294609656,
+      "entryPrice": 89176.38,
+      "size": 0.006810016438341574,
+      "timestamp": 1769294609656,
+      "type": "buy",
+      "reason": "Drop level 2 reached: 0.20%"
+    },
+    {
+      "id": 1769304809511,
+      "entryPrice": 88974.5,
+      "size": 0.014666224634172926,
+      "timestamp": 1769304809511,
+      "type": "buy",
+      "reason": "Drop level 4 reached: 0.43%"
+    },
+    {
+      "id": 1769304809511,
+      "entryPrice": 88974.5,
+      "size": 0.014666224634172926,
+      "timestamp": 1769304809511,
+      "type": "buy",
+      "reason": "Drop level 4 reached: 0.43%"
+    },
+    {
+      "id": 1769311828079,
+      "entryPrice": 88821.5,
+      "size": 0.029708943442846893,
+      "timestamp": 1769311828079,
+      "type": "buy",
+      "reason": "Drop level 6 reached: 0.60%"
+    },
+    {
+      "id": 1769311828079,
+      "entryPrice": 88821.5,
+      "size": 0.029708943442846893,
+      "timestamp": 1769311828079,
+      "type": "buy",
+      "reason": "Drop level 6 reached: 0.60%"
+    },
+    {
+      "id": 1769321221753,
+      "entryPrice": 88630.7,
+      "size": 0.05172808680083151,
+      "timestamp": 1769321221753,
+      "type": "buy",
+      "reason": "Drop level 8 reached: 0.81%"
+    },
+    {
+      "id": 1769321221753,
+      "entryPrice": 88630.7,
+      "size": 0.05172808680083151,
+      "timestamp": 1769321221753,
+      "type": "buy",
+      "reason": "Drop level 8 reached: 0.81%"
+    }
+  ],
   "trades": [
     {
       "id": 1766935811880,
@@ -776,22 +849,77 @@
       "profit": 1.2580791014824528,
       "costBasis": 416.8249405537208,
       "positionId": 1767745957239
+    },
+    {
+      "id": 1769291984646,
+      "timestamp": 1769291984646,
+      "botId": "reverse-descending-grid-bot-2",
+      "side": "buy",
+      "amount": 0.004676460210671717,
+      "price": 89251.96,
+      "value": 417.3832396644637,
+      "fees": 0.4173832396644637,
+      "reason": "Opening initial position immediately (startup)"
+    },
+    {
+      "id": 1769294609658,
+      "timestamp": 1769294609658,
+      "botId": "reverse-descending-grid-bot-2",
+      "side": "buy",
+      "amount": 0.006810016438341574,
+      "price": 89176.38,
+      "value": 607.2926137117948,
+      "fees": 0.6072926137117949,
+      "reason": "Drop level 2 reached: 0.20%"
+    },
+    {
+      "id": 1769304809512,
+      "timestamp": 1769304809512,
+      "botId": "reverse-descending-grid-bot-2",
+      "side": "buy",
+      "amount": 0.014666224634172926,
+      "price": 88974.5,
+      "value": 1304.920003713219,
+      "fees": 1.3049200037132191,
+      "reason": "Drop level 4 reached: 0.43%"
+    },
+    {
+      "id": 1769311828082,
+      "timestamp": 1769311828082,
+      "botId": "reverse-descending-grid-bot-2",
+      "side": "buy",
+      "amount": 0.029708943442846893,
+      "price": 88821.5,
+      "value": 2638.792920008825,
+      "fees": 2.638792920008825,
+      "reason": "Drop level 6 reached: 0.60%"
+    },
+    {
+      "id": 1769321221754,
+      "timestamp": 1769321221754,
+      "botId": "reverse-descending-grid-bot-2",
+      "side": "buy",
+      "amount": 0.05172808680083151,
+      "price": 88630.7,
+      "value": 4584.696542818458,
+      "fees": 4.584696542818458,
+      "reason": "Drop level 8 reached: 0.81%"
     }
   ],
   "selectedStrategyType": "reverse-descending-grid",
-  "positionCount": 0,
-  "totalValue": 9816.821320210427,
-  "totalFees": 13.476782113925344,
+  "positionCount": 9,
+  "totalValue": 10015.54148609646,
+  "totalFees": 0,
   "totalRebates": 0,
   "totalReturn": 523.3186517021114,
-  "totalRebalance": 18.609970358101492,
+  "totalRebalance": 0,
   "winRate": 100,
   "vaultBalance": 313.9911910212668,
   "btcVaultBalance": 0.0011484811473352883,
   "recentHigh": 93568.84,
   "nextBuyDistance": 0,
-  "nextSellDistance": null,
-  "nextBuyPrice": 93325.71087000001,
-  "nextSellPrice": null,
-  "lastSaved": 1768320056481
+  "nextSellDistance": 0,
+  "nextBuyPrice": 92633.1516,
+  "nextSellPrice": 89384.06095,
+  "lastSaved": 1769527815662
 }

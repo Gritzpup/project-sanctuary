@@ -12,8 +12,55 @@ export class EventBus {
   private onceListeners: Map<string, Set<EventListener>> = new Map();
   private eventHistory: Map<string, any[]> = new Map();
   private maxHistorySize = 100;
+  private readonly HISTORY_CLEANUP_INTERVAL = 60000;  // ⚡ PERF FIX #8: Cleanup every 60 seconds
+  private readonly HISTORY_STALE_THRESHOLD = 300000;  // Events older than 5 minutes considered stale
+  private historyCleanupTimer: NodeJS.Timeout | null = null;
 
-  private constructor() {}
+  private constructor() {
+    // ⚡ PERF FIX #8: Start periodic history cleanup
+    this.startHistoryCleanup();
+  }
+
+  /**
+   * ⚡ PERF FIX #8: Periodic cleanup of stale event history entries
+   * Prevents slow memory growth over long sessions
+   */
+  private startHistoryCleanup(): void {
+    if (this.historyCleanupTimer) return;
+
+    this.historyCleanupTimer = setInterval(() => {
+      this.cleanupStaleHistory();
+    }, this.HISTORY_CLEANUP_INTERVAL);
+  }
+
+  /**
+   * Remove event history entries that have no recent activity
+   */
+  private cleanupStaleHistory(): void {
+    const now = Date.now();
+    const eventNamesToRemove: string[] = [];
+
+    this.eventHistory.forEach((history, eventName) => {
+      // Remove if no listeners and history is empty or stale
+      const hasListeners = this.listeners.has(eventName) || this.onceListeners.has(eventName);
+
+      if (!hasListeners) {
+        // Check if all entries are stale
+        const hasRecentActivity = history.some(
+          entry => entry.timestamp && (now - entry.timestamp) < this.HISTORY_STALE_THRESHOLD
+        );
+
+        if (!hasRecentActivity) {
+          eventNamesToRemove.push(eventName);
+        }
+      }
+    });
+
+    // Remove stale entries
+    for (const eventName of eventNamesToRemove) {
+      this.eventHistory.delete(eventName);
+    }
+  }
 
   public static getInstance(): EventBus {
     if (!EventBus.instance) {

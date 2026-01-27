@@ -256,13 +256,14 @@ class OrderbookStore {
     }
 
     // Cache sorted arrays from SortedOrderbookLevels for fast access
-    // Always update on snapshot to ensure fresh data even if unchanged
-    if (!this.isReady || bidsChanged || true) { // Always update for snapshots
+    // ⚡ PERF FIX: Removed || true - only update when data actually changed
+    // This eliminates unnecessary depth chart recalculations every 250ms
+    if (!this.isReady || bidsChanged) {
       this._sortedBids = this.bids.getAll();
       this._lastBidVersion++;
     }
 
-    if (!this.isReady || asksChanged || true) { // Always update for snapshots
+    if (!this.isReady || asksChanged) {
       this._sortedAsks = this.asks.getAll();
       this._lastAskVersion++;
     }
@@ -386,13 +387,20 @@ class OrderbookStore {
       }
     });
 
-    // Also cleanup levels that have drifted beyond our depth limit
+    // ⚡ PERF FIX #10: Optimized cleanup - only scan edges of sorted arrays
+    // Since bids are sorted descending and asks ascending, levels outside range are at the ends
+    // This reduces O(n) full scan to O(k) where k is the number of out-of-range levels
     if (midPrice > 0) {
-      // Clean up bids that are now too far
+      // Clean up bids that are now too far (sorted descending: highest first)
+      // Out-of-range bids (price < minPrice) are at the END of the array
+      const bidsArray = this.bids.getAll();
       const bidsToRemove: number[] = [];
-      for (const [price] of this.bids.getAll()) {
+      for (let i = bidsArray.length - 1; i >= 0; i--) {
+        const price = bidsArray[i][0];
         if (price < minPrice) {
           bidsToRemove.push(price);
+        } else {
+          break;  // Stop early - remaining bids are within range
         }
       }
       for (const price of bidsToRemove) {
@@ -402,11 +410,16 @@ class OrderbookStore {
         }
       }
 
-      // Clean up asks that are now too far
+      // Clean up asks that are now too far (sorted ascending: lowest first)
+      // Out-of-range asks (price > maxPrice) are at the END of the array
+      const asksArray = this.asks.getAll();
       const asksToRemove: number[] = [];
-      for (const [price] of this.asks.getAll()) {
+      for (let i = asksArray.length - 1; i >= 0; i--) {
+        const price = asksArray[i][0];
         if (price > maxPrice) {
           asksToRemove.push(price);
+        } else {
+          break;  // Stop early - remaining asks are within range
         }
       }
       for (const price of asksToRemove) {

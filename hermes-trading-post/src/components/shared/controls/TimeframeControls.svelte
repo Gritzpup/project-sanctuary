@@ -28,23 +28,7 @@
     granularityChange: { granularity: string };
   }>();
 
-  let isDebouncing = false;
-  let debounceTimer: number | null = null;
-
   function handleTimeframeChange(timeframe: string) {
-
-    // Prevent multiple rapid clicks - debounce
-    if (isDebouncing) {
-      return;
-    }
-
-    isDebouncing = true;
-
-    // Clear existing timer if any
-    if (debounceTimer !== null) {
-      clearTimeout(debounceTimer);
-    }
-
     dispatch('timeframeChange', { timeframe });
 
     // If granularity checker provided, check compatibility
@@ -54,12 +38,6 @@
         dispatch('granularityChange', { granularity: bestGranularity });
       }
     }
-
-    // Reset debounce after configured delay
-    debounceTimer = window.setTimeout(() => {
-      isDebouncing = false;
-      debounceTimer = null;
-    }, debounceMs);
   }
 
   function getButtonLabel(timeframe: string): string {

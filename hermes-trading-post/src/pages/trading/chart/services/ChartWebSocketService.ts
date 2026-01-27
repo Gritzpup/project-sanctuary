@@ -36,6 +36,7 @@ export class ChartWebSocketService {
   private onReconnectCallback: ReconnectCallback | null = null;
   private debug: boolean;
   private isIntentionallyClosed: boolean = false;
+  private pendingRafIds: Set<number> = new Set();  // Track pending RAF callbacks
 
   constructor(config: WebSocketConfig) {
     this.wsUrl = config.url;
@@ -78,7 +79,12 @@ export class ChartWebSocketService {
       this.ws.onopen = () => this.handleOpen();
       this.ws.onmessage = (event) => {
         // Use requestAnimationFrame to prevent blocking the main thread
-        requestAnimationFrame(() => this.handleMessage(event));
+        // Track RAF ID for cleanup on close
+        const rafId = requestAnimationFrame(() => {
+          this.pendingRafIds.delete(rafId);
+          this.handleMessage(event);
+        });
+        this.pendingRafIds.add(rafId);
       };
       this.ws.onerror = (error) => this.handleError(error);
       this.ws.onclose = (event) => this.handleClose(event);
@@ -240,6 +246,10 @@ export class ChartWebSocketService {
     if (this.debug) {
       ChartDebug.log(`WebSocket closed: code=${event.code}, reason=${event.reason}`);
     }
+
+    // Cancel all pending RAF callbacks to prevent memory leaks
+    this.pendingRafIds.forEach(rafId => cancelAnimationFrame(rafId));
+    this.pendingRafIds.clear();
 
     this.ws = null;
 

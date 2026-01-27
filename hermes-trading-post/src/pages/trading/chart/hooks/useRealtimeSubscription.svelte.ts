@@ -219,11 +219,14 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       } as any;
 
       try {
-        chartDirtyFlagSystem.markPriceCandleIfChanged(syncCandle);
-        chartSeries.update(syncCandle);
+        // ⚡ PERF FIX #9: Skip update if dirty flag system indicates no change
+        const priceChanged = chartDirtyFlagSystem.markPriceCandleIfChanged(syncCandle);
+        if (priceChanged) {
+          chartSeries.update(syncCandle);
 
-        // 🔧 FIX: Force re-enable autoScale after sync updates
-        chartSeries.priceScale().applyOptions({ autoScale: true });
+          // 🔧 FIX: Force re-enable autoScale after sync updates
+          chartSeries.priceScale().applyOptions({ autoScale: true });
+        }
 
         // Update volume if available
         if (volumeSeries && syncCandle.volume) {
@@ -232,8 +235,10 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
             value: (syncCandle as any).volume * 1000,
             color: '#8884d8CC'
           };
-          chartDirtyFlagSystem.markVolumeIfChanged(volumeData);
-          volumeSeries.update(volumeData);
+          const volumeChanged = chartDirtyFlagSystem.markVolumeIfChanged(volumeData);
+          if (volumeChanged) {
+            volumeSeries.update(volumeData);
+          }
         }
       } catch (error) {
         // Silently handle chart update errors
@@ -256,11 +261,14 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       } as any;
 
       try {
-        chartDirtyFlagSystem.markPriceCandleIfChanged(completeCandle);
-        chartSeries.update(completeCandle);
+        // ⚡ PERF FIX #9: Skip update if dirty flag system indicates no change
+        const priceChanged = chartDirtyFlagSystem.markPriceCandleIfChanged(completeCandle);
+        if (priceChanged) {
+          chartSeries.update(completeCandle);
 
-        // 🔧 FIX: Force re-enable autoScale after complete candle updates
-        chartSeries.priceScale().applyOptions({ autoScale: true });
+          // 🔧 FIX: Force re-enable autoScale after complete candle updates
+          chartSeries.priceScale().applyOptions({ autoScale: true });
+        }
 
         // Update volume
         if (volumeSeries && completeCandle.volume) {
@@ -271,11 +279,13 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
             value: (completeCandle as any).volume * 1000,
             color: completeCandle.close >= prevClose ? '#26a69aCC' : '#ef5350CC'
           };
-          chartDirtyFlagSystem.markVolumeIfChanged(volumeData);
-          volumeSeries.update(volumeData);
+          const volumeChanged = chartDirtyFlagSystem.markVolumeIfChanged(volumeData);
+          if (volumeChanged) {
+            volumeSeries.update(volumeData);
+          }
         }
 
-        // Notify about new candle
+        // Notify about new candle (always notify for complete candles)
         if (onNewCandle) {
           onNewCandle(completeCandle);
         }
@@ -302,11 +312,14 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       } as any;
 
       try {
-        chartDirtyFlagSystem.markPriceCandleIfChanged(updateCandle);
-        chartSeries.update(updateCandle);
+        // ⚡ PERF FIX #9: Skip update if dirty flag system indicates no change
+        const priceChanged = chartDirtyFlagSystem.markPriceCandleIfChanged(updateCandle);
+        if (priceChanged) {
+          chartSeries.update(updateCandle);
 
-        // 🔧 FIX: Force re-enable autoScale after incomplete candle updates
-        chartSeries.priceScale().applyOptions({ autoScale: true });
+          // 🔧 FIX: Force re-enable autoScale after incomplete candle updates
+          chartSeries.priceScale().applyOptions({ autoScale: true });
+        }
 
         // Update volume
         if (volumeSeries && updateCandle.volume) {
@@ -317,8 +330,10 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
             value: (updateCandle as any).volume * 1000,
             color: updateCandle.close >= prevClose ? '#26a69aCC' : '#ef5350CC'
           };
-          chartDirtyFlagSystem.markVolumeIfChanged(volumeData);
-          volumeSeries.update(volumeData);
+          const volumeChanged = chartDirtyFlagSystem.markVolumeIfChanged(volumeData);
+          if (volumeChanged) {
+            volumeSeries.update(volumeData);
+          }
         }
 
         statusStore.setPriceUpdate();
@@ -378,12 +393,15 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     } as any;
 
     try {
-      chartDirtyFlagSystem.markPriceCandleIfChanged(updatedCandle);
-      chartSeries.update(updatedCandle);
+      // ⚡ PERF FIX #9: Skip update if dirty flag system indicates no change
+      const priceChanged = chartDirtyFlagSystem.markPriceCandleIfChanged(updatedCandle);
+      if (priceChanged) {
+        chartSeries.update(updatedCandle);
 
-      // 🔧 FIX: Force re-enable autoScale after each update
-      // This ensures the price scale adjusts when candles exceed visible range
-      chartSeries.priceScale().applyOptions({ autoScale: true });
+        // 🔧 FIX: Force re-enable autoScale after each update
+        // This ensures the price scale adjusts when candles exceed visible range
+        chartSeries.priceScale().applyOptions({ autoScale: true });
+      }
 
       statusStore.setPriceUpdate();
 

@@ -812,7 +812,10 @@ export class TradingOrchestrator extends EventEmitter {
     // Cleanup resources
     this.stopTrading();
     this.clients.clear();
-    
+
+    // Remove all EventEmitter listeners to prevent memory leaks
+    this.removeAllListeners();
+
     // Clean old logs
     if (this.logger) {
       this.logger.cleanOldLogs();

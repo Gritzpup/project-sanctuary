@@ -158,7 +158,7 @@ local_resource(
         exec=exec_action(['redis-cli', '-p', '6379', 'ping'])
     ),
     auto_init=True,  # Auto-check before other Hermes services
-    trigger_mode=TRIGGER_MODE_MANUAL  # Manual checks only
+    trigger_mode=TRIGGER_MODE_AUTO  # Auto-start on boot so dependent services can start
 )
 
 # ============================================
@@ -258,8 +258,8 @@ local_resource(
         link('http://localhost:4828/health', 'Hermes Backend Health Check')
     ],
     readiness_probe=probe(
-        period_secs=10,
-        initial_delay_secs=30,  # Increased: backend needs time to load historical data from Redis + connect to Coinbase
+        period_secs=15,  # Check every 15 seconds instead of 10
+        initial_delay_secs=45,  # Increased: backend needs time to load historical data from Redis + connect to Coinbase + startup delays
         http_get=http_get_action(port=4828, path='/health')
     ),
     auto_init=True,
