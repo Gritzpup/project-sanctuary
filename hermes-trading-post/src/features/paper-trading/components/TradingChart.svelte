@@ -94,9 +94,10 @@
   
   function handlePeriodChange(event: CustomEvent) {
     const newPeriod = event.detail.period;
-    console.log(`[TradingChart] handlePeriodChange: ${selectedPeriod} → ${newPeriod}`);
+    console.log(`[TradingChart] handlePeriodChange EVENT RECEIVED: ${selectedPeriod} → ${newPeriod}`);
     selectedPeriod = newPeriod;
-    console.log(`[TradingChart] selectedPeriod now=${selectedPeriod}`);
+    console.log(`[TradingChart] selectedPeriod UPDATED to=${selectedPeriod}`);
+    console.log(`[TradingChart] Dispatching up to parent`);
     dispatch('periodChange', event.detail);
   }
   

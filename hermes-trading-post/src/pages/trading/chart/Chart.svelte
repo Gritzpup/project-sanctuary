@@ -57,9 +57,12 @@
   // Debug period changes
   let previousPeriod = period;
   $effect(() => {
+    console.log(`[Chart] $effect triggered - period=${period}, previousPeriod=${previousPeriod}`);
     if (period !== previousPeriod) {
-      console.log(`[Chart] period prop changed: ${previousPeriod} → ${period}`);
+      console.log(`[Chart] 🔍 period prop CHANGED: ${previousPeriod} → ${period}`);
       previousPeriod = period;
+    } else {
+      console.log(`[Chart] period unchanged (${period})`);
     }
   });
   
