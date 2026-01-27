@@ -33,13 +33,16 @@
   const dispatch = createEventDispatcher();
 
   function handlePeriodChange(period: ExtendedPeriod) {
+    console.log(`[TimeframeControls] 🔘 Button clicked: period=${period}`);
     // ONLY dispatch period change - granularity buttons handle granularity selection
     // The Chart component uses BOTH period and granularity props to calculate time range
     // Period determines the total timeframe (4H = 4 hours)
     // Granularity determines the candle size (5m = 5 minute candles)
     // Together: 4H/5m = 48 candles (4 hours / 5 minutes per candle)
 
+    console.log(`[TimeframeControls] 📤 Dispatching periodChange: ${period}`);
     dispatch('periodChange', { period });
+    console.log(`[TimeframeControls] ✅ periodChange dispatched`);
   }
 </script>
 
