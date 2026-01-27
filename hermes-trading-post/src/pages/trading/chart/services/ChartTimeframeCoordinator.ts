@@ -104,6 +104,7 @@ export class ChartTimeframeCoordinator {
     chartSeries: ISeriesApi<'Candlestick'> | null,
     pluginManager: PluginManager | null
   ): Promise<void> {
+
     if (newPeriod === this.previousPeriod) {
       return; // No change
     }
@@ -143,10 +144,11 @@ export class ChartTimeframeCoordinator {
     }
 
     // Reload if either changed
-    return (
+    const shouldReload = (
       granularity !== this.previousGranularity ||
       period !== this.previousPeriod
     );
+    return shouldReload;
   }
 
   /**

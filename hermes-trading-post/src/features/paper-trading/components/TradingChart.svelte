@@ -93,7 +93,10 @@
   }
   
   function handlePeriodChange(event: CustomEvent) {
-    selectedPeriod = event.detail.period;
+    const newPeriod = event.detail.period;
+    console.log(`[TradingChart] handlePeriodChange: ${selectedPeriod} → ${newPeriod}`);
+    selectedPeriod = newPeriod;
+    console.log(`[TradingChart] selectedPeriod now=${selectedPeriod}`);
     dispatch('periodChange', event.detail);
   }
   
