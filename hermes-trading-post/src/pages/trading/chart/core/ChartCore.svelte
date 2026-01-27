@@ -131,6 +131,7 @@
       const _ = [granularity, period, isInitialized];
 
       if (isInitialized && isInitialDataLoaded) {
+        console.log(`[ChartCore] $effect: granularity=${granularity}, period=${period}`);
         if (granularity !== previousTrackedGranularity) {
           ChartDebug.log(`⏱️ Granularity prop changed: ${previousTrackedGranularity} → ${granularity}`);
           previousTrackedGranularity = granularity;
@@ -155,16 +156,21 @@
 
           // Use async IIFE to properly await period change (same as granularity change)
           (async () => {
-            console.log(`[ChartCore] ✅ Calling timeframeCoordinator.onPeriodChange(${period})`);
-            await timeframeCoordinator.onPeriodChange(period, chartCanvas?.getSeries() || null, pluginManager);
-            console.log(`[ChartCore] ✅ onPeriodChange completed for ${period}`);
-            // Reset display after data loads to ensure chart shows new period data
-            createTimeout(() => {
-              if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
-                ChartDebug.log(`📊 Resetting display after period change to ${period}`);
-                chartCanvas.resetAndUpdateDisplay(pluginManager);
-              }
-            }, 150);
+            try {
+              console.log(`[ChartCore] ✅ Calling timeframeCoordinator.onPeriodChange(${period})`);
+              console.log(`[ChartCore] DEBUG: chartCanvas=${!!chartCanvas}, chartSeries=${!!chartCanvas?.getSeries()}, pluginManager=${!!pluginManager}`);
+              await timeframeCoordinator.onPeriodChange(period, chartCanvas?.getSeries() || null, pluginManager);
+              console.log(`[ChartCore] ✅ onPeriodChange completed for ${period}`);
+              // Reset display after data loads to ensure chart shows new period data
+              createTimeout(() => {
+                if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
+                  ChartDebug.log(`📊 Resetting display after period change to ${period}`);
+                  chartCanvas.resetAndUpdateDisplay(pluginManager);
+                }
+              }, 150);
+            } catch (error) {
+              console.error(`[ChartCore] ❌ ERROR in onPeriodChange:`, error);
+            }
           })();
         }
       }
