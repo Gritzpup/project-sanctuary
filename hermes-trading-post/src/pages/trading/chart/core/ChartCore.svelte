@@ -151,7 +151,18 @@
         if (period !== previousTrackedPeriod) {
           ChartDebug.log(`⏱️ Period prop changed: ${previousTrackedPeriod} → ${period}`);
           previousTrackedPeriod = period;
-          timeframeCoordinator.onPeriodChange(period, chartCanvas?.getSeries() || null, pluginManager);
+
+          // Use async IIFE to properly await period change (same as granularity change)
+          (async () => {
+            await timeframeCoordinator.onPeriodChange(period, chartCanvas?.getSeries() || null, pluginManager);
+            // Reset display after data loads to ensure chart shows new period data
+            createTimeout(() => {
+              if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
+                ChartDebug.log(`📊 Resetting display after period change to ${period}`);
+                chartCanvas.resetAndUpdateDisplay(pluginManager);
+              }
+            }, 150);
+          })();
         }
       }
     }
