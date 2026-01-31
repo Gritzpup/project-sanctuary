@@ -269,9 +269,9 @@ export class ChartTimeframeCoordinator {
         }, 100);
       }
 
-      // Step 5: Fit chart to show all candles after positioning
-      // For long-term timeframes (5Y, 1Y), useDataLoader handles fitContent at 500ms
-      // For short-term, we still need to fit but after a short delay for positioning
+      // Step 5: Position chart to show standard 60 candles (or all if fewer available)
+      // For long-term timeframes (5Y, 1Y), useDataLoader handles positioning separately
+      // For short-term, position to show 60 candles after data loads
       const longTermPeriods = ['1M', '3M', '6M', '1Y', '5Y'];
       const isLongTerm = longTermPeriods.includes(period);
 
@@ -280,12 +280,29 @@ export class ChartTimeframeCoordinator {
           try {
             const chart = (chartSeries as any).getChart();
             if (chart && typeof chart.timeScale === 'function') {
-              // Fit the chart to show loaded candles
-              chart.timeScale().fitContent();
-              ChartDebug.log(`✅ Chart fitted to show ${dataStore.candles.length} candles`);
+              // Show exactly 60 candles (or fewer if not enough data loaded)
+              // This prevents fitContent() from stretching to show all loaded candles
+              const candleCount = dataStore.candles.length;
+              const visibleCount = Math.min(candleCount, 60);
+              const startIndex = Math.max(0, candleCount - visibleCount);
+
+              chart.timeScale().setVisibleLogicalRange({
+                from: startIndex,
+                to: candleCount
+              });
+
+              // Apply bar spacing for 60 candles
+              const barSpacing = Math.max(6, Math.floor((chart.options().width || 800) / (visibleCount + 5)));
+              chart.timeScale().applyOptions({
+                barSpacing,
+                rightOffset: 3
+              });
+
+              chart.timeScale().scrollToRealTime();
+              ChartDebug.log(`✅ Chart positioned to show ${visibleCount} of ${candleCount} candles`);
             }
           } catch (err) {
-            ChartDebug.log(`⚠️ Failed to fit chart content: ${err}`);
+            ChartDebug.log(`⚠️ Failed to position chart: ${err}`);
           }
         }, 100);
       }
