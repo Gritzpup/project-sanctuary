@@ -28,7 +28,20 @@
     granularityChange: { granularity: string };
   }>();
 
+  // Prevent double-click rapid fires by throttling
+  let lastClickTime = 0;
+  const CLICK_THROTTLE_MS = 300;
+
   function handleTimeframeChange(timeframe: string) {
+    // Ignore if same timeframe or too soon after last click
+    if (timeframe === currentTimeframe) return;
+
+    const now = Date.now();
+    if (now - lastClickTime < CLICK_THROTTLE_MS) {
+      return; // Ignore rapid successive clicks
+    }
+    lastClickTime = now;
+
     dispatch('timeframeChange', { timeframe });
 
     // If granularity checker provided, check compatibility
