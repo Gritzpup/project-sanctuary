@@ -301,16 +301,10 @@
     isCachedSortedFlag = false;
     hasEverCalledSetData = false;  // 🔧 FIX: Reset the setData flag so it can be called again for new timeframe data
 
-    // 🔧 CRITICAL: Clear the candleSeries data immediately
-    // This prevents old candles from the previous granularity from lingering and causing conflicts
-    if (candleSeries) {
-      try {
-        candleSeries.setData([]);
-        console.log('[ChartDataManager] Cleared candleSeries for granularity change');
-      } catch (err) {
-        console.warn('[ChartDataManager] Failed to clear candleSeries:', err);
-      }
-    }
+    // 🔧 NOTE: DON'T clear candleSeries with setData([])
+    // Clearing with empty data and then immediately adding new data can cause rendering issues
+    // Instead, let the new data naturally replace the old data via the next setData() call
+    // This is safer and avoids the "briefly correct then broken" state
   }
   
   export function handleRealtimeUpdate(candle: any) {
