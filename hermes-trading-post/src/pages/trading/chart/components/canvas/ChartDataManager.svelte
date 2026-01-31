@@ -252,15 +252,30 @@
         // Incremental update: add only new candles since last update
         // ⚡ SEAMLESS REFRESH FIX: Don't reset visible range on incremental updates
         // This allows the chart to naturally auto-scroll as new candles arrive
+        let updateFailureCount = 0;
+        const candlesToAdd = sortedCandles.length - (lastProcessedIndex + 1);
+
         for (let i = lastProcessedIndex + 1; i < sortedCandles.length; i++) {
           try {
             candleSeries.update(sortedCandles[i]);
           } catch (updateError) {
-            // ⚠️ CRITICAL FIX: Don't fall back to setData() during incremental updates!
-            // This was causing the "broken candles" issue - if an update fails, skip it rather than
-            // calling setData() which would replace all data with potentially incomplete dataset
+            updateFailureCount++;
+            // Log the failure so we can debug missing candles
+            console.warn(`[ChartDataManager] Candle update failed at index ${i}: ${updateError instanceof Error ? updateError.message : String(updateError)}`);
           }
         }
+
+        // If too many updates failed, do a full setData to ensure all candles are visible
+        // This prevents the "missing candles" issue where some candles silently disappear
+        if (updateFailureCount > 0 && updateFailureCount / candlesToAdd > 0.1) {
+          console.warn(`[ChartDataManager] ${updateFailureCount}/${candlesToAdd} candle updates failed, re-syncing with setData()`);
+          try {
+            candleSeries.setData(sortedCandles);
+          } catch (setError) {
+            console.error(`[ChartDataManager] setData() failed during recovery: ${setError instanceof Error ? setError.message : String(setError)}`);
+          }
+        }
+
         lastProcessedIndex = sortedCandles.length - 1;
       }
     } catch (error) {
@@ -285,6 +300,17 @@
     lastCandleCount = 0;
     isCachedSortedFlag = false;
     hasEverCalledSetData = false;  // 🔧 FIX: Reset the setData flag so it can be called again for new timeframe data
+
+    // 🔧 CRITICAL: Clear the candleSeries data immediately
+    // This prevents old candles from the previous granularity from lingering and causing conflicts
+    if (candleSeries) {
+      try {
+        candleSeries.setData([]);
+        console.log('[ChartDataManager] Cleared candleSeries for granularity change');
+      } catch (err) {
+        console.warn('[ChartDataManager] Failed to clear candleSeries:', err);
+      }
+    }
   }
   
   export function handleRealtimeUpdate(candle: any) {
