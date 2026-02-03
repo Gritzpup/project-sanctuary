@@ -592,18 +592,18 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     const subscriptionKey = `level2:${productId}`;
 
     if (this.subscriptions.has(subscriptionKey)) {
-      console.log(`[Level2] Already subscribed to ${productId}`);
+      // console.log(`[Level2] Already subscribed to ${productId}`);
       return;
     }
 
     // Track subscription immediately for visibility in health check
     this.subscriptions.set(subscriptionKey, { productId, type: 'level2', pending: true });
-    console.log(`[Level2] Subscribing to ${productId} via Exchange WebSocket`);
+    // console.log(`[Level2] Subscribing to ${productId} via Exchange WebSocket`);
 
     // Connect to Exchange API if not already connected
     if (!this.exchangeIsConnected && !this.exchangeIsConnecting) {
       this.connectExchangeAPI().then(() => {
-        console.log(`[Level2] Exchange API connected, subscribing to level2 channel`);
+        // console.log(`[Level2] Exchange API connected, subscribing to level2 channel`);
         this.subscribeLevel2Exchange(productId);
         this.subscriptions.set(subscriptionKey, { productId, type: 'level2', connected: true });
       }).catch(error => {
@@ -616,7 +616,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
 
     // If Exchange API is already connected, subscribe directly
     if (this.exchangeIsConnected) {
-      console.log(`[Level2] Exchange API already connected, subscribing directly`);
+      // console.log(`[Level2] Exchange API already connected, subscribing directly`);
       this.subscribeLevel2Exchange(productId);
       this.subscriptions.set(subscriptionKey, { productId, type: 'level2', connected: true });
     }
@@ -628,7 +628,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
    * level2_batch delivers data in 50ms batches
    */
   subscribeLevel2Exchange(productId) {
-    console.log(`[Level2] Subscribing to ${productId} on Exchange WebSocket (level2_batch channel)`);
+    // console.log(`[Level2] Subscribing to ${productId} on Exchange WebSocket (level2_batch channel)`);
 
     // Subscribe via WebSocket - level2_batch channel (no auth needed, 50ms batches)
     const subscription = {
@@ -640,7 +640,7 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     if (this.exchangeWs && this.exchangeWs.readyState === WebSocket.OPEN) {
       this.exchangeWs.send(JSON.stringify(subscription));
       this.exchangeSubscriptions.set(`level2:${productId}`, subscription);
-      console.log(`[Level2] Subscription message sent for ${productId} (level2_batch)`);
+      // console.log(`[Level2] Subscription message sent for ${productId} (level2_batch)`);
     } else {
       console.error(`[Level2] Exchange WebSocket not ready, state: ${this.exchangeWs?.readyState}`);
     }
