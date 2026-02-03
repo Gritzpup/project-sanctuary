@@ -38,9 +38,13 @@
   let isForwardTestRunning = $state(false);
   let forwardTestInterval: number | null = null;
   
-  // 🔧 FIX: Use $derived for instant reactive updates from L2 orderbook
-  // dataStore.latestPrice updates from L2 orderbook mid-price (fastest possible)
-  // Using $derived ensures header price updates instantly with ZERO delay
+  // 🔧 INDUSTRY STANDARD: Use $derived for last trade price from ticker/matches
+  // dataStore.latestPrice now updates from ACTUAL TRADE PRICES, not L2 orderbook
+  // This matches Coinbase, Binance, TradingView industry standard:
+  // - Header displays: Last executed trade price (same as chart close)
+  // - Chart displays: Actual trade data (open, high, low, close)
+  // - Orderbook displays: Bid/ask for depth visualization (separate component)
+  // Result: Perfect sync between header price and chart candle 📊
   let latestPrice = $derived(dataStore.latestPrice || currentPrice || 0);
   let live24hChange = $state(0);
   let live24hPercent = $state(0);

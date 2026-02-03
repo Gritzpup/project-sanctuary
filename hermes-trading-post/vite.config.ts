@@ -9,6 +9,7 @@ export default defineConfig({
     port: 5173,
     historyApiFallback: true,
     hmr: {
+      host: '192.168.1.51',
       port: 5173,
       clientPort: 5173
     },

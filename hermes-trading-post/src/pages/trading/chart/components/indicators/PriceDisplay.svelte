@@ -1,6 +1,5 @@
 <script lang="ts">
   import { dataStore } from '../../stores/dataStore.svelte';
-  import { orderbookStore } from '../../../orderbook/stores/orderbookStore.svelte';
   import { formatPrice } from '../../../../../utils/formatters/priceFormatters';
 
   // Props using Svelte 5 runes syntax
@@ -14,30 +13,27 @@
   let isNewPrice = $state(false);
   let previousPrice = $state<number | null>(null);
 
-  // Subscribe to direct L2 prices on mount (instant, no lag)
-  // Falls back to dataStore if L2 not available
+  // Use last candle close price (actual trade price) instead of L2 mid-price
+  // L2 mid-price can swing wildly with orderbook spread changes
+  // Last candle close is the authoritative price source (from actual trades)
   let currentPrice = $state<number | null>(null);
 
   $effect.pre(() => {
-    // Subscribe to L2 prices directly
-    const unsubscribe = orderbookStore.subscribeToPriceUpdates((price: number) => {
-      if (price > 0) {
-        // Update current price instantly from L2
-        currentPrice = price;
+    // 🔧 FIX: Use last candle's close price instead of L2 mid-price
+    // L2 mid-price = (best bid + best ask) / 2, which fluctuates with spread
+    // This caused the price display to swing $3000 (77.5k → 80.5k) with orderbook changes
+    // Instead, use the real trade price from the last completed/in-progress candle
+    if (dataStore.candles && dataStore.candles.length > 0) {
+      const lastCandle = dataStore.candles[dataStore.candles.length - 1];
+      if (lastCandle && lastCandle.close > 0) {
+        currentPrice = lastCandle.close;
       }
-    });
+    }
 
-    // Fallback to dataStore price if no L2 price yet
+    // Initial fallback if no candles yet
     if (!currentPrice && dataStore.latestPrice) {
       currentPrice = dataStore.latestPrice;
     }
-
-    // Cleanup subscription on unmount
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
   });
 
   // Reactive display price

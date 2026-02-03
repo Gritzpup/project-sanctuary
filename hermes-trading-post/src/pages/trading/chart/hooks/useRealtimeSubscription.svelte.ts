@@ -36,8 +36,16 @@ export interface UseRealtimeSubscriptionOptions {
 export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions = {}) {
   const { onPriceUpdate, onNewCandle, onReconnect, onError } = options;
 
-  // Disable aggressive auto-scroll to prevent snapping
-  const ENABLE_SMALL_DATASET_AUTO_SCROLL = false; // DISABLED - causing snapping behavior
+  // ✅ ENABLE: Auto-scroll to latest candle for realtime trading
+  // This ensures chart always shows the current price candle as it updates
+  // Professional exchanges (Coinbase, Binance, TradingView) all auto-scroll to latest
+  const ENABLE_SMALL_DATASET_AUTO_SCROLL = true; // ENABLED - required for realtime sync
+
+  // 🔧 FIX: Disable L2 mid-price candle updates
+  // L2 mid-price = (best bid + best ask) / 2, which fluctuates wildly with orderbook spread
+  // This caused the chart to show wild price swings ($3000) and disappearing candles
+  // Backend WebSocket ticker (dataStore) is the authoritative price source
+  const ENABLE_L2_CANDLE_UPDATES = false;
 
   // ⚡ CRITICAL OPTIMIZATION: RAF Batching for 60 FPS max
   // Ticker updates come at 50-100/sec, but rendering is 60fps max (16.67ms)
@@ -80,6 +88,46 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         pendingUpdate = null;
         lastChartUpdateTime = Date.now();  // Track when update completes
       });
+    }
+  }
+
+  /**
+   * ✅ Scroll chart to show the latest candle
+   * Essential for realtime trading - ensures current price candle is always visible
+   */
+  function scrollToLatestCandle(chartSeries: ISeriesApi<'Candlestick'>, candles: CandlestickData[]) {
+    if (!chartSeries || candles.length === 0) return;
+
+    try {
+      const chart = (chartSeries as any)._chart || (chartSeries as any).chart;
+      if (!chart || !chart.timeScale) return;
+
+      const candleCount = candles.length;
+      const lastCandle = candles[candleCount - 1];
+      const lastCandleTime = lastCandle.time as number;
+
+      // Calculate expected candles to show based on granularity
+      let expectedCandleCount = 60; // Default
+      try {
+        if (chartStore?.config?.granularity && chartStore?.config?.timeframe) {
+          expectedCandleCount = getCandleCount(chartStore.config.granularity, chartStore.config.timeframe) || 60;
+        }
+      } catch (e) {
+        // Use default if calculation fails
+      }
+
+      // Show the most recent candles, with latest at the right edge
+      const startIndex = Math.max(0, candleCount - expectedCandleCount);
+      const endIndex = candleCount;
+
+      // Set visible range using logical indices
+      // This ensures the latest candle is always at the right edge
+      chart.timeScale().setVisibleLogicalRange({
+        from: startIndex,
+        to: endIndex + 0.5  // Add 0.5 to show some right margin for the current candle
+      });
+    } catch (error) {
+      // Silently ignore scrolling errors
     }
   }
 
@@ -226,6 +274,9 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
 
           // 🔧 FIX: Force re-enable autoScale after sync updates
           chartSeries.priceScale().applyOptions({ autoScale: true });
+
+          // ✅ SCROLL: Keep latest candle visible for realtime trading
+          scrollToLatestCandle(chartSeries, candles);
         }
 
         // Update volume if available
@@ -268,6 +319,9 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
 
           // 🔧 FIX: Force re-enable autoScale after complete candle updates
           chartSeries.priceScale().applyOptions({ autoScale: true });
+
+          // ✅ SCROLL: Keep latest candle visible when new candle completes
+          scrollToLatestCandle(chartSeries, candles);
         }
 
         // Update volume
@@ -317,8 +371,10 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         if (priceChanged) {
           chartSeries.update(updateCandle);
 
-          // 🔧 FIX: Force re-enable autoScale after incomplete candle updates
-          chartSeries.priceScale().applyOptions({ autoScale: true });
+          // 🔧 FIX: DO NOT force auto-scale for incomplete candle updates
+          // Auto-scale only on new candle arrivals (sync/complete), not every price tick
+          // This prevents the chart from jumping around during price updates
+          // chartSeries.priceScale().applyOptions({ autoScale: true });
         }
 
         // Update volume
@@ -398,9 +454,13 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       if (priceChanged) {
         chartSeries.update(updatedCandle);
 
-        // 🔧 FIX: Force re-enable autoScale after each update
-        // This ensures the price scale adjusts when candles exceed visible range
-        chartSeries.priceScale().applyOptions({ autoScale: true });
+        // 🔧 FIX: DO NOT force auto-scale for ticker/L2 price updates
+        // Auto-scale only on new candle arrivals (sync/complete), not every price tick
+        // Forcing auto-scale on every ticker update was causing:
+        // 1. Price display swinging with L2 mid-price ($3000 jumps)
+        // 2. Chart scale jumping around on every price update
+        // 3. Visual appearance of candles disappearing when scale adjusts
+        // chartSeries.priceScale().applyOptions({ autoScale: true });
       }
 
       statusStore.setPriceUpdate();
@@ -443,53 +503,62 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
     currentChartSeries = chartSeries || null;
     currentVolumeSeries = volumeSeries || null;
 
-    // ⚡ PHASE 11: Subscribe directly to L2 prices for INSTANT chart candle updates
-    // This bypasses dataStore RAF throttling and updates at full orderbook speed (10-30 Hz)
-    // Unsubscribe from previous L2 subscription if one exists
-    if (unsubscribeFromL2) {
-      unsubscribeFromL2();
-    }
+    // ⚡ PHASE 11: Subscribe directly to L2 prices (DISABLED - causes price swings)
+    // 🔧 FIX: L2 mid-price caused wild price swings ($3000 jumps from 77.5k → 80.5k)
+    // L2 mid-price = (best bid + best ask) / 2 fluctuates with orderbook spread changes
+    // Backend WebSocket ticker (dataStore) is the authoritative price source
+    // L2 prices should only be used for orderbook display, not candle updates
+    if (ENABLE_L2_CANDLE_UPDATES) {
+      // Unsubscribe from previous L2 subscription if one exists
+      if (unsubscribeFromL2) {
+        unsubscribeFromL2();
+      }
 
-    unsubscribeFromL2 = orderbookStore.subscribeToPriceUpdates((l2Price: number) => {
-      // ⚡ PHASE 13c: Direct L2 price update - instant, no RAF delay
-      // Mark this timestamp to prevent duplicate updates from dataStore callback
-      if (currentChartSeries && dataStore.candles.length > 0) {
-        const lastCandle = dataStore.candles[dataStore.candles.length - 1];
+      unsubscribeFromL2 = orderbookStore.subscribeToPriceUpdates((l2Price: number) => {
+        // ⚡ PHASE 13c: Direct L2 price update - instant, no RAF delay
+        // Mark this timestamp to prevent duplicate updates from dataStore callback
+        if (currentChartSeries && dataStore.candles.length > 0) {
+          const lastCandle = dataStore.candles[dataStore.candles.length - 1];
 
-        // 🔧 FIX: L2 mid-price should ONLY update close, NOT expand high/low
-        // L2 mid-price = (best bid + best ask) / 2, which fluctuates with orderbook changes
-        // This caused candles to become artificially tall because high/low expanded
-        // based on orderbook spread rather than actual trade prices.
-        // High/low should ONLY be updated from actual trade data (ticker/candle WebSocket)
-        const updatedCandle: CandlestickData = {
-          time: lastCandle.time,  // Preserve time as-is
-          open: lastCandle.open,
-          high: lastCandle.high,  // Keep existing high - only trades should expand
-          low: lastCandle.low,    // Keep existing low - only trades should expand
-          close: l2Price,         // Update close for visual responsiveness
-          volume: (lastCandle as any).volume || 0
-        };
+          // 🔧 FIX: L2 mid-price should ONLY update close, NOT expand high/low
+          // L2 mid-price = (best bid + best ask) / 2, which fluctuates with orderbook changes
+          // This caused candles to become artificially tall because high/low expanded
+          // based on orderbook spread rather than actual trade prices.
+          // High/low should ONLY be updated from actual trade data (ticker/candle WebSocket)
+          const updatedCandle: CandlestickData = {
+            time: lastCandle.time,  // Preserve time as-is
+            open: lastCandle.open,
+            high: lastCandle.high,  // Keep existing high - only trades should expand
+            low: lastCandle.low,    // Keep existing low - only trades should expand
+            close: l2Price,         // Update close for visual responsiveness
+            volume: (lastCandle as any).volume || 0
+          };
 
-        // Update chart directly (no RAF, instant)
-        if (currentChartSeries) {
-          try {
-            currentChartSeries.update(updatedCandle);
+          // Update chart directly (no RAF, instant)
+          if (currentChartSeries) {
+            try {
+              currentChartSeries.update(updatedCandle);
 
-            // 🔧 FIX: Force re-enable autoScale after each update
-            // This ensures the price scale adjusts when candles exceed visible range
-            currentChartSeries.priceScale().applyOptions({ autoScale: true });
+              // 🔧 FIX: Force re-enable autoScale after each update
+              // This ensures the price scale adjusts when candles exceed visible range
+              currentChartSeries.priceScale().applyOptions({ autoScale: true });
 
-            statusStore.setPriceUpdate();
-            // ⚡ PHASE 13c: Mark L2 update time to prevent duplicate dataStore updates within 50ms
-            lastChartUpdateTime = Date.now();
-          } catch (error) {
-            // Silently handle chart update errors - they're expected during candle transitions
-            if (!(error as Error).message?.includes('Cannot update')) {
+              statusStore.setPriceUpdate();
+              // ⚡ PHASE 13c: Mark L2 update time to prevent duplicate dataStore updates within 50ms
+              lastChartUpdateTime = Date.now();
+            } catch (error) {
+              // Silently handle chart update errors - they're expected during candle transitions
+              if (!(error as Error).message?.includes('Cannot update')) {
+              }
             }
           }
         }
-      }
-    });
+      });
+    } else {
+      // L2 candle updates disabled - only use backend WebSocket ticker
+      // This provides stable price updates based on actual trades, not orderbook spread
+      ChartDebug.log('[RealTime] L2 candle updates disabled - using WebSocket ticker only');
+    }
 
     // ⚡ PHASE 11: Keep dataStore callback for WebSocket ticker updates (fallback)
     // The L2 subscription handles orderbook prices, this handles ticker/WebSocket updates

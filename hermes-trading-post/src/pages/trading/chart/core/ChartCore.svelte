@@ -130,11 +130,15 @@
 
     if (granularity !== previousTrackedGranularity) {
       console.log(`[ChartCore] 🔍 Granularity changed: ${previousTrackedGranularity} → ${granularity}`);
-      previousTrackedGranularity = granularity;
+      // Capture in closure to avoid race condition
+      const targetGranularity = granularity;
 
       (async () => {
         try {
-          await timeframeCoordinator.onGranularityChange(granularity, chartCanvas?.getSeries() || null, pluginManager);
+          await timeframeCoordinator.onGranularityChange(targetGranularity, chartCanvas?.getSeries() || null, pluginManager);
+          // ✅ CRITICAL FIX: Update previousTrackedGranularity AFTER async completes
+          // This prevents rapid clicks from being ignored while the operation is in-flight
+          previousTrackedGranularity = targetGranularity;
           createTimeout(() => {
             if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
               chartCanvas.resetAndUpdateDisplay(pluginManager);
@@ -142,6 +146,7 @@
           }, 150);
         } catch (error) {
           console.error(`[ChartCore] ❌ ERROR in onGranularityChange:`, error);
+          // Don't update previousTrackedGranularity on error - allows retry
         }
       })();
     }

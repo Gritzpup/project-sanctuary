@@ -231,8 +231,8 @@ class DataStore {
       });
 
       if (granularity === '1d' && (endTime - startTime) > 157680000) {
-        console.log(`[5Y DEBUG] dataStore.loadData: Fetched ${candles.length} candles (requested max: ${maxCandles})`);
-        console.log(`[5Y DEBUG] First candle: ${candles[0]?.time}, Last candle: ${candles[candles.length-1]?.time}`);
+        // console.log(`[5Y DEBUG] dataStore.loadData: Fetched ${candles.length} candles (requested max: ${maxCandles})`);
+        // console.log(`[5Y DEBUG] First candle: ${candles[0]?.time}, Last candle: ${candles[candles.length-1]?.time}`);
       }
 
       // Convert to CandlestickData format and store in memory
@@ -249,7 +249,7 @@ class DataStore {
       this.updateStats();
 
       if (granularity === '1d' && (endTime - startTime) > 157680000) {
-        console.log(`[5Y DEBUG] dataStore.setCandles: Stored ${chartCandles.length} candles in state`);
+        // console.log(`[5Y DEBUG] dataStore.setCandles: Stored ${chartCandles.length} candles in state`);
       }
 
     } catch (error) {
@@ -661,7 +661,18 @@ class DataStore {
         }
 
         // Update latest price for status display (for both ticker AND full candle updates)
+        // ✅ INDUSTRY STANDARD: Use actual trade prices (ticker/matches), not L2 mid-price
+        // This matches how Coinbase, Binance, and TradingView display prices
+        const oldPrice = this._latestPrice;
         this._latestPrice = update.close;
+
+        // 🔍 DEBUG: Log ticker/candle price updates (these are ACTUAL TRADES, not orderbook)
+        if (update.time > 0 && update.close) {
+          const candleTime = new Date(update.time * 1000).toISOString();
+          // console.log(`[✅ LAST TRADE] Candle close: $${update.close.toLocaleString('en-US', {maximumFractionDigits: 2})} | Time: ${candleTime} (header & chart in sync)`);
+        } else if (update.time === 0 && update.close) {
+          // console.log(`[✅ LAST TRADE] Ticker: $${update.close.toLocaleString('en-US', {maximumFractionDigits: 2})} (instant header update)`);
+        }
 
         // ⚡ SVELTE 5 OPTIMIZATION: Only update lastUpdate property directly
         // This ensures the UI responds immediately to price changes
@@ -688,18 +699,18 @@ class DataStore {
       this.orderbookPriceUnsubscribe();
     }
 
-    // ⚡ PHASE 10C: Defer L2 subscription until candles are loaded to avoid race condition
-    // L2 updates must have candles to update, otherwise they're wasted
+    // ⚡ PHASE 10C: DISABLED L2 subscription for header price
+    // REASON: Industry standard (Coinbase, Binance) uses LAST TRADE PRICE, not orderbook mid-price
+    // IMPACT: Header now displays the exact same price as chart candles (perfect sync)
+    // BENEFIT: Matches real executed prices, not theoretical bid-ask spreads
+    // The orderbook is kept for visualization/depth charts, but NOT for price display
     const subscribeToL2 = () => {
-      this.orderbookPriceUnsubscribe = orderbookStore.subscribeToPriceUpdates((price: number) => {
-        // ✅ PERFORMANCE FIX: Only update latestPrice for header display
-        // DO NOT update chart candles on every L2 tick - causes freezing
-        // Chart updates from ticker/candle WebSocket messages instead
-        this._latestPrice = price;
-
-        // NO chart candle updates here - would freeze the UI
-        // Header price updates instantly, chart updates from WebSocket only
-      });
+      // ✅ INDUSTRY STANDARD: Don't subscribe to L2 for price display
+      // Instead, use ticker/trade prices from the WebSocket in subscribeToRealtime() below
+      // This ensures header price = last trade price = chart close price (Coinbase/Binance standard)
+      if (this.orderbookPriceUnsubscribe) {
+        this.orderbookPriceUnsubscribe();
+      }
     };
 
     // ✅ RE-ENABLED: L2 orderbook for instant price updates

@@ -43,16 +43,39 @@
   let currentGranularity = $state(chartStore.config.granularity);
   let currentTimeframe = $state(chartStore.config.timeframe);
 
+  // Service instance
+  let controlsService: ChartControlsService;
+  let isRefreshing = $state(false);
+  let isClearingCache = $state(false);
+  let isLoadingGranularity = $state(false);
+
   // Subscribe to store changes and update reactive variables
   $effect(() => {
     currentGranularity = chartStore.config.granularity;
     currentTimeframe = chartStore.config.timeframe;
   });
 
-  // Service instance
-  let controlsService: ChartControlsService;
-  let isRefreshing = $state(false);
-  let isClearingCache = $state(false);
+  // Track granularity loading state (only after service is initialized)
+  let loadingCheckInterval: ReturnType<typeof setInterval> | undefined;
+
+  $effect(() => {
+    if (controlsService) {
+      // Poll the loading state every 50ms while a granularity change is in flight
+      if (!loadingCheckInterval) {
+        loadingCheckInterval = setInterval(() => {
+          if (controlsService) {
+            isLoadingGranularity = controlsService.getIsLoadingGranularity();
+          }
+        }, 50);
+      }
+      return () => {
+        if (loadingCheckInterval) {
+          clearInterval(loadingCheckInterval);
+          loadingCheckInterval = undefined;
+        }
+      };
+    }
+  });
 
   // Event handlers
   function handlePairChange(event: CustomEvent) {
@@ -120,6 +143,7 @@
     {availableGranularities}
     {showGranularities}
     {onGranularityChange}
+    isLoading={isLoadingGranularity}
     on:granularityChange={handleGranularityChange}
   />
   

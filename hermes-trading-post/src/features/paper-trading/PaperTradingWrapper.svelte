@@ -25,9 +25,11 @@
   } = $props();
 
 
-  // 🔧 FIX: Use same ticker price as chart from dataStore
-  // Both header and chart show the SAME live ticker price (matches/trades)
-  // dataStore.latestPrice is a $state that updates from ticker WebSocket
+  // 🔧 INDUSTRY STANDARD: Use last trade price from dataStore
+  // Both header and chart show the SAME actual trade price (matches/tickers)
+  // This follows Coinbase/Binance standard: header price = last executed trade
+  // NOT L2 orderbook mid-price (which can differ significantly)
+  // Result: Header and chart always in perfect sync
   let currentPrice = $derived(dataStore.latestPrice || 0);
 
   const dispatch = createEventDispatcher();

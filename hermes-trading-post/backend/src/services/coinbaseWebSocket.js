@@ -722,6 +722,11 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     // Clean up aggregator if it was matches
     if (channel === 'matches' || channel === 'market_trades') {
       // Multi-granularity aggregators are keyed by productId only
+      const aggregator = this.candleAggregators.get(productId);
+      if (aggregator) {
+        // 🔥 MEMORY LEAK FIX: Call destroy() to clean up listeners and clear data
+        aggregator.destroy();
+      }
       this.candleAggregators.delete(productId);
     }
   }
@@ -1414,6 +1419,10 @@ export class CoinbaseWebSocketClient extends EventEmitter {
     // 🔥 MEMORY LEAK FIX: Clear all data structures
     this.subscriptions.clear();
     this.exchangeSubscriptions.clear();
+    // Clean up all candle aggregators before clearing the map
+    for (const aggregator of this.candleAggregators.values()) {
+      aggregator.destroy();
+    }
     this.candleAggregators.clear();
 
     // 🔥 MEMORY LEAK FIX: Remove all EventEmitter listeners

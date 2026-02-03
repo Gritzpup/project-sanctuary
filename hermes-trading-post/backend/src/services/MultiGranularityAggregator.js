@@ -139,4 +139,13 @@ export class MultiGranularityAggregator extends EventEmitter {
   getAllCurrentCandles() {
     return { ...this.currentCandles };
   }
+
+  /**
+   * 🔥 MEMORY LEAK FIX: Clean up aggregator and remove all listeners
+   */
+  destroy() {
+    this.currentCandles = {};
+    this.lastEmittedTimes = {};
+    this.removeAllListeners();
+  }
 }

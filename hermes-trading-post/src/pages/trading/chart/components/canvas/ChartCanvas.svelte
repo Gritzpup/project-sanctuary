@@ -261,6 +261,10 @@
     positioningService?.setVisibleRange(from, to);
   }
 
+  /**
+   * ✅ Ensure chart shows the latest candles by scrolling to the right edge
+   * Called on initial load and when candle count changes significantly
+   */
   export function show60Candles() {
     positioningService?.showNCandles(dataStore.candles.length, 60);
   }
@@ -358,20 +362,23 @@
 
     // 🔧 FIX: Recalculate bar spacing after granularity change
     // This ensures candles fill the chart width properly
-    // ⚡ CRITICAL FIX: Use expectedCandles instead of totalCandles for positioning
-    // This prevents the chart from showing wrong candle count when real-time updates arrive
+    // ⚡ CRITICAL FIX: Use actual candle count for positioning, not expected
+    // If we only loaded 8 candles but expect 120, use 8 to avoid gaps
     const config = chartStore.config;
     const expectedCandles = getCandleCount(config.granularity, config.timeframe);
     const totalCandles = dataStore.candles.length;
 
-    if (positioningService && totalCandles > 0 && expectedCandles > 0) {
+    // Use the actual candles we have, capped at expected (never show more than we have)
+    const candlesToShow = Math.min(totalCandles, expectedCandles);
+
+    if (positioningService && totalCandles > 0 && candlesToShow > 0) {
       // Use setTimeout with longer delay to ensure chart has rendered new data AND
       // subscriptions haven't restarted yet. The coordination layer restarts subscriptions
       // at 200ms, so we position at 100ms to be after data is rendered but before subscriptions
       setTimeout(() => {
-        // Use expectedCandles for positioning to lock the view to the correct timeframe
-        // This prevents real-time updates from causing the display to jump to wrong candle count
-        positioningService.showNCandles(expectedCandles, expectedCandles);
+        // Use actual candle count to prevent showing gaps when data load is incomplete
+        // This ensures the chart displays all loaded candles without huge gaps
+        positioningService.showNCandles(candlesToShow, candlesToShow);
       }, 100);
     }
   }

@@ -33,19 +33,6 @@
   // Increased to 2000 to support 5Y timeframe (1825 daily candles)
   const MAX_CACHED_CANDLES: number = 2000;
 
-  // 🔧 FIX: Track granularity to detect changes and reset cache
-  let lastGranularity: string = '';
-
-  // 🔧 FIX: Auto-reset cache when granularity changes
-  $effect(() => {
-    const currentGranularity = chartStore.granularity;
-    if (lastGranularity && lastGranularity !== currentGranularity) {
-      // Granularity changed - reset all cached state so new data displays correctly
-      resetForNewTimeframe();
-    }
-    lastGranularity = currentGranularity;
-  });
-
   /**
    * Check if array is already sorted by time (ascending)
    * @param candles Array to check
@@ -339,10 +326,10 @@
         candleSeries.update(formattedCandle);
       }
 
-      // 🔧 FIX: Force re-enable autoScale after each update
-      // This ensures the price scale adjusts when candles exceed visible range
-      // Without this, manual user zoom can disable autoScale permanently
-      candleSeries.priceScale().applyOptions({ autoScale: true });
+      // 🔧 FIX: DO NOT force auto-scale for real-time updates
+      // Auto-scale only on new candle arrivals (sync/complete), not every price tick
+      // This prevents the chart from jumping around during price updates
+      // candleSeries.priceScale().applyOptions({ autoScale: true });
 
       // Volume updates are handled by VolumePlugin
     } catch (error) {

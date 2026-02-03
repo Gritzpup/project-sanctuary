@@ -142,8 +142,22 @@ export class ChartPositioningService {
       rightOffset: RIGHT_OFFSET
     });
 
-    // Scroll to real-time to show latest data
-    this.chart.timeScale().scrollToRealTime();
+    // ✅ CRITICAL FIX: Explicitly scroll to right edge to show latest candle
+    // scrollToRealTime() alone may not work reliably, so we add an explicit right-edge scroll
+    // This ensures the latest candle is always visible after positioning
+    try {
+      this.chart.timeScale().scrollToRealTime();
+
+      // Double-check by setting a slightly adjusted range to force right-edge positioning
+      // Add margin to ensure latest candle is fully visible on the right
+      const rightMargin = 0.5;  // 0.5 candle width margin on right
+      this.chart.timeScale().setVisibleLogicalRange({
+        from: startIndex,
+        to: candleCount + rightMargin  // Ensure right margin for current candle
+      });
+    } catch (error) {
+      // Silently handle scroll errors
+    }
   }
 
   /**

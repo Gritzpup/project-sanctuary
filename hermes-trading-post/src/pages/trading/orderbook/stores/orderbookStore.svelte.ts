@@ -154,9 +154,11 @@ class OrderbookStore {
 
     // Calculate mid-price for depth filtering (only if we have data)
     let midPrice = 0;
+    let bestBid = 0;
+    let bestAsk = 0;
     if (data.bids.length > 0 && data.asks.length > 0) {
-      const bestBid = Array.isArray(data.bids[0]) ? data.bids[0][0] : data.bids[0].price;
-      const bestAsk = Array.isArray(data.asks[0]) ? data.asks[0][0] : data.asks[0].price;
+      bestBid = Array.isArray(data.bids[0]) ? data.bids[0][0] : data.bids[0].price;
+      bestAsk = Array.isArray(data.asks[0]) ? data.asks[0][0] : data.asks[0].price;
       midPrice = (bestBid + bestAsk) / 2;
     }
 
@@ -165,10 +167,17 @@ class OrderbookStore {
     const minPrice = midPrice - depthRange;
     const maxPrice = midPrice + depthRange;
 
-    // Log only on first snapshot
+    // Log only on first snapshot and when spread changes significantly
     if (!this.isReady) {
       if (midPrice > 0) {
+        const spread = bestAsk - bestBid;
+        const spreadPercent = (spread / midPrice) * 100;
+        console.log(`[🔍 Orderbook Init] bestBid=$${bestBid.toFixed(2)} | bestAsk=$${bestAsk.toFixed(2)} | mid=$${midPrice.toFixed(2)} | spread=$${spread.toFixed(2)} (${spreadPercent.toFixed(3)}%)`);
       }
+    } else if (this._lastNotifiedMidPrice && Math.abs(midPrice - this._lastNotifiedMidPrice) > 50) {
+      const spread = bestAsk - bestBid;
+      const spreadPercent = (spread / midPrice) * 100;
+      console.log(`[🔍 Orderbook Update] bestBid=$${bestBid.toFixed(2)} | bestAsk=$${bestAsk.toFixed(2)} | mid=$${midPrice.toFixed(2)} | spread=$${spread.toFixed(2)} (${spreadPercent.toFixed(3)}%) | Δ$${(midPrice - (this._lastNotifiedMidPrice || 0)).toFixed(2)}`);
     }
 
     // Track if data actually changed
@@ -703,6 +712,13 @@ class OrderbookStore {
         if (priceChange < 0.01) {
           return;  // Skip sub-cent fluctuations
         }
+      }
+
+      // 🔍 DEBUG: Log significant price notifications
+      const spread = bestAsk - bestBid;
+      if (this._lastNotifiedMidPrice && Math.abs(midPrice - this._lastNotifiedMidPrice) > 100) {
+        const spreadPercent = (spread / midPrice) * 100;
+        console.log(`[📊 L2→Header] bid=$${bestBid.toFixed(2)} ask=$${bestAsk.toFixed(2)} mid=$${midPrice.toFixed(2)} spread=$${spread.toFixed(2)} (${spreadPercent.toFixed(3)}%) Δ=$${(midPrice - (this._lastNotifiedMidPrice || 0)).toFixed(2)}`);
       }
 
       this._lastNotifiedMidPrice = midPrice;

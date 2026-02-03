@@ -54,9 +54,15 @@
 
       try {
         chartStore.setGranularity(granularity);
+        // Wait for chart to complete reload (150ms + buffer)
+        await new Promise(resolve => setTimeout(resolve, 300));
       } finally {
         this.isLoadingGranularity = false;
       }
+    }
+
+    getIsLoadingGranularity(): boolean {
+      return this.isLoadingGranularity;
     }
 
     async handleRefresh() {
