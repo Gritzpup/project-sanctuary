@@ -496,12 +496,16 @@
       // Only update if enough time has passed (throttle to ~4fps)
       if (chartNeedsUpdate && chart && bidSeries && askSeries) {
         if (timestamp - lastChartUpdateTime >= CHART_UPDATE_THROTTLE_MS) {
-          updateChart();
+          try {
+            updateChart();
+          } catch (e) {
+            // Protect RAF loop from chart errors (e.g. lightweight-charts assertions)
+          }
           chartNeedsUpdate = false;
           lastChartUpdateTime = timestamp;
         }
       }
-      // Continue RAF loop
+      // Continue RAF loop (must always execute even if updateChart throws)
       chartUpdateRafId = requestAnimationFrame(rafLoop);
     };
 
@@ -585,10 +589,10 @@
     const spread = bestAsk - bestBid;
     const midPrice = (bestBid + bestAsk) / 2;
 
-    // 🔧 FIX: Filter bids to only include prices <= midPrice (left side of valley)
-    // This prevents bids from crossing into ask territory
+    // Filter bids to only include prices < midPrice (left side of valley)
+    // Use strict inequality to avoid duplicate with anchor point at midPrice
     const bidData = filteredBids
-      .filter(level => level.price <= midPrice)
+      .filter(level => level.price < midPrice)
       .map(level => ({
         time: level.price as any,
         value: level.depth
@@ -603,16 +607,16 @@
     // Sort bids ascending by price (required by LightweightCharts)
     bidData.sort((a, b) => (a.time as number) - (b.time as number));
 
-    // 🔧 FIX: Filter asks to only include prices >= midPrice (right side of valley)
-    // This prevents asks from crossing into bid territory
+    // Filter asks to only include prices > midPrice (right side of valley)
+    // Use strict inequality to avoid duplicate with anchor point at midPrice
     const askData = [{
       time: midPrice as any,
       value: 0
     }];
 
-    // Add ask levels that are at or above midPrice
+    // Add ask levels that are above midPrice
     filteredAsks.forEach(level => {
-      if (level.price >= midPrice) {
+      if (level.price > midPrice) {
         askData.push({
           time: level.price as any,
           value: level.depth
@@ -623,8 +627,19 @@
     // Sort asks ascending by price (required by LightweightCharts)
     askData.sort((a, b) => (a.time as number) - (b.time as number));
 
-    bidSeries.setData(bidData);
-    askSeries.setData(askData);
+    // Deduplicate: lightweight-charts requires strictly ascending time values
+    const dedup = (data: Array<{time: any, value: number}>) => {
+      const result: typeof data = [];
+      for (const item of data) {
+        if (result.length === 0 || (result[result.length - 1].time as number) < (item.time as number)) {
+          result.push(item);
+        }
+      }
+      return result;
+    };
+
+    bidSeries.setData(dedup(bidData));
+    askSeries.setData(dedup(askData));
 
     // 🎯 Set visible range to full ±$25k (now that we have synthetic data to fill it)
     requestAnimationFrame(() => {

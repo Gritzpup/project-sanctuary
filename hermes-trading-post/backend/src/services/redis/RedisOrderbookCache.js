@@ -145,9 +145,27 @@ class RedisOrderbookCache {
   }
 
   /**
-   * Store orderbook snapshot in Redis using sorted sets
-   * Bids: sorted set with score = price (descending), member = size
-   * Asks: sorted set with score = price (ascending), member = size
+   * Parse Redis hash data into sorted orderbook levels
+   * @param {Object} hashData - Raw hash data from HGETALL {priceStr: sizeStr, ...}
+   * @param {boolean} descending - Sort descending (true for bids, false for asks)
+   * @returns {Array<{price: number, size: number}>}
+   */
+  _parseHashToLevels(hashData, descending = false) {
+    const levels = [];
+    for (const [priceStr, sizeStr] of Object.entries(hashData)) {
+      const price = parseFloat(priceStr);
+      const size = parseFloat(sizeStr);
+      if (!isNaN(price) && !isNaN(size) && size > 0) {
+        levels.push({ price, size });
+      }
+    }
+    levels.sort((a, b) => descending ? b.price - a.price : a.price - b.price);
+    return levels;
+  }
+
+  /**
+   * Store orderbook snapshot in Redis using hashes
+   * Each side is a hash: key=price, value=size (unique per price level)
    */
   async storeOrderbookSnapshot(productId, bids, asks) {
     if (!this.isConnected) return false;
@@ -164,22 +182,22 @@ class RedisOrderbookCache {
       pipeline.del(bidsKey);
       pipeline.del(asksKey);
 
-      // Add bids (store as score=price, member=size)
+      // Add bids as hash entries (key=price, value=size)
       if (bids.length > 0) {
-        const bidArgs = [];
+        const bidHash = {};
         bids.forEach(bid => {
-          bidArgs.push(bid.price, bid.size.toString());
+          bidHash[bid.price.toString()] = bid.size.toString();
         });
-        pipeline.zadd(bidsKey, ...bidArgs);
+        pipeline.hset(bidsKey, bidHash);
       }
 
-      // Add asks
+      // Add asks as hash entries (key=price, value=size)
       if (asks.length > 0) {
-        const askArgs = [];
+        const askHash = {};
         asks.forEach(ask => {
-          askArgs.push(ask.price, ask.size.toString());
+          askHash[ask.price.toString()] = ask.size.toString();
         });
-        pipeline.zadd(asksKey, ...askArgs);
+        pipeline.hset(asksKey, askHash);
       }
 
       // Store metadata
@@ -223,28 +241,18 @@ class RedisOrderbookCache {
       const bidsKey = `orderbook:${productId}:bids`;
       const asksKey = `orderbook:${productId}:asks`;
 
-      // Get bids in range (using score as price)
-      // Bids are highest prices first, so we need reverse range
-      // NOTE: WITHSCORES returns [member, score] pairs, so [size, price, size, price...]
-      const bidsRaw = await this.redis.zrevrangebyscore(bidsKey, maxPrice, minPrice, 'WITHSCORES');
-      const bids = [];
-      for (let i = 0; i < bidsRaw.length; i += 2) {
-        bids.push({
-          size: parseFloat(bidsRaw[i]),       // bidsRaw[i] is MEMBER (size)
-          price: parseFloat(bidsRaw[i + 1])   // bidsRaw[i+1] is SCORE (price)
-        });
-      }
+      // Get all levels from hashes, then filter and sort in memory
+      const [bidsRaw, asksRaw] = await Promise.all([
+        this.redis.hgetall(bidsKey),
+        this.redis.hgetall(asksKey)
+      ]);
 
-      // Get asks in range
-      // NOTE: WITHSCORES returns [member, score] pairs, so [size, price, size, price...]
-      const asksRaw = await this.redis.zrangebyscore(asksKey, minPrice, maxPrice, 'WITHSCORES');
-      const asks = [];
-      for (let i = 0; i < asksRaw.length; i += 2) {
-        asks.push({
-          size: parseFloat(asksRaw[i]),       // asksRaw[i] is MEMBER (size)
-          price: parseFloat(asksRaw[i + 1])   // asksRaw[i+1] is SCORE (price)
-        });
-      }
+      // Parse, filter to range, sort (bids descending, asks ascending)
+      const allBids = this._parseHashToLevels(bidsRaw || {}, true);
+      const allAsks = this._parseHashToLevels(asksRaw || {}, false);
+
+      const bids = allBids.filter(b => b.price >= minPrice && b.price <= maxPrice);
+      const asks = allAsks.filter(a => a.price >= minPrice && a.price <= maxPrice);
 
       return { bids, asks };
     } catch (error) {
@@ -296,17 +304,18 @@ class RedisOrderbookCache {
 
       const pipeline = this.redis.pipeline();
 
-      // Apply each change
+      // Apply each change using hash operations
       changes.forEach(change => {
         const { side, price, size } = change;
         const key = side === 'buy' || side === 'bid' ? bidsKey : asksKey;
+        const priceStr = price.toString();
 
         if (size === 0) {
-          // Remove price level
-          pipeline.zrem(key, size.toString());
+          // Remove price level by price key
+          pipeline.hdel(key, priceStr);
         } else {
           // Add or update price level
-          pipeline.zadd(key, price, size.toString());
+          pipeline.hset(key, priceStr, size.toString());
         }
       });
 
@@ -389,30 +398,17 @@ class RedisOrderbookCache {
       const asksKey = `orderbook:${productId}:asks`;
       const metaKey = `orderbook:${productId}:meta`;
 
-      // Get full orderbook (not just a range)
-      // NOTE: We store with zadd(key, price, size) where price is SCORE and size is MEMBER
-      // WITHSCORES returns [member, score] pairs, so [size, price, size, price...]
-      const bidsRaw = await this.redis.zrevrange(bidsKey, 0, -1, 'WITHSCORES');
-      const asksRaw = await this.redis.zrange(asksKey, 0, -1, 'WITHSCORES');
+      // Get all levels from hashes
+      const [bidsRaw, asksRaw, metaJson] = await Promise.all([
+        this.redis.hgetall(bidsKey),
+        this.redis.hgetall(asksKey),
+        this.redis.hget(metaKey, 'meta')
+      ]);
 
-      const bids = [];
-      for (let i = 0; i < bidsRaw.length; i += 2) {
-        bids.push({
-          size: parseFloat(bidsRaw[i]),       // bidsRaw[i] is MEMBER (size)
-          price: parseFloat(bidsRaw[i + 1])   // bidsRaw[i+1] is SCORE (price)
-        });
-      }
+      // Parse and sort: bids descending, asks ascending
+      const bids = this._parseHashToLevels(bidsRaw || {}, true);
+      const asks = this._parseHashToLevels(asksRaw || {}, false);
 
-      const asks = [];
-      for (let i = 0; i < asksRaw.length; i += 2) {
-        asks.push({
-          size: parseFloat(asksRaw[i]),       // asksRaw[i] is MEMBER (size)
-          price: parseFloat(asksRaw[i + 1])   // asksRaw[i+1] is SCORE (price)
-        });
-      }
-
-      // Get metadata
-      const metaJson = await this.redis.hget(metaKey, 'meta');
       const metadata = metaJson ? JSON.parse(metaJson) : null;
 
       if (bids.length === 0 && asks.length === 0) {
@@ -462,11 +458,8 @@ class RedisOrderbookCache {
   }
 
   /**
-   * 🚀 PERF: Get top N bids and asks for depth chart hydration
+   * Get top N bids and asks for depth chart hydration
    * Returns only the best N price levels on each side
-   * Used for fast initial loading of orderbook depth visualization
-   *
-   * Performance: O(log N) + O(K) where K is count parameter
    */
   async getTopOrders(productId, count = 12) {
     if (!this.isConnected) return { bids: [], asks: [] };
@@ -475,29 +468,15 @@ class RedisOrderbookCache {
       const bidsKey = `orderbook:${productId}:bids`;
       const asksKey = `orderbook:${productId}:asks`;
 
-      // Get top bids (highest prices first)
-      // zrevrange returns from highest to lowest score (which is price for bids)
-      // NOTE: WITHSCORES returns [member, score] pairs, so [size, price, size, price...]
-      const bidsRaw = await this.redis.zrevrange(bidsKey, 0, count - 1, 'WITHSCORES');
-      const bids = [];
-      for (let i = 0; i < bidsRaw.length; i += 2) {
-        bids.push({
-          size: parseFloat(bidsRaw[i]),       // bidsRaw[i] is MEMBER (size)
-          price: parseFloat(bidsRaw[i + 1])   // bidsRaw[i+1] is SCORE (price)
-        });
-      }
+      // Get all levels from hashes, sort, and take top N
+      const [bidsRaw, asksRaw] = await Promise.all([
+        this.redis.hgetall(bidsKey),
+        this.redis.hgetall(asksKey)
+      ]);
 
-      // Get top asks (lowest prices first)
-      // zrange returns from lowest to highest score (which is price for asks)
-      // NOTE: WITHSCORES returns [member, score] pairs, so [size, price, size, price...]
-      const asksRaw = await this.redis.zrange(asksKey, 0, count - 1, 'WITHSCORES');
-      const asks = [];
-      for (let i = 0; i < asksRaw.length; i += 2) {
-        asks.push({
-          size: parseFloat(asksRaw[i]),       // asksRaw[i] is MEMBER (size)
-          price: parseFloat(asksRaw[i + 1])   // asksRaw[i+1] is SCORE (price)
-        });
-      }
+      // Parse and sort: bids descending (best=highest), asks ascending (best=lowest)
+      const bids = this._parseHashToLevels(bidsRaw || {}, true).slice(0, count);
+      const asks = this._parseHashToLevels(asksRaw || {}, false).slice(0, count);
 
       return { bids, asks };
     } catch (error) {
@@ -519,26 +498,14 @@ class RedisOrderbookCache {
       const bidsKey = `orderbook:${productId}:bids`;
       const asksKey = `orderbook:${productId}:asks`;
 
-      // Get current top levels (top 50 is plenty for most UIs)
-      // NOTE: WITHSCORES returns [member, score] pairs, so [size, price, size, price...]
-      const topBidsRaw = await this.redis.zrevrange(bidsKey, 0, 49, 'WITHSCORES');
-      const topAsksRaw = await this.redis.zrange(asksKey, 0, 49, 'WITHSCORES');
+      // Get all levels from hashes, sort, and take top 50
+      const [bidsRaw, asksRaw] = await Promise.all([
+        this.redis.hgetall(bidsKey),
+        this.redis.hgetall(asksKey)
+      ]);
 
-      const bids = [];
-      for (let i = 0; i < topBidsRaw.length; i += 2) {
-        bids.push({
-          size: parseFloat(topBidsRaw[i]),       // topBidsRaw[i] is MEMBER (size)
-          price: parseFloat(topBidsRaw[i + 1])   // topBidsRaw[i+1] is SCORE (price)
-        });
-      }
-
-      const asks = [];
-      for (let i = 0; i < topAsksRaw.length; i += 2) {
-        asks.push({
-          size: parseFloat(topAsksRaw[i]),       // topAsksRaw[i] is MEMBER (size)
-          price: parseFloat(topAsksRaw[i + 1])   // topAsksRaw[i+1] is SCORE (price)
-        });
-      }
+      const bids = this._parseHashToLevels(bidsRaw || {}, true).slice(0, 50);
+      const asks = this._parseHashToLevels(asksRaw || {}, false).slice(0, 50);
 
       return { bids, asks };
     } catch (error) {
