@@ -17,8 +17,6 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   private lastCandleTime: number = 0;
   private lastProcessedIndex: number = -1;  // Track last processed candle for incremental updates
   private colorCache: Map<number, { isPriceUp: boolean; color: string }> = new Map();  // Cache volume colors
-  private dataStoreUnsubscribe: (() => void) | null = null;  // Track dataStore subscription
-
   // 🚀 PHASE 14b: Color caching optimization
   private lastCacheClearTime: number = Date.now();
   private CACHE_TTL_MS: number = 30000; // Clear cache every 30 seconds for freshness
@@ -105,40 +103,10 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         entireTextOnly: false,
       });
 
-      // Subscribe to dataStore updates for real-time volume sync
-      this.subscribeToDataStoreUpdates();
     } else {
     }
   }
 
-  /**
-   * Subscribe to dataStore updates to keep volume candles in sync with price candles
-   * This ensures volume candles are updated in real-time as prices update
-   */
-  private subscribeToDataStoreUpdates(): void {
-    try {
-      const dataStore = this.getDataStore();
-      if (!dataStore) return;
-
-      // Subscribe to data updates
-      this.dataStoreUnsubscribe = dataStore.onDataUpdate(() => {
-        // When dataStore updates, refresh our volume data
-        this.refreshData();
-      });
-    } catch (error) {
-    }
-  }
-
-  /**
-   * Cleanup subscription when plugin is destroyed
-   */
-  override async onDestroy(): Promise<void> {
-    if (this.dataStoreUnsubscribe) {
-      this.dataStoreUnsubscribe();
-      this.dataStoreUnsubscribe = null;
-    }
-    await super.onDestroy();
-  }
 
   /**
    * 🔧 FIX: Reset volume plugin state for granularity changes
@@ -174,7 +142,8 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
 
       // OPTIMIZATION: Memoization check - only recalculate if candles changed
       // Check if we have new candles by comparing count and latest time
-      const newestTime = candles.length > 0 ? (candles[candles.length - 1]?.time as number || 0) : 0;
+      const rawTime = candles[candles.length - 1]?.time;
+      const newestTime = candles.length > 0 ? (typeof rawTime === 'number' ? rawTime : Number(rawTime)) || 0 : 0;
       if (candles.length === this.lastCandleCount && newestTime === this.lastCandleTime) {
         // Data hasn't changed - return cached result
         return this.volumeData;
@@ -205,9 +174,10 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
 
           const displayVolume = volume * 1000;
           const color = this.colorCache.get(i)?.color || upColor;
+          const time = (typeof candle.time === 'number' ? candle.time : Number(candle.time)) as Time;
 
           this.volumeData[i] = {
-            time: candle.time,
+            time,
             value: displayVolume,
             color: color
           };
@@ -232,8 +202,9 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
             // Update volume data with new color
             const volume = candle.volume || 0;
             const displayVolume = volume * 1000;
+            const time = (typeof candle.time === 'number' ? candle.time : Number(candle.time)) as Time;
             this.volumeData[lastIdx] = {
-              time: candle.time,
+              time,
               value: displayVolume,
               color: newColor
             };
@@ -303,7 +274,13 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
     // Make sure series exists and is visible
     if (this.series) {
       this.series.applyOptions({ visible: true });
-    } else {
+      // Re-apply price scale config that may have been lost during chart relayout
+      const settings = this.settings as VolumePluginSettings;
+      this.series.priceScale().applyOptions({
+        scaleMargins: settings.scaleMargins || { top: 0.85, bottom: 0 },
+        visible: false,
+        autoScale: true,
+      });
     }
 
     // Refresh the data
@@ -346,9 +323,10 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
         // Cache the color for this candle
         this.colorCache.set(i, { isPriceUp, color });
 
-        // Create histogram data point
+        // Create histogram data point - normalize timestamp to number to match candle series
+        const time = (typeof candle.time === 'number' ? candle.time : Number(candle.time)) as Time;
         const histogramData: HistogramData = {
-          time: candle.time,
+          time,
           value: displayVolume,
           color: color
         };
