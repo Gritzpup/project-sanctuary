@@ -1,6 +1,7 @@
 import express from 'express';
 import { redisCandleStorage } from '../services/redis/RedisCandleStorage.js';
 import { historicalDataService } from '../services/HistoricalDataService.js';
+import { coinbaseAPI } from '../services/CoinbaseAPIService.js';
 import { SoundPlayer } from '../utils/SoundPlayer.js';
 
 export default function tradingRoutes(botManager) {
@@ -175,9 +176,6 @@ export default function tradingRoutes(botManager) {
     try {
       const { pair = 'BTC-USD', granularity = '1m', startTime, endTime, maxCandles = 1000 } = req.query;
 
-      // 🔇 SILENCED: Too spammy - fires on every chart view/refresh
-      // console.log(`[Backend] /chart-data request: pair=${pair}, granularity=${granularity}, maxCandles=${maxCandles}, startTime=${startTime}, endTime=${endTime}`);
-
       const now = Math.floor(Date.now() / 1000);
       const calculatedEndTime = endTime ? parseInt(endTime) : now;
 
@@ -218,22 +216,14 @@ export default function tradingRoutes(botManager) {
 
         if (missingEndTime >= calculatedStartTime) {
           try {
-            const coinbaseUrl = `https://api.exchange.coinbase.com/products/${pair}/candles?start=${calculatedStartTime}&end=${missingEndTime}&granularity=${granularitySeconds}`;
-            const coinbaseResponse = await fetch(coinbaseUrl);
-            const coinbaseData = await coinbaseResponse.json();
+            const coinbaseCandles = await coinbaseAPI.getCandles(
+              pair, granularity, calculatedStartTime, missingEndTime
+            );
 
-            if (Array.isArray(coinbaseData) && coinbaseData.length > 0) {
-              const coinbaseCandles = coinbaseData.map(([time, low, high, open, close, volume]) => ({
-                time: Math.floor(time),
-                open: parseFloat(open),
-                high: parseFloat(high),
-                low: parseFloat(low),
-                close: parseFloat(close),
-                volume: parseFloat(volume)
-              })).sort((a, b) => a.time - b.time);
-
-              allCandles = [...coinbaseCandles, ...allCandles];
-              console.log(`[Backend] Supplemented with ${coinbaseCandles.length} Coinbase candles (Redis had ${redisCount}/${expectedCandles} expected)`);
+            if (Array.isArray(coinbaseCandles) && coinbaseCandles.length > 0) {
+              const sortedCandles = coinbaseCandles.sort((a, b) => a.time - b.time);
+              allCandles = [...sortedCandles, ...allCandles];
+              console.log(`[Backend] Supplemented with ${sortedCandles.length} Coinbase candles (Redis had ${redisCount}/${expectedCandles} expected)`);
             }
           } catch (err) {
             console.warn(`[Backend] Coinbase supplement failed: ${err.message}`);
@@ -241,13 +231,48 @@ export default function tradingRoutes(botManager) {
         }
       }
 
+      // MIDDLE-GAP DETECTION: Scan for gaps within the Redis data
+      if (allCandles.length >= 2) {
+        const sortedCandles = allCandles.sort((a, b) => a.time - b.time);
+        const gaps = [];
+
+        for (let i = 1; i < sortedCandles.length; i++) {
+          const timeDiff = sortedCandles[i].time - sortedCandles[i - 1].time;
+          if (timeDiff > granularitySeconds * 2) {
+            gaps.push({
+              start: sortedCandles[i - 1].time + granularitySeconds,
+              end: sortedCandles[i].time - granularitySeconds,
+              missing: Math.floor(timeDiff / granularitySeconds) - 1
+            });
+          }
+        }
+
+        if (gaps.length > 0) {
+          console.log(`[Backend] Gap detection: Found ${gaps.length} gap(s) in ${pair} ${granularity} data, total ~${gaps.reduce((s, g) => s + g.missing, 0)} missing candles`);
+          for (const gap of gaps) {
+            try {
+              const gapCandles = await coinbaseAPI.getCandlesPaginated(
+                pair, granularity, gap.start, gap.end
+              );
+              if (gapCandles.length > 0) {
+                allCandles.push(...gapCandles);
+                // Store in Redis for future requests (self-healing cache)
+                await redisCandleStorage.storeCandles(pair, granularity, gapCandles);
+                console.log(`[Backend] Gap filled: ${gapCandles.length} candles stored in Redis for ${pair} ${granularity}`);
+              }
+            } catch (err) {
+              console.warn(`[Backend] Gap fill failed: ${err.message}`);
+            }
+          }
+          // Re-sort after filling gaps
+          allCandles.sort((a, b) => a.time - b.time);
+        }
+      }
+
       // Limit results to maxCandles (keep most recent)
       const candles = allCandles.length > maxCandlesInt ?
         allCandles.slice(-maxCandlesInt) :
         allCandles;
-
-      // 🔇 SILENCED: Too spammy - fires on every chart view/refresh
-      // console.log(`[Backend] /chart-data response: returning ${candles.length} candles (fetched ${allCandles.length} total, limit was ${maxCandlesInt})`);
 
       // Calculate cache metrics (expectedCandles already calculated above for Coinbase fallback)
       const cacheHitRatio = expectedCandles > 0 ? candles.length / expectedCandles : 0;

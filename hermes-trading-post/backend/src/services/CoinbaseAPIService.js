@@ -126,6 +126,37 @@ export class CoinbaseAPIService {
   }
 
   /**
+   * Fetch candles with pagination for large time ranges.
+   * Breaks the range into chunks of 300 candles (under Coinbase's 350 limit)
+   * and merges the results.
+   */
+  async getCandlesPaginated(productId, granularity, start, end) {
+    const granularitySeconds = typeof granularity === 'string'
+      ? this.granularityToSeconds(granularity) : granularity;
+    const maxCandlesPerRequest = 300;
+    const timeSpanPerRequest = maxCandlesPerRequest * granularitySeconds;
+
+    let allCandles = [];
+    let currentStart = typeof start === 'string' ? parseInt(start) : start;
+    const endTime = typeof end === 'string' ? parseInt(end) : end;
+
+    while (currentStart < endTime) {
+      const currentEnd = Math.min(currentStart + timeSpanPerRequest, endTime);
+      await this.rateLimit();
+      try {
+        const chunk = await this.getCandles(productId, granularitySeconds,
+          currentStart.toString(), currentEnd.toString());
+        allCandles.push(...chunk);
+      } catch (err) {
+        console.warn(`[CoinbaseAPI] Paginated fetch chunk failed (${currentStart}-${currentEnd}): ${err.message}`);
+      }
+      currentStart = currentEnd;
+    }
+
+    return allCandles.sort((a, b) => a.time - b.time);
+  }
+
+  /**
    * Test API connectivity
    */
   async testConnection() {
