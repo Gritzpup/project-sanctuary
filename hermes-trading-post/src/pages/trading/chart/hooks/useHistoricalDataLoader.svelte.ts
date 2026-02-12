@@ -59,18 +59,18 @@ export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
       return;
     }
 
-    // Check if this is a small dataset where all expected candles are already loaded
-    // This prevents auto-loading for timeframes like 5m/1H (12 candles) where we already have all the data
+    // Check if all expected candles for this timeframe are already loaded
+    // This prevents false-positive infinite scroll triggers (e.g. 5Y with 1825 candles at fitContent)
     const config = chartStore?.config;
 
     if (config?.granularity && config?.timeframe) {
       const expectedCandleCount = getCandleCount(config.granularity, config.timeframe);
-      const shouldSkip = candles.length < 30 && candles.length >= (expectedCandleCount - 3);
+      const shouldSkip = candles.length >= (expectedCandleCount - 3);
 
-      // If we have a small dataset (< 30 candles) and we already have all expected candles (+3 for live candle + buffer),
+      // If we already have all expected candles (+3 buffer for live candle),
       // don't trigger historical auto-loading
       if (shouldSkip) {
-        ChartDebug.log('Skipping historical auto-load for small dataset', {
+        ChartDebug.log('Skipping historical auto-load: all expected candles loaded', {
           totalCandles: candles.length,
           expectedCandleCount,
           granularity: config.granularity,
@@ -117,31 +117,10 @@ export function useHistoricalDataLoader(config: UseHistoricalDataLoaderConfig) {
       const addedCount = await dataStore.fetchAndPrependHistoricalData(loadAmount);
 
       if (addedCount > 0) {
-        ChartDebug.log(`✅ Infinite scroll: Loaded ${addedCount} candles (total: ${dataStore.candles.length}`);
+        ChartDebug.log(`✅ Infinite scroll: Loaded ${addedCount} candles (total: ${dataStore.candles.length})`);
 
-        // 🚀 PHASE 6 FIX: Cap total loaded candles to prevent crashes
-        // Only keep last 1000 candles in memory to avoid rendering 129k+ which crashes
-        // This allows zooming but prevents memory bloat
-        if (chart && candleSeries) {
-          const allCandles = dataStore.candles;
-          const MAX_CANDLES_IN_CHART = 1000; // Reasonable limit for chart rendering
-
-          let candlesToDisplay = allCandles;
-          if (allCandles.length > MAX_CANDLES_IN_CHART) {
-            // Keep the most recent 1000 candles
-            candlesToDisplay = allCandles.slice(-MAX_CANDLES_IN_CHART);
-            ChartDebug.log(`⚠️ Limiting chart display to ${MAX_CANDLES_IN_CHART} candles (have ${allCandles.length} total loaded)`);
-          }
-
-          const formattedCandles = candlesToDisplay.map(candle => ({
-            time: candle.time as any,
-            open: candle.open,
-            high: candle.high,
-            low: candle.low,
-            close: candle.close,
-          }));
-          candleSeries.setData(formattedCandles);
-        }
+        // Data flows through dataStore.setCandles() → notifyDataUpdate() → ChartDataManager
+        // No need to call candleSeries.setData() directly here
 
         return true;
       } else {
