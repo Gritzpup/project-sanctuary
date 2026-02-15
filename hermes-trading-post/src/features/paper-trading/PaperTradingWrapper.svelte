@@ -102,12 +102,7 @@
     } else if (event.type === 'granularityChange') {
       const newGranularity = event.detail.granularity;
       selectedGranularity = newGranularity;
-
-      // Trigger chart reload for new granularity
-      if (chartComponent && typeof chartComponent.reloadForGranularity === 'function') {
-        chartComponent.reloadForGranularity(newGranularity).catch((err: any) => {
-        });
-      }
+      // Granularity changes are now handled reactively through chartStore
     } else if (event.type === 'periodChange') {
       selectedPeriod = event.detail.period;
     } else if (event.type === 'speedChange') {

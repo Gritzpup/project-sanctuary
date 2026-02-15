@@ -1,5 +1,6 @@
 import { ChartStateService, type ChartState } from '../services/ChartStateService';
 import type { ChartConfig, ChartInstance } from '../types/chart.types';
+import { VALID_GRANULARITIES, RECOMMENDED_GRANULARITIES } from '../utils/constants';
 
 class ChartStore {
   private stateService = new ChartStateService();
@@ -41,6 +42,15 @@ class ChartStore {
 
   // Methods to update state
   updateConfig(updates: Partial<ChartConfig>) {
+    // Auto-switch granularity when timeframe changes and current granularity is invalid
+    if (updates.timeframe && !updates.granularity) {
+      const currentGranularity = this.config.granularity;
+      const validForTimeframe = VALID_GRANULARITIES[updates.timeframe] || [];
+      if (currentGranularity && !validForTimeframe.includes(currentGranularity)) {
+        const recommended = RECOMMENDED_GRANULARITIES[updates.timeframe] || [];
+        updates.granularity = recommended[0] || validForTimeframe[0] || currentGranularity;
+      }
+    }
     this.stateService.updateConfig(updates);
   }
 

@@ -45,11 +45,10 @@
     </div>
   </div>
   <div class="panel-content">
-    <Chart 
-      bind:status={connectionStatus} 
-      granularity={selectedGranularity} 
-      period={selectedPeriod} 
-      onGranularityChange={onChartGranularityChange} 
+    <Chart
+      bind:status={connectionStatus}
+      granularity={selectedGranularity}
+      period={selectedPeriod}
     />
     <div class="period-buttons">
       <button class="period-btn" class:active={selectedPeriod === '1H'} on:click={() => selectPeriod('1H')}>1H</button>

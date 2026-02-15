@@ -128,32 +128,38 @@ export class ChartPositioningService {
     const showCandles = Math.min(candleCount, visibleCount);
     const startIndex = Math.max(0, candleCount - showCandles);
 
+    // For large datasets where bars can't fit at minimum spacing,
+    // manually calculate sub-pixel bar spacing to fit all candles with right padding.
+    // fitContent() ignores rightOffset, so we set the range + spacing explicitly.
+    const barSpacing = this.calculateBarSpacing(showCandles);
+    if (barSpacing < MINIMUM_BAR_SPACING) {
+      // For large datasets (e.g. 5Y), let LWC's fitContent() compress all candles
+      // to fit the plot area. Chart was created with minBarSpacing: 0.01 so
+      // fitContent can shrink bars as small as needed.
+      this.chart.timeScale().applyOptions({ rightOffset: RIGHT_OFFSET });
+      this.chart.timeScale().fitContent();
+      return;
+    }
 
-    // Always set visible range and bar spacing, regardless of candle count
+    // Normal case: set visible range and bar spacing
     this.chart.timeScale().setVisibleLogicalRange({
       from: startIndex,
       to: candleCount // rightOffset property handles right padding
     });
 
-    // Calculate and apply bar spacing
-    const barSpacing = this.calculateBarSpacing(showCandles);
     this.chart.timeScale().applyOptions({
       barSpacing: Math.max(MINIMUM_BAR_SPACING, barSpacing),
       rightOffset: RIGHT_OFFSET
     });
 
-    // ✅ CRITICAL FIX: Explicitly scroll to right edge to show latest candle
-    // scrollToRealTime() alone may not work reliably, so we add an explicit right-edge scroll
-    // This ensures the latest candle is always visible after positioning
+    // Scroll to right edge to show latest candle
     try {
       this.chart.timeScale().scrollToRealTime();
 
-      // Double-check by setting a slightly adjusted range to force right-edge positioning
-      // Add margin to ensure latest candle is fully visible on the right
-      const rightMargin = 0.5;  // 0.5 candle width margin on right
+      const rightMargin = 0.5;
       this.chart.timeScale().setVisibleLogicalRange({
         from: startIndex,
-        to: candleCount + rightMargin  // Ensure right margin for current candle
+        to: candleCount + rightMargin
       });
     } catch (error) {
       // Silently handle scroll errors

@@ -20,6 +20,7 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
   // 🚀 PHASE 14b: Color caching optimization
   private lastCacheClearTime: number = Date.now();
   private CACHE_TTL_MS: number = 30000; // Clear cache every 30 seconds for freshness
+  private realtimeDataUnsubscribe: (() => void) | null = null;
 
   constructor(settings?: VolumePluginSettings) {
     
@@ -107,6 +108,80 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
     }
   }
 
+
+  /**
+   * Override subscribeToData to also listen for real-time updates.
+   * The base class only subscribes to onHistoricalDataLoaded (full refresh via setData).
+   * We additionally subscribe to onDataUpdate for incremental volume rendering via series.update(),
+   * which keeps volume bars in sync with realtime candle updates without replacing the entire dataset.
+   */
+  protected subscribeToData(): void {
+    // Call base class for initial load + historical data subscription
+    super.subscribeToData();
+
+    // Also subscribe to real-time data updates for incremental volume rendering
+    const dataStore = this.getDataStore();
+    this.realtimeDataUnsubscribe = dataStore.onDataUpdate(() => {
+      this.updateLastCandleVolume();
+    });
+  }
+
+  protected unsubscribeFromData(): void {
+    super.unsubscribeFromData();
+    if (this.realtimeDataUnsubscribe) {
+      this.realtimeDataUnsubscribe();
+      this.realtimeDataUnsubscribe = null;
+    }
+  }
+
+  /**
+   * Incrementally update the last candle's volume bar via series.update().
+   * Called on every real-time data update. Handles both:
+   * - Current candle volume changes (same count, updated OHLCV)
+   * - New candle arrivals (count increased)
+   */
+  private updateLastCandleVolume(): void {
+    if (!this.series) return;
+
+    try {
+      const dataStore = this.getDataStore();
+      const candles = dataStore.candles;
+      if (candles.length === 0) return;
+
+      const settings = this.settings as VolumePluginSettings;
+      const upColor = settings.upColor || '#26a69aCC';
+      const downColor = settings.downColor || '#ef5350CC';
+
+      // Process any new candles that appeared since lastProcessedIndex
+      const startIdx = Math.max(this.lastProcessedIndex, 0);
+      for (let i = startIdx; i < candles.length; i++) {
+        const candle = candles[i];
+        if (!candle) continue;
+
+        const volume = candle.volume || 0;
+        const isPriceUp = i > 0 ? candle.close >= candles[i - 1].close : true;
+        const displayVolume = volume * 1000;
+        const color = isPriceUp ? upColor : downColor;
+        const time = (typeof candle.time === 'number' ? candle.time : Number(candle.time)) as Time;
+
+        const histogramData: HistogramData = {
+          time,
+          value: displayVolume,
+          color
+        };
+
+        try {
+          this.series.update(histogramData);
+        } catch {
+          // Silently ignore "Cannot update oldest data" errors for long-term timeframes
+        }
+      }
+
+      this.lastProcessedIndex = candles.length - 1;
+    } catch {
+      // Silently ignore errors
+    }
+  }
 
   /**
    * 🔧 FIX: Reset volume plugin state for granularity changes
@@ -270,6 +345,10 @@ export class VolumePlugin extends SeriesPlugin<'Histogram'> {
     if (!this.enabled) {
       this.enable();
     }
+
+    // Clear memoization cache to force full recalculation
+    // Prevents stale cached data from blocking volume bar rendering on initial load
+    this.resetForNewTimeframe();
 
     // Make sure series exists and is visible
     if (this.series) {

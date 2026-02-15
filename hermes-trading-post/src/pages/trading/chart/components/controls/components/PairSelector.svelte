@@ -17,6 +17,7 @@
   <span class="control-label">Pair:</span>
   <select class="pair-dropdown" bind:value={pair} on:change={handlePairChange}>
     <option value="BTC-USD">BTC/USD</option>
+    <option value="ETH-USD">ETH/USD</option>
     <option value="PAXG-USD">PAXG/USD</option>
   </select>
 </div>

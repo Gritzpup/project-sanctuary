@@ -260,14 +260,8 @@ export class ChartTimeframeCoordinator {
         this.prefetcher.trackUsage(dataStore.pair || 'BTC-USD', granularity);
       }
 
-      // Step 4: Refresh all plugins after a delay (including volume candles for new granularity)
-      // ⚡ PERF: Reduced delay from 500ms to 100ms for faster granularity switching
-      if (pluginManager && typeof (pluginManager as any).refreshAll === 'function') {
-        setTimeout(() => {
-          ChartDebug.log(`🔄 Refreshing all plugins (volume candles for ${granularity})...`);
-          (pluginManager as any).refreshAll(100);
-        }, 100);
-      }
+      // Step 4: Volume plugin refresh is handled by ChartCanvas.resetAndUpdateDisplay()
+      // which calls volumePlugin.forceShow() after resetting state
 
       // Step 5: Position chart via ChartCanvas.resetAndUpdateDisplay()
       // This is handled by the parent component calling resetAndUpdateDisplay() after reload
@@ -275,19 +269,17 @@ export class ChartTimeframeCoordinator {
       // DO NOT position here - it causes race conditions with ChartCanvas positioning
       ChartDebug.log(`[RELOAD-STEP] Positioning delegated to ChartCanvas.resetAndUpdateDisplay()`);
 
-      // Step 6: Resubscribe to real-time after positioning completes
-      // ⚡ PERF: Reduced delay from 600ms to 200ms for faster granularity switching
+      // Step 6: Resubscribe to real-time synchronously after data loads complete
+      // No setTimeout gap - prevents stale candles from old subscription arriving
       if (this.subscriptionOrchestrator && chartSeries) {
-        setTimeout(() => {
-          this.subscriptionOrchestrator?.subscribeAfterPositioning(
-            {
-              pair: dataStore.pair || 'BTC-USD',
-              granularity
-            },
-            chartSeries,
-            pluginManager
-          );
-        }, 200);
+        this.subscriptionOrchestrator.subscribeAfterPositioning(
+          {
+            pair: dataStore.pair || 'BTC-USD',
+            granularity
+          },
+          chartSeries,
+          pluginManager
+        );
       }
 
       statusStore.setReady();

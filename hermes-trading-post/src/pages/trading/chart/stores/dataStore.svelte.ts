@@ -230,11 +230,6 @@ class DataStore {
         limit: maxCandles || 2000
       });
 
-      if (granularity === '1d' && (endTime - startTime) > 157680000) {
-        // console.log(`[5Y DEBUG] dataStore.loadData: Fetched ${candles.length} candles (requested max: ${maxCandles})`);
-        // console.log(`[5Y DEBUG] First candle: ${candles[0]?.time}, Last candle: ${candles[candles.length-1]?.time}`);
-      }
-
       // Convert to CandlestickData format and store in memory
       const chartCandles: CandlestickDataWithVolume[] = candles.map(c => ({
         time: c.time as any,
@@ -248,12 +243,8 @@ class DataStore {
       this.setCandles(chartCandles);
       this.updateStats();
 
-      if (granularity === '1d' && (endTime - startTime) > 157680000) {
-        // console.log(`[5Y DEBUG] dataStore.setCandles: Stored ${chartCandles.length} candles in state`);
-      }
-
     } catch (error) {
-      console.error(`[5Y DEBUG] dataStore.loadData error:`, error);
+      console.error(`[DataStore] loadData error:`, error);
       throw error;
     }
   }

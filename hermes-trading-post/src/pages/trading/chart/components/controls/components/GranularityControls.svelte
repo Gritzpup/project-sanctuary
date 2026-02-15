@@ -8,9 +8,8 @@
 
   export let currentGranularity: string;
   export let currentTimeframe: string;
-  export let availableGranularities: string[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
+  export let availableGranularities: string[] = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d'];
   export let showGranularities: boolean = true;
-  export let onGranularityChange: ((granularity: string) => void) | undefined = undefined;
   export let isLoading: boolean = false;
 
   const dispatch = createEventDispatcher();
@@ -43,14 +42,7 @@
     }
     lastClickTime = now;
 
-    console.log(`[GranularityControls] Button clicked: ${granularity}`);
-
-    if (onGranularityChange) {
-      console.log(`[GranularityControls] Calling onGranularityChange with ${granularity}`);
-      onGranularityChange(granularity);
-    }
-
-    console.log(`[GranularityControls] Dispatching granularityChange event with ${granularity}`);
+    console.log(`[GranularityControls] Button clicked: ${granularity}, dispatching event`);
     dispatch('granularityChange', { granularity });
   }
 

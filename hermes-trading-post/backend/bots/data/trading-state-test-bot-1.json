@@ -2,12 +2,12 @@
   "isRunning": true,
   "isPaused": false,
   "balance": {
-    "usd": 1554.544197825453,
-    "btc": 0.15475965182733886,
-    "vault": 526.9495332662988,
-    "btcVault": 0.0019360668388691564
+    "usd": 5648.108636334597,
+    "btc": 0.10198577473821453,
+    "vault": 560.8566986046379,
+    "btcVault": 0.002080588840089488
   },
-  "currentPrice": 78645.12,
+  "currentPrice": 76434.78,
   "positions": [
     {
       "id": 1770079509164,
@@ -74,20 +74,12 @@
       "reason": "Drop level 8 reached: 0.41%"
     },
     {
-      "id": 1770081498422,
-      "entryPrice": 78674.99,
-      "size": 0.089900027777115,
-      "timestamp": 1770081498422,
+      "id": 1770109820680,
+      "entryPrice": 78557.72,
+      "size": 0.13512877329002296,
+      "timestamp": 1770109820680,
       "type": "buy",
-      "reason": "Drop level 9 reached: 0.47%"
-    },
-    {
-      "id": 1770081613265,
-      "entryPrice": 78645.12,
-      "size": 0.06575382446120166,
-      "timestamp": 1770081613265,
-      "type": "buy",
-      "reason": "Drop level 10 reached: 0.51%"
+      "reason": "Drop level 10 reached: 0.50%"
     }
   ],
   "trades": [
@@ -1700,22 +1692,100 @@
       "value": 5171.21741521014,
       "fees": 5.17121741521014,
       "reason": "Drop level 10 reached: 0.51%"
+    },
+    {
+      "id": 1770107910147,
+      "timestamp": 1770107910147,
+      "botId": "test-bot-1",
+      "side": "sell",
+      "amount": 0.06575382446120166,
+      "price": 78986.41,
+      "value": 5193.658537960504,
+      "fees": 5.193658537960504,
+      "reason": "Grid sell: 0.43% profit",
+      "profit": 17.247464212403727,
+      "costBasis": 5171.21741521014,
+      "positionId": 1770081613265
+    },
+    {
+      "id": 1770107912401,
+      "timestamp": 1770107912401,
+      "botId": "test-bot-1",
+      "side": "sell",
+      "amount": 0.089900027777115,
+      "price": 79002.14,
+      "value": 7102.294580451528,
+      "fees": 7.102294580451528,
+      "reason": "Grid sell: 0.42% profit",
+      "profit": 22.30849950683121,
+      "costBasis": 7072.883786364246,
+      "positionId": 1770081498422
+    },
+    {
+      "id": 1770109820680,
+      "timestamp": 1770109820680,
+      "botId": "test-bot-1",
+      "side": "buy",
+      "amount": 0.13512877329002296,
+      "price": 78557.72,
+      "value": 10615.408336061102,
+      "fees": 10.615408336061103,
+      "reason": "Drop level 10 reached: 0.50%"
+    },
+    {
+      "id": 1770172049495,
+      "timestamp": 1770172049495,
+      "botId": "test-bot-1",
+      "side": "buy",
+      "amount": 0.032248798140830634,
+      "price": 76082.5,
+      "value": 2453.5691845497468,
+      "fees": 2.453569184549747,
+      "reason": "Drop level 10 reached: 0.55%"
+    },
+    {
+      "id": 1770174681167,
+      "timestamp": 1770174681167,
+      "botId": "test-bot-1",
+      "side": "sell",
+      "amount": 0.032248798140830634,
+      "price": 76408.85,
+      "value": 2464.093579823007,
+      "fees": 2.464093579823007,
+      "reason": "Grid sell: 0.43% profit",
+      "profit": 8.060301693437317,
+      "costBasis": 2453.5691845497468,
+      "positionId": 1770172049495
+    },
+    {
+      "id": 1770174683159,
+      "timestamp": 1770174683159,
+      "botId": "test-bot-1",
+      "side": "sell",
+      "amount": 0.032248798140830634,
+      "price": 76434.78,
+      "value": 2464.9297911587987,
+      "fees": 2.4649297911587986,
+      "reason": "Grid sell: 0.46% profit",
+      "profit": 8.895676817893158,
+      "costBasis": 2453.5691845497468,
+      "positionId": 1770172049495
     }
   ],
   "selectedStrategyType": "test",
-  "positionCount": 10,
-  "totalValue": 13725.635586944736,
+  "positionCount": 9,
+  "totalValue": 13443.368891579583,
   "totalFees": 0,
   "totalRebates": 0,
-  "totalReturn": 878.249222110498,
+  "totalReturn": 934.7611643410634,
   "totalRebalance": 0,
   "winRate": 100,
-  "vaultBalance": 526.9495332662988,
-  "btcVaultBalance": 0.0019360668388691564,
-  "recentHigh": 93566,
-  "nextBuyDistance": 92.37116084447491,
+  "vaultBalance": 560.8566986046379,
+  "btcVaultBalance": 0.002080588840089488,
+  "recentHigh": 89633.94,
+  "nextBuyDistance": 0,
   "nextSellDistance": 0,
-  "nextBuyPrice": 78611.953095,
-  "nextSellPrice": 78881.05535999998,
-  "lastSaved": 1770081613285
+  "nextBuyPrice": 89185.7703,
+  "nextSellPrice": 78793.39315999999,
+  "lastSaved": 1770733946885
 }

@@ -338,27 +338,30 @@
     // Reset internal state
     dataManager.resetForNewTimeframe();
 
-    // 🔧 FIX: Also reset volume plugin state so volume candles regenerate correctly
+    // Reset volume plugin state (clear stale data before relayout)
+    let volumePlugin: any = null;
     if (pluginManager) {
       try {
-        const volumePlugin = pluginManager.get('volume');
+        volumePlugin = pluginManager.get('volume');
         if (volumePlugin && typeof volumePlugin.resetForNewTimeframe === 'function') {
           volumePlugin.resetForNewTimeframe();
-        } else {
         }
       } catch (error) {
       }
-    } else {
     }
 
-    // Now update with fresh data
+    // Update candle data FIRST — this triggers chart relayout with new price ranges
     if (!candleSeries || !dataStore.candles.length) {
       return;
     }
 
     dataManager.updateChartData();
-    dataManager.updateVolumeData();
     prevCandleCount = dataStore.candles.length;
+
+    // Rebuild volume AFTER candle relayout so price scale config survives
+    if (volumePlugin && typeof volumePlugin.forceShow === 'function') {
+      volumePlugin.forceShow();
+    }
 
     // 🔧 FIX: Recalculate bar spacing after granularity change
     // This ensures candles fill the chart width properly
@@ -372,12 +375,7 @@
     const candlesToShow = Math.min(totalCandles, expectedCandles);
 
     if (positioningService && totalCandles > 0 && candlesToShow > 0) {
-      // Use setTimeout with longer delay to ensure chart has rendered new data AND
-      // subscriptions haven't restarted yet. The coordination layer restarts subscriptions
-      // at 200ms, so we position at 100ms to be after data is rendered but before subscriptions
       setTimeout(() => {
-        // Use actual candle count to prevent showing gaps when data load is incomplete
-        // This ensures the chart displays all loaded candles without huge gaps
         positioningService.showNCandles(candlesToShow, candlesToShow);
       }, 100);
     }

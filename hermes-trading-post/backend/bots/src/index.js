@@ -447,6 +447,8 @@ app.post('/api/bots/resume', (req, res) => {
   try {
     await botManager.initializeDefaultBots();
   } catch (error) {
+    console.error('[ERROR] Failed to initialize default bots:', error.message);
+    console.error(error);
   }
 })();
 

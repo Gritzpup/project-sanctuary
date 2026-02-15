@@ -34,7 +34,6 @@
     multiPane = false,
     chartRefreshKey = Date.now(),
     onReady = undefined,
-    onGranularityChange = undefined,
     onPairChange = undefined
   } = $props<{
     pair?: string;
@@ -50,7 +49,6 @@
     multiPane?: boolean;
     chartRefreshKey?: number;
     onReady?: (chart: IChartApi, pluginManager: PluginManager | null) => void;
-    onGranularityChange?: (granularity: string) => void;
     onPairChange?: (pair: string) => void;
   }>();
 
@@ -112,10 +110,6 @@
   export function show60Candles(): void {
     return chartContainer?.show60Candles();
   }
-
-  export async function reloadForGranularity(newGranularity: string): Promise<void> {
-    return chartContainer?.reloadForGranularity(newGranularity);
-  }
 </script>
 
 <ChartContainer
@@ -133,6 +127,5 @@
   {multiPane}
   {chartRefreshKey}
   {onReady}
-  {onGranularityChange}
   {onPairChange}
 />

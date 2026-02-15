@@ -247,12 +247,12 @@
   }
 
   .bid .price {
-    color: #26a69a;
+    color: #ef5350;
     text-align: right;
   }
 
   .ask .price {
-    color: #ef5350;
+    color: #26a69a;
   }
 
   .size-bar {
@@ -263,12 +263,12 @@
   }
 
   .bid-bar {
-    background: #26a69a;
+    background: #ef5350;
     right: 0;
   }
 
   .ask-bar {
-    background: #ef5350;
+    background: #26a69a;
     left: 0;
   }
 

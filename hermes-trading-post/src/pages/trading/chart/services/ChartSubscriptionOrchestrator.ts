@@ -144,19 +144,10 @@ export class ChartSubscriptionOrchestrator {
     if (!pluginManager) return null;
 
     try {
-      // Try to get volume series from plugin manager
-      if (typeof (pluginManager as any).getVolumeSeries === 'function') {
-        return (pluginManager as any).getVolumeSeries();
+      const volumePlugin = pluginManager.get('volume');
+      if (volumePlugin && typeof (volumePlugin as any).getSeries === 'function') {
+        return (volumePlugin as any).getSeries();
       }
-
-      // Try to find it in registered plugins
-      if ((pluginManager as any).plugins && Array.isArray((pluginManager as any).plugins)) {
-        const volumePlugin = (pluginManager as any).plugins.find(
-          (p: any) => p.name === 'volume' || p.type === 'volume'
-        );
-        return volumePlugin?.series || null;
-      }
-
       return null;
     } catch (error) {
       ChartDebug.warn('Failed to retrieve volume series:', error);

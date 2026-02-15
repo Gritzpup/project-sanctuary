@@ -32,9 +32,9 @@ export interface UseDataLoaderOptions {
 export function useDataLoader(options: UseDataLoaderOptions = {}) {
   const { onDataLoaded, onGapFilled, onError } = options;
 
-  // ✅ PHASE 5 FIX: Mutex to prevent concurrent loadData() calls
-  // This prevents race conditions where multiple parallel loads corrupt dataStore state
-  let isLoading = false;
+  // Cancel-and-replace pattern: only the latest load wins
+  // When rapid clicks fire (1m → 5m → 15m), earlier loads are superseded
+  let currentLoadId: string | null = null;
 
   /**
    * Get period in seconds from timeframe string
@@ -91,14 +91,10 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
    * Load initial chart data
    */
   async function loadData(config: DataLoaderConfig): Promise<void> {
-    // ✅ PHASE 5 FIX: Early return if already loading
-    // Prevents concurrent loadData() calls from corrupting state
-    if (isLoading) {
-      ChartDebug.warn('[DataLoader] Load already in progress, ignoring concurrent call');
-      return;
-    }
-
-    isLoading = true;
+    // Generate new load ID - any in-flight load with a different ID is stale
+    const loadId = Math.random().toString(36).substring(7);
+    currentLoadId = loadId;
+    ChartDebug.log(`[DataLoader] Starting new load ${loadId} for ${config.granularity}/${config.timeframe}`);
 
     const loadStartTime = performance.now();
     perfTest.reset();
@@ -154,6 +150,12 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         candleLoadLimit
       );
       perfTest.measure('DataStore loadData', 'dataStore-loadData-start');
+
+      // Check if this load was superseded by a newer one
+      if (currentLoadId !== loadId) {
+        ChartDebug.log(`[DataLoader] Load ${loadId} superseded by ${currentLoadId}, skipping chart update`);
+        return;
+      }
 
       const candles = dataStore.candles;
 
@@ -241,9 +243,10 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
         onError(errorMessage);
       }
     } finally {
-      // ✅ PHASE 5 FIX: Always reset loading flag
-      // Ensures isLoading is cleared even if exception occurs
-      isLoading = false;
+      // Only clear the load ID if this load is still current
+      if (currentLoadId === loadId) {
+        currentLoadId = null;
+      }
     }
   }
 

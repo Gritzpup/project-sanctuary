@@ -83,8 +83,8 @@ export const RECOMMENDED_GRANULARITIES: Record<string, string[]> = {
   '1D': ['15m', '30m', '1h', '2h', '4h', '6h'],  // 96-48-24-12-6-4 candles
   '5D': ['1h', '2h', '4h', '6h', '12h'],       // 120-60-30-20-10 candles
   '1W': ['1h', '2h', '4h', '6h', '12h'],       // 168-84-42-28-14 candles
-  '1M': ['4h', '6h', '12h', '1d'],             // 180-120-60-30 candles
-  '3M': ['12h', '1d'],                         // 180-90 candles
+  '1M': ['1h', '4h', '6h', '12h', '1d'],        // 720-180-120-60-30 candles
+  '3M': ['6h', '4h', '12h', '1d'],              // 360-540-180-90 candles
   '6M': ['1d'],                         // 180 candles
   '1Y': ['1d'],                         // 365 candles
   '5Y': ['1d']                          // 1825 candles
@@ -98,8 +98,8 @@ export const VALID_GRANULARITIES: Record<string, string[]> = {
   '1D': ['15m', '30m', '1h', '2h', '4h', '6h'],
   '5D': ['1h', '2h', '4h', '6h', '12h', '1d'],
   '1W': ['1h', '2h', '4h', '6h', '12h', '1d'],
-  '1M': ['2h', '4h', '6h', '12h', '1d'],
-  '3M': ['12h', '1d'],
+  '1M': ['1h', '2h', '4h', '6h', '12h', '1d'],
+  '3M': ['4h', '6h', '12h', '1d'],
   '6M': ['1d'],
   '1Y': ['1d'],
   '5Y': ['1d']

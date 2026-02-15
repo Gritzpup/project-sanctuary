@@ -246,30 +246,11 @@
 
   /* Volume hotspot color variations */
   .valley-bullish .valley-point {
-    border-top-color: #26a69a;
-    filter: drop-shadow(0 0 6px rgba(38, 166, 154, 1));
-  }
-
-  .valley-bullish .valley-line {
-    background: linear-gradient(180deg,
-      transparent 0%,
-      rgba(38, 166, 154, 0.2) 30%,
-      rgba(38, 166, 154, 0.5) 100%
-    );
-  }
-
-  .valley-bullish .valley-price-label {
-    color: #26a69a;
-    border-color: rgba(38, 166, 154, 0.5);
-    background: rgba(0, 0, 0, 0.95);
-  }
-
-  .valley-bearish .valley-point {
     border-top-color: #ef5350;
     filter: drop-shadow(0 0 6px rgba(239, 83, 80, 1));
   }
 
-  .valley-bearish .valley-line {
+  .valley-bullish .valley-line {
     background: linear-gradient(180deg,
       transparent 0%,
       rgba(239, 83, 80, 0.2) 30%,
@@ -277,9 +258,28 @@
     );
   }
 
-  .valley-bearish .valley-price-label {
+  .valley-bullish .valley-price-label {
     color: #ef5350;
     border-color: rgba(239, 83, 80, 0.5);
+    background: rgba(0, 0, 0, 0.95);
+  }
+
+  .valley-bearish .valley-point {
+    border-top-color: #26a69a;
+    filter: drop-shadow(0 0 6px rgba(38, 166, 154, 1));
+  }
+
+  .valley-bearish .valley-line {
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(38, 166, 154, 0.2) 30%,
+      rgba(38, 166, 154, 0.5) 100%
+    );
+  }
+
+  .valley-bearish .valley-price-label {
+    color: #26a69a;
+    border-color: rgba(38, 166, 154, 0.5);
     background: rgba(0, 0, 0, 0.95);
   }
 

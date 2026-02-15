@@ -103,28 +103,28 @@
 
 /* Volume hotspot color variations */
 .valley-bullish .valley-point {
-  border-top-color: #26a69a;
-  filter: drop-shadow(0 0 6px rgba(38, 166, 154, 1));
+  border-top-color: #ef5350;
+  filter: drop-shadow(0 0 6px rgba(239, 83, 80, 1));
 }
 
 .valley-bullish .valley-line {
   background: linear-gradient(180deg,
     transparent 0%,
-    rgba(38, 166, 154, 0.2) 30%,
-    rgba(38, 166, 154, 0.5) 100%
+    rgba(239, 83, 80, 0.2) 30%,
+    rgba(239, 83, 80, 0.5) 100%
   );
 }
 
 .valley-bearish .valley-point {
-  border-top-color: #ef5350;
-  filter: drop-shadow(0 0 6px rgba(239, 83, 80, 1));
+  border-top-color: #26a69a;
+  filter: drop-shadow(0 0 6px rgba(38, 166, 154, 1));
 }
 
 .valley-bearish .valley-line {
   background: linear-gradient(180deg,
     transparent 0%,
-    rgba(239, 83, 80, 0.2) 30%,
-    rgba(239, 83, 80, 0.5) 100%
+    rgba(38, 166, 154, 0.2) 30%,
+    rgba(38, 166, 154, 0.5) 100%
   );
 }
 
@@ -177,14 +177,14 @@
 }
 
 .valley-price-label.valley-bullish {
-  color: #26a69a;
-  border-color: rgba(38, 166, 154, 0.5);
+  color: #ef5350;
+  border-color: rgba(239, 83, 80, 0.5);
   background: rgba(0, 0, 0, 0.95);
 }
 
 .valley-price-label.valley-bearish {
-  color: #ef5350;
-  border-color: rgba(239, 83, 80, 0.5);
+  color: #26a69a;
+  border-color: rgba(38, 166, 154, 0.5);
   background: rgba(0, 0, 0, 0.95);
 }
 
@@ -267,12 +267,12 @@
 }
 
 .gauge-fill.bid {
-  background: linear-gradient(90deg, #00ff00, #00cc00);
+  background: linear-gradient(90deg, #ff0000, #cc0000);
   left: 0;
 }
 
 .gauge-fill.ask {
-  background: linear-gradient(90deg, #ff0000, #cc0000);
+  background: linear-gradient(90deg, #00ff00, #00cc00);
   right: 0;
 }
 
@@ -288,11 +288,11 @@
 }
 
 .gauge-value.bid {
-  color: #00ff00;
+  color: #ff0000;
 }
 
 .gauge-value.ask {
-  color: #ff0000;
+  color: #00ff00;
 }
 
 .support-resistance-gauge {
@@ -309,13 +309,13 @@
 }
 
 .support-label {
-  color: #00ff00;
+  color: #ff0000;
   margin-bottom: 4px;
   font-size: 11px;
 }
 
 .resistance-label {
-  color: #ff0000;
+  color: #00ff00;
   margin-bottom: 4px;
   font-size: 11px;
 }
@@ -333,14 +333,14 @@
 }
 
 .bid-area {
-  fill: rgba(0, 255, 0, 0.3);
-  stroke: rgb(0, 255, 0);
+  fill: rgba(255, 0, 0, 0.3);
+  stroke: rgb(255, 0, 0);
   stroke-width: 2;
 }
 
 .ask-area {
-  fill: rgba(255, 0, 0, 0.3);
-  stroke: rgb(255, 0, 0);
+  fill: rgba(0, 255, 0, 0.3);
+  stroke: rgb(0, 255, 0);
   stroke-width: 2;
 }
 
@@ -493,11 +493,11 @@
 }
 
 .legend-color.bid {
-  background: rgba(38, 166, 154, 1);
+  background: rgba(239, 83, 80, 1);
 }
 
 .legend-color.ask {
-  background: rgba(239, 83, 80, 1);
+  background: rgba(38, 166, 154, 1);
 }
 
 .depth-chart {

@@ -103,8 +103,6 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
       if (!chart || !chart.timeScale) return;
 
       const candleCount = candles.length;
-      const lastCandle = candles[candleCount - 1];
-      const lastCandleTime = lastCandle.time as number;
 
       // Calculate expected candles to show based on granularity
       let expectedCandleCount = 60; // Default
@@ -114,6 +112,14 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
         }
       } catch (e) {
         // Use default if calculation fails
+      }
+
+      // For large datasets (5Y, 1Y, 6M etc.) where all candles are already visible
+      // via fitContent(), skip repositioning — setVisibleLogicalRange would override
+      // the fitContent() layout and cause candles to overflow past the price axis.
+      const LARGE_DATASET_THRESHOLD = 200;
+      if (expectedCandleCount > LARGE_DATASET_THRESHOLD) {
+        return;
       }
 
       // Show the most recent candles, with latest at the right edge
@@ -490,18 +496,22 @@ export function useRealtimeSubscription(options: UseRealtimeSubscriptionOptions 
   function subscribeToRealtime(config: RealtimeSubscriptionConfig, chartSeries?: ISeriesApi<'Candlestick'>, volumeSeries?: any) {
     const { pair, granularity } = config;
 
-    // 🔧 FIX: Disable real-time updates for long-term timeframes (5Y, 1Y)
-    // These display historical data spanning years; real-time updates cause
-    // "Cannot update oldest data" conflicts from lightweight-charts library
+    // 🔧 FIX: For long-term timeframes (5Y, 1Y), keep dataStore subscription alive
+    // for price display, but null out chart series to prevent "Cannot update oldest data" errors.
+    // processUpdate() returns early when chartSeries is null (line 252), so chart won't error,
+    // but the dataStore.subscribeToRealtime() call still fires and updates latestPrice.
     const currentTimeframe = chartStore.config.timeframe;
-    if (['5Y', '1Y'].includes(currentTimeframe)) {
-      ChartDebug.log(`[RealTime] Disabled for long-term ${currentTimeframe} - prevents "Cannot update oldest data" errors`);
-      return; // Skip real-time subscriptions for historical data
-    }
+    const isLongTermTimeframe = ['5Y', '1Y'].includes(currentTimeframe);
 
-    // ⚡ PHASE 9A: Store current series references so callbacks can use them
-    currentChartSeries = chartSeries || null;
-    currentVolumeSeries = volumeSeries || null;
+    if (isLongTermTimeframe) {
+      ChartDebug.log(`[RealTime] Long-term ${currentTimeframe} - chart series disabled, price updates active`);
+      currentChartSeries = null;
+      currentVolumeSeries = null;
+    } else {
+      // ⚡ PHASE 9A: Store current series references so callbacks can use them
+      currentChartSeries = chartSeries || null;
+      currentVolumeSeries = volumeSeries || null;
+    }
 
     // ⚡ PHASE 11: Subscribe directly to L2 prices (DISABLED - causes price swings)
     // 🔧 FIX: L2 mid-price caused wild price swings ($3000 jumps from 77.5k → 80.5k)

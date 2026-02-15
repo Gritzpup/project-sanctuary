@@ -32,9 +32,9 @@ export const CHART_CONFIG = {
 };
 
 export const BID_SERIES_CONFIG = {
-  lineColor: 'rgb(38, 166, 154)',
-  topColor: 'rgba(38, 166, 154, 0.4)',
-  bottomColor: 'rgba(38, 166, 154, 0.02)',
+  lineColor: 'rgb(239, 83, 80)',
+  topColor: 'rgba(239, 83, 80, 0.4)',
+  bottomColor: 'rgba(239, 83, 80, 0.02)',
   lineWidth: 2 as LineWidth,
   priceScaleId: 'left',
   crosshairMarkerVisible: false,
@@ -43,9 +43,9 @@ export const BID_SERIES_CONFIG = {
 };
 
 export const ASK_SERIES_CONFIG = {
-  lineColor: 'rgb(239, 83, 80)',
-  topColor: 'rgba(239, 83, 80, 0.4)',
-  bottomColor: 'rgba(239, 83, 80, 0.02)',
+  lineColor: 'rgb(38, 166, 154)',
+  topColor: 'rgba(38, 166, 154, 0.4)',
+  bottomColor: 'rgba(38, 166, 154, 0.02)',
   lineWidth: 2 as LineWidth,
   priceScaleId: 'left',
   crosshairMarkerVisible: false,

@@ -14,7 +14,6 @@
   export let period: string = '1H';
   export const trades: Array<{timestamp: number, type: string, price: number}> = [];
   export const status: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
-  export let onGranularityChange: ((g: string) => void) | undefined = undefined;
 
   // Sync granularity props - use one-way binding to avoid cycles
   $: granularity = selectedGranularity || '1m';
@@ -35,5 +34,4 @@
   showDebug={false}
   enablePlugins={true}
   defaultPlugins={['volume']}
-  onGranularityChange={onGranularityChange}
 />

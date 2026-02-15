@@ -97,7 +97,7 @@
   let autoGranularity: any = null;
   let previousTrackedGranularity = granularity;
   let previousTrackedPeriod = period;
-  let trackedStoreTimeframe = chartStore.config.timeframe;
+  let previousTrackedPair = pair;
 
   // Set up chart context for child components
   const chartContext = {
@@ -117,76 +117,105 @@
   // Update chart configuration when props change
   $effect(() => {
     chartStore.updateConfig({
+      pair,
       granularity,
       timeframe: period
     });
   });
 
-  // Handle granularity changes
+  // Handle granularity AND period changes in a single coordinated effect
+  // This prevents race conditions where dual effects fire with mismatched values
+  // (e.g., granularity effect uses OLD period when both change simultaneously)
   $effect(() => {
-    const _ = granularity;
+    const currentGranularity = granularity;
+    const currentPeriod = period;
 
     if (!isInitialized || !isInitialDataLoaded) return;
 
-    if (granularity !== previousTrackedGranularity) {
-      console.log(`[ChartCore] 🔍 Granularity changed: ${previousTrackedGranularity} → ${granularity}`);
-      // Capture in closure to avoid race condition
-      const targetGranularity = granularity;
+    const granularityChanged = currentGranularity !== previousTrackedGranularity;
+    const periodChanged = currentPeriod !== previousTrackedPeriod;
 
-      (async () => {
-        try {
-          await timeframeCoordinator.onGranularityChange(targetGranularity, chartCanvas?.getSeries() || null, pluginManager);
-          // ✅ CRITICAL FIX: Update previousTrackedGranularity AFTER async completes
-          // This prevents rapid clicks from being ignored while the operation is in-flight
-          previousTrackedGranularity = targetGranularity;
-          createTimeout(() => {
-            if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
-              chartCanvas.resetAndUpdateDisplay(pluginManager);
-            }
-          }, 150);
-        } catch (error) {
-          console.error(`[ChartCore] ❌ ERROR in onGranularityChange:`, error);
-          // Don't update previousTrackedGranularity on error - allows retry
-        }
-      })();
-    }
+    if (!granularityChanged && !periodChanged) return;
+
+    console.log(`[ChartCore] 🔍 Timeframe change: ${previousTrackedGranularity}/${previousTrackedPeriod} → ${currentGranularity}/${currentPeriod}`);
+
+    // Capture values for async closure
+    const targetGranularity = currentGranularity;
+    const targetPeriod = currentPeriod;
+
+    (async () => {
+      try {
+        await timeframeCoordinator.reloadDataForNewTimeframe(
+          targetGranularity,
+          targetPeriod,
+          chartCanvas?.getSeries() || null,
+          pluginManager
+        );
+        previousTrackedGranularity = targetGranularity;
+        previousTrackedPeriod = targetPeriod;
+
+        createTimeout(() => {
+          if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
+            chartCanvas.resetAndUpdateDisplay(pluginManager);
+          }
+        }, 150);
+      } catch (error) {
+        console.error(`[ChartCore] ERROR in timeframe reload:`, error);
+      }
+    })();
   });
 
-  // Handle period changes - SEPARATE effect to ensure it always triggers
+
+  // Handle pair changes - reload data with new pair
   $effect(() => {
-    const _ = period;
+    const currentPair = pair;
 
-    console.log(`[ChartCore] $effect.period triggered: period=${period}, previousTrackedPeriod=${previousTrackedPeriod}`);
+    if (!isInitialized || !isInitialDataLoaded) return;
+    if (currentPair === previousTrackedPair) return;
 
-    if (!isInitialized || !isInitialDataLoaded) {
-      console.log(`[ChartCore] Skipping period change: isInitialized=${isInitialized}, isInitialDataLoaded=${isInitialDataLoaded}`);
-      return;
-    }
+    console.log(`[ChartCore] 🔄 Pair change: ${previousTrackedPair} → ${currentPair}`);
 
-    if (period !== previousTrackedPeriod) {
-      console.log(`[ChartCore] 🔍 Period changed: ${previousTrackedPeriod} → ${period}`);
-      previousTrackedPeriod = period;
+    // Update guard SYNCHRONOUSLY to prevent effect re-entrancy loop
+    // (async update caused 30+ re-runs before the guard could catch them)
+    previousTrackedPair = currentPair;
 
-      (async () => {
-        try {
-          console.log(`[ChartCore] Calling onPeriodChange(${period})`);
-          await timeframeCoordinator.onPeriodChange(period, chartCanvas?.getSeries() || null, pluginManager);
-          console.log(`[ChartCore] onPeriodChange completed for ${period}`);
-          createTimeout(() => {
-            if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
-              chartCanvas.resetAndUpdateDisplay(pluginManager);
-            }
-          }, 150);
-        } catch (error) {
-          console.error(`[ChartCore] ❌ ERROR in onPeriodChange:`, error);
-        }
-      })();
-    }
+    // Capture current values for async closure
+    const targetPair = currentPair;
+    const targetGranularity = granularity;
+    const targetPeriod = period;
+
+    (async () => {
+      try {
+        // Unsubscribe from current realtime
+        subscriptionOrchestrator.unsubscribeFromRealtime();
+
+        // Reset data store for new pair
+        dataStore.reset();
+
+        // Reload data with new pair
+        await dataLoader.loadData({
+          pair: targetPair,
+          granularity: targetGranularity,
+          timeframe: targetPeriod,
+          chart: chartCanvas?.getChart(),
+          series: chartCanvas?.getSeries()
+        });
+
+        // Update chart display
+        chartCanvas?.updateChartDisplay();
+        chartCanvas?.show60Candles();
+
+        // Resubscribe to realtime with new pair
+        subscriptionOrchestrator.subscribeAfterPositioning(
+          { pair: targetPair, granularity: targetGranularity },
+          chartCanvas?.getSeries() || null,
+          pluginManager
+        );
+      } catch (error) {
+        console.error(`[ChartCore] ERROR in pair change reload:`, error);
+      }
+    })();
   });
-
-  // 🔧 FIX: Subscribe to chartStore events to detect timeframe changes
-  // The reactive block approach doesn't work with class getters, so we use event subscriptions
-  let storeUnsubscribe: (() => void) | null = null;
 
   // Initialize subscriptions orchestrator with hook
   subscriptionOrchestrator.setRealtimeSubscription(realtimeSubscription);
@@ -376,21 +405,6 @@
       //   dataLoader.checkAndFillDataGaps(chartCanvas?.getChart(), chartCanvas?.getSeries())
       // }, 1000);
 
-      // 🔧 FIX: Subscribe to chartStore events to detect timeframe changes
-      // Now that data is loaded, set up store listener for future timeframe changes
-      // The store emits 'period-change' events when timeframe is updated
-      storeUnsubscribe = chartStore.subscribeToEvents((event: any) => {
-        if (event?.type === 'period-change') {
-          const newTimeframe = event?.data?.newValue;
-
-          // Only execute if chart is fully initialized and data is loaded
-          if (isInitialDataLoaded && isInitialized && newTimeframe && newTimeframe !== trackedStoreTimeframe) {
-            trackedStoreTimeframe = newTimeframe;
-            timeframeCoordinator.onPeriodChange(newTimeframe, chartCanvas?.getSeries() || null, pluginManager);
-          }
-        }
-      });
-
     } catch (error) {
       statusStore.setError('Failed to initialize chart: ' + (error instanceof Error ? error.message : String(error)));
     }
@@ -402,11 +416,6 @@
     timeoutRegistry.forEach(timeoutId => clearTimeout(timeoutId));
     timeoutRegistry.clear();
     ChartDebug.log(`🧹 Cleared ${timeoutRegistry.size} pending timeouts on destroy`);
-
-    // Clean up store subscription
-    if (storeUnsubscribe) {
-      storeUnsubscribe();
-    }
 
     performanceStore.stopMonitoring();
     subscriptionOrchestrator.unsubscribeFromRealtime();
@@ -476,35 +485,6 @@
     chartCanvas.show60Candles();
   }
 
-  /**
-   * Reload data for a new granularity (called directly by parent component)
-   * This bypasses reactive block issues by providing explicit control
-   */
-  export async function reloadForGranularity(newGranularity: string) {
-    ChartDebug.log(`📊 ChartCore.reloadForGranularity() called: ${newGranularity}`);
-
-    await timeframeCoordinator.onGranularityChange(
-      newGranularity,
-      chartCanvas?.getSeries() || null,
-      pluginManager
-    );
-
-    // CRITICAL: Reset chart state and update display after data loads
-    // This ensures the chart completely redraws with new timeframe data
-    // resetAndUpdateDisplay clears all cached chart state and forces a fresh render
-    // Also resets volume plugin state so volume candles display correctly
-    createTimeout(() => {
-      if (chartCanvas && typeof chartCanvas.resetAndUpdateDisplay === 'function') {
-        ChartDebug.log(`📊 Resetting and updating chart display after granularity reload...`);
-        chartCanvas.resetAndUpdateDisplay(pluginManager);
-      } else {
-        if (chartCanvas && typeof chartCanvas.updateChartDisplay === 'function') {
-          chartCanvas.updateChartDisplay();
-        } else {
-        }
-      }
-    }, 150); // Reduced from 700ms - data load is faster now
-  }
 </script>
 
 <div class="chart-core">

@@ -17,10 +17,9 @@
     showClearCache = true,
     showSpeed = true,
     availableTimeframes = ['1H', '6H', '1D', '1W', '1M', '5Y'],
-    availableGranularities = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '1d'],
+    availableGranularities = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d'],
     pair = 'BTC-USD',
-    onPairChange,
-    onGranularityChange
+    onPairChange
   } = $props<{
     showTimeframes?: boolean;
     showGranularities?: boolean;
@@ -31,7 +30,6 @@
     availableGranularities?: string[];
     pair?: string;
     onPairChange?: (pair: string) => void;
-    onGranularityChange?: (granularity: string) => void;
   }>()
 
   // Speed control
@@ -94,11 +92,7 @@
 
   function handleGranularityChange(event: CustomEvent) {
     const { granularity } = event.detail;
-    // Call parent callback first so props update
-    if (onGranularityChange) {
-      onGranularityChange(granularity);
-    }
-    // Also update chartStore for internal tracking
+    // Single path: update chartStore which triggers reactive reload in ChartCore
     controlsService.handleGranularityChange(granularity);
   }
 
@@ -142,7 +136,6 @@
     {currentTimeframe}
     {availableGranularities}
     {showGranularities}
-    {onGranularityChange}
     isLoading={isLoadingGranularity}
     on:granularityChange={handleGranularityChange}
   />

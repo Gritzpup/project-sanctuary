@@ -7,6 +7,7 @@
   import ChartProgressBar from './ChartProgressBar.svelte';
   import { createEventDispatcher } from 'svelte';
   import { dataStore } from '../../../pages/trading/chart/stores/dataStore.svelte';
+  import { VALID_GRANULARITIES, RECOMMENDED_GRANULARITIES } from '../../../pages/trading/chart/utils/constants';
   
   let {
     chartRefreshKey = Date.now(),
@@ -98,10 +99,16 @@
   
   function handlePeriodChange(event: CustomEvent) {
     const newPeriod = event.detail.period;
-    console.log(`[TradingChart] handlePeriodChange EVENT RECEIVED: ${selectedPeriod} → ${newPeriod}`);
     selectedPeriod = newPeriod;
-    console.log(`[TradingChart] selectedPeriod UPDATED to=${selectedPeriod}`);
-    console.log(`[TradingChart] Dispatching up to parent`);
+
+    // Auto-adjust granularity if current one is invalid for the new period
+    const validForTimeframe = VALID_GRANULARITIES[newPeriod] || [];
+    if (validForTimeframe.length > 0 && !validForTimeframe.includes(selectedGranularity)) {
+      const recommended = RECOMMENDED_GRANULARITIES[newPeriod] || [];
+      selectedGranularity = recommended[0] || validForTimeframe[0];
+      dispatch('granularityChange', { granularity: selectedGranularity });
+    }
+
     dispatch('periodChange', event.detail);
   }
   

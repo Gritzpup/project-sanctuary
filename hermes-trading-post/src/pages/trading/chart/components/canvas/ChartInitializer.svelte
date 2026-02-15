@@ -71,7 +71,7 @@
         rightOffset: isSmallDataset ? 0 : 3,
         leftOffset: 3,
         barSpacing: isSmallDataset ? 50 : 13,
-        minBarSpacing: 0.5,
+        minBarSpacing: 0.01,
       },
       crosshair: {
         mode: 0,

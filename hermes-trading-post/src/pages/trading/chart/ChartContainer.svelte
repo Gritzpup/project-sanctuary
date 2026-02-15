@@ -35,7 +35,6 @@
     multiPane = false,
     chartRefreshKey = Date.now(), // ⚡ SEAMLESS REFRESH: Trigger canvas-only refresh
     onReady = undefined,
-    onGranularityChange = undefined,
     onPairChange = undefined
   }: {
     pair?: string;
@@ -51,7 +50,6 @@
     multiPane?: boolean;
     chartRefreshKey?: number;
     onReady?: (chart: IChartApi, pluginManager: PluginManager | null) => void;
-    onGranularityChange?: (granularity: string) => void;
     onPairChange?: (pair: string) => void;
   } = $props();
 
@@ -256,16 +254,7 @@
     }
   }
 
-  export async function reloadForGranularity(newGranularity: string): Promise<void> {
-    if (!chartCore) {
-      return;
-    }
 
-    if (typeof chartCore.reloadForGranularity === 'function') {
-      await chartCore.reloadForGranularity(newGranularity);
-    } else {
-    }
-  }
 
 </script>
 
@@ -280,7 +269,6 @@
         showSpeed={true}
         {pair}
         {onPairChange}
-        {onGranularityChange}
       />
     </div>
   {/if}

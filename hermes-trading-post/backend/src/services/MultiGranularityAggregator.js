@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
  * Multi-Granularity Candle Aggregator
  *
  * Aggregates incoming trades into candles for ALL granularities simultaneously.
- * This ensures all timeframes (1m, 5m, 15m, 1h, 6h, 1d) are always up-to-date.
+ * This ensures all timeframes (1m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d) are always up-to-date.
  */
 export class MultiGranularityAggregator extends EventEmitter {
   constructor(productId) {
@@ -16,8 +16,12 @@ export class MultiGranularityAggregator extends EventEmitter {
       '1m': 60,
       '5m': 300,
       '15m': 900,
+      '30m': 1800,
       '1h': 3600,
+      '2h': 7200,
+      '4h': 14400,
       '6h': 21600,
+      '12h': 43200,
       '1d': 86400
     };
 
