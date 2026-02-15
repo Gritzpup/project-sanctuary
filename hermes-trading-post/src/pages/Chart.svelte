@@ -12,6 +12,8 @@
   export const currentPrice: number = 0;
   export let granularity: string = '1m';
   export let period: string = '1H';
+  export let pair: string = 'BTC-USD';
+  export let onPairChange: ((pair: string) => void) | undefined = undefined;
   export const trades: Array<{timestamp: number, type: string, price: number}> = [];
   export const status: 'connected' | 'disconnected' | 'error' | 'loading' = 'loading';
 
@@ -25,7 +27,7 @@
 </script>
 
 <ChartContainer
-  pair="BTC-USD"
+  {pair}
   granularity={granularity}
   period={period}
   showControls={true}
@@ -34,4 +36,5 @@
   showDebug={false}
   enablePlugins={true}
   defaultPlugins={['volume']}
+  {onPairChange}
 />

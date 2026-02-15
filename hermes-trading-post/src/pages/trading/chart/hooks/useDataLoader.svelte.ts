@@ -110,7 +110,6 @@ export function useDataLoader(options: UseDataLoaderOptions = {}) {
     chartStore.setLoading(true);
 
     try {
-      const loadId = Math.random().toString(36).substring(7);
       const now = Math.floor(Date.now() / 1000);
 
       // ✅ Calculate exact number of candles needed based on granularity + period

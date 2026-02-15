@@ -201,8 +201,8 @@
           series: chartCanvas?.getSeries()
         });
 
-        // Update chart display
-        chartCanvas?.updateChartDisplay();
+        // Reset and update chart display (must reset hasEverCalledSetData so series.setData fires)
+        chartCanvas?.resetAndUpdateDisplay(pluginManager);
         chartCanvas?.show60Candles();
 
         // Resubscribe to realtime with new pair

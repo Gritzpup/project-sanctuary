@@ -184,22 +184,28 @@ const restAPIService = new RESTAPIService({
 // Use async IIFE to handle async initialization
 (async () => {
   
+  // All supported trading pairs
+  const tradingPairs = ['BTC-USD', 'ETH-USD', 'PAXG-USD'];
+
   // Initialize Historical Data Service (fetch historical candles for all granularities)
   // 🚀 FIX: Load all granularities needed for timeframe compatibility
   console.log('🚀 Initializing Historical Data Service for all granularities...');
   try {
     const granularities = ['1m', '5m', '15m', '1h', '6h', '1d'];
 
-    for (const granularity of granularities) {
-      console.log(`📥 Initializing ${granularity} granularity...`);
-      const histResult = await historicalDataService.initialize('BTC-USD', granularity);
-      if (histResult) {
-        console.log(`✅ ${granularity} initialized`);
-      } else {
-        console.warn(`⚠️ ${granularity} returned false`);
+    for (const pair of tradingPairs) {
+      console.log(`📥 Initializing historical data for ${pair}...`);
+      for (const granularity of granularities) {
+        console.log(`  📥 ${pair} ${granularity}...`);
+        const histResult = await historicalDataService.initialize(pair, granularity);
+        if (histResult) {
+          console.log(`  ✅ ${pair} ${granularity} initialized`);
+        } else {
+          console.warn(`  ⚠️ ${pair} ${granularity} returned false`);
+        }
+        // Small delay between initializations to avoid overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
-      // Small delay between initializations to avoid overwhelming the API
-      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     const status = historicalDataService.getStatus();
@@ -211,7 +217,10 @@ const restAPIService = new RESTAPIService({
   // Initialize Continuous Candle Updater for constant API updates
   // 🚀 FIX: Now using public Exchange API instead of authenticated Advanced Trade API
   console.log('🔄 Starting Continuous Candle Updater Service...');
-  continuousCandleUpdater.startAllGranularities('BTC-USD');
+  for (const pair of tradingPairs) {
+    continuousCandleUpdater.startAllGranularities(pair);
+    console.log(`  🔄 Continuous updates started for ${pair}`);
+  }
 
   // 🔧 FIX: Broadcast candles from ContinuousCandleUpdater (REST API fallback)
   // This ensures chart keeps updating even if WebSocket market_trades stops

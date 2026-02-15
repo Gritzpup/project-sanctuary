@@ -287,6 +287,7 @@
     lastCandleCount = 0;
     isCachedSortedFlag = false;
     hasEverCalledSetData = false;  // 🔧 FIX: Reset the setData flag so it can be called again for new timeframe data
+    chartDataMemoizer.clear();  // 🔧 FIX: Clear stale pair/timeframe data from memoizer cache
 
     // 🔧 NOTE: DON'T clear candleSeries with setData([])
     // Clearing with empty data and then immediately adding new data can cause rendering issues
