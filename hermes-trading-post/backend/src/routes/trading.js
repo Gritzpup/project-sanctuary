@@ -3,9 +3,18 @@ import { redisCandleStorage } from '../services/redis/RedisCandleStorage.js';
 import { historicalDataService } from '../services/HistoricalDataService.js';
 import { coinbaseAPI } from '../services/CoinbaseAPIService.js';
 import { SoundPlayer } from '../utils/SoundPlayer.js';
+import { TRADING_PAIRS } from '../config/tradingPairs.js';
 
 export default function tradingRoutes(botManager) {
   const router = express.Router();
+
+  // Available trading pairs (single source of truth)
+  router.get('/pairs', (req, res) => {
+    res.json({
+      success: true,
+      data: { pairs: TRADING_PAIRS, default: TRADING_PAIRS[0] || 'BTC-USD' }
+    });
+  });
 
   router.get('/status', (req, res) => {
     if (!botManager) {

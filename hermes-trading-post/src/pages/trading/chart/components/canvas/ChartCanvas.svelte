@@ -363,20 +363,16 @@
       volumePlugin.forceShow();
     }
 
-    // 🔧 FIX: Recalculate bar spacing after granularity change
-    // This ensures candles fill the chart width properly
-    // ⚡ CRITICAL FIX: Use actual candle count for positioning, not expected
-    // If we only loaded 8 candles but expect 120, use 8 to avoid gaps
+    // 🔧 FIX: Position to show latest N candles after data reload
+    // Use expected candle count for the timeframe so 5Y shows all 1825, 1H shows 60, etc.
     const config = chartStore.config;
     const expectedCandles = getCandleCount(config.granularity, config.timeframe);
     const totalCandles = dataStore.candles.length;
+    const visibleCount = Math.min(totalCandles, expectedCandles) || 60;
 
-    // Use the actual candles we have, capped at expected (never show more than we have)
-    const candlesToShow = Math.min(totalCandles, expectedCandles);
-
-    if (positioningService && totalCandles > 0 && candlesToShow > 0) {
+    if (positioningService && totalCandles > 0) {
       setTimeout(() => {
-        positioningService.showNCandles(candlesToShow, candlesToShow);
+        positioningService.showNCandles(totalCandles, visibleCount);
       }, 100);
     }
   }

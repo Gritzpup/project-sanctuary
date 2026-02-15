@@ -203,7 +203,10 @@
 
         // Reset and update chart display (must reset hasEverCalledSetData so series.setData fires)
         chartCanvas?.resetAndUpdateDisplay(pluginManager);
-        chartCanvas?.show60Candles();
+        // resetAndUpdateDisplay handles positioning internally with 100ms delay
+
+        // Update database count for the new pair
+        await dataStore.updateDatabaseCount();
 
         // Resubscribe to realtime with new pair
         subscriptionOrchestrator.subscribeAfterPositioning(

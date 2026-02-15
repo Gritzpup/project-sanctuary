@@ -21,6 +21,7 @@ import { RESTAPIService } from './services/RESTAPIService.js';
 import { DebugLoggingService } from './services/DebugLoggingService.js';
 import { ErrorHandlerService } from './services/ErrorHandlerService.js';
 import { ConfigurationService } from './services/ConfigurationService.js';
+import { TRADING_PAIRS } from './config/tradingPairs.js';
 
 dotenv.config();
 
@@ -184,8 +185,8 @@ const restAPIService = new RESTAPIService({
 // Use async IIFE to handle async initialization
 (async () => {
   
-  // All supported trading pairs
-  const tradingPairs = ['BTC-USD', 'ETH-USD', 'PAXG-USD'];
+  // All supported trading pairs (from config)
+  const tradingPairs = TRADING_PAIRS;
 
   // Initialize Historical Data Service (fetch historical candles for all granularities)
   // 🚀 FIX: Load all granularities needed for timeframe compatibility
@@ -259,11 +260,13 @@ const restAPIService = new RESTAPIService({
     await coinbaseWebSocket.connect();
     console.log('✅ Connected to Coinbase Advanced Trade WebSocket');
 
-    // Subscribe to BTC-USD level2, ticker, and candles streams via Advanced Trade API
-    coinbaseWebSocket.subscribeLevel2('BTC-USD');
-    coinbaseWebSocket.subscribeTicker('BTC-USD');
-    coinbaseWebSocket.subscribeCandles('BTC-USD'); // ✅ PROPER candles channel - provides 5m OHLCV data every second
-    console.log('📊 Subscribed to BTC-USD level2, ticker, and candles (via Advanced Trade API with JWT)');
+    // Subscribe to level2, ticker, and candles streams for all trading pairs
+    for (const pair of tradingPairs) {
+      coinbaseWebSocket.subscribeLevel2(pair);
+      coinbaseWebSocket.subscribeTicker(pair);
+      coinbaseWebSocket.subscribeCandles(pair);
+      console.log(`📊 Subscribed to ${pair} level2, ticker, and candles (via Advanced Trade API with JWT)`);
+    }
 
     // 🔧 FIX: Link Coinbase level2 events to WebSocketHandler snapshot cache
     // Set this up AFTER subscription so we don't miss events

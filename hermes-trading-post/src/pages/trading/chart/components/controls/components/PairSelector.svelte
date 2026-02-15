@@ -1,24 +1,47 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { createEventDispatcher } from 'svelte';
 
   export let pair: string = 'BTC-USD';
 
   const dispatch = createEventDispatcher();
 
+  // Hardcoded fallback if API fetch fails
+  const FALLBACK_PAIRS = ['BTC-USD', 'ETH-USD', 'PAXG-USD'];
+  let pairs: string[] = FALLBACK_PAIRS;
+
+  onMount(async () => {
+    try {
+      const res = await fetch('/api/trading/pairs');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data?.pairs?.length > 0) {
+          pairs = json.data.pairs;
+        }
+      }
+    } catch {
+      // Use fallback pairs
+    }
+  });
+
   function handlePairChange(event: Event) {
     const select = event.target as HTMLSelectElement;
     const newPair = select.value;
-    
+
     dispatch('pairChange', { pair: newPair });
+  }
+
+  function formatPairLabel(p: string): string {
+    return p.replace('-', '/');
   }
 </script>
 
 <div class="control-group">
   <span class="control-label">Pair:</span>
   <select class="pair-dropdown" bind:value={pair} on:change={handlePairChange}>
-    <option value="BTC-USD">BTC/USD</option>
-    <option value="ETH-USD">ETH/USD</option>
-    <option value="PAXG-USD">PAXG/USD</option>
+    {#each pairs as p}
+      <option value={p}>{formatPairLabel(p)}</option>
+    {/each}
   </select>
 </div>
 
