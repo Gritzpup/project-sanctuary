@@ -225,7 +225,7 @@ export default function tradingRoutes(botManager) {
 
         if (missingEndTime >= calculatedStartTime) {
           try {
-            const coinbaseCandles = await coinbaseAPI.getCandles(
+            const coinbaseCandles = await coinbaseAPI.getCandlesPaginated(
               pair, granularity, calculatedStartTime, missingEndTime
             );
 
@@ -233,6 +233,8 @@ export default function tradingRoutes(botManager) {
               const sortedCandles = coinbaseCandles.sort((a, b) => a.time - b.time);
               allCandles = [...sortedCandles, ...allCandles];
               console.log(`[Backend] Supplemented with ${sortedCandles.length} Coinbase candles (Redis had ${redisCount}/${expectedCandles} expected)`);
+              // Store supplemented candles to Redis so they persist
+              redisCandleStorage.storeCandles(pair, granularity, sortedCandles).catch(() => {});
             }
           } catch (err) {
             console.warn(`[Backend] Coinbase supplement failed: ${err.message}`);
@@ -240,41 +242,39 @@ export default function tradingRoutes(botManager) {
         }
       }
 
-      // MIDDLE-GAP DETECTION: Scan for gaps within the Redis data
+      // MIDDLE-GAP DETECTION: Fire-and-forget gap filling in background
+      // Don't block the response — return data immediately, fill gaps asynchronously
       if (allCandles.length >= 2) {
-        const sortedCandles = allCandles.sort((a, b) => a.time - b.time);
+        const sortedForGaps = [...allCandles].sort((a, b) => a.time - b.time);
         const gaps = [];
 
-        for (let i = 1; i < sortedCandles.length; i++) {
-          const timeDiff = sortedCandles[i].time - sortedCandles[i - 1].time;
+        for (let i = 1; i < sortedForGaps.length; i++) {
+          const timeDiff = sortedForGaps[i].time - sortedForGaps[i - 1].time;
           if (timeDiff > granularitySeconds * 2) {
             gaps.push({
-              start: sortedCandles[i - 1].time + granularitySeconds,
-              end: sortedCandles[i].time - granularitySeconds,
+              start: sortedForGaps[i - 1].time + granularitySeconds,
+              end: sortedForGaps[i].time - granularitySeconds,
               missing: Math.floor(timeDiff / granularitySeconds) - 1
             });
           }
         }
 
         if (gaps.length > 0) {
-          console.log(`[Backend] Gap detection: Found ${gaps.length} gap(s) in ${pair} ${granularity} data, total ~${gaps.reduce((s, g) => s + g.missing, 0)} missing candles`);
-          for (const gap of gaps) {
-            try {
-              const gapCandles = await coinbaseAPI.getCandlesPaginated(
-                pair, granularity, gap.start, gap.end
-              );
-              if (gapCandles.length > 0) {
-                allCandles.push(...gapCandles);
-                // Store in Redis for future requests (self-healing cache)
-                await redisCandleStorage.storeCandles(pair, granularity, gapCandles);
-                console.log(`[Backend] Gap filled: ${gapCandles.length} candles stored in Redis for ${pair} ${granularity}`);
+          // Fill gaps in background — don't await
+          const totalMissing = gaps.reduce((s, g) => s + g.missing, 0);
+          console.log(`[Backend] Gap detection: Found ${gaps.length} gap(s) in ${pair} ${granularity}, ~${totalMissing} missing candles (filling in background)`);
+          (async () => {
+            for (const gap of gaps) {
+              try {
+                const gapCandles = await coinbaseAPI.getCandlesPaginated(pair, granularity, gap.start, gap.end);
+                if (gapCandles.length > 0) {
+                  await redisCandleStorage.storeCandles(pair, granularity, gapCandles);
+                }
+              } catch (err) {
+                // Silently skip — gaps will self-heal on next continuous update
               }
-            } catch (err) {
-              console.warn(`[Backend] Gap fill failed: ${err.message}`);
             }
-          }
-          // Re-sort after filling gaps
-          allCandles.sort((a, b) => a.time - b.time);
+          })();
         }
       }
 

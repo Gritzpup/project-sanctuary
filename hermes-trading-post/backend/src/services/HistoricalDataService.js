@@ -59,80 +59,23 @@ export class HistoricalDataService {
     try {
       const granularitySeconds = this.granularityToSeconds(granularity);
       const now = Math.floor(Date.now() / 1000);
-      const startTime = now - (daysBack * 24 * 60 * 60); // Go back X days
+      const startTime = now - (daysBack * 24 * 60 * 60);
 
-      // Coinbase API limit is 300 candles per request
-      const maxCandlesPerRequest = 300;
-      const timeSpanPerRequest = maxCandlesPerRequest * granularitySeconds;
+      // Use CoinbaseAPIService paginated fetch (handles Advanced Trade + Exchange API fallback)
+      try {
+        const candles = await coinbaseAPI.getCandlesPaginated(
+          pair, granularitySeconds, startTime.toString(), now.toString()
+        );
 
-      let currentStart = startTime;
-      const batches = [];
-
-      // Create batches for fetching
-      while (currentStart < now) {
-        const currentEnd = Math.min(currentStart + timeSpanPerRequest, now);
-        batches.push({
-          start: new Date(currentStart * 1000).toISOString(),
-          end: new Date(currentEnd * 1000).toISOString(),
-          startTimestamp: currentStart,
-          endTimestamp: currentEnd
-        });
-        currentStart = currentEnd;
-      }
-
-
-      // Process batches with rate limiting
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-
-        try {
-          // 🔧 FIX: Use unauthenticated Exchange API REST endpoint instead of authenticated Advanced Trade API
-          // This avoids ECDSA signature errors with CDP keys
-          const url = `https://api.exchange.coinbase.com/products/${pair}/candles?start=${batch.start}&end=${batch.end}&granularity=${granularitySeconds}`;
-
-
-          const response = await fetch(url);
-
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-
-          const apiData = await response.json();
-
-          // Convert Exchange API format [time, low, high, open, close, volume] to our format
-          const candles = apiData.map(([time, low, high, open, close, volume]) => ({
-            time,
-            open,
-            high,
-            low,
-            close,
-            volume
-          }));
-
-          if (candles.length > 0) {
-            // Store candles in Redis
-            await redisCandleStorage.storeCandles(pair, granularity, candles);
-            this.stats.totalCandles += candles.length;
-          }
-
-          this.stats.totalRequests++;
-
-          // Rate limiting: wait between requests
-          if (i < batches.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 200)); // 200ms between requests to avoid rate limits
-          }
-
-        } catch (error) {
-          this.stats.errors++;
-
-          // If rate limited, wait longer
-          if (error.message.includes('429') || error.message.includes('rate limit')) {
-            await new Promise(resolve => setTimeout(resolve, 5000));
-          } else {
-            // Wait 1s on other errors before continuing
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
+        if (candles.length > 0) {
+          await redisCandleStorage.storeCandles(pair, granularity, candles);
+          this.stats.totalCandles += candles.length;
         }
+
+        this.stats.totalRequests++;
+      } catch (error) {
+        this.stats.errors++;
+        console.error(`[HistoricalData] Paginated fetch failed for ${pair} ${granularity}: ${error.message}`);
       }
 
       const duration = (Date.now() - this.stats.startTime) / 1000;
@@ -159,28 +102,9 @@ export class HistoricalDataService {
     const startTime = now - (requestHours * 60 * 60);
 
     try {
-      const start = new Date(startTime * 1000).toISOString();
-      const end = new Date(now * 1000).toISOString();
-
-      // 🔧 FIX: Use unauthenticated Exchange API REST endpoint
-      const url = `https://api.exchange.coinbase.com/products/${pair}/candles?start=${start}&end=${end}&granularity=${granularitySeconds}`;
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        return 0;
-      }
-
-      const apiData = await response.json();
-
-      // Convert Exchange API format [time, low, high, open, close, volume] to our format
-      const candles = apiData.map(([time, low, high, open, close, volume]) => ({
-        time,
-        open,
-        high,
-        low,
-        close,
-        volume
-      }));
+      const candles = await coinbaseAPI.getCandles(
+        pair, granularitySeconds, startTime.toString(), now.toString()
+      );
 
       if (candles.length > 0) {
         await redisCandleStorage.storeCandles(pair, granularity, candles);
@@ -219,8 +143,14 @@ export class HistoricalDataService {
       const metadata = await redisCandleStorage.getMetadata(pair, granularity);
       const candleCount = metadata?.totalCandles || 0;
 
+      // Use retention-appropriate history depth per granularity
+      // 1d needs 1825 days (5 years) for 5Y timeframe support
+      // 6h needs 30 days, smaller granularities need 7 days
+      const daysBackMap = { '1m': 7, '5m': 7, '15m': 7, '1h': 7, '6h': 30, '1d': 1825 };
+      const daysBack = daysBackMap[granularity] || 7;
+
       if (candleCount < 1000) {
-        await this.fetchHistoricalData(pair, granularity, 7);
+        await this.fetchHistoricalData(pair, granularity, daysBack);
       } else {
         await this.fillRecentGaps(pair, granularity, 6);
       }

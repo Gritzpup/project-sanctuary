@@ -22,6 +22,7 @@ import { DebugLoggingService } from './services/DebugLoggingService.js';
 import { ErrorHandlerService } from './services/ErrorHandlerService.js';
 import { ConfigurationService } from './services/ConfigurationService.js';
 import { TRADING_PAIRS } from './config/tradingPairs.js';
+import { backfillDailyHistory } from './services/CoinbasePriceHistoryService.js';
 
 dotenv.config();
 
@@ -131,8 +132,8 @@ const granularityMappings = subscriptionManager.granularityMappings;
 const granularityMappingTimes = subscriptionManager.getGranularityMappingTimes();
 const lastEmissionTimes = subscriptionManager.getLastEmissionTimes();
 
-// Cache the latest orderbook snapshot for new clients (module-level scope)
-let cachedLevel2Snapshot = null;
+// Cache the latest orderbook snapshot for new clients, per-pair (module-level scope)
+let cachedLevel2Snapshots = new Map(); // Map<productId, snapshot>
 
 // Phase 5C: Initialize WebSocket handler service
 const wsHandler = new WebSocketHandler(wss, {
@@ -144,7 +145,7 @@ const wsHandler = new WebSocketHandler(wss, {
   granularityMappings: subscriptionManager.granularityMappings,
   granularityMappingTimes,
   lastEmissionTimes,
-  cachedLevel2Snapshot: null,
+  cachedLevel2Snapshots: new Map(),
   botsWebSocket: () => botsWebSocket // Pass function to get current botsWebSocket
 });
 
@@ -162,7 +163,7 @@ const broadcastService = new BroadcastService(wss, {
   chartSubscriptions,
   granularityMappings: subscriptionManager.granularityMappings,
   lastEmissionTimes,
-  cachedLevel2Snapshot: null,
+  cachedLevel2Snapshots: new Map(),
   deltaSubscriber: null // Will be updated after Redis connection
 });
 
@@ -188,11 +189,27 @@ const restAPIService = new RESTAPIService({
   // All supported trading pairs (from config)
   const tradingPairs = TRADING_PAIRS;
 
-  // Initialize Historical Data Service (fetch historical candles for all granularities)
-  // 🚀 FIX: Load all granularities needed for timeframe compatibility
-  console.log('🚀 Initializing Historical Data Service for all granularities...');
+  // Step 1: Backfill 1d candles from CryptoCompare FIRST (aggregated volume across all exchanges)
+  // Must run before Coinbase initialization so CryptoCompare's accurate volume data takes priority
+  console.log('📈 Backfilling 5Y daily candles from CryptoCompare (real OHLCV + volume)...');
+  for (const pair of tradingPairs) {
+    try {
+      const added = await backfillDailyHistory(pair);
+      if (added > 0) {
+        console.log(`  📈 ${pair}: backfilled ${added} daily candles from CryptoCompare`);
+      } else {
+        console.log(`  ✅ ${pair}: all daily candles already exist`);
+      }
+    } catch (err) {
+      console.warn(`  ⚠️ ${pair}: CryptoCompare backfill failed: ${err.message}`);
+    }
+  }
+
+  // Step 2: Initialize Historical Data Service for sub-daily granularities from Coinbase
+  // Skip 1d — CryptoCompare has better data (aggregated multi-exchange volume)
+  console.log('🚀 Initializing Historical Data Service for sub-daily granularities...');
   try {
-    const granularities = ['1m', '5m', '15m', '1h', '6h', '1d'];
+    const granularities = ['1m', '5m', '15m', '1h', '6h'];
 
     for (const pair of tradingPairs) {
       console.log(`📥 Initializing historical data for ${pair}...`);
@@ -296,7 +313,8 @@ const restAPIService = new RESTAPIService({
           asks: data.asks.slice(0, 100)
         };
 
-        wsHandler.setCachedLevel2Snapshot(limitedData);
+        const snapshotProductId = limitedData.product_id || 'BTC-USD';
+        wsHandler.setCachedLevel2Snapshot(snapshotProductId, limitedData);
 
         // 🔧 FIX: Throttle snapshot broadcasts to prevent memory pressure
         // Snapshots are huge (1000+ levels) and come frequently, causing OOM

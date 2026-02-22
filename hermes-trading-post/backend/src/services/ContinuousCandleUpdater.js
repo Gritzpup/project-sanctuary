@@ -146,7 +146,11 @@ export class ContinuousCandleUpdater extends EventEmitter {
 
 
         // Clean up old data based on retention policy
-        await this.cleanupOldData(pair, granularity);
+        // Skip cleanup for 1d — that data comes from CryptoCompare backfill (5Y history)
+        // and already has TTL set on Redis keys. Cleanup was wiping all 1d data.
+        if (granularity !== '1d') {
+          await this.cleanupOldData(pair, granularity);
+        }
 
         // Emit database activity event
         this.emit('database_activity', {

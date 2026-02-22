@@ -20,8 +20,11 @@ export class CoinbaseAPIService {
   constructor() {
     // 🚀 Upgraded to Advanced Trade API with better support and higher rate limits
     this.baseURL = 'https://api.coinbase.com/api/v3/brokerage';
+    this.exchangeBaseURL = 'https://api.exchange.coinbase.com/products';
     this.rateLimitDelay = 100; // 10 requests per second (better rate limits than Exchange API)
     this.lastRequestTime = 0;
+    // Track products that need Exchange API fallback (e.g. PAXG-USD returns 403 on Advanced Trade)
+    this.exchangeApiFallbackProducts = new Set();
   }
 
   async rateLimit() {
@@ -66,6 +69,11 @@ export class CoinbaseAPIService {
   async getCandles(productId, granularity, start, end) {
     await this.rateLimit();
 
+    // Skip straight to Exchange API for products known to fail on Advanced Trade
+    if (this.exchangeApiFallbackProducts.has(productId)) {
+      return this.getCandlesViaExchangeAPI(productId, granularity, start, end);
+    }
+
     try {
       // 🚀 Advanced Trade API - supports ALL granularities including 30m, 2h, 4h
       // The market/products endpoint is PUBLIC (no auth needed for market data)
@@ -102,8 +110,47 @@ export class CoinbaseAPIService {
         throw new Error('Rate limited');
       }
 
+      // If Advanced Trade API returns 403, fall back to Exchange API
+      // Some products (e.g. PAXG-USD) are not available on Advanced Trade but work on Exchange API
+      if (error.response?.status === 403) {
+        console.warn(`[CoinbaseAPI] Advanced Trade 403 for ${productId}, falling back to Exchange API`);
+        this.exchangeApiFallbackProducts.add(productId);
+        return this.getCandlesViaExchangeAPI(productId, granularity, start, end);
+      }
+
       throw error;
     }
+  }
+
+  /**
+   * Fetch candles via the legacy Exchange API (api.exchange.coinbase.com)
+   * Used as fallback when Advanced Trade API returns 403 for certain products
+   */
+  async getCandlesViaExchangeAPI(productId, granularity, start, end) {
+    const granularitySeconds = typeof granularity === 'string'
+      ? this.granularityToSeconds(granularity)
+      : granularity;
+
+    const startISO = new Date(parseInt(start) * 1000).toISOString();
+    const endISO = new Date(parseInt(end) * 1000).toISOString();
+    const url = `${this.exchangeBaseURL}/${productId}/candles?start=${startISO}&end=${endISO}&granularity=${granularitySeconds}`;
+
+    const response = await axios.get(url, {
+      timeout: 10000,
+      headers: { 'User-Agent': 'Hermes-Trading-Post/1.0' }
+    });
+
+    // Exchange API returns array of [time, low, high, open, close, volume]
+    const candles = response.data.map(([time, low, high, open, close, volume]) => ({
+      time,
+      open: parseFloat(open),
+      high: parseFloat(high),
+      low: parseFloat(low),
+      close: parseFloat(close),
+      volume: parseFloat(volume)
+    }));
+
+    return candles;
   }
 
   /**

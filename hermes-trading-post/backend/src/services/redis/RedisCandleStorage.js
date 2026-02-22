@@ -135,12 +135,12 @@ class RedisCandleStorage {
       // Group candles by day for efficient storage
       const candlesByDay = this.groupCandlesByDay(candles);
       
-      const pipeline = this.redis.pipeline();
+      let pipeline = this.redis.pipeline();
       let operationCount = 0;
 
       for (const [dayTimestamp, dayCandles] of candlesByDay.entries()) {
         const key = generateCandleKey(pair, granularity, dayTimestamp);
-        
+
         // Store candles as sorted set with timestamp as score
         // Use timestamp as member key to ensure only ONE candle per timestamp
         for (const candle of dayCandles) {
@@ -161,13 +161,13 @@ class RedisCandleStorage {
           pipeline.expire(key, CANDLE_STORAGE_CONFIG.ttl.candles);
           pipeline.expire(`${key}:data`, CANDLE_STORAGE_CONFIG.ttl.candles);
         }
-        
+
         operationCount += dayCandles.length;
-        
+
         // Execute pipeline in batches to avoid memory issues
         if (operationCount >= CANDLE_STORAGE_CONFIG.batchSizes.insert) {
           await pipeline.exec();
-          pipeline.clear();
+          pipeline = this.redis.pipeline();
           operationCount = 0;
         }
       }
@@ -546,6 +546,8 @@ class RedisCandleStorage {
       // Delete all days before the cutoff
       // Go back 10 years from cutoff to ensure we catch all old data
       const oldestDay = cutoffDay - (10 * 365 * 86400);
+
+      console.log(`[RedisCandleStorage] deleteOldCandles: ${pair} ${granularity} cutoff=${new Date(cutoffTime * 1000).toISOString().slice(0,10)} iterating ${Math.floor((cutoffDay - oldestDay) / 86400)} days`);
 
 
       for (let dayTimestamp = oldestDay; dayTimestamp < cutoffDay; dayTimestamp += 86400) {
